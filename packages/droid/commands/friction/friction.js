@@ -1940,12 +1940,21 @@ function clusterCandidates(allCandidates) {
   const clusters = Object.values(clusterMap).map(cl => {
     const weight = signalWeights[cl.anchor_signal] || 1;
     const peaks = cl.peaks.sort((a, b) => a - b);
+    // Session IDs follow "project/dateStr-shortId", so the first segment is
+    // the project. Preserve both the ID list and the deduped project set so
+    // downstream renderers can surface which repos produced the cluster.
+    const sessionIds = Object.keys(cl.sessions);
+    const projects = [...new Set(
+      sessionIds.map(s => s.includes('/') ? s.split('/')[0] : 'unknown')
+    )].sort();
     return {
       anchor_signal: cl.anchor_signal,
       tool_pattern: cl.tool_pattern,
       count: cl.count,
       score: cl.count * weight,
-      sessions: Object.keys(cl.sessions).length,
+      sessions: sessionIds.length,
+      session_ids: sessionIds,
+      projects: projects,
       median_peak: peaks[Math.floor(peaks.length / 2)],
       max_peak: peaks[peaks.length - 1],
       contexts: cl.contexts,
@@ -2048,10 +2057,13 @@ function extractMain(sessionsDir) {
 
   // Summary table
   reviewLines.push('## Cluster Summary\n\n');
-  reviewLines.push('| # | Signal | Tool Pattern | Count | Sessions | Score | Median Peak |\n');
-  reviewLines.push('|---|--------|-------------|-------|----------|-------|-------------|\n');
+  reviewLines.push('| # | Signal | Tool Pattern | Count | Sessions | Projects | Score | Median Peak |\n');
+  reviewLines.push('|---|--------|-------------|-------|----------|----------|-------|-------------|\n');
   reviewClusters.forEach((cl, idx) => {
-    reviewLines.push(`| ${idx + 1} | ${cl.anchor_signal} | ${cl.tool_pattern} | ${cl.count} | ${cl.sessions} | ${cl.score} | ${cl.median_peak} |\n`);
+    const projs = cl.projects || [];
+    const projectsShort = projs.slice(0, 3).join(', ') +
+      (projs.length > 3 ? `, +${projs.length - 3}` : '');
+    reviewLines.push(`| ${idx + 1} | ${cl.anchor_signal} | ${cl.tool_pattern} | ${cl.count} | ${cl.sessions} | ${projectsShort || '-'} | ${cl.score} | ${cl.median_peak} |\n`);
   });
   reviewLines.push('\n---\n\n');
 
@@ -2059,6 +2071,9 @@ function extractMain(sessionsDir) {
   reviewClusters.forEach((cl, idx) => {
     reviewLines.push(`## Cluster ${idx + 1}: ${cl.anchor_signal} | ${cl.tool_pattern}\n\n`);
     reviewLines.push(`**Occurrences:** ${cl.count} across ${cl.sessions} sessions | **Score:** ${cl.score} | **Median peak:** ${cl.median_peak} | **Max peak:** ${cl.max_peak}\n\n`);
+    if (cl.projects && cl.projects.length > 0) {
+      reviewLines.push(`**Projects:** ${cl.projects.join(', ')}\n\n`);
+    }
 
     if (cl.contexts.length > 0) {
       reviewLines.push('### User Context (what the user said)\n\n');
