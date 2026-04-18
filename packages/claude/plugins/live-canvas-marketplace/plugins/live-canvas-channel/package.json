@@ -1,0 +1,17 @@
+{
+  "name": "live-canvas-channel",
+  "version": "0.1.0",
+  "description": "MCP channel server: bridges Live Canvas HTTP overlay events into the Claude Code session.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "license": "MIT"
+}

@@ -37,6 +37,8 @@
   .vb-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #e4e4e7; }
   .vb-foot button { flex: 1; background: #fff; border: 1px solid #e4e4e7; padding: 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
   .vb-foot button:hover { background: #f4f4f5; }
+  .vb-foot button[data-testid="reply-b"] { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+  .vb-foot button[data-testid="reply-b"]:hover { background: #1d4ed8; }
 
   /* ============ Variant C — compact / list style, data-dense ============ */
   [data-variant="C"] .post { background: #fff; border: 1px solid #e4e4e7; padding: 10px 12px; font-size: 13px; }
@@ -196,7 +198,7 @@
 <script>
   LiveCanvas.init({
     target: 'PostCard',
-    // channelUrl: 'http://localhost:8788', // uncomment once channel plugin exists
+    channelUrl: 'http://localhost:8788',
   });
 </script>
 </body>

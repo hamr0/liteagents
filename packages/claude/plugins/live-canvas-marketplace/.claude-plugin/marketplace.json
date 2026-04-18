@@ -1,0 +1,14 @@
+{
+  "name": "live-canvas-marketplace",
+  "description": "Live Canvas — push click-to-annotate feedback from the browser overlay into a Claude Code session.",
+  "owner": {
+    "name": "liteagents"
+  },
+  "plugins": [
+    {
+      "name": "live-canvas-channel",
+      "source": "./plugins/live-canvas-channel",
+      "description": "Channel plugin that bridges the Live Canvas overlay (HTTP) to the Claude session (MCP notifications)."
+    }
+  ]
+}
