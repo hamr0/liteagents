@@ -17,6 +17,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-04-19
+
+### Added
+- **live-canvas skill** — Design interview, generates 5 UI variations, collects click-to-annotate feedback from the browser, produces a final implementation plan. Available as a skill in Claude Code and as a command in Droid/Ampcode/Opencode.
+  - **Vanilla overlay** (`overlay-vanilla.js`, ~400 lines, zero deps) — framework-agnostic click-to-annotate HUD with pin placement, selector inference (`data-testid` > `id` > class chain, CSS-in-JS hashes filtered), variant detection via `data-variant` attribute, and a v1.0 schema wire-compatible with the upstream React template.
+  - **React overlay** (`FeedbackOverlay.tsx`) kept for React/Next/Vite projects.
+  - **Demo** (`templates/demo/post-variants.html`) — standalone 5-variant post card playground for review without starting a dev server.
+  - **Handholding activation flow** — Phase 0 probes the channel on every invocation and offers `AskUserQuestion` choices: first-time users get the full 4-step setup; returning users who forgot the dev flag get the restart command; channel-up sessions proceed silently.
+- **live-canvas-channel plugin** (Claude Code only) — MCP channel server that bridges the overlay's HTTP POSTs into the live session as `notifications/claude/channel` events. Packaged as a Claude Code marketplace under `packages/claude/plugins/live-canvas-marketplace/`.
+  - HTTP listener on `127.0.0.1:8788` with `/health` probe and `/feedback` POST endpoint
+  - MCP server using `@modelcontextprotocol/sdk` with `experimental: {'claude/channel': {}}` capability
+  - `instructions` field added to tell Claude how to act on incoming `<channel source="live-canvas">` tags: acknowledge in chat → locate variant file → edit → confirm
+  - `setup.sh` helper that runs `npm install` and prints the 3 remaining manual steps
+- **Installer: plugins as first-class category** — `packages/<tool>/plugins/` now discovered, selected per variant, and copied to `<target>/plugins/`, parallel to skills. `node_modules/` excluded during copy and size computation. Manifest generation includes a `plugins` component count, installed-files list, and path entry.
+- **Friction report: project attribution in cluster output** — `antigen_review.md` now shows which projects each cluster spans (new "Projects" column in the summary table; new `**Projects:**` line per cluster). Data was always in `session_id`; the previous version dropped it during clustering.
+
+### Changed
+- **README restructured for Hot Memory visibility** — new top-level `🧠 Hot Memory` section between Quick Start and What's Included, with pipeline diagram and sample friction output. Manual Skills/Commands list regrouped into named sub-sections (Hot Memory Pipeline, Design, Workflow & analysis). Old duplicated Hot Memory section removed.
+- **Command/skill count 22 → 23** per tool across README, subagentic-manual, and per-package `AGENTS.md` / `AGENT.md` / `CLAUDE.md`.
+- **opencode.jsonc** — added `live-canvas` entry under `"command"` block.
+
+### Fixed
+- **Friction clustering dropped project names** — cluster object converted `{sessionId: true}` dict to a count before rendering, so `antigen_review.md` never surfaced which repos contributed to each pattern. Fix preserves `session_ids[]` and `projects[]` on every cluster.
+- **Live Canvas overlay counter flicker in live mode** — counter went 0→1→0 during successful push roundtrip. Rewrote so successful live pushes never enter the pending-batch state; counter stays at 0 unless a push actually fails.
+
+### Notes
+- The Claude Code channel plugin is subject to Claude Code's research preview: custom channels require `--dangerously-load-development-channels` at session start, and steps 2-4 of setup (`/plugin marketplace add`, `/plugin install`, session restart) cannot be automated. The skill prints copyable commands and an alias suggestion.
+- Droid, Ampcode, and Opencode run live-canvas in batch mode only — channels are Claude-Code-specific.
+
+---
+
 ## [2.5.2] - 2026-02-11
 
 ### Added
