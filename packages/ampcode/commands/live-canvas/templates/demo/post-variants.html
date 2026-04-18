@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Live Canvas — Post card demo</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
+  header { padding: 24px 32px; border-bottom: 1px solid #e4e4e7; background: #fff; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: #71717a; font-size: 13px; }
+  main { padding: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; }
+  .variant-wrap { background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px; }
+  .variant-wrap h3 { margin: 0 0 4px; font-size: 13px; color: #71717a; text-transform: uppercase; letter-spacing: .5px; }
+  .variant-wrap .why { margin: 0 0 14px; font-size: 12px; color: #a1a1aa; }
+  .post { padding: 14px; border-radius: 10px; }
+
+  /* ============ Variant A — classic Twitter-ish, icon row ============ */
+  [data-variant="A"] .post { background: #fff; border: 1px solid #e4e4e7; }
+  .va-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .va-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #d946ef); }
+  .va-name { font-weight: 700; font-size: 14px; }
+  .va-handle { color: #71717a; font-size: 13px; }
+  .va-body { font-size: 15px; line-height: 1.45; margin: 0 0 12px; }
+  .va-actions { display: flex; justify-content: space-between; color: #71717a; font-size: 13px; }
+  .va-actions button { background: transparent; border: 0; color: inherit; cursor: pointer; padding: 4px 8px; display: flex; gap: 6px; align-items: center; border-radius: 999px; font-size: 13px; }
+  .va-actions button:hover { background: #f4f4f5; }
+
+  /* ============ Variant B — card with big engagement bar on top ============ */
+  [data-variant="B"] .post { background: #fafafa; border: 1px solid #e4e4e7; padding: 0; overflow: hidden; }
+  .vb-strip { background: #18181b; color: #fff; padding: 10px 14px; display: flex; gap: 18px; font-size: 12px; font-weight: 600; }
+  .vb-strip .vb-metric { display: flex; gap: 6px; align-items: center; }
+  .vb-strip .vb-metric b { color: #d946ef; }
+  .vb-body { padding: 14px; }
+  .vb-text { font-size: 15px; line-height: 1.5; margin: 8px 0 12px; }
+  .vb-author { font-size: 13px; color: #71717a; }
+  .vb-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #e4e4e7; }
+  .vb-foot button { flex: 1; background: #fff; border: 1px solid #e4e4e7; padding: 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .vb-foot button:hover { background: #f4f4f5; }
+  .vb-foot button[data-testid="reply-b"] { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+  .vb-foot button[data-testid="reply-b"]:hover { background: #1d4ed8; }
+
+  /* ============ Variant C — compact / list style, data-dense ============ */
+  [data-variant="C"] .post { background: #fff; border: 1px solid #e4e4e7; padding: 10px 12px; font-size: 13px; }
+  .vc-row { display: flex; gap: 10px; align-items: flex-start; }
+  .vc-avatar { width: 28px; height: 28px; border-radius: 50%; background: #27272a; flex-shrink: 0; }
+  .vc-main { flex: 1; min-width: 0; }
+  .vc-meta { color: #71717a; font-size: 12px; }
+  .vc-text { margin: 2px 0 6px; line-height: 1.4; }
+  .vc-metrics { display: flex; gap: 12px; font-size: 12px; color: #52525b; }
+  .vc-metrics span { cursor: pointer; }
+  .vc-metrics span:hover { color: #18181b; }
+
+  /* ============ Variant D — spacious / premium feel, big type ============ */
+  [data-variant="D"] .post { background: #fff; border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.04); padding: 24px; border-radius: 14px; }
+  .vd-author { font-size: 12px; color: #71717a; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
+  .vd-text { font-size: 18px; line-height: 1.55; font-weight: 500; margin: 0 0 20px; color: #18181b; }
+  .vd-divider { height: 1px; background: #e4e4e7; margin-bottom: 16px; }
+  .vd-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .vd-metric { text-align: center; }
+  .vd-metric b { display: block; font-size: 20px; font-weight: 700; }
+  .vd-metric span { font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: .5px; }
+
+  /* ============ Variant E — playful / colorful, chips for actions ============ */
+  [data-variant="E"] .post { background: linear-gradient(135deg, #fdf4ff, #eff6ff); border: 2px solid #fff; padding: 18px; border-radius: 16px; }
+  .ve-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .ve-avatar { width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, #f59e0b, #ef4444); }
+  .ve-name { font-weight: 800; font-size: 15px; }
+  .ve-text { font-size: 15px; line-height: 1.5; margin: 0 0 14px; }
+  .ve-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ve-chip { background: #fff; border: 0; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.06); display: flex; gap: 6px; align-items: center; }
+  .ve-chip[data-kind="like"] { color: #ef4444; }
+  .ve-chip[data-kind="retweet"] { color: #22c55e; }
+  .ve-chip[data-kind="reply"] { color: #3b82f6; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Live Canvas — Post card demo</h1>
+  <p>5 variations of a social post (likes, retweets, comments). Click <b>Add Feedback</b> bottom-right → click any element → leave a comment. Right-click the pill to submit.</p>
+</header>
+
+<main>
+
+  <!-- ============ Variant A ============ -->
+  <section class="variant-wrap" data-variant="A">
+    <h3>Variant A</h3>
+    <p class="why">Classic layout — header row, body, actions in a row of icons</p>
+    <div>
+      <article class="post">
+        <div class="va-head">
+          <div class="va-avatar"></div>
+          <div>
+            <div class="va-name">Ada Lovelace</div>
+            <div class="va-handle">@ada · 2h</div>
+          </div>
+        </div>
+        <p class="va-body">Shipped a draft of the analytical engine today. Feedback welcome — especially on the punch-card UX.</p>
+        <div class="va-actions">
+          <button data-testid="reply-a">💬 <span>48</span></button>
+          <button data-testid="retweet-a">🔁 <span>132</span></button>
+          <button data-testid="like-a">❤️ <span>1.2k</span></button>
+          <button data-testid="share-a">↗️</button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ Variant B ============ -->
+  <section class="variant-wrap" data-variant="B">
+    <h3>Variant B</h3>
+    <p class="why">Metrics strip on top — data-forward, actions as buttons below</p>
+    <div>
+      <article class="post">
+        <div class="vb-strip">
+          <div class="vb-metric">❤️ <b>1,204</b> likes</div>
+          <div class="vb-metric">🔁 <b>132</b> retweets</div>
+          <div class="vb-metric">💬 <b>48</b> replies</div>
+        </div>
+        <div class="vb-body">
+          <div class="vb-author">Ada Lovelace · @ada · 2h</div>
+          <p class="vb-text">Shipped a draft of the analytical engine today. Feedback welcome — especially on the punch-card UX.</p>
+        </div>
+        <div class="vb-foot">
+          <button data-testid="reply-b">Reply</button>
+          <button data-testid="retweet-b">Retweet</button>
+          <button data-testid="like-b">Like</button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ Variant C ============ -->
+  <section class="variant-wrap" data-variant="C">
+    <h3>Variant C</h3>
+    <p class="why">Compact / list-style — maximum density, small avatar, inline metrics</p>
+    <div>
+      <article class="post">
+        <div class="vc-row">
+          <div class="vc-avatar"></div>
+          <div class="vc-main">
+            <div class="vc-meta"><b style="color:#18181b">Ada Lovelace</b> · @ada · 2h</div>
+            <div class="vc-text">Shipped a draft of the analytical engine today. Feedback welcome — especially on the punch-card UX.</div>
+            <div class="vc-metrics">
+              <span data-testid="reply-c">💬 48</span>
+              <span data-testid="retweet-c">🔁 132</span>
+              <span data-testid="like-c">❤️ 1.2k</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ Variant D ============ -->
+  <section class="variant-wrap" data-variant="D">
+    <h3>Variant D</h3>
+    <p class="why">Spacious / premium — big body type, metrics as a stat block</p>
+    <div>
+      <article class="post">
+        <div class="vd-author">Ada Lovelace · 2 hours ago</div>
+        <p class="vd-text">Shipped a draft of the analytical engine today. Feedback welcome — especially on the punch-card UX.</p>
+        <div class="vd-divider"></div>
+        <div class="vd-metrics">
+          <div class="vd-metric" data-testid="likes-d"><b>1,204</b><span>Likes</span></div>
+          <div class="vd-metric" data-testid="retweets-d"><b>132</b><span>Retweets</span></div>
+          <div class="vd-metric" data-testid="replies-d"><b>48</b><span>Replies</span></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ Variant E ============ -->
+  <section class="variant-wrap" data-variant="E">
+    <h3>Variant E</h3>
+    <p class="why">Expressive / playful — rounded avatar, gradient bg, colored action chips</p>
+    <div>
+      <article class="post">
+        <div class="ve-head">
+          <div class="ve-avatar"></div>
+          <div class="ve-name">Ada Lovelace <span style="font-weight:400;color:#71717a">· 2h</span></div>
+        </div>
+        <p class="ve-text">Shipped a draft of the analytical engine today. Feedback welcome — especially on the punch-card UX.</p>
+        <div class="ve-chips">
+          <button class="ve-chip" data-kind="like" data-testid="like-e">❤️ 1.2k</button>
+          <button class="ve-chip" data-kind="retweet" data-testid="retweet-e">🔁 132</button>
+          <button class="ve-chip" data-kind="reply" data-testid="reply-e">💬 48</button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<!-- Overlay (relative path works with file://) -->
+<script src="../overlay-vanilla.js"></script>
+<script>
+  LiveCanvas.init({
+    target: 'PostCard',
+    channelUrl: 'http://localhost:8788',
+  });
+</script>
+</body>
+</html>
