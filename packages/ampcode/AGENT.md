@@ -45,6 +45,7 @@ These subagents are available when using Ampcode CLI.
 | explain | Explain code for someone new to the codebase | /explain <code-section> |
 | friction | Analyze session logs for failure patterns and behavioral signals | /friction <sessions-path> |
 | git-commit | Analyze changes and create intelligent git commits | /git-commit |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |

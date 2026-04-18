@@ -31,6 +31,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | condition-based-waiting | Replaces arbitrary timeouts with condition polling to wait for actual state changes | /condition-based-waiting <condition-type> <timeout-specs> | false |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
 | root-cause-tracing | Systematically traces bugs backward through call stack to identify source | /root-cause-tracing <issue-description> | false |
+| live-canvas | Conduct design interviews, generate UI variations, collect live click-to-annotate feedback via a browser overlay that streams into the session | /live-canvas | false |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | systematic-debugging | Four-phase debugging framework - investigate root cause before any fixes | /systematic-debugging <bug-or-error-description> | false |
 | test-driven-development | Write test first, watch it fail, write minimal code to pass | /test-driven-development <feature-or-behavior-to-test> | true |

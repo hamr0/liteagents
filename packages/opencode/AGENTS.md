@@ -34,6 +34,7 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | explain | Explain code for someone new to the codebase | /explain <code-section> | - |
 | friction | Analyze session logs for failure patterns and behavioral signals | /friction <sessions-path> | - |
 | git-commit | Analyze changes and create intelligent git commits | /git-commit | - |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas | false |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |

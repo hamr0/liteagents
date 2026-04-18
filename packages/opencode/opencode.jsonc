@@ -165,6 +165,10 @@
       "template": "{file:./command/git-commit.md}",
       "description": "Analyze changes and create intelligent git commits"
     },
+    "live-canvas": {
+      "template": "{file:./command/live-canvas.md}",
+      "description": "Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode)"
+    },
     "optimize": {
       "template": "{file:./command/optimize.md}",
       "description": "Analyze and optimize performance issues"
