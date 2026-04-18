@@ -19,21 +19,52 @@ This skill implements a complete design exploration workflow: interview, generat
 
 ## Feedback Modes (host-tool aware)
 
-Live Canvas supports two feedback transports. The overlay auto-selects at runtime — the user never toggles modes manually.
+Live Canvas supports two feedback transports. The skill auto-selects at runtime — the user never toggles modes manually.
 
-- **Mode A — Batch (universal, works everywhere):** each Save writes to `.claude-design/feedback.jsonl`. User types "check" in the CLI to have the assistant read and act on the batch. Works in Claude Code, Droid, Amp, and Opencode identically.
-- **Mode B — Live (Claude Code only):** overlay POSTs each Save to a local channel server, which forwards it into the live session as a `channel.notify` event. Edits land mid-session without the user switching windows.
+- **Mode A — Batch (universal, works everywhere):** each Save writes to `.claude-design/feedback.jsonl`. User types "check" (or any message) to have the assistant read and act on the batch. Works in Claude Code, Droid, Amp, and Opencode identically.
+- **Mode B — Live (Claude Code only):** the overlay POSTs each Save to a local MCP channel server; feedback arrives in the active session as a `<channel source="live-canvas" ...>` tag. Edits land without the user switching windows.
 
-**Host-tool guidance (important):**
+**Host-tool guidance — follow exactly:**
 
-| Host | Available modes |
-|---|---|
-| Claude Code | A + B (B requires the bundled `live-canvas-channel` plugin) |
-| Droid, Amp, Opencode | **Mode A only** — channels are Claude-Code-specific. Skip all channel-related steps. |
+| Host | Modes available | What to do |
+|---|---|---|
+| Claude Code | A + B | Probe channel at Phase 0. If up → Live. If down → announce Batch and print the one-time setup block below. |
+| Droid, Amp, Opencode | A only | Never probe the channel, never mention Live mode, never offer to install a plugin. Use Batch exclusively and collect feedback via paste-in-terminal (Phase 5). |
 
-If you are running under Droid, Amp, or Opencode: do not probe for the channel, do not mention live mode to the user, do not install any channel plugin. Use JSONL batch only and collect feedback via paste-in-terminal as described in Phase 5.
+### Channel probe (Claude Code only)
 
-If you are running under Claude Code: probe `http://localhost:8788/health` during Phase 0. If it responds, announce live mode; if not, fall back to batch and tell the user the one-line command to enable live mode (`claude /plugin install live-canvas-channel`).
+In Phase 0, run this before the interview:
+
+```bash
+curl -s --max-time 1 http://localhost:8788/health
+```
+
+- Response `{"ok":true,"channel":"live-canvas",...}` → **Live mode**. Announce: `✨ Live mode — your feedback will stream into this session in real time.`
+- No response or error → **Batch mode**. Announce: `📝 Batch mode — feedback will write to .claude-design/feedback.jsonl. To upgrade to live mode, see the one-time setup below.` Print the setup block exactly as below.
+
+### One-time setup block (print this when channel probe fails)
+
+Show the user these four steps, in this order:
+
+```
+To enable Live mode (Claude Code research preview, one-time setup):
+
+1. Install the channel plugin's dependencies:
+   cd ~/.claude/plugins/live-canvas-marketplace/plugins/live-canvas-channel && npm install
+
+2. Add the marketplace and install the plugin:
+   /plugin marketplace add ~/.claude/plugins/live-canvas-marketplace
+   /plugin install live-canvas-channel@live-canvas-marketplace
+
+3. Restart Claude with the dev-channels flag:
+   claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace
+
+4. Re-run /live-canvas in the new session.
+
+(If any step fails, the skill still works fine in Batch mode — nothing to fix urgently.)
+```
+
+**Do not try to run these commands yourself.** They require a session restart (step 3), which you cannot do from within a running session. The user must execute them manually.
 
 ---
 
@@ -322,20 +353,66 @@ Create all files under `.claude-design/`:
 
 ### Feedback System Setup (CRITICAL - NEVER SKIP)
 
-**The FeedbackOverlay is the PRIMARY feature of the Live Canvas.** Without it, users cannot provide interactive feedback. NEVER generate a Live Canvas without the FeedbackOverlay.
+**The overlay is the PRIMARY feature of Live Canvas.** Without it, users cannot provide interactive feedback. NEVER generate a lab without the overlay.
 
-**Reliability Strategy:** To avoid import path issues across different project configurations, create the FeedbackOverlay **directly in the route directory** (e.g., `app/live-canvas/FeedbackOverlay.tsx`), NOT in `.claude-design/`. This ensures a simple relative import (`./FeedbackOverlay`) always works.
+### Choose the right overlay template
 
-**Required Files in Route Directory:**
+The skill ships two overlay templates under `~/.claude/skills/live-canvas/templates/`:
+
+| Template | When to use |
+|---|---|
+| `feedback-react/FeedbackOverlay.tsx` | React / Next.js / Vite-React projects — integrates via JSX |
+| `overlay-vanilla.js` | Everything else: vanilla JS, Vue, Svelte, Rails, Django, Phoenix, plain HTML, Go templates, etc. One script tag, zero dependencies. |
+
+Detect the host framework in Phase 0 and copy the matching template into the route directory. The vanilla template is the safer default when in doubt — it works in every context the React one does, plus more.
+
+### Required files in the route directory
+
+For **React-based** projects:
 ```
-app/live-canvas/           # or app/__live_canvas/ if underscores work
-├── page.tsx              # Main lab page with variants
-└── FeedbackOverlay.tsx   # Self-contained overlay component (copy from templates)
+app/live-canvas/           # or app/__live_canvas/
+├── page.tsx              # Main lab page with variants + overlay import
+└── FeedbackOverlay.tsx   # Copy of feedback-react/FeedbackOverlay.tsx
 ```
 
-**Template Source:** `design-and-refine/templates/feedback/FeedbackOverlay.tsx`
+Import: `import { FeedbackOverlay } from './FeedbackOverlay'`
 
-**Why this approach:**
+For **non-React** projects:
+```
+<static-dir>/__live_canvas/
+├── index.html             # Or framework-appropriate entry point
+└── overlay-vanilla.js     # Copy of templates/overlay-vanilla.js
+```
+
+HTML: `<script src="overlay-vanilla.js"></script>` plus an init script that wires up mode + target (see "Wiring the overlay" below).
+
+### Wiring the overlay
+
+Every page that renders the lab must initialize the overlay once. Behavior depends on whether Live mode was detected in Phase 0.
+
+**Vanilla (`overlay-vanilla.js`):**
+
+```html
+<script src="./overlay-vanilla.js"></script>
+<script>
+  LiveCanvas.init({
+    target: '<ComponentOrPageName>',
+    // Only include channelUrl when Phase 0 detected a live channel.
+    // If Batch mode, OMIT channelUrl so the overlay skips the probe.
+    channelUrl: 'http://localhost:8788',
+    // Optional: where to POST batch payloads when channelUrl is missing.
+    // When omitted, a batch Submit downloads a JSON file instead.
+    batchEndpoint: '/__live_canvas/feedback',
+  });
+</script>
+```
+
+**React (`FeedbackOverlay.tsx`):**
+
+Pass the same `targetName` prop plus the mode-appropriate endpoints via its props. Render `<FeedbackOverlay />` at the end of the lab page.
+
+### Why the templates live in the route directory
+
 - `.claude-design/` paths can fail due to bundler configurations
 - Relative imports from the same directory always work
 - The route directory gets deleted during cleanup anyway
@@ -506,25 +583,40 @@ After generating the lab files, **immediately** present the lab to the user. Do 
 - Open a browser
 - Wait for any server response
 
-### What to Do
+### What to say — mode-dependent
 
-1. **Output the lab location and URL:**
-   ```
-   ✅ Live Canvas created!
+Use the version matching the mode detected in Phase 0.
 
-   I've generated 5 design variants in `.claude-design/lab/`
+**If LIVE mode:**
 
-   To view them:
-   1. Make sure your dev server is running (run `pnpm dev` if not)
-   2. Open: http://localhost:3000/__live_canvas
+```
+✨ Live Canvas ready — Live mode
 
-   Take your time reviewing the variants side-by-side, then come back and tell me:
-   - Which variant wins (A-E)
-   - What you like about it
-   - What should change
-   ```
+Variants are at: http://localhost:3000/__live_canvas (adjust to your dev port)
 
-2. **Immediately proceed to Phase 5** - ask for feedback. Do NOT wait for the user to say they've opened the browser. Just present the feedback questions right away so they're ready when the user returns.
+Make sure your dev server is running, then:
+  1. Click "Add Feedback" (bottom-right)
+  2. Click any element → type → Save
+  3. Each Save streams here instantly — I'll acknowledge and edit the corresponding variant
+  4. Keep going, or tell me "done" whenever you're ready to synthesize a winner
+```
+
+**If BATCH mode:**
+
+```
+📝 Live Canvas ready — Batch mode
+
+Variants are at: http://localhost:3000/__live_canvas
+
+Click "Add Feedback" (bottom-right), comment on elements, fill "Overall Direction", click Submit.
+Then paste the JSON/markdown here, or just tell me your feedback in plain English.
+
+(To enable Live mode next time, see the one-time setup printed at the top.)
+```
+
+### Then proceed to Phase 5
+
+Don't wait for the user to confirm they opened the browser — move on so the feedback instructions are queued.
 
 ### Why Not Start the Server
 
@@ -534,11 +626,34 @@ Running `pnpm dev` or `npm run dev` starts a long-running process that never exi
 
 ## Phase 5: Collect Feedback
 
-After presenting the lab URL, the user can provide feedback in two ways:
-1. **Interactive Feedback** (recommended): Using the built-in overlay in the browser
-2. **Manual Feedback**: Via AskUserQuestion in the terminal
+Behavior depends on the mode detected in Phase 0.
 
-### Interactive Feedback (Primary Method)
+### Live mode — handling streamed channel events
+
+In Live mode, feedback arrives in your context as:
+
+```
+<channel source="live-canvas" target="PostCard" variant="B" selector="[data-testid='reply-b']" tagName="button" commentId="c-123...">
+make this more prominent
+</channel>
+```
+
+**For each `<channel>` tag, do all four steps, in this order:**
+
+1. **Acknowledge back to the user in chat** — one short sentence confirming what you received. Examples:
+   - `Got it — variant B's Reply button, "make this more prominent". Editing now.`
+   - `On it: variant C post card, "add more spacing". Updating.`
+   Do not skip this. The user is watching their browser and needs a text signal that the push landed.
+
+2. **Locate the file** — the variant attribute tells you which file (`.claude-design/lab/variants/Variant<X>.tsx`). The selector identifies the element inside it.
+
+3. **Edit the file** — make the change implied by the feedback text. Prefer small, surgical edits over rewrites. If the feedback is ambiguous ("change this"), ask one clarifying question rather than guessing.
+
+4. **Close the loop** — one short reply after the edit: `✅ Done — variant B Reply button is now larger and primary-colored.` Then wait for the next channel event or user message.
+
+If multiple `<channel>` tags arrive together, batch the acknowledgments but do each edit one at a time so the user's dev server hot-reloads visibly between changes.
+
+### Batch mode — interactive or pasted
 
 The Live Canvas includes a Figma-like feedback overlay. When presenting the lab, include these instructions:
 

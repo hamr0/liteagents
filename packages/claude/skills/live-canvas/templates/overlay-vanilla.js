@@ -202,11 +202,15 @@
   };
 
   const submitBatch = async () => {
+    // Only send comments that haven't already been delivered over the channel.
+    // In live mode after successful pushes, this is usually empty — the submit
+    // effectively carries only the overall direction.
+    const undelivered = state.comments.filter(c => !c.delivered);
     const payload = {
       version: '1.0',
       target: state.target,
       timestamp: new Date().toISOString(),
-      comments: state.comments,
+      comments: undelivered,
       overall: state.overall,
     };
     if (state.batchEndpoint) {
@@ -233,12 +237,17 @@
   let toggleBtn, submitBtn, modeBadge, toast, popupNode;
   let hoverEl = null;
 
+  const pendingCount = () => state.comments.filter(c => !c.delivered).length;
+
   const refreshSubmitBtn = () => {
     if (!submitBtn) return;
-    const n = state.comments.length;
-    submitBtn.innerHTML = `Submit <span class="${PFX}-count">${n}</span>`;
+    const n = pendingCount();
+    const label = state.mode === 'live' ? 'Finish' : 'Submit';
+    submitBtn.innerHTML = `${label} <span class="${PFX}-count">${n}</span>`;
     submitBtn.setAttribute(DATA_OVERLAY, '');
-    submitBtn.disabled = n === 0;
+    // In live mode, the Finish button is always enabled so the user can send
+    // an overall direction even after all per-element comments delivered.
+    submitBtn.disabled = state.mode === 'batch' && n === 0;
   };
 
   const showToast = (msg) => {
@@ -315,6 +324,7 @@
         id: uid(), variant, element: ident, coordinates: coords,
         text, timestamp: Date.now(),
       };
+      comment.delivered = false;
       state.comments.push(comment);
       const countForElement = state.comments.filter(c =>
         c.variant === variant && c.element.selector === ident.selector).length;
@@ -324,10 +334,16 @@
 
       if (state.mode === 'live') {
         const ok = await pushLive(comment);
-        showToast(ok ? 'Pushed to Claude ✨' : 'Channel unreachable — kept locally');
-        if (!ok) state.mode = 'batch'; // graceful degrade
+        if (ok) {
+          comment.delivered = true;
+          showToast('Pushed to Claude ✨');
+        } else {
+          showToast('Channel unreachable — kept locally');
+          state.mode = 'batch'; // graceful degrade
+        }
+        refreshSubmitBtn();
       } else {
-        showToast('Saved — submit all when ready');
+        showToast('Saved — submit when ready');
       }
     });
   };
@@ -347,14 +363,31 @@
   };
 
   const openSubmitModal = () => {
-    if (!state.comments.length) { showToast('No comments yet'); return; }
+    const pending = pendingCount();
+    const isLive = state.mode === 'live';
+    // Block only when there's truly nothing to send: no pending comments AND
+    // no overall direction so far. In live mode that's the same check.
+    if (pending === 0 && !state.overall && state.comments.length === 0) {
+      showToast('No feedback yet');
+      return;
+    }
+
+    const heading = isLive
+      ? (pending > 0 ? `Finish: ${pending} pending + overall direction` : 'Finish: add overall direction')
+      : `Submit ${pending} comment${pending === 1 ? '' : 's'}`;
+    const modeNote = isLive
+      ? (pending > 0
+          ? `${state.comments.length - pending} comment(s) already streamed; ${pending} pending will go with submit.`
+          : `All comments already streamed. Submit sends your overall direction as the wrap-up.`)
+      : `Will POST JSONL (or download if no endpoint).`;
+
     const ta = el('textarea', { placeholder: 'Overall direction (e.g. "Go with B\'s layout, A\'s button styling")' }, state.overall);
-    const submit = el('button', { class: `${PFX}-btn-primary` }, 'Submit All');
+    const submit = el('button', { class: `${PFX}-btn-primary` }, isLive ? 'Finish' : 'Submit All');
     const cancel = el('button', { class: `${PFX}-btn-ghost` }, 'Cancel');
     const card = el('div', { class: `${PFX}-submit-card` }, [
-      el('h3', {}, `Submit ${state.comments.length} comment${state.comments.length>1?'s':''}`),
+      el('h3', {}, heading),
       el('p', { style: { margin: '0 0 8px', fontSize: '12px', color: '#666' } },
-         `Mode: ${state.mode.toUpperCase()} — ${state.mode === 'live' ? 'comments already streamed; submit sends overall direction.' : 'will POST JSONL (or download if no endpoint).'}`),
+         `Mode: ${state.mode.toUpperCase()} — ${modeNote}`),
       ta,
       el('div', { class: `${PFX}-row`, style: { marginTop: '12px' } }, [cancel, submit]),
     ]);
@@ -370,11 +403,12 @@
       const ok = await submitBatch();
       modal.remove();
       if (ok) {
-        state.comments = [];
-        document.querySelectorAll(`.${PFX}-pin`).forEach(p => p.remove());
+        // Mark any undelivered comments as delivered so they don't re-send on a
+        // later Finish/Submit. Keep pins as visual history.
+        state.comments.forEach(c => { c.delivered = true; });
         refreshSubmitBtn();
       }
-      showToast(ok ? 'Submitted' : 'Submit failed');
+      showToast(ok ? (isLive ? 'Finished ✓' : 'Submitted ✓') : 'Submit failed');
     });
   };
 
