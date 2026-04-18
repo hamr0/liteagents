@@ -137,7 +137,8 @@ class PackageManager {
       skills: [],
       commands: [],
       resources: [],
-      hooks: []
+      hooks: [],
+      plugins: []
     };
 
     // Helper function to process each content category
@@ -182,6 +183,7 @@ class PackageManager {
     selected.commands = selectItems('commands', variantConfig.commands, availableContent.commands || [], true);
     selected.resources = selectItems('resources', variantConfig.resources, availableContent.resources || []);
     selected.hooks = selectItems('hooks', variantConfig.hooks, availableContent.hooks || []);
+    selected.plugins = selectItems('plugins', variantConfig.plugins, availableContent.plugins || []);
 
     return selected;
   }
@@ -227,6 +229,7 @@ class PackageManager {
       commands: [],
       resources: [],
       hooks: [],
+      plugins: [],
       totalFiles: 0,
       totalSize: 0
     };
@@ -295,12 +298,24 @@ class PackageManager {
       }
     }
 
+    // Build directory paths for selected plugins (plugins are directories, like skills)
+    const pluginsDir = path.join(packageDir, 'plugins');
+    if (fs.existsSync(pluginsDir)) {
+      for (const plugin of (selectedContent.plugins || [])) {
+        const pluginPath = path.join(pluginsDir, plugin);
+        if (fs.existsSync(pluginPath)) {
+          contents.plugins.push(pluginPath);
+        }
+      }
+    }
+
     // Calculate total files
     contents.totalFiles = contents.agents.length +
                          contents.skills.length +
                          contents.commands.length +
                          contents.resources.length +
-                         contents.hooks.length;
+                         contents.hooks.length +
+                         contents.plugins.length;
 
     return contents;
   }
@@ -349,6 +364,7 @@ class PackageManager {
     const commandsResult = await getItemsInDir(path.join(packageDir, commandsDir), true);
     const resourcesResult = await getItemsInDir(path.join(packageDir, 'resources'));
     const hooksResult = await getItemsInDir(path.join(packageDir, 'hooks'));
+    const pluginsResult = await getItemsInDir(path.join(packageDir, 'plugins'));
 
     return {
       agents: agentsResult.items,
@@ -357,7 +373,8 @@ class PackageManager {
       commands: commandsResult.items,
       commandsDir: commandsDir,
       resources: resourcesResult.items,
-      hooks: hooksResult.items
+      hooks: hooksResult.items,
+      plugins: pluginsResult.items
     };
   }
   
@@ -399,6 +416,7 @@ class PackageManager {
     let totalSize = 0;
 
     // Helper function to calculate size of a file or directory recursively
+    // Skips node_modules directories (plugins may have local installs)
     const calculatePathSize = async (itemPath) => {
       try {
         const stat = await fs.promises.stat(itemPath);
@@ -406,6 +424,11 @@ class PackageManager {
         if (stat.isFile()) {
           return stat.size;
         } else if (stat.isDirectory()) {
+          // Skip node_modules to avoid bundling local dependencies
+          if (path.basename(itemPath) === 'node_modules') {
+            return 0;
+          }
+
           // Recursively calculate directory size
           let dirSize = 0;
           const items = await fs.promises.readdir(itemPath);
@@ -443,6 +466,11 @@ class PackageManager {
     // Calculate size for all selected hooks (files)
     for (const hookPath of contents.hooks) {
       totalSize += await calculatePathSize(hookPath);
+    }
+
+    // Calculate size for all selected plugins (directories, excluding node_modules)
+    for (const pluginPath of (contents.plugins || [])) {
+      totalSize += await calculatePathSize(pluginPath);
     }
 
     return {
@@ -600,6 +628,9 @@ class PackageManager {
       // Validate commands (use dynamic directory name)
       const commandsDirName = availableContent.commandsDir || 'commands';
       await checkContentExists('commands', selectedContent.commands || [], commandsDirName, true);
+
+      // Validate plugins (directories, like skills)
+      await checkContentExists('plugins', selectedContent.plugins || [], 'plugins', false);
 
     } catch (error) {
       return {

@@ -194,18 +194,23 @@ class InstallationEngine {
       }
     };
 
-    // Helper function to recursively collect all files in a directory
-    const collectDirectoryFiles = async (dirPath, relativePath = '') => {
+    // Helper function to recursively collect all files in a directory.
+    // Skips node_modules directories (callers may set skipNodeModules=true for plugins).
+    const collectDirectoryFiles = async (dirPath, relativePath = '', skipNodeModules = false) => {
       const items = await fs.promises.readdir(dirPath);
       const filesInDir = [];
 
       for (const item of items) {
+        if (skipNodeModules && item === 'node_modules') {
+          continue;
+        }
+
         const itemPath = path.join(dirPath, item);
         const itemRelativePath = path.join(relativePath, item);
         const stat = await fs.promises.stat(itemPath);
 
         if (stat.isDirectory()) {
-          const subFiles = await collectDirectoryFiles(itemPath, itemRelativePath);
+          const subFiles = await collectDirectoryFiles(itemPath, itemRelativePath, skipNodeModules);
           filesInDir.push(...subFiles);
         } else {
           filesInDir.push({
@@ -310,6 +315,23 @@ class InstallationEngine {
       totalBytes += size;
     }
 
+    // Collect all plugin files (plugins are directories like skills; skip node_modules)
+    for (const pluginPath of (packageContents.plugins || [])) {
+      const baseRelativePath = path.relative(sourceBase, pluginPath);
+      const pluginFiles = await collectDirectoryFiles(pluginPath, baseRelativePath, true);
+
+      for (const file of pluginFiles) {
+        filesToCopy.push({
+          sourcePath: file.sourcePath,
+          relativePath: file.relativePath,
+          size: file.size,
+          type: 'plugin'
+        });
+        totalFiles++;
+        totalBytes += file.size;
+      }
+    }
+
     // Now copy all files with progress tracking
     let filesCompleted = 0;
     let bytesTransferred = 0;
@@ -364,6 +386,11 @@ class InstallationEngine {
     const items = await fs.promises.readdir(source);
 
     for (const item of items) {
+      // Skip node_modules - callers (plugins, backups) should never ship bundled deps
+      if (item === 'node_modules') {
+        continue;
+      }
+
       const sourcePath = path.join(source, item);
       const targetPath = path.join(target, item);
 
@@ -433,19 +460,22 @@ class InstallationEngine {
         agents: contents.agents.length,
         skills: contents.skills.length,
         resources: contents.resources.length,
-        hooks: contents.hooks.length
+        hooks: contents.hooks.length,
+        plugins: (contents.plugins || []).length
       },
       installedFiles: {
         agents: contents.agents.map(extractAgentName),
         skills: contents.skills.map(extractSkillName),
         resources: contents.resources.map(p => path.basename(p)),
-        hooks: contents.hooks.map(p => path.basename(p))
+        hooks: contents.hooks.map(p => path.basename(p)),
+        plugins: (contents.plugins || []).map(extractSkillName)
       },
       paths: {
         agents: path.join(targetPath, 'agents'),
         skills: path.join(targetPath, 'skills'),
         resources: path.join(targetPath, 'resources'),
-        hooks: path.join(targetPath, 'hooks')
+        hooks: path.join(targetPath, 'hooks'),
+        plugins: path.join(targetPath, 'plugins')
       },
       files: {
         total: contents.totalFiles,
@@ -538,7 +568,7 @@ class InstallationEngine {
 
             // Remove files listed in manifest
             if (manifest.installedFiles) {
-              for (const category of ['agents', 'skills', 'resources', 'hooks']) {
+              for (const category of ['agents', 'skills', 'resources', 'hooks', 'plugins']) {
                 if (manifest.installedFiles[category] && manifest.paths && manifest.paths[category]) {
                   const categoryPath = manifest.paths[category];
 
@@ -548,8 +578,8 @@ class InstallationEngine {
                     if (category === 'agents') {
                       // Agents have .md extension
                       itemPath = path.join(categoryPath, `${item}.md`);
-                    } else if (category === 'skills') {
-                      // Skills are directories
+                    } else if (category === 'skills' || category === 'plugins') {
+                      // Skills and plugins are directories
                       itemPath = path.join(categoryPath, item);
                     } else {
                       // Resources and hooks have their full names
@@ -650,7 +680,7 @@ class InstallationEngine {
    * @param {string} targetPath - Base installation path
    */
   async cleanupEmptyDirectories(targetPath) {
-    const categories = ['agents', 'skills', 'resources', 'hooks'];
+    const categories = ['agents', 'skills', 'resources', 'hooks', 'plugins'];
 
     for (const category of categories) {
       const categoryPath = path.join(targetPath, category);
@@ -762,7 +792,8 @@ class InstallationEngine {
         agents: { expected: 0, found: 0, missing: [] },
         skills: { expected: 0, found: 0, missing: [] },
         resources: { expected: 0, found: 0, missing: [] },
-        hooks: { expected: 0, found: 0, missing: [] }
+        hooks: { expected: 0, found: 0, missing: [] },
+        plugins: { expected: 0, found: 0, missing: [] }
       },
       timestamp: new Date().toISOString()
     };
@@ -785,8 +816,16 @@ class InstallationEngine {
       const manifest = JSON.parse(await fs.promises.readFile(manifestPath, 'utf8'));
       result.manifest = manifest;
 
-      // Verify all required directories exist
+      // Verify all required directories exist (skip categories with 0 expected items)
       for (const [component, componentPath] of Object.entries(manifest.paths || {})) {
+        const expectedCount = (manifest.installedFiles && Array.isArray(manifest.installedFiles[component]))
+          ? manifest.installedFiles[component].length
+          : 0;
+
+        if (expectedCount === 0) {
+          continue;
+        }
+
         if (!fs.existsSync(componentPath)) {
           result.valid = false;
           result.issues.push({
@@ -799,7 +838,7 @@ class InstallationEngine {
       }
 
       // Verify installed files for each component category
-      for (const category of ['agents', 'skills', 'resources', 'hooks']) {
+      for (const category of ['agents', 'skills', 'resources', 'hooks', 'plugins']) {
         if (manifest.installedFiles && manifest.installedFiles[category]) {
           const expectedFiles = manifest.installedFiles[category];
           result.components[category].expected = expectedFiles.length;
@@ -812,7 +851,7 @@ class InstallationEngine {
             // Construct full path based on category
             if (category === 'agents') {
               itemPath = path.join(categoryPath, `${item}.md`);
-            } else if (category === 'skills') {
+            } else if (category === 'skills' || category === 'plugins') {
               itemPath = path.join(categoryPath, item);
             } else {
               itemPath = path.join(categoryPath, item);
@@ -847,7 +886,7 @@ class InstallationEngine {
 
       // Verify file counts match
       if (manifest.components) {
-        for (const category of ['agents', 'skills', 'resources', 'hooks']) {
+        for (const category of ['agents', 'skills', 'resources', 'hooks', 'plugins']) {
           if (manifest.components[category] !== undefined) {
             const expectedCount = manifest.components[category];
             const foundCount = result.components[category].found;
@@ -967,7 +1006,7 @@ class InstallationEngine {
 
       // Collect all files from manifest
       if (manifest.installedFiles) {
-        for (const category of ['agents', 'skills', 'resources', 'hooks']) {
+        for (const category of ['agents', 'skills', 'resources', 'hooks', 'plugins']) {
           if (manifest.installedFiles[category] && manifest.paths && manifest.paths[category]) {
             const categoryPath = manifest.paths[category];
 
@@ -977,8 +1016,8 @@ class InstallationEngine {
               if (category === 'agents') {
                 // Agents have .md extension
                 itemPath = path.join(categoryPath, `${item}.md`);
-              } else if (category === 'skills') {
-                // Skills are directories - need to count all files inside
+              } else if (category === 'skills' || category === 'plugins') {
+                // Skills and plugins are directories - need to count all files inside
                 itemPath = path.join(categoryPath, item);
               } else {
                 // Resources and hooks have their full names
@@ -989,7 +1028,7 @@ class InstallationEngine {
                 path: itemPath,
                 category: category,
                 name: item,
-                isDirectory: category === 'skills'
+                isDirectory: category === 'skills' || category === 'plugins'
               });
             }
           }
@@ -1443,6 +1482,26 @@ class InstallationEngine {
       }
     }
 
+    // Compare plugins (directories, like skills)
+    const currentPluginsList = currentContents.plugins || [];
+    const newPluginsList = newContents.plugins || [];
+    const currentPlugins = new Set(currentPluginsList.map(p => path.basename(p)));
+    const newPlugins = new Set(newPluginsList.map(p => path.basename(p)));
+
+    for (const plugin of newPluginsList) {
+      const basename = path.basename(plugin);
+      if (!currentPlugins.has(basename)) {
+        toAdd.push({ type: 'plugin', source: plugin, name: basename });
+      }
+    }
+
+    for (const plugin of currentPluginsList) {
+      const basename = path.basename(plugin);
+      if (!newPlugins.has(basename)) {
+        toRemove.push({ type: 'plugin', name: basename, category: 'plugins' });
+      }
+    }
+
     return { toAdd, toRemove };
   }
 
@@ -1456,7 +1515,8 @@ class InstallationEngine {
       agents: new Set(manifest.installedFiles.agents),
       skills: new Set(manifest.installedFiles.skills),
       resources: new Set(manifest.installedFiles.resources),
-      hooks: new Set(manifest.installedFiles.hooks)
+      hooks: new Set(manifest.installedFiles.hooks),
+      plugins: new Set(manifest.installedFiles.plugins || [])
     };
 
     for (const file of filesToRemove) {
@@ -1503,7 +1563,8 @@ class InstallationEngine {
       const sourcePath = file.source;
       const targetCategory = file.type === 'agent' ? 'agents' :
                             file.type === 'skill' ? 'skills' :
-                            file.type === 'resource' ? 'resources' : 'hooks';
+                            file.type === 'resource' ? 'resources' :
+                            file.type === 'plugin' ? 'plugins' : 'hooks';
 
       const targetDir = path.join(targetPath, targetCategory);
 

@@ -4,6 +4,7 @@
     "description": "Complete installation with all agents, skills, and commands",
     "agents": "*",
     "skills": "*",
-    "commands": "*"
+    "commands": "*",
+    "plugins": "*"
   }
 }
