@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**AI development toolkit with 11 specialized agents and 22 commands per tool**
+**AI development toolkit with 11 specialized agents and 23 commands per tool**
 
 [![npm version](https://img.shields.io/npm/v/liteagents)](https://www.npmjs.com/package/liteagents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -43,10 +43,10 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 10 skills + 12 commands
-- **Opencode** - 11 agent references + 22 commands
-- **Ampcode** - 11 subagents + 22 commands
-- **Droid** - 11 agent references + 22 commands
+- **Claude Code** - 11 subagents + 11 skills + 12 commands (+ optional live-canvas channel plugin)
+- **Opencode** - 11 agent references + 23 commands
+- **Ampcode** - 11 subagents + 23 commands
+- **Droid** - 11 agent references + 23 commands
 
 **Key Difference:**
 - **Claude Code**: Full subagent system with orchestrator + skills (auto-triggering)
@@ -88,18 +88,19 @@ liteagents
 - **system-architect** - System design, technology selection, API design, scalability planning
 - **ui-designer** - UI/UX design, wireframes, prototypes, accessibility, design systems
 
-### 22 Commands/Skills
+### 23 Commands/Skills
 
 **Auto-Triggering Skills (3)** - Claude Code only:
 - **test-driven-development** - Write test first, watch fail, minimal passing code
 - **testing-anti-patterns** - Prevent mocking anti-patterns
 - **verification-before-completion** - Verify before claiming done
 
-**Manual Skills/Commands (19):**
+**Manual Skills/Commands (20):**
 - **brainstorming** - Structured brainstorming sessions
 - **code-review** - Implementation review against requirements
 - **condition-based-waiting** - Replace timeouts with condition polling
 - **docs-builder** - Project documentation generation
+- **live-canvas** - Design UI variations with click-to-annotate feedback in the browser; ships a companion MCP channel plugin for Claude Code so Saves stream into the session in real time. Other tools use batch mode.
 - **root-cause-tracing** - Trace bugs backward through call stack
 - **skill-creator** - Guide for creating new skills
 - **systematic-debugging** - Four-phase debugging framework
@@ -115,6 +116,8 @@ liteagents
 - **ship** - Pre-deployment checklist
 - **stash** - Save session context for compaction recovery or handoffs
 - **test-generate** - Generate test suites
+
+> **Claude-only plugin:** `live-canvas-channel` is a bundled Claude Code MCP channel plugin that ships under `~/.claude/plugins/live-canvas-marketplace/`. One-time `/plugin install` + a session started with `--dangerously-load-development-channels` unlocks live mode. Skill probes for the channel on each invocation and handholds setup when missing. See [`packages/claude/skills/live-canvas/README.md`](packages/claude/skills/live-canvas/README.md) for the full walkthrough.
 
 ### Hot Memory (3-step pipeline)
 
