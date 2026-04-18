@@ -38,8 +38,9 @@
     batchEndpoint: null,
     active: false,
     picking: false,
-    comments: [],                                // Comment[]
+    comments: [],                                // Comment[] — only items pending batch submit
     overall: '',
+    pinCounts: Object.create(null),              // `${variant}|${selector}` → placed-pin count
   };
 
   // ---------- utilities ----------
@@ -324,25 +325,33 @@
         id: uid(), variant, element: ident, coordinates: coords,
         text, timestamp: Date.now(),
       };
-      comment.delivered = false;
-      state.comments.push(comment);
-      const countForElement = state.comments.filter(c =>
-        c.variant === variant && c.element.selector === ident.selector).length;
-      placePin(variant, coords, countForElement);
-      refreshSubmitBtn();
+
+      // Pin count is tracked independently of batch state so pins persist
+      // visually even when comments have been delivered and removed from batch.
+      const pinKey = variant + '|' + ident.selector;
+      state.pinCounts[pinKey] = (state.pinCounts[pinKey] || 0) + 1;
+      placePin(variant, coords, state.pinCounts[pinKey]);
       closePopup();
 
       if (state.mode === 'live') {
         const ok = await pushLive(comment);
         if (ok) {
-          comment.delivered = true;
+          // Push landed. Nothing goes into state.comments — the comment is
+          // already in Claude's hands. Counter stays at 0.
           showToast('Pushed to Claude ✨');
         } else {
+          // Push failed. Keep the comment locally as a pending batch item and
+          // degrade the overlay to batch mode for the rest of the session.
+          comment.delivered = false;
+          state.comments.push(comment);
+          state.mode = 'batch';
+          refreshSubmitBtn();
           showToast('Channel unreachable — kept locally');
-          state.mode = 'batch'; // graceful degrade
         }
-        refreshSubmitBtn();
       } else {
+        comment.delivered = false;
+        state.comments.push(comment);
+        refreshSubmitBtn();
         showToast('Saved — submit when ready');
       }
     });

@@ -31,40 +31,104 @@ Live Canvas supports two feedback transports. The skill auto-selects at runtime 
 | Claude Code | A + B | Probe channel at Phase 0. If up → Live. If down → announce Batch and print the one-time setup block below. |
 | Droid, Amp, Opencode | A only | Never probe the channel, never mention Live mode, never offer to install a plugin. Use Batch exclusively and collect feedback via paste-in-terminal (Phase 5). |
 
-### Channel probe (Claude Code only)
+### Channel activation — run this BEFORE starting the interview
 
-In Phase 0, run this before the interview:
+Users invoke `/live-canvas` from an ordinary Claude Code session most of the time. They won't have started with the dev-channels flag unless they remembered. The skill's job is to figure out what state they're in and guide them without making them read docs.
+
+**Step A — Probe the channel:**
 
 ```bash
 curl -s --max-time 1 http://localhost:8788/health
 ```
 
-- Response `{"ok":true,"channel":"live-canvas",...}` → **Live mode**. Announce: `✨ Live mode — your feedback will stream into this session in real time.`
-- No response or error → **Batch mode**. Announce: `📝 Batch mode — feedback will write to .claude-design/feedback.jsonl. To upgrade to live mode, see the one-time setup below.` Print the setup block exactly as below.
+**Step B — Decide which case you're in:**
 
-### One-time setup block (print this when channel probe fails)
+| Probe result | Plugin dir exists at `~/.claude/plugins/cache/live-canvas-marketplace/`? | Case |
+|---|---|---|
+| `{"ok":true,...}` | (don't bother checking) | **Case 1 — Live ready** |
+| fails | exists | **Case 2 — Plugin installed, session not in dev mode** |
+| fails | missing | **Case 3 — First-time user** |
 
-Show the user these four steps, in this order:
+**Step C — Act on the case.**
+
+### Case 1 — Live ready
+
+Announce briefly and proceed to the interview:
 
 ```
-To enable Live mode (Claude Code research preview, one-time setup):
+✨ Live mode — your feedback will stream into this session in real time.
+```
 
-1. Install the channel plugin's dependencies:
-   cd ~/.claude/plugins/live-canvas-marketplace/plugins/live-canvas-channel && npm install
+No decision needed. Skip to Phase 1.
 
-2. Add the marketplace and install the plugin:
+### Case 2 — Plugin installed but session not in dev mode
+
+This is the common case for returning users who forgot the dev flag. Use `AskUserQuestion`:
+
+> **Question: How do you want to run this session?**
+> - "Batch for now" — continue without live mode. Feedback writes to JSONL; paste or say 'check' when ready.
+> - "Restart for Live mode" — I'll abort here. Close this session, run the command below in your terminal, then `/live-canvas` again in the new one.
+
+If they pick "Restart for Live mode", print:
+
+```
+Close this Claude session, then run:
+
+  claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace
+
+When it reopens, confirm the safety prompt, then run /live-canvas again — I'll be in Live mode.
+
+Tip: save an alias so you don't retype this every time:
+  alias claude-live='claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace'
+```
+
+Then exit the skill cleanly — do not start the interview. The user is going to close this session.
+
+If they pick "Batch for now", announce Batch mode and proceed to Phase 1 normally.
+
+### Case 3 — First-time user
+
+Channel plugin has never been set up. Use `AskUserQuestion`:
+
+> **Question: Set up Live mode?**
+> - "Yes, walk me through it" — I'll print the one-time setup commands.
+> - "Just use Batch mode" — skip setup, start the skill normally.
+
+If they pick setup, print the full sequence:
+
+```
+One-time setup for Live mode:
+
+1. Install channel plugin dependencies (run in your terminal):
+   bash ~/.claude/plugins/live-canvas-marketplace/setup.sh
+
+   This runs `npm install` in the plugin dir.
+
+2. Inside Claude Code, register and install the plugin:
    /plugin marketplace add ~/.claude/plugins/live-canvas-marketplace
    /plugin install live-canvas-channel@live-canvas-marketplace
 
-3. Restart Claude with the dev-channels flag:
+3. Close this session and reopen with the dev-channels flag:
    claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace
 
-4. Re-run /live-canvas in the new session.
+4. Accept the safety prompt, then run /live-canvas again.
 
-(If any step fails, the skill still works fine in Batch mode — nothing to fix urgently.)
+Tip: alias for future sessions:
+  alias claude-live='claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace'
 ```
 
-**Do not try to run these commands yourself.** They require a session restart (step 3), which you cannot do from within a running session. The user must execute them manually.
+Exit the skill — don't start the interview. The user has a multi-step setup to do.
+
+If they pick Batch, announce Batch mode and proceed to Phase 1 normally.
+
+### Why not auto-run the setup commands?
+
+**Do not try to run any of these commands yourself.** Three reasons:
+1. Steps 2 and 3 require Claude Code slash commands and a session restart — you can't do either from inside a running session.
+2. Accepting the research-preview safety prompt must be the user's explicit act.
+3. If something goes wrong mid-install, the user needs to see each step's output to diagnose.
+
+The user always executes these manually. Your job is to make the sequence obvious and copyable.
 
 ---
 
