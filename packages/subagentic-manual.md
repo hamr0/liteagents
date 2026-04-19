@@ -31,10 +31,10 @@ Install for your platform:
 
 | Platform | Installation | What's Included |
 |----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 10 skills + 12 commands |
-| **Droid** | `cp -r droid/* ~/.factory/` | 22 commands (subagent references) |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 10 skills + 12 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 22 commands (subagent references) |
+| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 11 skills + 12 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r droid/* ~/.factory/` | 23 commands (subagent references) |
+| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 11 skills + 12 commands |
+| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 23 commands (subagent references) |
 
 **Key Difference**:
 - **Claude Code / Ampcode** implement full subagent system with orchestrator
@@ -50,9 +50,9 @@ Install for your platform:
 - 3 Workflow Agents (PRD, Tasks, Implementation)
 - 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
 
-**10 Skills** - Auto-triggering workflow components
+**11 Skills** - Auto-triggering + manual workflow components
 - test-driven-development, testing-anti-patterns, verification-before-completion (auto-trigger)
-- brainstorming, code-review, systematic-debugging, docs-builder, etc.
+- brainstorming, code-review, systematic-debugging, docs-builder, live-canvas, etc.
 
 **12 Commands** - Simple workflow helpers
 - debug, explain, friction, git-commit, optimize, refactor, remember, review, security, ship, stash, test-generate
@@ -64,7 +64,7 @@ Install for your platform:
 
 ### Droid/OpenCode (Commands Only)
 
-**22 Commands** - All workflow capabilities in command form
+**23 Commands** - All workflow capabilities in command form
 - Combines skills + commands into unified command set
 - Same functionality, different invocation model (no auto-triggering)
 - Includes reference documentation for subagents
@@ -285,7 +285,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.factory/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── commands/           # 22 commands (*.md)
+└── commands/           # 23 commands (*.md)
 ```
 
 **Features**:
@@ -297,7 +297,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.config/opencode/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── command/            # 22 commands (*.md)
+└── command/            # 23 commands (*.md)
 ```
 
 **Features**:
