@@ -1,0 +1,16 @@
+# NPM publish-time exclusions.
+#
+# We never ship node_modules. For bundled plugins that have a package.json,
+# users run the plugin's setup.sh after install to generate node_modules
+# locally. Delete any stray node_modules before `npm publish` — or use
+# `npm run prepack` which does it automatically.
+
+tests/
+test-report.json
+TEST_REPORT.md
+
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo

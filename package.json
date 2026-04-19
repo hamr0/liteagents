@@ -1,7 +1,7 @@
 {
   "name": "liteagents",
-  "version": "2.5.3",
-  "description": "AI development toolkit with 11 specialized agents and 22 commands. Simple one-question installer for Claude, Opencode, Ampcode, and Droid.",
+  "version": "2.6.0",
+  "description": "AI development toolkit with 11 specialized agents and 23 commands including live-canvas UI design with click-to-annotate feedback. Simple one-question installer for Claude, Opencode, Ampcode, and Droid.",
   "main": "index.js",
   "bin": {
     "liteagents": "./installer/cli.js",
@@ -16,6 +16,7 @@
     "clean:git": "git clean -fdx tests/tmp/",
     "validate": "node ./scripts/validate-package.js",
     "validate-packages": "node scripts/validate-all-packages.js",
+    "prepack": "rm -rf packages/*/plugins/*/plugins/*/node_modules",
     "prepublishOnly": "npm run clean && npm run validate",
     "postinstall": "node postinstall.js"
   },
