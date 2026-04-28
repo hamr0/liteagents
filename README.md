@@ -12,7 +12,7 @@
 **AI development toolkit with 11 specialized agents and 23 commands per tool**
 
 [![npm version](https://img.shields.io/npm/v/liteagents)](https://www.npmjs.com/package/liteagents)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 **Supported Tools:**
 [![Claude](https://img.shields.io/badge/Claude-Supported-blue?logo=anthropic)](https://claude.ai)
@@ -204,7 +204,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 - **11** Specialized Agents
 - **22** Workflow Commands & Skills
 - **4** Supported Tools (Claude, Opencode, Ampcode, Droid)
-- **MIT** License
+- **Apache-2.0** License
 
 ---
 
@@ -218,7 +218,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ## 📄 License
 
-MIT © 2025 hamr0
+Apache-2.0 © 2026 hamr0 — see [LICENSE](LICENSE).
 
 ---
 
