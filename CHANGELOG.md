@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.1] - 2026-05-09
+
+### Security
+- **fast-uri 3.1.0 → 3.1.2** (GHSA-q3j6-qgpj-74h6 / CVE-2026-6321, CVSS 7.5 high) — patches path-traversal via percent-encoded dot segments in `normalize()`/`equal()`. Transitive dep via `@modelcontextprotocol/sdk` → `ajv` in the `live-canvas-channel` plugin. Lockfile-only update; existing `^3.0.1` range already permitted the patched version.
+
+---
+
 ## [2.6.0] - 2026-04-19
 
 ### Added

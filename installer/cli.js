@@ -456,7 +456,7 @@ ${colors.bright}${colors.cyan}██╔══██║██║   ██║█�
 ${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
 ${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
 
-${colors.bright}v2.6.0 | 11 agents + 23 commands per tool${colors.reset}
+${colors.bright}v2.6.1 | 11 agents + 23 commands per tool${colors.reset}
     `);
   }
 
