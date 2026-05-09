@@ -11,8 +11,10 @@
 
 **AI development toolkit with 11 specialized agents and 23 commands per tool**
 
-[![npm version](https://img.shields.io/npm/v/liteagents)](https://www.npmjs.com/package/liteagents)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+<p align="center">
+  <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version (auto from package.json)">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-2a4f8c" alt="license: Apache 2.0">
+</p>
 
 **Supported Tools:**
 [![Claude](https://img.shields.io/badge/Claude-Supported-blue?logo=anthropic)](https://claude.ai)
