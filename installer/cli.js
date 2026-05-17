@@ -14,6 +14,9 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
+// Single source of truth for version; UPDATE_VERSION.sh bumps only package.json.
+const PACKAGE_VERSION = require('../package.json').version;
+
 // ANSI color codes
 const colors = {
   reset: '\x1b[0m',
@@ -456,7 +459,7 @@ ${colors.bright}${colors.cyan}██╔══██║██║   ██║█�
 ${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
 ${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
 
-${colors.bright}v2.6.1 | 11 agents + 23 commands per tool${colors.reset}
+${colors.bright}v${PACKAGE_VERSION} | 11 agents + 23 commands per tool${colors.reset}
     `);
   }
 
