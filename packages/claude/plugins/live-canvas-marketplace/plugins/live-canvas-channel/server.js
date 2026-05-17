@@ -165,6 +165,14 @@ async function main() {
   const transport = new StdioServerTransport();
   await mcp.connect(transport);
 
+  // When the MCP host disconnects (session closed, /reload-plugins, etc.)
+  // exit so the HTTP listener doesn't strand port 8788. Without this the
+  // next server.js spawn hits EADDRINUSE and fails silently.
+  const shutdown = () => { try { server.close(); } finally { process.exit(0); } };
+  transport.onclose = shutdown;
+  process.stdin.on('end', shutdown);
+  process.stdin.on('close', shutdown);
+
   server.listen(PORT, '127.0.0.1', () => {
     process.stderr.write(`[live-canvas] listening on 127.0.0.1:${PORT}\n`);
   });
