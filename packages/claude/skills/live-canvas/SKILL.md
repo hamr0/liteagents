@@ -528,6 +528,28 @@ The Live Canvas page must include:
 1. **Header** with:
    - Design Brief summary (target, scope, key requirements)
    - Instructions for reviewing
+   - **Lab banner (REQUIRED)** — a visible notice at the top distinguishing the lab from the user's real UI. Use the appropriate variant for the chosen mode:
+
+     **Live mode banner:**
+     ```html
+     <div role="note" style="background:#ecfeff;border:1px solid #06b6d4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#0e7490;">
+       <b>Live design lab — Live mode active.</b> Click any element → leave a comment → Save.
+       Feedback streams into the Claude session running <code>live-claude</code>;
+       Claude edits the corresponding <code>.claude-design/lab/variants/Variant&lt;X&gt;.tsx</code>
+       file and your dev server hot-reloads. The lab is temporary and will be deleted on Finish.
+     </div>
+     ```
+
+     **JSON mode banner:**
+     ```html
+     <div role="note" style="background:#fefce8;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#854d0e;">
+       <b>Live design lab — JSON mode.</b> Click any element → leave a comment → Save.
+       Comments accumulate locally; click <b>Submit</b> when done and either paste the JSON
+       in your terminal or tell Claude "check". The lab is temporary and will be deleted on Finish.
+     </div>
+     ```
+
+     Use the inline-style version for vanilla/HTML labs, or convert to the project's styling system (Tailwind classes, CSS modules, etc.) for framework labs. The intent — "this isn't your real UI, this is a temporary review surface" — must remain visible.
 
 2. **Variant Grid** with:
    - Clear labels (A, B, C, D, E)
