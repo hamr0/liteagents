@@ -79,6 +79,9 @@
 <header>
   <h1>Live Canvas — Post card demo</h1>
   <p>5 variations of a social post (likes, retweets, comments). Click <b>Add Feedback</b> bottom-right → click any element → leave a comment. Right-click the pill to submit.</p>
+  <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#78350f;">
+    <b>This is an overlay-only demo.</b> Feedback events transit through the Live channel (or JSON file, with <code>?json=1</code>) so you can verify the UI works — but there are no <code>.claude-design/lab/variants/</code> files behind these cards, so the Claude session receiving events <em>cannot</em> edit anything. For the full lifecycle, run <code>/live-canvas</code> in a real project.
+  </div>
 </header>
 
 <main>
