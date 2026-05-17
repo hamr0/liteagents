@@ -17,6 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.7.0] - 2026-05-17
+
+### Added
+- **live-canvas: one-shot installer** — `setup.sh` now copies the marketplace to `~/.claude/plugins/`, runs `npm install`, and writes a `live-claude` shell function to `~/.zshrc` and `~/.bashrc` so the user can launch a Live-mode session with one command. Idempotent.
+- **live-canvas: collapsible overlay** — a "−" button next to "Add Feedback" hides the bar to a 36px corner bubble (sessionStorage-persisted). Mobile-friendly: comment popup goes full-width below 640px.
+- **live-canvas: lab banner** — generated lab pages now include a "this is a temporary review surface" banner template (`templates/lab-banner.html`), mode-agnostic, paste-once.
+- **live-canvas: explicit mode pick** — the skill asks Live vs JSON every run via `AskUserQuestion` instead of silently auto-detecting. If Live is unreachable, the skill diagnoses (installed-but-not-Live vs first-time setup) and prints targeted next steps instead of failing opaquely.
+- **CLAUDE.md inline dev rules** — must-know rules from `.claude/memory/AGENT_RULES.md` (Simple > clever, surgical changes, dependency hierarchy, mobile-first UI, POC-first) are now inlined in CLAUDE.md so every agent session sees them.
+- **Installer banner reads `package.json`** — the ASCII logo's version string is no longer hardcoded; `UPDATE_VERSION.sh` only needs to touch `package.json` to keep it current. README version badge already auto-pulled from `package.json` via shields.io.
+
+### Changed
+- **live-canvas: vanilla overlay everywhere** — deleted the React-specific overlay (`templates/feedback-react/`, 5 files, ~2300 lines). `overlay-vanilla.js` (one file, plain DOM, zero deps) now works in every supported framework, including React/Next.js/Vite via a `<script>` tag + `useEffect`.
+- **live-canvas: user-facing rename "Batch" → "JSON"** — the non-Live mode is now called "JSON mode" everywhere user-facing.
+- **live-canvas: demo moved to `dev/`** — `templates/demo/post-variants.html` was never copied during real runs. Relocated to `dev/post-variants.html` at the skill root.
+
+### Fixed
+- **live-canvas channel server: shutdown race** — `server.js` held port 8788 indefinitely after the MCP host disconnected because `server.close()` is async but `process.exit()` was called synchronously. Stale process broke `/reload-plugins` and second sessions. Now uses a `closing` guard and lets `server.close()` callback drive exit (with a 500ms unref'd ceiling).
+- **live-canvas overlay: mode badge stale on re-expand** — collapsing and re-expanding the overlay used to show "BATCH mode" (now "JSON mode") even after a runtime live→batch fallback. Badge text now refreshes from `state.mode` on every re-expand.
+- **live-canvas setup.sh: sudo guard** — bails early when run with `sudo` instead of silently installing into `/root/.claude/plugins/`.
+- **live-canvas docs: stale tails** — README ASCII diagram still labeled the overlay "(vanilla JS or React)"; troubleshooting referenced the old `/demo/` URL prefix; SKILL.md JSX-translation note for the lab banner was too thin (kebab-case CSS properties would produce invalid JSX).
+
+### Removed
+- **`templates/feedback-react/`** — React-specific overlay and supporting modules (`FeedbackOverlay.tsx`, `selector-utils.ts`, `format-utils.ts`, `types.ts`, `index.ts`).
+- **`INTEGRATION_NOTES.md`** — stale draft predating the channel implementation; recommendations all completed.
+- **3-case probe tree from Phase 0** — replaced by an explicit mode prompt + targeted diagnostic block when Live is picked but unreachable.
+
+---
+
 ## [2.6.1] - 2026-05-09
 
 ### Security
