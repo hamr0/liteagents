@@ -12,7 +12,7 @@ Claude Code channel plugin that bridges the Live Canvas browser overlay to a run
 ```
 
 - HTTP listener: `127.0.0.1:8788` (override with `LIVE_CANVAS_PORT`)
-- `GET /health` — overlay probes this to select Live vs Batch mode
+- `GET /health` — overlay probes this to confirm Live mode is reachable
 - `POST /feedback` — wire-compatible with the overlay's v1.0 schema
 - stdio: MCP protocol using `@modelcontextprotocol/sdk`
 
@@ -84,6 +84,6 @@ curl -X POST http://localhost:8788/feedback \
 
 ## Failure modes
 
-- **Port in use** — another Claude session owns 8788. Logs to stderr and exits; overlay health probe fails; overlay falls back to Batch mode silently.
+- **Port in use** — another Claude session owns 8788. Logs to stderr and exits; overlay health probe fails; overlay falls back to JSON mode silently. The skill itself never silently degrades — it stops and asks the user.
 - **Invalid payload** — HTTP 400 with reason; no notification emitted.
 - **MCP transport not connected** — HTTP call still returns 200 (so the overlay shows "pushed"), but stderr logs the drop. Avoids false-negative toasts.

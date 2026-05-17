@@ -5,7 +5,7 @@
  * Two concurrent duties:
  *   1. HTTP listener (LIVE_CANVAS_PORT, default 8788) — accepts feedback
  *      POSTs from the Live Canvas overlay running in the browser. The
- *      overlay probes GET /health to decide Live vs Batch mode.
+ *      overlay probes GET /health to confirm Live mode is reachable.
  *   2. MCP stdio server — declares the `experimental: claude/channel`
  *      capability and, on each valid POST, emits a
  *      `notifications/claude/channel` notification so the feedback lands
@@ -168,7 +168,14 @@ async function main() {
   // When the MCP host disconnects (session closed, /reload-plugins, etc.)
   // exit so the HTTP listener doesn't strand port 8788. Without this the
   // next server.js spawn hits EADDRINUSE and fails silently.
-  const shutdown = () => { try { server.close(); } finally { process.exit(0); } };
+  let closing = false;
+  const shutdown = () => {
+    if (closing) return;
+    closing = true;
+    server.close(() => process.exit(0));
+    // Hard ceiling so a stuck connection can't keep us alive forever.
+    setTimeout(() => process.exit(0), 500).unref();
+  };
   transport.onclose = shutdown;
   process.stdin.on('end', shutdown);
   process.stdin.on('close', shutdown);
