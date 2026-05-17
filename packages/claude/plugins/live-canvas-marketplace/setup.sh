@@ -24,6 +24,12 @@ err()  { printf '\033[31m✗\033[0m %s\n' "$*"; }
 
 # ---------- prereq checks ----------
 
+if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}" ]; then
+  err "Don't run setup.sh with sudo — it would install into root's home (\$HOME=$HOME)."
+  err "Rerun as your normal user: bash $0"
+  exit 1
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   err "Node.js not found. Install Node >= 18: https://nodejs.org"
   exit 1

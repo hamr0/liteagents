@@ -2,7 +2,7 @@
 
 Click-to-annotate UI design tool for Claude Code. Renders N variants of a component or page in your browser, you click an element and type what to change, and Claude edits the variant file while you watch in the browser. No window switching, no pasted JSON.
 
-Ships as a Claude Code skill plus an MCP channel plugin. Works in every tool liteagents supports (Claude, Droid, Amp, Opencode), but **Live mode only works in Claude Code** — other tools run in Batch mode only (see modes below).
+Ships as a Claude Code skill plus an MCP channel plugin. Works in every tool liteagents supports (Claude, Droid, Amp, Opencode), but **Live mode only works in Claude Code** — other tools run in JSON mode only (see modes below).
 
 ---
 
