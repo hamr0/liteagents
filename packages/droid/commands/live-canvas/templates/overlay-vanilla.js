@@ -23,7 +23,7 @@
  *   Batch — saves accumulate locally; Submit All POSTs JSONL to batchEndpoint
  *           (or downloads the file if no endpoint configured)
  *
- * Payload schema: v1.0, compatible with the upstream React FeedbackOverlay.
+ * Payload schema: v1.0 (see live-canvas-channel/schema.json).
  */
 (function () {
   'use strict';

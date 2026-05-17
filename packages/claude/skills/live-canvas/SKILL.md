@@ -376,12 +376,6 @@ Create all files under `.claude-design/`:
 │   │   └── VariantE.tsx
 │   ├── components/
 │   │   └── LabShell.tsx         # Lab layout wrapper
-│   ├── feedback/                # Interactive feedback system
-│   │   ├── types.ts             # TypeScript interfaces
-│   │   ├── selector-utils.ts    # Element identification
-│   │   ├── format-utils.ts      # Feedback formatting
-│   │   ├── FeedbackOverlay.tsx  # Main overlay component
-│   │   └── index.ts             # Module exports
 │   └── data/
 │       └── fixtures.ts          # Shared mock data
 ├── design-brief.json
@@ -392,45 +386,20 @@ Create all files under `.claude-design/`:
 
 **The overlay is the PRIMARY feature of Live Canvas.** Without it, users cannot provide interactive feedback. NEVER generate a lab without the overlay.
 
-### Choose the right overlay template
+### The overlay
 
-The skill ships two overlay templates under `~/.claude/skills/live-canvas/templates/`:
+**One template, every framework:** `~/.claude/skills/live-canvas/templates/overlay-vanilla.js`. Single file, zero dependencies, plain DOM. Works in vanilla JS, Vue, Svelte, Rails, Django, Phoenix, plain HTML, Next.js, Vite-React, Remix — anywhere a `<script>` tag runs.
 
-| Template | When to use |
-|---|---|
-| `feedback-react/FeedbackOverlay.tsx` | React / Next.js / Vite-React projects — integrates via JSX |
-| `overlay-vanilla.js` | Everything else: vanilla JS, Vue, Svelte, Rails, Django, Phoenix, plain HTML, Go templates, etc. One script tag, zero dependencies. |
-
-Detect the host framework in Phase 0 and copy the matching template into the route directory. The vanilla template is the safer default when in doubt — it works in every context the React one does, plus more.
-
-### Required files in the route directory
-
-For **React-based** projects:
-```
-app/live-canvas/           # or app/__live_canvas/
-├── page.tsx              # Main lab page with variants + overlay import
-└── FeedbackOverlay.tsx   # Copy of feedback-react/FeedbackOverlay.tsx
-```
-
-Import: `import { FeedbackOverlay } from './FeedbackOverlay'`
-
-For **non-React** projects:
-```
-<static-dir>/__live_canvas/
-├── index.html             # Or framework-appropriate entry point
-└── overlay-vanilla.js     # Copy of templates/overlay-vanilla.js
-```
-
-HTML: `<script src="overlay-vanilla.js"></script>` plus an init script that wires up mode + target (see "Wiring the overlay" below).
+Copy it into a directory served by the dev server (e.g. `public/overlay-vanilla.js` for Next.js, `static/overlay-vanilla.js` for Vite, the public dir for Rails/Django). Reference it from the lab page.
 
 ### Wiring the overlay
 
-Every page that renders the lab must initialize the overlay once. Behavior depends on which mode the user picked in Phase 0.
+The overlay needs one `init()` call with `target`, `channelUrl` (Live only), and optionally `batchEndpoint`.
 
-**Vanilla (`overlay-vanilla.js`):**
+**Server-rendered / vanilla HTML:**
 
 ```html
-<script src="./overlay-vanilla.js"></script>
+<script src="/overlay-vanilla.js"></script>
 <script>
   LiveCanvas.init({
     target: '<ComponentOrPageName>',
@@ -444,9 +413,27 @@ Every page that renders the lab must initialize the overlay once. Behavior depen
 </script>
 ```
 
-**React (`FeedbackOverlay.tsx`):**
+**React / Next.js / Vite-React:** load the script with the framework's mechanism and init in a `useEffect`:
 
-Pass the same `targetName` prop plus the mode-appropriate endpoints via its props. Render `<FeedbackOverlay />` at the end of the lab page.
+```tsx
+import Script from 'next/script';
+import { useEffect } from 'react';
+
+export default function Lab() {
+  useEffect(() => {
+    (window as any).LiveCanvas?.init({
+      target: 'PostCard',
+      channelUrl: 'http://localhost:8788', // omit in JSON mode
+    });
+  }, []);
+  return (<>
+    <Script src="/overlay-vanilla.js" strategy="afterInteractive" />
+    {/* variants ... */}
+  </>);
+}
+```
+
+Vite-React: use `<script>` in `index.html` or `useEffect` with a dynamic `import()`. Same `LiveCanvas.init({...})` call.
 
 ### Why the templates live in the route directory
 
@@ -549,43 +536,13 @@ The Live Canvas page must include:
 
    ⚠️ **THIS IS THE MOST IMPORTANT REQUIREMENT** ⚠️
 
-   The FeedbackOverlay enables users to click on elements and leave comments. Without it, the Live Canvas is just a static page with no way to collect structured feedback.
+   The overlay (`overlay-vanilla.js`) enables users to click on elements and leave comments. Without it, the Live Canvas is just a static page with no way to collect structured feedback.
 
-   - Create `FeedbackOverlay.tsx` in the SAME directory as `page.tsx`
-   - Import with relative path: `import { FeedbackOverlay } from './FeedbackOverlay'`
-   - Render at the END of the page, after all variants
-   - Pass `targetName` prop with the component/page name
+   - Copy `~/.claude/skills/live-canvas/templates/overlay-vanilla.js` into a directory served by the dev server (e.g. `public/`, `static/`, or wherever the framework serves static assets).
+   - Reference it from the lab page via `<script>` tag and call `LiveCanvas.init({...})` once with `target`, `channelUrl` (Live mode), and optional `batchEndpoint`. See "Wiring the overlay" above for the exact snippets per framework.
+   - Every variant container in the lab page MUST have a `data-variant="X"` attribute (A, B, C, D, E, or F). The overlay uses this to route comments to the right variant file.
 
-   **Example integration:**
-
-```tsx
-import { FeedbackOverlay } from './FeedbackOverlay';  // Relative import - always works
-
-export default function DesignLabPage() {
-  return (
-    <div className="min-h-screen bg-background">
-      <header>...</header>
-
-      <main>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div data-variant="A">
-            <VariantA />
-          </div>
-          <div data-variant="B">
-            <VariantB />
-          </div>
-          {/* ... more variants */}
-        </div>
-      </main>
-
-      {/* CRITICAL: FeedbackOverlay must be included */}
-      <FeedbackOverlay targetName="ComponentName" />
-    </div>
-  );
-}
-```
-
-   **If you forget the FeedbackOverlay, the user CANNOT provide feedback.** This defeats the entire purpose of the Live Canvas.
+   **If you forget to wire up the overlay, the user CANNOT provide feedback.** This defeats the entire purpose of the Live Canvas.
 
 ### Code Quality
 

@@ -135,12 +135,11 @@ packages/claude/
 ├── skills/live-canvas/
 │   ├── SKILL.md                           # Skill instructions (phases, flow)
 │   ├── DESIGN_PRINCIPLES.md               # UX/a11y/motion reference
-│   ├── INTEGRATION_NOTES.md               # Design-time notes (channel paths explored)
 │   ├── README.md                          # This file
+│   ├── dev/post-variants.html             # Standalone demo for local QA of the overlay
 │   └── templates/
-│       ├── overlay-vanilla.js             # Framework-agnostic overlay (~400 lines)
-│       ├── feedback-react/                # React overlay for React/Next/Vite projects
-│       └── demo/post-variants.html        # Standalone demo for testing the overlay
+│       ├── overlay-vanilla.js             # Framework-agnostic overlay (~500 lines)
+│       └── lab-banner.html                # "This is a temp lab" notice snippet
 └── plugins/
     └── live-canvas-marketplace/
         ├── .claude-plugin/marketplace.json
@@ -181,7 +180,7 @@ The skill checks the cache dir to tell first-time vs returning users apart.
 <project-root>/
 └── .claude-design/
     ├── lab/variants/VariantA.tsx … VariantE.tsx
-    ├── lab/FeedbackOverlay.tsx (React) OR overlay-vanilla.js (other)
+    ├── overlay-vanilla.js (copied into the project's public/static dir)
     ├── design-brief.json                  # Structured output from the interview
     └── feedback.jsonl                     # JSON mode only; deleted on Finish
 ```

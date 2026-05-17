@@ -196,8 +196,8 @@
 
 </main>
 
-<!-- Overlay (relative path works with file://) -->
-<script src="../overlay-vanilla.js"></script>
+<!-- Overlay (served from sibling templates/ dir; works under any static server rooted at the skill dir) -->
+<script src="../templates/overlay-vanilla.js"></script>
 <script>
   // ?json=1 forces JSON mode (skip channel probe); default tries Live first.
   const forceJson = new URLSearchParams(location.search).has('json');
