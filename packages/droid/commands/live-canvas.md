@@ -524,14 +524,7 @@ The Live Canvas page must include:
 1. **Header** with:
    - Design Brief summary (target, scope, key requirements)
    - Instructions for reviewing
-   - **Lab banner (REQUIRED)** — a visible notice at the top distinguishing the lab from the user's real UI. One template file per project type; same file handles both modes:
-
-     | Project type | Source file | How to use |
-     |---|---|---|
-     | React / Next.js / Vite-React | `~/.claude/skills/live-canvas/templates/feedback-react/LabBanner.tsx` | Copy into the lab directory; `import { LabBanner } from './LabBanner'`; render `<LabBanner mode="live" />` (or `"json"`) at the top of the page. |
-     | Vanilla / Vue / Svelte / server-rendered | `~/.claude/skills/live-canvas/templates/lab-banner.html` | Paste the whole block (both `<div>`s + inline script) at the top of the lab page. Set `data-lc-mode="live"` or `"json"` on an ancestor element (e.g. `<body>`); the inline script removes the wrong banner at load time. |
-
-     The intent — "this isn't your real UI, this is a temporary review surface" — must remain visible. You may rewrite the banner using the project's styling system (Tailwind classes, CSS modules) instead of inline styles, but keep the text and the role="note" attribute.
+   - **Lab banner (REQUIRED)** — paste `~/.claude/skills/live-canvas/templates/lab-banner.html` at the top of the lab page. Same text in any mode. For React/TSX labs, translate inline styles to JSX (`style="..."` → `style={{...}}`) but keep the text and `role="note"`.
 
 2. **Variant Grid** with:
    - Clear labels (A, B, C, D, E)
