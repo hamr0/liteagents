@@ -196,9 +196,11 @@
 <!-- Overlay (relative path works with file://) -->
 <script src="../overlay-vanilla.js"></script>
 <script>
+  // ?json=1 forces JSON mode (skip channel probe); default tries Live first.
+  const forceJson = new URLSearchParams(location.search).has('json');
   LiveCanvas.init({
     target: 'PostCard',
-    channelUrl: 'http://localhost:8788',
+    ...(forceJson ? {} : { channelUrl: 'http://localhost:8788' }),
   });
 </script>
 </body>

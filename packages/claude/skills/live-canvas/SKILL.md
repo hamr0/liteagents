@@ -24,14 +24,19 @@ Live Canvas supports two feedback transports. **The user picks every time** — 
 - **Live channel (Claude Code only):** the overlay POSTs each Save to a local MCP channel server; feedback arrives in the active session as a `<channel source="live-canvas" ...>` tag. Requires the session was started with `live-claude` (the function installed by `setup.sh`).
 - **JSON file (universal):** each Save accumulates locally; Submit writes `.claude-design/feedback.jsonl` (or downloads the JSON). User says "check" or pastes the file when ready. Works in any host.
 
-**Host-tool guidance:**
+### Host detection — do this first
 
-| Host | What to do |
-|---|---|
-| Claude Code | Ask Live vs JSON. If Live picked but `/health` fails, tell the user to relaunch with `live-claude` (or fall back to JSON). |
-| Droid, Amp, Opencode | Skip the prompt entirely — Live is Claude-only. Use JSON, never mention Live mode or the channel plugin. |
+This SKILL.md is the Claude Code variant of the skill. Same content is mirrored as docs for Droid/Amp/Opencode under `packages/<tool>/commands/live-canvas/`, but those tools don't support the MCP channel.
 
-### Mode selection — run this BEFORE the interview (Claude Code only)
+**If running under Droid, Amp, or Opencode (not Claude Code):**
+- Skip the mode question entirely.
+- Announce: `📝 JSON mode (Live channel requires Claude Code)`.
+- Proceed to Phase 1 with `channelUrl` omitted in the overlay init.
+- Never mention `live-claude`, `setup.sh`, or the channel plugin.
+
+How to tell which host you're in: the environment variable `CLAUDECODE=1` is set by Claude Code. If unset, assume non-Claude and go straight to JSON. (You can also infer from invocation context — if you've been spawned via a Droid/Amp/Opencode command rather than a Claude skill, you'll know.)
+
+### Mode selection (Claude Code only)
 
 Always ask, never auto-detect. Use `AskUserQuestion`:
 
@@ -39,35 +44,59 @@ Always ask, never auto-detect. Use `AskUserQuestion`:
 > - **Live channel** — overlay streams each Save straight into this Claude session. Requires you launched this session with `live-claude`.
 > - **JSON file** — overlay writes feedback to a local JSON file; tell me "check" when ready. Works in any session.
 
-**If the user picks Live**, probe the channel:
+**If the user picks JSON**, announce `📝 JSON mode — overlay writes feedback locally` and proceed to Phase 1 with `channelUrl` omitted in the overlay init. Done.
+
+**If the user picks Live**, run two probes in parallel:
 
 ```bash
-curl -s --max-time 1 http://localhost:8788/health
+curl -s --max-time 1 http://localhost:8788/health   # is the channel running?
+test -d ~/.claude/plugins/live-canvas-marketplace && echo INSTALLED || echo MISSING
 ```
 
-- If `{"ok":true,…}` → announce `✨ Live mode — feedback streams into this session` and proceed to Phase 1 with `channelUrl` set in the overlay init.
-- If the probe fails → respond with exactly this and stop. Do not start the interview:
+Branch on the combination:
 
-  ```
-  This session isn't in Live mode. To use Live channel:
-    1. Close this Claude session.
-    2. In your terminal, run:  live-claude
-       (if the command isn't found, run setup.sh first — see below.)
-    3. When the new session opens, run /live-canvas again and pick Live.
+| `/health` | Marketplace dir | What to do |
+|---|---|---|
+| `{"ok":true,…}` | (don't check) | **Case A: Ready.** Announce `✨ Live mode — feedback streams into this session`. Proceed to Phase 1 with `channelUrl: 'http://localhost:8788'`. |
+| fails | exists | **Case B: Installed but this session isn't Live.** Print the relaunch block (below) and STOP. Don't start the interview. |
+| fails | missing | **Case C: First-time setup needed.** Print the full install block (below) and STOP. |
 
-  Or run /live-canvas again now and pick JSON to continue here.
+**Case B — relaunch block:**
 
-  First-time setup (skip if you already have live-claude):
-    bash ~/.claude/plugins/live-canvas-marketplace/setup.sh
-    /plugin marketplace add ~/.claude/plugins/live-canvas-marketplace
-    /plugin install live-canvas-channel@live-canvas-marketplace
-  ```
+```
+This session wasn't started with live-claude, so the channel isn't attached here.
 
-**If the user picks JSON**, announce `📝 JSON mode — overlay writes feedback locally` and proceed to Phase 1 with `channelUrl` omitted in the overlay init.
+To use Live mode:
+  1. Close this Claude session.
+  2. Open a fresh terminal and run:  live-claude
+     (if the command isn't found: source ~/.zshrc, or re-run setup.sh)
+  3. In the new session, run /live-canvas again and pick Live.
 
-### Why not auto-run the setup commands?
+Or just run /live-canvas again now and pick JSON to stay in this session.
+```
 
-**Do not try to run any of these commands yourself.** Three reasons:
+**Case C — first-time setup block:**
+
+```
+Live mode needs a one-time install. Three steps:
+
+  1. From this repo's root (or wherever liteagents lives):
+       bash packages/claude/plugins/live-canvas-marketplace/setup.sh
+     This copies the marketplace into ~/.claude/plugins/, runs npm install,
+     and adds a `live-claude` function to your ~/.zshrc and ~/.bashrc.
+
+  2. In any Claude session, register and install the plugin:
+       /plugin marketplace add ~/.claude/plugins/live-canvas-marketplace
+       /plugin install live-canvas-channel@live-canvas-marketplace
+
+  3. Close this session. Open a fresh terminal and run:
+       live-claude
+     Then run /live-canvas again and pick Live.
+
+Or run /live-canvas again now and pick JSON to continue without Live.
+```
+
+Do not try to run any of these commands yourself. Three reasons:
 1. The `/plugin` steps are Claude Code slash commands and the relaunch requires closing the session — neither is doable from inside a running session.
 2. Accepting the research-preview safety prompt must be the user's explicit act.
 3. If something goes wrong mid-install, the user needs to see each step's output to diagnose.
