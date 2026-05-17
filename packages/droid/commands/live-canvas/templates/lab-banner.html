@@ -1,0 +1,35 @@
+<!--
+  Lab banner — both modes.
+  Paste once at the top of the generated lab page, above the variant grid.
+  Set the parent element's data-lc-mode attribute to "live" or "json" to
+  control which banner shows. The inline script removes the wrong one.
+
+  Example wiring in the lab page:
+    <body data-lc-mode="live">
+      <!-- paste this whole block here -->
+      ... rest of lab page ...
+    </body>
+-->
+<div role="note" data-mode="live"
+     style="background:#ecfeff;border:1px solid #06b6d4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;line-height:1.5;color:#0e7490;">
+  <b>Live design lab — Live mode active.</b> Click any element → leave a comment → Save.
+  Feedback streams into the Claude session running <code>live-claude</code>;
+  Claude edits the corresponding <code>.claude-design/lab/variants/Variant&lt;X&gt;.tsx</code>
+  file and your dev server hot-reloads. The lab is temporary and will be deleted on Finish.
+</div>
+<div role="note" data-mode="json"
+     style="background:#fefce8;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;line-height:1.5;color:#854d0e;">
+  <b>Live design lab — JSON mode.</b> Click any element → leave a comment → Save.
+  Comments accumulate locally; click <b>Submit</b> when done and either paste
+  the JSON in your terminal or tell Claude "check". The lab is temporary and
+  will be deleted on Finish.
+</div>
+<script>
+  (function () {
+    var root = document.querySelector('[data-lc-mode]');
+    var mode = root ? root.getAttribute('data-lc-mode') : 'json';
+    document.querySelectorAll('[data-mode="live"], [data-mode="json"]').forEach(function (el) {
+      if (el.getAttribute('data-mode') !== mode) el.remove();
+    });
+  })();
+</script>

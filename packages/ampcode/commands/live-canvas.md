@@ -524,13 +524,12 @@ The Live Canvas page must include:
 1. **Header** with:
    - Design Brief summary (target, scope, key requirements)
    - Instructions for reviewing
-   - **Lab banner (REQUIRED)** — a visible notice at the top distinguishing the lab from the user's real UI. The exact markup lives in template files; copy the one matching the mode the user picked at Phase 0:
+   - **Lab banner (REQUIRED)** — a visible notice at the top distinguishing the lab from the user's real UI. One template file per project type; same file handles both modes:
 
-     | Project type | Mode | Source file | How to use |
-     |---|---|---|---|
-     | React / Next.js / Vite-React | either | `~/.claude/skills/live-canvas/templates/feedback-react/LabBanner.tsx` | Copy into the lab directory; `import { LabBanner } from './LabBanner'`; render `<LabBanner mode="live" />` (or `"json"`) at the top of the page. |
-     | Vanilla / Vue / Svelte / server-rendered | Live | `~/.claude/skills/live-canvas/templates/lab-banner-live.html` | Paste the `<div>` block at the top of the lab page, above the variant grid. |
-     | Vanilla / Vue / Svelte / server-rendered | JSON | `~/.claude/skills/live-canvas/templates/lab-banner-json.html` | Paste the `<div>` block at the top of the lab page, above the variant grid. |
+     | Project type | Source file | How to use |
+     |---|---|---|
+     | React / Next.js / Vite-React | `~/.claude/skills/live-canvas/templates/feedback-react/LabBanner.tsx` | Copy into the lab directory; `import { LabBanner } from './LabBanner'`; render `<LabBanner mode="live" />` (or `"json"`) at the top of the page. |
+     | Vanilla / Vue / Svelte / server-rendered | `~/.claude/skills/live-canvas/templates/lab-banner.html` | Paste the whole block (both `<div>`s + inline script) at the top of the lab page. Set `data-lc-mode="live"` or `"json"` on an ancestor element (e.g. `<body>`); the inline script removes the wrong banner at load time. |
 
      The intent — "this isn't your real UI, this is a temporary review surface" — must remain visible. You may rewrite the banner using the project's styling system (Tailwind classes, CSS modules) instead of inline styles, but keep the text and the role="note" attribute.
 
