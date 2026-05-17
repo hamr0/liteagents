@@ -515,7 +515,7 @@ The Live Canvas page must include:
 1. **Header** with:
    - Design Brief summary (target, scope, key requirements)
    - Instructions for reviewing
-   - **Lab banner (REQUIRED)** — paste `~/.claude/skills/live-canvas/templates/lab-banner.html` at the top of the lab page. Same text in any mode. For React/TSX labs, translate inline styles to JSX (`style="..."` → `style={{...}}`) but keep the text and `role="note"`.
+   - **Lab banner (REQUIRED)** — paste `~/.claude/skills/live-canvas/templates/lab-banner.html` at the top of the lab page. Same text in any mode. For React/TSX labs, translate the inline style to a JS object: camelCase keys, string values. E.g. `style="border-radius:8px; padding:10px 14px; font-size:13px"` → `style={{ borderRadius: '8px', padding: '10px 14px', fontSize: '13px' }}`. Keep the text and `role="note"`.
 
 2. **Variant Grid** with:
    - Clear labels (A, B, C, D, E)

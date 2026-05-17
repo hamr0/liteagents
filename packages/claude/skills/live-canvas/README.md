@@ -11,7 +11,7 @@ Ships as a Claude Code skill plus an MCP channel plugin. Works in every tool lit
 ```
  ┌──────────────────────┐      POST /feedback        ┌─────────────────────┐
  │ Overlay in browser   │ ─────────────────────────► │ live-canvas-channel │
- │ (vanilla JS or React)│                            │ (Node MCP server)   │
+ │ (vanilla JS, ~500 lines)│                            │ (Node MCP server)   │
  └──────────────────────┘                            └──────────┬──────────┘
            ▲                                                     │
            │ dev server hot-reloads the page                     │ notifications/
@@ -233,7 +233,7 @@ Three common causes, in order of likelihood:
 
 ### Overlay loads in the browser but no pills appear
 
-The overlay script didn't load. Most common cause: you started the Python server inside the wrong directory so the relative `../overlay-vanilla.js` path couldn't resolve. Start the server one level up and navigate with the `/demo/` prefix.
+The overlay script didn't load. Most common cause: you started the Python server inside the wrong directory so the relative `../templates/overlay-vanilla.js` path couldn't resolve. Start the server one level up and navigate with the `/dev/` prefix.
 
 ### "Pushed to Claude ✨" toast appears but nothing happens in the terminal
 
