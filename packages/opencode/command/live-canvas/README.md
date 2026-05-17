@@ -2,7 +2,7 @@
 
 Click-to-annotate UI design tool for Claude Code. Renders N variants of a component or page in your browser, you click an element and type what to change, and Claude edits the variant file while you watch in the browser. No window switching, no pasted JSON.
 
-Ships as a Claude Code skill plus an MCP channel plugin. Works in every tool liteagents supports (Claude, Droid, Amp, Opencode), but **Live mode only works in Claude Code** — other tools run in Batch mode only (see modes below).
+Ships as a Claude Code skill plus an MCP channel plugin. Works in every tool liteagents supports (Claude, Droid, Amp, Opencode), but **Live mode only works in Claude Code** — other tools run in JSON mode only (see modes below).
 
 ---
 
@@ -31,28 +31,31 @@ Each Save in the overlay streams into the Claude session as a `<channel>` tag wi
 
 ## Modes
 
-The overlay auto-selects at runtime, the user never toggles manually.
+The skill asks you which mode you want every time `/live-canvas` runs.
 
-| Mode | Trigger | What happens per Save |
+| Mode | Use when | What happens per Save |
 |---|---|---|
-| **Live** | Channel server answers `GET /health`, session was started with the dev-channels flag | Comment streams into Claude's context; Claude edits the file; dev server hot-reloads. Toast: "Pushed to Claude ✨". |
-| **Batch** | No channel, or running under Droid/Amp/Opencode | Comment stays local. On Finish/Submit it writes JSONL (or downloads the file if no endpoint). User pastes or says "check" in the CLI to have the assistant act on the whole batch. |
+| **Live** | You launched the session with `live-claude` and the channel is up | Comment streams into Claude's context; Claude edits the file; dev server hot-reloads. Toast: "Pushed to Claude ✨". |
+| **JSON** | Any session, any tool (Claude, Droid, Amp, Opencode) | Comment stays local. On Finish/Submit it writes JSONL (or downloads the file if no endpoint). User pastes or says "check" in the CLI to have the assistant act on the whole batch. |
 
-Live mode gracefully degrades to Batch if a push ever fails mid-session.
+If you pick Live but the channel doesn't answer, the skill stops and tells you to relaunch with `live-claude` (or fall back to JSON). It doesn't silently downgrade — the user always gets to choose.
 
 ---
 
 ## One-time setup (Live mode, Claude Code only)
 
-Run this once per machine. Without it, the skill still works in Batch mode.
+Run this once per machine. Without it, the skill still works in JSON mode.
 
-### 1. Install plugin npm dependencies
+### 1. Run the installer
 
 ```bash
-bash ~/.claude/plugins/live-canvas-marketplace/setup.sh
+bash packages/claude/plugins/live-canvas-marketplace/setup.sh
 ```
 
-Checks Node >= 18, runs `npm install` inside the plugin dir. Idempotent.
+The installer:
+- copies the marketplace into `~/.claude/plugins/live-canvas-marketplace/` (overwrites any prior install)
+- runs `npm install` inside the channel plugin
+- adds a `live-claude` shell function to `~/.zshrc` and `~/.bashrc` (idempotent — re-runs replace in place)
 
 ### 2. Register the marketplace in Claude Code
 
@@ -66,21 +69,9 @@ Checks Node >= 18, runs `npm install` inside the plugin dir. Idempotent.
 /plugin install live-canvas-channel@live-canvas-marketplace
 ```
 
-### 4. Start Claude Code with the dev-channels flag
+### 4. Open a fresh shell
 
-```bash
-claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace
-```
-
-Accept the safety prompt (custom channels are in research preview and not on the default allowlist).
-
-**Save yourself typing** — add to `~/.bashrc` or `~/.zshrc`:
-
-```bash
-alias claude-live='claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace'
-```
-
-From now on, `claude-live` to enable Live mode, plain `claude` for everything else.
+`live-claude` is now available. Use plain `claude` for everything else; use `live-claude` when you want Live mode for this skill.
 
 ---
 
@@ -88,7 +79,7 @@ From now on, `claude-live` to enable Live mode, plain `claude` for everything el
 
 ### Start a session
 
-Either `claude` (Batch only) or `claude-live` (Live available).
+Either `claude` (JSON only) or `live-claude` (Live available).
 
 ### Invoke the skill in a project
 
@@ -96,13 +87,13 @@ Either `claude` (Batch only) or `claude-live` (Live available).
 /live-canvas
 ```
 
-Phase 0 probes the channel and decides what to do:
+Phase 0 always asks which mode you want — Live channel or JSON file — then probes the channel if you picked Live:
 
-| State | Skill behavior |
-|---|---|
-| Channel responding | Announces Live mode, goes straight into the interview |
-| Plugin installed but channel not responding (you forgot the dev flag) | AskUserQuestion: Batch now, or close and restart with the flag? |
-| Plugin not installed at all (first run) | AskUserQuestion: set up Live, or just use Batch? Prints the 4-step setup. |
+| Choice | Channel up? | Skill behavior |
+|---|---|---|
+| Live | yes | Announces Live mode, starts the interview |
+| Live | no | Tells you to relaunch with `live-claude` (or fall back to JSON) |
+| JSON | n/a | Announces JSON mode, starts the interview |
 
 ### Interview & generation
 
@@ -113,13 +104,15 @@ Skill asks 5 short questions (scope, pain points, inspiration, persona, constrai
 Open `http://localhost:<dev-port>/__live_canvas`. Click **Add Feedback** (bottom right), click any element in any variant, type a one-liner, Save.
 
 - Live mode: toast says "Pushed to Claude ✨", Claude acknowledges and edits the file, dev server hot-reloads.
-- Batch mode: toast says "Saved — submit when ready", pin stays on the element, counter in the Submit button ticks up.
+- JSON mode: toast says "Saved — submit when ready", pin stays on the element, counter in the Submit button ticks up.
+
+Need the page back? The overlay has a "−" button next to **Add Feedback** that collapses everything to a small circle in the corner — tap to expand again. Useful on mobile where the bar can cover what's underneath.
 
 Keep clicking until a winner emerges.
 
 ### Finish
 
-Click the pink **Finish** (Live) or **Submit** (Batch) button:
+Click the pink **Finish** (Live) or **Submit** (JSON) button:
 
 1. Type the overall direction: e.g. *"Go with B's layout, A's button styling"*
 2. Click Finish
@@ -190,7 +183,7 @@ The skill checks the cache dir to tell first-time vs returning users apart.
     ├── lab/variants/VariantA.tsx … VariantE.tsx
     ├── lab/FeedbackOverlay.tsx (React) OR overlay-vanilla.js (other)
     ├── design-brief.json                  # Structured output from the interview
-    └── feedback.jsonl                     # Batch mode only; deleted on Finish
+    └── feedback.jsonl                     # JSON mode only; deleted on Finish
 ```
 
 Plus a temporary route (e.g. `app/__live_canvas/page.tsx` for Next.js App Router). Everything under `.claude-design/` and the temporary route is deleted on Finish or Abort.
@@ -207,12 +200,11 @@ Plus a temporary route (e.g. `app/__live_canvas/page.tsx` for Next.js App Router
 
 ## The install pipeline, end to end
 
-1. **Liteagents installer** copies files:
+1. **Liteagents installer** copies the skill:
    - `packages/claude/skills/live-canvas/` → `~/.claude/skills/live-canvas/`
-   - `packages/claude/plugins/live-canvas-marketplace/` → `~/.claude/plugins/live-canvas-marketplace/`
-2. **User, once:** runs `bash ~/.claude/plugins/live-canvas-marketplace/setup.sh` → installs the plugin's npm deps
+2. **User, once:** runs `bash packages/claude/plugins/live-canvas-marketplace/setup.sh` → copies marketplace to `~/.claude/plugins/`, runs `npm install`, adds `live-claude` function to `~/.zshrc` and `~/.bashrc`
 3. **User, once:** in a Claude session, runs `/plugin marketplace add ~/.claude/plugins/live-canvas-marketplace` + `/plugin install live-canvas-channel@live-canvas-marketplace`
-4. **User, every session that wants Live mode:** starts Claude with `--dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace` (or `claude-live` alias)
+4. **User, every session that wants Live mode:** runs `live-claude` (function installed by step 2)
 5. **User, whenever:** `/live-canvas` in any project
 
 Steps 1, 2, 3 are truly one-time. Step 4 is per-session. Step 5 is per-project-use.
@@ -221,7 +213,7 @@ Steps 1, 2, 3 are truly one-time. Step 4 is per-session. Step 5 is per-project-u
 
 ## Troubleshooting
 
-### "Listening for channel messages…" appears on session start, but skill still says Batch
+### Channel server starts but skill still routes to JSON
 
 Port 8788 is stuck from an earlier session's server process. Kill it:
 
@@ -236,7 +228,7 @@ Then `/reload-plugins` in the new session.
 
 Three common causes, in order of likelihood:
 
-1. You didn't start this session with the dev flag. Close it, reopen with `claude-live`.
+1. You didn't start this session with the dev flag. Close it, reopen with `live-claude`.
 2. The plugin subprocess died on startup. In the session, run `/mcp` — look for `live-canvas` with its status. "Failed to connect" means a node/dep error: check `~/.claude/debug/<session-id>.txt` for the stderr.
 3. You never ran step 2 of setup. Re-run `bash ~/.claude/plugins/live-canvas-marketplace/setup.sh`.
 
