@@ -754,6 +754,14 @@ export function FeedbackOverlay({
   const [copySuccess, setCopySuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isButtonHovered, setIsButtonHovered] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return window.sessionStorage.getItem('lc-minimized') === '1'; } catch { return false; }
+  });
+  const persistMinimized = (v: boolean) => {
+    setIsMinimized(v);
+    try { window.sessionStorage.setItem('lc-minimized', v ? '1' : '0'); } catch { /* noop */ }
+  };
 
   const panelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1021,21 +1029,84 @@ export function FeedbackOverlay({
 
   return createPortal(
     <>
-      {/* Toggle Button - Only shown when sidebar is NOT active */}
-      {!state.isActive && (
+      {/* Collapsed bubble — click to re-expand */}
+      {isMinimized && !state.isActive && (
         <button
-          className={`${OVERLAY_CLASS_PREFIX}-toggle`}
+          className={`${OVERLAY_CLASS_PREFIX}-bubble`}
           style={{
-            ...styles.toggleButton,
-            ...(isButtonHovered ? styles.toggleButtonHover : {}),
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            border: 0,
+            backgroundColor: '#111',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,.25)',
+            zIndex: 10000,
           }}
-          onClick={toggleFeedbackMode}
-          onMouseEnter={() => setIsButtonHovered(true)}
-          onMouseLeave={() => setIsButtonHovered(false)}
+          onClick={() => persistMinimized(false)}
+          aria-label="Show feedback overlay"
+          title="Show feedback overlay"
         >
-          <span>💬</span>
-          <span>Add Feedback</span>
+          ◐
         </button>
+      )}
+
+      {/* Toggle Button - Only shown when sidebar is NOT active and not minimized */}
+      {!state.isActive && !isMinimized && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 10000,
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+          }}
+        >
+          <button
+            onClick={() => persistMinimized(true)}
+            aria-label="Hide overlay"
+            title="Hide overlay"
+            style={{
+              width: '32px',
+              height: '32px',
+              padding: 0,
+              borderRadius: '50%',
+              border: '1px solid #e4e4e7',
+              backgroundColor: '#fff',
+              color: '#111',
+              cursor: 'pointer',
+              fontSize: '16px',
+              lineHeight: 1,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,.1)',
+            }}
+          >
+            −
+          </button>
+          <button
+            className={`${OVERLAY_CLASS_PREFIX}-toggle`}
+            style={{
+              ...styles.toggleButton,
+              position: 'static',
+              bottom: 'auto',
+              right: 'auto',
+              ...(isButtonHovered ? styles.toggleButtonHover : {}),
+            }}
+            onClick={toggleFeedbackMode}
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
+          >
+            <span>💬</span>
+            <span>Add Feedback</span>
+          </button>
+        </div>
       )}
 
       {/* Hover Highlight */}

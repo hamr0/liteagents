@@ -38,10 +38,15 @@
     batchEndpoint: null,
     active: false,
     picking: false,
+    minimized: false,                            // collapsed to a single bubble?
     comments: [],                                // Comment[] — only items pending batch submit
     overall: '',
     pinCounts: Object.create(null),              // `${variant}|${selector}` → placed-pin count
   };
+
+  // Persist collapse state across hot reloads / variant switches.
+  const MIN_KEY = 'lc-minimized';
+  try { state.minimized = sessionStorage.getItem(MIN_KEY) === '1'; } catch (_) {}
 
   // ---------- utilities ----------
 
@@ -134,7 +139,8 @@
     const css = `
       [${DATA_OVERLAY}] { font-family: system-ui, sans-serif; box-sizing: border-box; }
       .${PFX}-bar { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
-        display: flex; gap: 8px; }
+        display: flex; gap: 8px; align-items: center; }
+      .${PFX}-bar[data-hidden='1'] { display: none; }
       .${PFX}-btn { border: 0; border-radius: 999px; padding: 10px 16px;
         font-weight: 600; font-size: 13px; cursor: pointer;
         box-shadow: 0 4px 12px rgba(0,0,0,.25); font-family: inherit; }
@@ -146,9 +152,22 @@
       .${PFX}-submit .${PFX}-count { display: inline-block; background: #d946ef; color: #fff;
         border-radius: 999px; min-width: 18px; padding: 0 6px; margin-left: 6px;
         font-size: 11px; line-height: 18px; text-align: center; }
+      .${PFX}-min { width: 32px; height: 32px; padding: 0; border-radius: 50%;
+        background: #fff; color: #111; border: 1px solid #e4e4e7; font-size: 16px;
+        line-height: 1; display: flex; align-items: center; justify-content: center; }
+      .${PFX}-bubble { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
+        width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+        background: #111; color: #fff; font-size: 14px; font-weight: 700;
+        box-shadow: 0 4px 12px rgba(0,0,0,.25); display: none; }
+      .${PFX}-bubble[data-show='1'] { display: flex; align-items: center; justify-content: center; }
       .${PFX}-mode { position: fixed; right: 16px; bottom: 60px; z-index: 2147483646;
         background: rgba(0,0,0,.75); color: #fff; font-size: 11px;
         padding: 4px 8px; border-radius: 4px; pointer-events: none; }
+      .${PFX}-mode[data-hidden='1'] { display: none; }
+      @media (max-width: 640px) {
+        .${PFX}-popup { left: 8px !important; right: 8px; width: auto !important; max-width: none; }
+        .${PFX}-submit-card { width: 100% !important; max-width: calc(100vw - 24px); }
+      }
       .${PFX}-picking { cursor: crosshair !important; }
       .${PFX}-hover-outline { outline: 2px solid #d946ef !important; outline-offset: 2px; }
       .${PFX}-pin { position: absolute; z-index: 2147483645; width: 24px; height: 24px;
@@ -235,8 +254,27 @@
 
   // ---------- UI ----------
 
-  let toggleBtn, submitBtn, modeBadge, toast, popupNode;
+  let toggleBtn, submitBtn, minBtn, bubbleBtn, barNode, modeBadge, toast, popupNode;
   let hoverEl = null;
+
+  const applyMinimized = () => {
+    if (!barNode) return;
+    barNode.setAttribute('data-hidden', state.minimized ? '1' : '0');
+    modeBadge.setAttribute('data-hidden', state.minimized ? '1' : '0');
+    bubbleBtn.setAttribute('data-show', state.minimized ? '1' : '0');
+    // Cancel an active pick when collapsing — otherwise clicks land on the page.
+    if (state.minimized && state.picking) {
+      state.picking = false;
+      setPickingCursor(false);
+      clearHover();
+      toggleBtn.setAttribute('data-active', '0');
+      toggleBtn.textContent = 'Add Feedback';
+    }
+    closePopup();
+    try { sessionStorage.setItem(MIN_KEY, state.minimized ? '1' : '0'); } catch (_) {}
+  };
+
+  const setMinimized = (v) => { state.minimized = !!v; applyMinimized(); };
 
   const pendingCount = () => state.comments.filter(c => !c.delivered).length;
 
@@ -442,13 +480,28 @@
     submitBtn = el('button', { class: `${PFX}-btn ${PFX}-submit`, on: {
       click: openSubmitModal,
     }});
+    minBtn = el('button', {
+      class: `${PFX}-btn ${PFX}-min`,
+      title: 'Hide overlay',
+      'aria-label': 'Hide overlay',
+      on: { click: () => setMinimized(true) },
+    }, '−');
     refreshSubmitBtn();
-    const bar = el('div', { class: `${PFX}-bar` }, [submitBtn, toggleBtn]);
+    barNode = el('div', { class: `${PFX}-bar` }, [minBtn, submitBtn, toggleBtn]);
+    bubbleBtn = el('button', {
+      class: `${PFX}-bubble`,
+      title: 'Show feedback overlay',
+      'aria-label': 'Show feedback overlay',
+      on: { click: () => setMinimized(false) },
+    }, '◐');
     modeBadge = el('div', { class: `${PFX}-mode` }, `${state.mode === 'live' ? 'LIVE' : 'BATCH'} mode`);
     toast = el('div', { class: `${PFX}-toast` });
-    document.body.appendChild(bar);
+    document.body.appendChild(barNode);
+    document.body.appendChild(bubbleBtn);
     document.body.appendChild(modeBadge);
     document.body.appendChild(toast);
+
+    applyMinimized();
 
     document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('click', onClick, true);
