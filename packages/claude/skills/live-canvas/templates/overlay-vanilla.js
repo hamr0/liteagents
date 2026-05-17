@@ -262,6 +262,11 @@
     barNode.setAttribute('data-hidden', state.minimized ? '1' : '0');
     modeBadge.setAttribute('data-hidden', state.minimized ? '1' : '0');
     bubbleBtn.setAttribute('data-show', state.minimized ? '1' : '0');
+    // state.mode can flip live → batch mid-session if a push fails; refresh
+    // the badge each time we re-show it so it doesn't lie.
+    if (!state.minimized) {
+      modeBadge.textContent = `${state.mode === 'live' ? 'LIVE' : 'JSON'} mode`;
+    }
     // Cancel an active pick when collapsing — otherwise clicks land on the page.
     if (state.minimized && state.picking) {
       state.picking = false;
@@ -494,7 +499,7 @@
       'aria-label': 'Show feedback overlay',
       on: { click: () => setMinimized(false) },
     }, '◐');
-    modeBadge = el('div', { class: `${PFX}-mode` }, `${state.mode === 'live' ? 'LIVE' : 'BATCH'} mode`);
+    modeBadge = el('div', { class: `${PFX}-mode` }, `${state.mode === 'live' ? 'LIVE' : 'JSON'} mode`);
     toast = el('div', { class: `${PFX}-toast` });
     document.body.appendChild(barNode);
     document.body.appendChild(bubbleBtn);
