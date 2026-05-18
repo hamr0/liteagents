@@ -35,10 +35,10 @@ The skill asks you which mode you want every time `/live-canvas` runs.
 
 | Mode | Use when | What happens per Save |
 |---|---|---|
-| **Live** | You launched the session with `live-claude` and the channel is up | Comment streams into Claude's context; Claude edits the file; dev server hot-reloads. Toast: "Pushed to Claude ✨". |
-| **JSON** | Any session, any tool (Claude, Droid, Amp, Opencode) | Comment stays local. On Finish/Submit it writes JSONL (or downloads the file if no endpoint). User pastes or says "check" in the CLI to have the assistant act on the whole batch. |
+| **Live** | You launched the session with `live-claude` (sets `--dangerously-load-development-channels`) | Comment streams into Claude's context; Claude edits the file; dev server hot-reloads. Toast: "Pushed to Claude ✨". |
+| **JSON** | Any session, any tool (Claude, Droid, Amp, Opencode) | Comment stays local. On Submit it POSTs to a `/feedback-jsonl` route on the channel server, which writes to `<project>/.claude-design/feedback.jsonl`. Falls back to browser download only when the MCP isn't running (e.g. Droid/Amp/Opencode users). |
 
-If you pick Live but the channel doesn't answer, the skill stops and tells you to relaunch with `live-claude` (or fall back to JSON). It doesn't silently downgrade — the user always gets to choose.
+If you pick Live but the session lacks the channels flag, `channel_open` returns `no_channel_capability` and the skill prints the exact relaunch command — it never silently downgrades to JSON. If another live-canvas session is already holding port 8788, `channel_open` takes over (same plugin + same user = safe) and announces it. Foreign processes on 8788 (e.g. a stray dev server) are refused with the holder's pid so you know what to investigate.
 
 ---
 
@@ -87,13 +87,16 @@ Either `claude` (JSON only) or `live-claude` (Live available).
 /live-canvas
 ```
 
-Phase 0 always asks which mode you want — Live channel or JSON file — then probes the channel if you picked Live:
+Phase 0 always asks which mode you want — Live channel or JSON file — then calls the MCP tool that binds (or refuses) port 8788:
 
-| Choice | Channel up? | Skill behavior |
+| Choice | `channel_open` / `batch_open` result | Skill behavior |
 |---|---|---|
-| Live | yes | Announces Live mode, starts the interview |
-| Live | no | Tells you to relaunch with `live-claude` (or fall back to JSON) |
-| JSON | n/a | Announces JSON mode, starts the interview |
+| Live | `opened` | ✨ Live mode — announces it, starts the interview |
+| Live | `opened` + `took_over: <pid>` | ✨ Live mode — announces it and that it took over a sibling live-canvas server (your prior session) |
+| Live | `no_channel_capability` | Stops. Prints the exact `live-claude --continue` command for relaunch |
+| Live | `in_use` (foreign holder) | Stops. Prints the holder pid + `ps -fp <pid>` so you can investigate |
+| JSON | `opened` / `already_listening` | 📝 JSON mode — Submit writes to `.claude-design/feedback.jsonl` |
+| JSON | `in_use` / MCP unavailable | 📝 JSON mode — Submit downloads a JSON file you paste back |
 
 ### Interview & generation
 
@@ -212,32 +215,34 @@ Steps 1, 2, 3 are truly one-time. Step 4 is per-session. Step 5 is per-project-u
 
 ## Troubleshooting
 
-### Channel server starts but skill still routes to JSON
+### Port 8788 stuck from a prior session
 
-Port 8788 is stuck from an earlier session's server process. Kill it:
+You shouldn't hit this — `channel_open` now detects sibling live-canvas servers (same uid, same plugin) and takes them over automatically. If you do see `{status: "in_use", holder_pid: <pid>}` from the tool, that means the holder is **not** a live-canvas server (the plugin refuses to kill anything it doesn't own). Investigate with:
 
 ```bash
-lsof -i :8788
-kill <pid>
+ps -fp <pid>     # what is it
+kill <pid>       # only if it's safe to stop
 ```
 
-Then `/reload-plugins` in the new session.
+Then re-run `/live-canvas`.
 
-### Skill says "No response on :8788" even though I set everything up
+### Skill says `no_channel_capability` and refuses Live mode
 
-Three common causes, in order of likelihood:
+The session was started with plain `claude`, which can't receive channel notifications (notifications would be silently dropped). Open a fresh terminal and run `live-claude` — the function added to your shellrc by `setup.sh` runs `claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace`. Then `/live-canvas` in the new session works.
 
-1. You didn't start this session with the dev flag. Close it, reopen with `live-claude`.
-2. The plugin subprocess died on startup. In the session, run `/mcp` — look for `live-canvas` with its status. "Failed to connect" means a node/dep error: check `~/.claude/debug/<session-id>.txt` for the stderr.
-3. You never ran step 2 of setup. Re-run `bash ~/.claude/plugins/live-canvas-marketplace/setup.sh`.
+### Skill says `/mcp` shows the plugin as failed
+
+The plugin subprocess died on startup (usually a node/dep error). In the session, run `/mcp` — "Failed to connect" means look at `~/.claude/debug/<session-id>.txt` for the stderr. Common fix: re-run `setup.sh` so `npm install` runs again inside the plugin dir.
 
 ### Overlay loads in the browser but no pills appear
 
-The overlay script didn't load. Most common cause: you started the Python server inside the wrong directory so the relative `../templates/overlay-vanilla.js` path couldn't resolve. Start the server one level up and navigate with the `/dev/` prefix.
+The overlay script didn't load. Most common cause: you started a static file server inside the wrong directory so the relative `overlay-vanilla.js` path couldn't resolve. Start the server from the directory containing the lab's `index.html` (or `__live_canvas` route).
 
-### "Pushed to Claude ✨" toast appears but nothing happens in the terminal
+### "Pushed to Claude ✨" toast appears but nothing lands in the terminal
 
-Either (a) you're not in a dev-flag session, or (b) an older channel server process is answering on 8788 and is stdio-connected to a dead session. See the two troubleshooting items above.
+This shouldn't happen with v0.3.0+ — the flag gate refuses bind from plain-claude sessions so the silent black-hole case is impossible. If you do see it, one of:
+- You're on an old plugin (v0.2.0 or earlier). Run `/reload-plugins` in the session; the new in-memory MCP will be v0.5.0+.
+- You're typing in the wrong session. Channel notifications go to whichever Claude session's MCP bound port 8788 — check `ss -lntp | grep 8788`, walk up the parent pid until you find the `claude` process, and switch terminals to that one.
 
 ### I want to uninstall
 

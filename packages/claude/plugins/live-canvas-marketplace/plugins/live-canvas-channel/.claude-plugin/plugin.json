@@ -1,6 +1,6 @@
 {
   "name": "live-canvas-channel",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Bridges the Live Canvas browser overlay to a Claude Code session. Each overlay Save becomes a claude/channel notification delivered over MCP.",
   "author": { "name": "liteagents" },
   "channels": [

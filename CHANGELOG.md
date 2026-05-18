@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.0] - 2026-05-18
+
+### Added
+- **live-canvas channel: lazy port binding via MCP tools** — `server.js` (v0.5.0) now exposes `channel_open`, `channel_close`, and `batch_open` tools and only binds port 8788 when the skill explicitly calls one. Plain Claude sessions stay idle by default; multiple sessions can have the plugin loaded with `/mcp` green without racing for the port.
+- **live-canvas channel: automatic sibling takeover** — when `channel_open` finds port 8788 held by another instance of the live-canvas plugin running as the same uid, it takes over (SIGTERM the sibling, rebind, SIGKILL fallback if needed). The taken-over pid is returned as `took_over` in the response so the skill can surface it to the user. Foreign processes are still refused with `{status: "in_use", holder_pid, ...}` — the plugin won't kill anything it doesn't own. Removes the dead-end "port busy, go close it yourself in some other terminal" prompt the user was hitting on every second `/live-canvas`.
+- **live-canvas JSON mode: writes to disk instead of browser download** — channel server gains a `POST /feedback-jsonl` route that appends submissions to `<parent claude cwd>/.claude-design/feedback.jsonl`. The skill calls a new `batch_open` MCP tool (no flag gate — JSON mode doesn't use channels) and sets the overlay's `batchEndpoint` to `/feedback-jsonl`. Falls back to the legacy browser-download path only when the MCP isn't available or another session holds the port.
+- **live-canvas channel: parent-flag capability gate** — `channel_open` inspects the parent `claude` process's command line and refuses to bind if `--dangerously-load-development-channels` is missing, returning `{status: "no_channel_capability", message: ...}`. Without this, plain `claude` sessions could win the port race and silently drop every notification (POST 200, no `<channel>` tag — the "nothing landed" black hole).
+- **Cross-platform parent-cmdline detection** — Linux reads `/proc/<ppid>/cmdline` (fast, no subprocess); macOS/BSD falls back to `ps -p <ppid> -o args=`; Windows falls back to `wmic process where processid=<ppid> get commandline`. If none work the gate fails closed.
+- **SKILL.md Case D — explicit relaunch block** — when `channel_open` returns `no_channel_capability`, the skill prints the exact `live-claude --continue` command (and the literal `--dangerously-load-development-channels` long form) and stops, instead of proceeding into a non-functional Live mode.
+
+### Changed
+- **SKILL.md mode-selection: replaced `curl /health` probe with the `mcp__live-canvas__channel_open` tool call.** The tool's structured result (`opened` / `already_listening` / `in_use` / `no_channel_capability`) is authoritative — no more curl-vs-marketplace-dir branch table. Mirrors in `packages/{droid,ampcode,opencode}/commands/live-canvas.md` synced.
+
+### Fixed
+- **live-canvas: silent channel black-hole when a plain `claude` won the port race.** Before, the first session to start (often a plain `claude` without the experimental channels flag) would bind 8788 first; subsequent `live-claude` sessions hit EADDRINUSE and the user's browser feedback would POST 200 into a session that silently discarded notifications. The capability gate + lazy bind together eliminate this: only flagged sessions can claim the port.
+
+---
+
 ## [2.7.0] - 2026-05-17
 
 ### Added
