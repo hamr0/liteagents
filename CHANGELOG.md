@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.1] - 2026-05-22
+
+### Changed
+- **`/security` and `/ship` rewritten across all four tools (claude, opencode, ampcode, droid).** Both were thin stubs; they're now substantive, stack-agnostic gates that apply to libraries, CLIs, web apps, and services alike.
+  - `/security` leads with the six failure classes that recur in nearly every quickly-built app — secrets committed to the repo, data-access / tenant isolation, rate limiting (including authenticated write routes), error handling past the happy path, authorization-beyond-authentication (IDOR / privilege), and N+1 / unindexed data access — plus a trust-boundary pass (spoofable headers like `X-Forwarded-For`, services bound to `0.0.0.0`, unvalidated untrusted input) and severity-ranked, coverage-auditable output.
+  - `/ship` is now stack-adaptive: it detects the toolchain (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`) and runs only the checks that exist instead of assuming `npm run lint`/`build`/`migrate`, and adds gates for authorization, rate limiting, data-access scoping, error handling, and secret-scanning before deploy.
+
+### Fixed
+- **`allowed-tools` permission syntax normalized to the canonical colon form** (`Bash(git:*)`) in the claude package's `ship.md`, `security.md`, and `git-commit.md` — the space form (`Bash(git *)`) is not a valid Claude Code permission wildcard. The opencode/ampcode/droid packages retain their existing space-form syntax (their runners parse `allowed-tools` differently, if at all), so there is no behavior change there.
+
+---
+
 ## [2.8.0] - 2026-05-18
 
 ### Added
