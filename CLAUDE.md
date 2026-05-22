@@ -5,7 +5,7 @@ AI development toolkit with 11 specialized agents and 20 commands per tool. Supp
 ## Documentation
 See `docs/README.md` for full documentation structure.
 
-## Dev Rules (mandatory — full source: `.claude/memory/AGENT_RULES.md`)
+## Dev Rules (mandatory — full source: `/home/hamr/Documents/PycharmProjects/gitdone/.claude/memory/AGENT_RULES.md`)
 
 **Simple > clever.** Readable code a junior can follow beats elegant code that needs a PhD to debug. Be the Simplicity Advocate: call out overcomplications and suggest simpler alternatives BEFORE building, not after.
 
@@ -21,7 +21,7 @@ See `docs/README.md` for full documentation structure.
 
 **POC first.** Validate logic with ~15min proof-of-concept before designing properly. Never ship the POC — rewrite it.
 
-For full standards (testing, twelve-factor, deployment), see `.claude/memory/AGENT_RULES.md`.
+For full standards (testing, twelve-factor, deployment), see `/home/hamr/Documents/PycharmProjects/gitdone/.claude/memory/AGENT_RULES.md`.
 
 <!-- MEMORY:START -->
 @MEMORY.md
