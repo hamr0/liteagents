@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Stale `variant-system` npm keyword — there is one package per tool, not a variant matrix.
+- Dead 3-variant migration code in `installer/path-manager.js` (`detectLegacyInstallation`, `countLegacyComponents`, `classifyVariantFromComponents`, `createManifestForLegacy`). These classified pre-1.2.0 installs into lite/standard/pro by counting `resources`/`hooks` dirs that no longer exist, and nothing in the installer ever called them. Verified the installer still installs, backs up, and uninstalls correctly after removal; `npm test` 138/138 and the installation-engine suite 60/60 still pass.
 
 ### Planned
 - Community marketplace submissions
