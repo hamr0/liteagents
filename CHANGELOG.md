@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Content-integrity check in the multi-tool test suite.** It now pins the expected per-tool counts of agents, commands, skills, and plugins (counting `.md` dispatch entries and skill/plugin directories, not raw files). Accidentally adding or removing a command/skill/agent fails the publish gate with the exact delta until the expected number is updated deliberately — so the CI gate now protects what actually ships, not just installer plumbing.
 
+### Changed
+- **Rewrote `docs/INSTALLER_GUIDE.md` to match the actual installer** (1586 → ~430 lines). Removed the entire fictional "Command-Line Flags" section (the installer takes no flags — it is interactive only), the Lite/Standard/Pro variant system, invented agent lists and component counts, and corrected the default install paths (`~/.config/opencode`, `~/.config/amp`, `~/.factory` — the old guide listed `~/.opencode`/`~/.ampcode`/`~/.droid`, none of which the installer uses). Added an accurate interactive walkthrough and an Uninstalling section, and dropped links to deleted/nonexistent docs.
+
 ### Removed
 - Stale `variant-system` npm keyword — there is one package per tool, not a variant matrix.
 - Dead 3-variant migration code in `installer/path-manager.js` (`detectLegacyInstallation`, `countLegacyComponents`, `classifyVariantFromComponents`, `createManifestForLegacy`). These classified pre-1.2.0 installs into lite/standard/pro by counting `resources`/`hooks` dirs that no longer exist, and nothing in the installer ever called them. Verified the installer still installs, backs up, and uninstalls correctly after removal; `npm test` 138/138 and the installation-engine suite 60/60 still pass.

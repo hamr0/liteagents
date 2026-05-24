@@ -1,9 +1,11 @@
-# Agentic Kit Installer Guide
+# liteagents Installer Guide
 
-**Version**: 1.2.0
-**Last Updated**: 2025-11-04
+**Version**: 2.8.1
+**Last Updated**: 2026-05-24
 
-A comprehensive guide to installing and managing Agentic Kit tools using the interactive multi-tool installer.
+A guide to installing and managing liteagents across the supported AI development tools using the interactive multi-tool installer.
+
+> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents, commands, and skills); there are no Lite/Standard/Pro variants.
 
 ---
 
@@ -11,13 +13,12 @@ A comprehensive guide to installing and managing Agentic Kit tools using the int
 
 1. [Quick Start](#quick-start)
 2. [Installation Process](#installation-process)
-3. [Variant Selection](#variant-selection)
-4. [Tool Selection](#tool-selection)
-5. [Custom Path Configuration](#custom-path-configuration)
-6. [Common Installation Scenarios](#common-installation-scenarios)
-7. [Command-Line Flags](#command-line-flags)
-8. [Troubleshooting](#troubleshooting)
-9. [FAQ](#faq)
+3. [Tools](#tools)
+4. [Custom Path Configuration](#custom-path-configuration)
+5. [Common Scenarios](#common-scenarios)
+6. [Uninstalling](#uninstalling)
+7. [Troubleshooting](#troubleshooting)
+8. [FAQ](#faq)
 
 ---
 
@@ -28,23 +29,25 @@ A comprehensive guide to installing and managing Agentic Kit tools using the int
 - **Node.js**: Version 14.0.0 or higher
 - **npm**: Version 6.0.0 or higher
 - **Disk Space**: At least 50 MB free
-- **Permissions**: Write access to installation directories
+- **Permissions**: Write access to the installation directories
 
 ### Installation
 
 ```bash
-# Install Agentic Kit globally
+# Install liteagents globally
 npm install -g liteagents
 
 # Run the interactive installer
-liteagents install
+liteagents
 ```
 
-The installer will guide you through 4 simple steps:
-1. **Select Variant** (Lite, Standard, or Pro)
-2. **Select Tools** (Claude, Opencode, Ampcode, Droid)
-3. **Configure Paths** (Use defaults or customize)
-4. **Install** (Watch real-time progress)
+`liteag` is a short alias for the same installer.
+
+The installer walks you through three steps:
+
+1. **Select tools** (Claude, Opencode, Ampcode, Droid)
+2. **Configure paths** (use defaults or customize)
+3. **Confirm and install** (watch real-time progress)
 
 ---
 
@@ -53,420 +56,94 @@ The installer will guide you through 4 simple steps:
 ### Step 1: Launch the Installer
 
 ```bash
-liteagents install
+liteagents
 ```
 
-You'll see the welcome screen:
+You'll see the welcome banner and a menu:
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║                                                          ║
-║        Agentic Kit Interactive Multi-Tool Installer      ║
-║                                                          ║
-║        Install AI agents and skills for multiple tools   ║
-║                                                          ║
-╚══════════════════════════════════════════════════════════╝
+                  AGENTIC KIT
+        v2.8.1 | 11 agents + 23 commands per tool
 
-Available Tools:
-  • Claude     - Conversational AI with markdown-first workflows
-  • Opencode   - CLI-optimized code generation
-  • Ampcode    - Amplified development with maximum velocity
-  • Droid      - Android-first mobile development
+What would you like to do?
 
-Let's get started!
+  1. Install tools
+  2. Uninstall tools
+  3. Exit
+
+Enter choice (1-3): 1
 ```
 
-### Step 2: Select Variant
+### Step 2: Select Tools
 
-Choose the variant that matches your needs:
-
-```
-═══════════════════════════════════════════════════════════
-Step 1 of 4: Select Variant
-═══════════════════════════════════════════════════════════
-
-Available variants:
-
-1. Lite     - Minimal setup with core agents only (~500 KB)
-   Best for: Quick experimentation, learning, resource-constrained systems
-
-2. Standard - Recommended setup with agents + core skills (~8.4 MB)
-   Best for: Most development workflows, document processing, design work
-
-3. Pro      - Complete setup with all agents and skills (~9 MB)
-   Best for: Advanced workflows, automation, full feature access
-
-Select variant (1-3, or 'q' to quit):
-```
-
-**Recommendations**:
-- **First-time users**: Start with **Standard** (recommended)
-- **Minimal footprint**: Choose **Lite**
-- **Power users**: Choose **Pro**
-
-### Step 3: Select Tools
-
-Choose which tools to install:
+Choose which tools to install. Use the arrow keys to move, **Space** to toggle a tool, and **Enter** to confirm:
 
 ```
-═══════════════════════════════════════════════════════════
-Step 2 of 4: Select Tools
-═══════════════════════════════════════════════════════════
+Select tools to install (Space to toggle, Enter to confirm):
 
-Available tools:
-
-1. Claude     - Conversational AI (markdown-first workflows)
-2. Opencode   - CLI-optimized code generation
-3. Ampcode    - Amplified development (maximum velocity)
-4. Droid      - Android-first mobile development
-
-Enter tool numbers to install (comma-separated, e.g., 1,2,4):
-Or type 'all' to install all tools:
+  [x] Claude Code   - AI-powered development assistant
+  [ ] Opencode      - CLI-optimized AI codegen tool
+  [ ] Ampcode       - Amplified AI development accelerator
+  [ ] Droid         - Android-focused AI development companion
 ```
 
-**Tips**:
-- You can install multiple tools: `1,2,4`
-- Install all at once: `all`
-- Each tool is isolated (no conflicts)
+Each tool is installed independently to its own directory, so there are no conflicts between tools.
 
-### Step 4: Configure Paths
+### Step 3: Configure Paths
 
-Review and customize installation paths:
+Review the default installation paths and customize them if needed:
 
 ```
-═══════════════════════════════════════════════════════════
-Step 3 of 4: Configure Paths
-═══════════════════════════════════════════════════════════
-
 Default installation paths:
 
-  Claude:   /home/user/.claude/
-  Opencode: /home/user/.opencode/
-  Ampcode:  /home/user/.ampcode/
-  Droid:    /home/user/.droid/
-
-These paths will be automatically detected by each tool.
+  Claude Code → ~/.claude
+  Opencode    → ~/.config/opencode
+  Ampcode     → ~/.config/amp
+  Droid       → ~/.factory
 
 Do you want to customize any paths? (y/N):
 ```
 
-**When to customize**:
-- Installing to shared team directory
-- Using a specific project structure
-- Installing to external drive
-- Corporate/enterprise environments
+See [Custom Path Configuration](#custom-path-configuration) for when and how to change these.
 
-### Step 5: Confirm and Install
+### Step 4: Confirm and Install
 
-Review your selections:
+Review your selections and confirm. If an installation already exists at a target path, the installer backs it up first (a timestamped `.backup.` copy) before installing:
 
 ```
-═══════════════════════════════════════════════════════════
-Step 4 of 4: Installation Summary
-═══════════════════════════════════════════════════════════
-
 Ready to install:
 
-  Variant: Standard (13 agents, 8 skills, 29 files, 8.39 MB)
+  Claude Code → ~/.claude
 
-  Tools:
-    ✓ Claude     → /home/user/.claude/
+Proceed with installation? (Y/n): y
 
-  Total: 29 files, 8.39 MB
+Installing...
 
-Do you want to proceed with installation? (Y/n):
-```
-
-Watch real-time progress:
-
-```
-Installing Claude (Standard variant)...
-
-Progress: ████████████████████ 100%
-
-  ✓ Copied 13 agents
-  ✓ Copied 8 skills
-  ✓ Copied 6 resources
-  ✓ Copied 2 hooks
+  ✓ Copied agents
+  ✓ Copied commands
+  ✓ Copied skills
   ✓ Created manifest
 
-Verification: ████████████████████ 100%
-
-  ✓ Verified 29 files
-  ✓ All components accessible
-  ✓ Manifest valid
-
 Installation complete! ✓
-
-Installed:
-  • Claude Standard → /home/user/.claude/
-
-Total time: 12.3s
+  Backup: ~/.claude.backup.2026-05-24T10-19-22-124Z   (only if a prior install existed)
 ```
+
+A log of each run is written to `~/.liteagents-install.log`.
 
 ---
 
-## Variant Selection
+## Tools
 
-### Overview
+liteagents installs the **same content set into each tool**: 11 specialized agents and the full command set (23 commands). Claude Code additionally receives skills and the live-canvas plugin marketplace, which are native Claude Code features.
 
-Agentic Kit offers three variants for each tool, allowing you to choose the right balance of features and disk space.
+| Tool | Default path | Description |
+|------|--------------|-------------|
+| **Claude Code** | `~/.claude` | AI-powered development assistant |
+| **Opencode** | `~/.config/opencode` | CLI-optimized AI codegen tool |
+| **Ampcode** | `~/.config/amp` | Amplified AI development accelerator |
+| **Droid** | `~/.factory` | Android-focused AI development companion |
 
-### Lite Variant
-
-**Size**: ~510 KB
-**Components**: 3 agents, 0 skills, 6 resources, 2 hooks
-**Total Files**: 11
-
-**What's Included**:
-- 3 core agents:
-  - `0-think-process` - Thoughtful problem analysis
-  - `1-fix-process-repl` - Bug fixing and debugging
-  - `2-write-with-tools` - Code generation with tools
-
-**Best For**:
-- Learning and experimentation
-- Minimal installations
-- Resource-constrained systems
-- Quick prototyping
-- CI/CD environments
-
-**Use Cases**:
-- "I want to try Agentic Kit without committing much space"
-- "I only need basic code generation"
-- "I'm installing on a low-resource server"
-- "I want fast installation for testing"
-
-### Standard Variant (Recommended)
-
-**Size**: ~8.4 MB
-**Components**: 13 agents, 8 skills, 6 resources, 2 hooks
-**Total Files**: 29
-
-**What's Included**:
-- All 13 agents (Lite agents + 10 more):
-  - `3-process-task-list` - Task management
-  - `4-generate-tests` - Test generation
-  - `5-refactor` - Code refactoring
-  - `6-autotest-edd` - Event-driven testing
-  - `7-Master-Orchestrator` - Project orchestration
-  - `8-improve-system-prompt` - Prompt optimization
-  - `9-design-agent` - Design workflows
-  - `10-research-writer` - Research and documentation
-  - Plus 5 more specialized agents
-
-- 8 core skills:
-  - **Document Processing**: pdf, docx, xlsx, pptx
-  - **Design & Branding**: canvas-design, theme-factory, brand-guidelines
-  - **Communication**: internal-comms
-
-**Best For**:
-- Most development workflows
-- Professional development
-- Document generation and processing
-- Design and branding work
-- Team collaboration
-
-**Use Cases**:
-- "I need document processing capabilities (PDFs, Word, Excel, PowerPoint)"
-- "I want design and branding tools"
-- "I'm a professional developer using this daily"
-- "I need the recommended feature set"
-
-### Pro Variant
-
-**Size**: ~9 MB
-**Components**: 13 agents, 22 skills, 6 resources, 2 hooks
-**Total Files**: 43
-
-**What's Included**:
-- All Standard variant content PLUS
-- 14 advanced skills:
-  - `video-production` - Video editing and generation
-  - `audio-transcription` - Audio processing
-  - `data-visualization` - Charts and graphs
-  - `web-scraping` - Data extraction
-  - `api-integration` - API development
-  - `database-query` - Database operations
-  - `machine-learning` - ML workflows
-  - `blockchain-tools` - Web3 development
-  - `iot-integration` - IoT device integration
-  - `security-audit` - Security analysis
-  - `performance-profiling` - Performance optimization
-  - `devops-automation` - DevOps workflows
-  - `cloud-deployment` - Cloud operations
-  - `code-migration` - Code migration tools
-
-**Best For**:
-- Advanced development workflows
-- Full-stack development
-- Automation and tooling
-- Data science and ML
-- DevOps and cloud
-- Security and performance work
-
-**Use Cases**:
-- "I need advanced capabilities like ML, blockchain, or IoT"
-- "I want access to all features"
-- "I'm building complex automation workflows"
-- "Disk space is not a concern"
-
-### Variant Comparison Table
-
-| Feature | Lite | Standard | Pro |
-|---------|------|----------|-----|
-| **Size** | 510 KB | 8.4 MB | 9 MB |
-| **Agents** | 3 | 13 | 13 |
-| **Skills** | 0 | 8 | 22 |
-| **Resources** | 6 | 6 | 6 |
-| **Hooks** | 2 | 2 | 2 |
-| **Files** | 11 | 29 | 43 |
-| **Document Processing** | ✗ | ✓ | ✓ |
-| **Design Tools** | ✗ | ✓ | ✓ |
-| **Advanced Skills** | ✗ | ✗ | ✓ |
-| **ML/AI Tools** | ✗ | ✗ | ✓ |
-| **DevOps/Cloud** | ✗ | ✗ | ✓ |
-
-### Upgrading Between Variants
-
-You can easily upgrade from Lite → Standard → Pro:
-
-```bash
-# Upgrade to a different variant
-liteagents install
-
-# Select the new variant when prompted
-# The installer will detect existing installation and upgrade
-```
-
-**Note**: Downgrading (Pro → Standard → Lite) will remove skills and may affect existing workflows.
-
----
-
-## Tool Selection
-
-### Overview
-
-Agentic Kit supports four AI development tools, each optimized for specific workflows:
-
-### 1. Claude
-
-**Optimization**: `conversational-ai`
-**Focus**: Markdown-first, natural language workflows
-**Best For**: Conversational development, documentation, research
-
-**Key Features**:
-- Natural language interaction
-- Markdown-centric workflows
-- Rich documentation generation
-- Research and analysis
-- Collaborative development
-
-**Use Cases**:
-- Writing documentation
-- Research and analysis
-- Content generation
-- Conversational code development
-- Team collaboration
-
-**Installation Path**: `~/.claude/`
-
-### 2. Opencode
-
-**Optimization**: `cli-codegen`
-**Focus**: Terminal-first, command-line workflows
-**Best For**: CLI developers, terminal users, automation scripts
-
-**Key Features**:
-- Terminal-optimized interface
-- Command-line focused workflows
-- Script generation
-- Shell integration
-- DevOps automation
-
-**Use Cases**:
-- Terminal-based development
-- Script and automation creation
-- CLI tool development
-- System administration
-- DevOps workflows
-
-**Installation Path**: `~/.opencode/`
-
-### 3. Ampcode
-
-**Optimization**: `amplified-codegen`
-**Focus**: Velocity-focused, maximum automation
-**Best For**: Rapid development, high-velocity teams, startups
-
-**Key Features**:
-- Speed-optimized workflows
-- Rapid prototyping
-- Bulk code generation
-- Automation-first approach
-- Productivity acceleration
-
-**Use Cases**:
-- Rapid prototyping
-- Startup development
-- High-velocity sprints
-- Bulk code generation
-- Productivity maximization
-
-**Installation Path**: `~/.ampcode/`
-
-### 4. Droid
-
-**Optimization**: `mobile-codegen`
-**Focus**: Android-first, mobile development patterns
-**Best For**: Mobile developers, Android apps, mobile-first projects
-
-**Key Features**:
-- Android-optimized workflows
-- Mobile UI generation
-- Mobile-specific patterns
-- Platform-specific optimization
-- Mobile testing support
-
-**Use Cases**:
-- Android app development
-- Mobile-first projects
-- Cross-platform mobile apps
-- Mobile UI/UX development
-- Mobile testing
-
-**Installation Path**: `~/.droid/`
-
-### Tool Selection Guide
-
-**Choose Based on Your Primary Workflow**:
-
-| Primary Work | Recommended Tool |
-|--------------|------------------|
-| Documentation & Research | Claude |
-| Terminal & CLI Development | Opencode |
-| Rapid Development & Startups | Ampcode |
-| Mobile & Android Development | Droid |
-
-**Multi-Tool Installation**:
-
-You can install multiple tools simultaneously. Each tool is completely isolated with no conflicts:
-
-```bash
-# Example: Install Claude and Opencode
-liteagents install
-# Select tools: 1,2
-
-# Example: Install all tools
-liteagents install
-# Select tools: all
-```
-
-**Benefits of Multi-Tool Setup**:
-- Switch between workflows seamlessly
-- Use different tools for different projects
-- Compare approaches and outputs
-- Maximize productivity across contexts
+You can install any combination of tools in a single run. Each tool's installation is fully isolated.
 
 ---
 
@@ -474,65 +151,33 @@ liteagents install
 
 ### When to Use Custom Paths
 
-**Default Paths (Recommended)**:
-- Claude: `~/.claude/`
-- Opencode: `~/.opencode/`
-- Ampcode: `~/.ampcode/`
-- Droid: `~/.droid/`
+The defaults above are detected automatically by each tool and are recommended. Use a custom path when:
 
-**Use Custom Paths When**:
-1. **Team Installations**: Shared directory accessible to multiple users
-2. **Project-Specific**: Installing within a specific project structure
-3. **External Storage**: Using external drive or network storage
-4. **Corporate Policy**: Company-mandated installation locations
-5. **Version Management**: Multiple versions side-by-side
+1. **Team installations** — a shared directory accessible to multiple users
+2. **Project-specific setups** — installing within a particular project structure
+3. **External storage** — using an external drive or network storage
+4. **Corporate policy** — a company-mandated installation location
 
 ### Custom Path Flow
 
-When you choose to customize paths, the installer will:
+When you choose to customize paths, the installer prompts for each path, validates it, and asks you to confirm anything that differs from the default:
 
-1. **Prompt for Path**:
 ```
-Enter custom path for Claude (or press Enter for default):
+Enter custom path for Claude Code (or press Enter for default):
 > /opt/liteagents/claude
-```
 
-2. **Validate Path**:
-```
 Validating path: /opt/liteagents/claude
-
   ✓ Path is absolute
   ✓ Parent directory exists
   ✓ Write permissions verified
-  ✓ Sufficient disk space (50 MB available)
   ⚠ Directory does not exist (will be created)
-```
 
-3. **Confirm Custom Path**:
-```
-╔═══════════════════════════════════════════════╗
-║            Custom Path Confirmation           ║
-╚═══════════════════════════════════════════════╝
-
-Tool: Claude
-Proposed Path: /opt/liteagents/claude
-Default Path:  /home/user/.claude/
-
-This is different from the default path.
-
-Validation Results:
-  ✓ Path is valid and writable
-  ✓ Sufficient disk space available
-  ⚠ Directory will be created
-
-Do you want to proceed with this custom path? (y/N):
+Use this path instead of the default ~/.claude? (y/N):
 ```
 
 ### Path Validation Rules
 
-The installer validates paths for safety and compatibility:
-
-**Required**:
+**Required:**
 - ✓ Absolute path (not relative)
 - ✓ Parent directory exists
 - ✓ Write permissions
@@ -540,1047 +185,280 @@ The installer validates paths for safety and compatibility:
 
 **Warnings** (allowed with confirmation):
 - ⚠ Directory doesn't exist (will be created)
-- ⚠ Directory already exists (may overwrite)
+- ⚠ Directory already exists (existing install is backed up first)
 
 **Errors** (installation blocked):
 - ✗ Parent directory missing
 - ✗ No write permissions
 - ✗ Insufficient disk space
 
-### Path Examples
-
-**Valid Paths**:
-```bash
-# Home directory (default)
-/home/user/.claude/
-
-# Project-specific
-/home/user/projects/my-app/.agentic/claude/
-
-# Team shared
-/opt/team/ai-tools/claude/
-
-# External drive
-/mnt/external/liteagents/claude/
-
-# With tilde expansion
-~/.config/liteagents/claude/
-```
-
-**Invalid Paths**:
-```bash
-# Relative path (missing leading /)
-./claude/
-
-# Non-existent parent
-/nonexistent/parent/claude/
-
-# System directory without permissions
-/usr/bin/claude/
-
-# Windows-style on Linux
-C:\Users\user\claude\
-```
-
 ### Tilde (~) Expansion
 
-The installer automatically expands `~` to your home directory:
-
-```bash
-# You enter:
-~/.claude/
-
-# Expands to:
-/home/user/.claude/
-```
-
-### Multiple Tool Paths
-
-Each tool can have its own custom path:
+The installer expands `~` to your home directory:
 
 ```
-Configure Paths:
+You enter:  ~/.claude
+Expands to: /home/user/.claude
+```
 
-  Claude:   /opt/agentic/claude/     (custom)
-  Opencode: /home/user/.opencode/    (default)
-  Ampcode:  /opt/agentic/ampcode/    (custom)
+### Path Examples
+
+**Valid:**
+```
+/home/user/.claude                              # home directory
+/home/user/projects/my-app/.agentic/claude      # project-specific
+/opt/team/ai-tools/claude                        # team shared
+/mnt/external/liteagents/claude                  # external drive
+~/.config/liteagents/claude                      # tilde expansion
+```
+
+**Invalid:**
+```
+./claude                  # relative path (missing leading /)
+/nonexistent/parent/x     # parent directory does not exist
+/usr/bin/claude           # system directory without permissions
+C:\Users\user\claude      # Windows-style path on Linux
 ```
 
 ---
 
-## Common Installation Scenarios
+## Common Scenarios
 
-### Scenario 1: First-Time Installation (Recommended)
+### Scenario 1: First-Time Installation
 
-**Goal**: Install Claude with recommended settings for general development
+**Goal:** Install Claude Code with default settings.
 
-```bash
-liteagents install
-```
+1. Run `liteagents`
+2. Choose **1. Install tools**
+3. Select **Claude Code**, press Enter
+4. Keep default paths (`N`)
+5. Confirm (`Y`)
 
-**Selections**:
-1. Variant: `2` (Standard)
-2. Tools: `1` (Claude)
-3. Paths: `N` (Use defaults)
-4. Confirm: `Y`
+Result: the complete agent/command set installed to `~/.claude`.
 
-**Result**:
-- Claude Standard installed to `~/.claude/`
-- 13 agents, 8 skills, 29 files
-- Ready for document processing and design work
+### Scenario 2: Multi-Tool Installation
 
-### Scenario 2: Minimal Installation
+**Goal:** Install Claude Code and Opencode for different workflows.
 
-**Goal**: Quick setup with minimal disk usage
+1. Run `liteagents`
+2. Choose **1. Install tools**
+3. Toggle **Claude Code** and **Opencode** with Space, press Enter
+4. Keep default paths (`N`)
+5. Confirm (`Y`)
 
-```bash
-liteagents install
-```
+Result: Claude Code → `~/.claude` and Opencode → `~/.config/opencode`, fully isolated.
 
-**Selections**:
-1. Variant: `1` (Lite)
-2. Tools: `1` (Claude)
-3. Paths: `N` (Use defaults)
-4. Confirm: `Y`
+### Scenario 3: Team / Shared Installation
 
-**Result**:
-- Claude Lite installed to `~/.claude/`
-- 3 agents, 0 skills, 11 files, 510 KB
-- Basic code generation only
+**Goal:** Install all tools to a shared directory.
 
-### Scenario 3: Multi-Tool Installation
+1. Run `liteagents`
+2. Choose **1. Install tools**
+3. Toggle all four tools, press Enter
+4. Customize paths (`y`) and enter a shared location for each, e.g. `/opt/team/ai-tools/claude`
+5. Confirm each custom path and the install
 
-**Goal**: Install Claude and Opencode for different workflows
+### Scenario 4: Project-Specific Installation
 
-```bash
-liteagents install
-```
+**Goal:** Install within a specific project.
 
-**Selections**:
-1. Variant: `2` (Standard)
-2. Tools: `1,2` (Claude and Opencode)
-3. Paths: `N` (Use defaults)
-4. Confirm: `Y`
+1. `cd /home/user/projects/my-app`
+2. Run `liteagents`
+3. Choose **1. Install tools**, select **Claude Code**
+4. Customize the Claude path to `/home/user/projects/my-app/.agentic/claude`
+5. Confirm
 
-**Result**:
-- Claude Standard → `~/.claude/`
-- Opencode Standard → `~/.opencode/`
-- Both tools isolated, no conflicts
-
-### Scenario 4: Team/Shared Installation
-
-**Goal**: Install to shared directory for team access
-
-```bash
-liteagents install
-```
-
-**Selections**:
-1. Variant: `3` (Pro)
-2. Tools: `all` (All tools)
-3. Paths: `y` (Customize)
-   - Claude: `/opt/team/ai-tools/claude/`
-   - Opencode: `/opt/team/ai-tools/opencode/`
-   - Ampcode: `/opt/team/ai-tools/ampcode/`
-   - Droid: `/opt/team/ai-tools/droid/`
-4. Confirm custom paths: `y` (for each)
-5. Confirm: `Y`
-
-**Result**:
-- All 4 tools with Pro variant
-- Installed to shared `/opt/team/ai-tools/`
-- Accessible to all team members
-
-### Scenario 5: Silent Installation (Automated)
-
-**Goal**: Automated installation for CI/CD or scripts
-
-```bash
-liteagents install --silent --variant=standard --tools=claude --path claude=/opt/ci/claude
-```
-
-**Result**:
-- Non-interactive installation
-- Claude Standard → `/opt/ci/claude/`
-- No prompts or user interaction
-
-### Scenario 6: Upgrade from Lite to Pro
-
-**Goal**: Upgrade existing Lite installation to Pro
-
-```bash
-liteagents install
-```
-
-**Selections**:
-1. Variant: `3` (Pro)
-2. Tools: `1` (Claude)
-3. Paths: `N` (Use defaults)
-4. Confirm: `Y`
-
-**What Happens**:
-- Installer detects existing installation
-- Adds 14 advanced skills
-- Preserves existing 13 agents
-- Updates manifest
-
-### Scenario 7: Project-Specific Installation
-
-**Goal**: Install within a specific project
-
-```bash
-cd /home/user/projects/my-app
-liteagents install
-```
-
-**Selections**:
-1. Variant: `2` (Standard)
-2. Tools: `1` (Claude)
-3. Paths: `y` (Customize)
-   - Claude: `/home/user/projects/my-app/.agentic/claude/`
-4. Confirm custom path: `y`
-5. Confirm: `Y`
-
-**Result**:
-- Claude installed within project directory
-- Project-specific isolation
-- Can commit `.agentic/` to version control (optional)
+Result: a project-local installation you can optionally commit to version control.
 
 ---
 
-## Command-Line Flags
+## Uninstalling
 
-### Overview
-
-Agentic Kit installer supports command-line flags for automation, scripting, and advanced usage.
-
-### Basic Flags
-
-#### `--help`
-
-Display help information:
+Uninstall through the same interactive installer:
 
 ```bash
-liteagents install --help
+liteagents
 ```
 
-Output:
-```
-Agentic Kit Interactive Multi-Tool Installer
+1. Choose **2. Uninstall tools**
+2. Select the installed tools to remove
+3. Confirm
 
-Usage:
-  liteagents install [options]
+The installer **backs up the installation before removing it** (a timestamped `.uninstall-backup.` copy next to the original), then deletes the installed files and manifest.
 
-Options:
-  --variant=<name>       Specify variant (lite, standard, pro)
-  --tools=<list>         Specify tools (claude, opencode, ampcode, droid, all)
-  --path <tool>=<path>   Specify custom installation path for a tool
-  --silent               Non-interactive installation
-  --yes                  Auto-confirm all prompts
-  --config=<file>        Load configuration from file
-  --uninstall            Uninstall specified tools
-  --help                 Display this help message
-
-Examples:
-  liteagents install
-  liteagents install --variant=standard --tools=claude
-  liteagents install --silent --config=install.json
-  liteagents install --uninstall --tools=claude
-```
-
-#### `--version`
-
-Display version information:
+To remove the installer itself:
 
 ```bash
-liteagents install --version
-```
-
-Output:
-```
-Agentic Kit Installer v1.2.0
-Node.js v18.17.0
-Platform: linux-x64
-```
-
-### Installation Flags
-
-#### `--variant=<name>`
-
-Specify variant without interactive prompt:
-
-```bash
-# Install Lite variant
-liteagents install --variant=lite
-
-# Install Standard variant
-liteagents install --variant=standard
-
-# Install Pro variant
-liteagents install --variant=pro
-```
-
-**Valid Values**: `lite`, `standard`, `pro`
-
-#### `--tools=<list>`
-
-Specify tools without interactive prompt:
-
-```bash
-# Install single tool
-liteagents install --tools=claude
-
-# Install multiple tools (comma-separated)
-liteagents install --tools=claude,opencode
-
-# Install all tools
-liteagents install --tools=all
-```
-
-**Valid Values**: `claude`, `opencode`, `ampcode`, `droid`, `all`
-
-#### `--path <tool>=<path>`
-
-Specify custom installation path for a specific tool:
-
-```bash
-# Single tool with custom path
-liteagents install --tools=claude --path claude=/opt/ai/claude
-
-# Note: For multiple tools with different paths, use --config file instead
-```
-
-**Path Requirements**:
-- Must be absolute path
-- Parent directory must exist
-- Must have write permissions
-
-#### `--silent`
-
-Non-interactive installation (requires all parameters specified):
-
-```bash
-liteagents install --silent --variant=standard --tools=claude
-```
-
-**Behavior**:
-- No prompts or user interaction
-- Uses defaults for unspecified options
-- Exits with code 0 on success, 1 on failure
-- Ideal for scripts and automation
-
-**Required with --silent**:
-- `--variant` (required)
-- `--tools` (required)
-- `--path` (optional, uses defaults)
-
-#### `--yes` / `-y`
-
-Auto-confirm all prompts:
-
-```bash
-liteagents install --yes
-liteagents install -y
-```
-
-**Behavior**:
-- Still shows interactive prompts
-- Automatically answers "yes" to all confirmations
-- Useful for quick installations
-- Not recommended for custom paths (always review)
-
-#### `--config=<file>`
-
-Load installation configuration from file:
-
-```bash
-liteagents install --config=install-config.json
-```
-
-**Configuration File Format** (`install-config.json`):
-```json
-{
-  "variant": "standard",
-  "tools": {
-    "claude": {
-      "enabled": true,
-      "path": "/home/user/.claude/"
-    },
-    "opencode": {
-      "enabled": true,
-      "path": "/home/user/.opencode/"
-    },
-    "ampcode": {
-      "enabled": false
-    },
-    "droid": {
-      "enabled": false
-    }
-  },
-  "options": {
-    "silent": false,
-    "autoConfirm": false
-  }
-}
-```
-
-**Benefits**:
-- Reproducible installations
-- Team standardization
-- Version control configuration
-- Complex multi-tool setups
-
-### Uninstall Flags
-
-#### `--uninstall`
-
-Uninstall specified tools:
-
-```bash
-# Uninstall single tool
-liteagents install --uninstall --tools=claude
-
-# Uninstall multiple tools
-liteagents install --uninstall --tools=claude,opencode
-
-# Uninstall all tools
-liteagents install --uninstall --tools=all
-```
-
-**Behavior**:
-- Removes all installed files
-- Deletes manifest
-- Cleans up installation directory
-- Asks for confirmation (unless --yes specified)
-
-**Silent Uninstall**:
-```bash
-liteagents install --uninstall --silent --tools=claude --yes
-```
-
-### Flag Combinations
-
-**Common Combinations**:
-
-```bash
-# Automated CI/CD installation
-liteagents install --silent --variant=standard --tools=claude --path claude=/opt/ci/claude
-
-# Quick default installation
-liteagents install --yes
-
-# Team configuration
-liteagents install --config=team-config.json --yes
-
-# Clean uninstall
-liteagents install --uninstall --tools=all --yes
-```
-
-### Exit Codes
-
-The installer returns the following exit codes:
-
-- `0` - Success
-- `1` - General error
-- `2` - Invalid arguments
-- `3` - Permission denied
-- `4` - Insufficient disk space
-- `5` - Installation failed
-- `6` - Validation failed
-- `130` - User cancelled (Ctrl+C)
-
-**Usage in Scripts**:
-```bash
-#!/bin/bash
-
-liteagents install --silent --variant=standard --tools=claude
-
-if [ $? -eq 0 ]; then
-  echo "Installation successful"
-else
-  echo "Installation failed with code $?"
-  exit 1
-fi
+npm uninstall -g liteagents
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Issue: "Permission Denied"
 
-#### Issue: "Permission Denied"
-
-**Error Message**:
 ```
-✗ Permission denied: Cannot write to /opt/liteagents/claude/
+✗ Permission denied: Cannot write to /opt/liteagents/claude
 ```
 
-**Cause**: Insufficient write permissions for installation directory
+**Cause:** insufficient write permissions for the chosen directory.
 
-**Solutions**:
+**Solutions:**
+- Use a default path in your home directory (run `liteagents`, keep defaults).
+- Choose a writable location when prompted to customize paths, e.g. `~/liteagents/claude`.
+- Fix ownership of the target, then re-run: `sudo chown -R $USER:$USER /opt/liteagents`.
 
-1. **Use default paths** (recommended):
-```bash
-liteagents install
-# Select: Use defaults (N)
-```
+### Issue: "Insufficient Disk Space"
 
-2. **Run with appropriate permissions**:
-```bash
-sudo liteagents install --tools=claude --path claude=/opt/liteagents/claude
-```
-
-3. **Choose writable location**:
-```bash
-liteagents install
-# Customize path to: ~/liteagents/claude/
-```
-
-4. **Fix directory permissions**:
-```bash
-sudo chown -R $USER:$USER /opt/liteagents
-liteagents install
-```
-
----
-
-#### Issue: "Insufficient Disk Space"
-
-**Error Message**:
 ```
 ✗ Insufficient disk space: Only 30 MB available, need at least 50 MB
 ```
 
-**Cause**: Not enough free space on target drive
+**Solutions:**
+- Free space: `df -h`, then `npm cache clean --force` and remove old data.
+- Install to a different drive by customizing the path to e.g. `/mnt/external/.claude`.
 
-**Solutions**:
+### Issue: "Package Not Found / variants.json not found"
 
-1. **Free up disk space**:
-```bash
-# Check disk usage
-df -h
-
-# Clean npm cache
-npm cache clean --force
-
-# Remove old installations
-rm -rf ~/.claude-old
-```
-
-2. **Install to different drive**:
-```bash
-liteagents install
-# Customize path to external drive: /mnt/external/.claude/
-```
-
-3. **Use Lite variant**:
-```bash
-liteagents install --variant=lite
-```
-
----
-
-#### Issue: "Package Not Found"
-
-**Error Message**:
 ```
 ✗ Package validation failed: variants.json not found
 ```
 
-**Cause**: Corrupted or incomplete npm installation
+**Cause:** a corrupted or incomplete npm install.
 
-**Solutions**:
-
-1. **Reinstall package**:
+**Solutions:**
 ```bash
 npm uninstall -g liteagents
 npm cache clean --force
 npm install -g liteagents
+npm list -g liteagents      # verify
+node --version              # must be 14.0.0+
 ```
 
-2. **Verify installation**:
-```bash
-npm list -g liteagents
-```
+### Issue: "Installation Stuck / Frozen"
 
-3. **Check Node.js version**:
-```bash
-node --version  # Should be 14.0.0 or higher
-```
+**Solutions:**
+- Wait a little longer on slow filesystems.
+- Cancel with `Ctrl+C` and re-run `liteagents`.
+- Check system load (`top`) and disk I/O (`iostat -x 1`); prefer a local disk over a network drive.
 
----
+### Issue: "Tool Not Detecting Installation"
 
-#### Issue: "Installation Stuck/Frozen"
+**Solutions:**
+- Verify the install: `ls -la ~/.claude` and `cat ~/.claude/manifest.json`.
+- Restart the tool if it was running.
+- Re-run `liteagents` with default paths if you installed to a custom location the tool doesn't scan.
 
-**Symptoms**: Progress bar stops, no activity
+### Issue: "ANSI Colors Not Displaying"
 
-**Causes**: Large files, slow filesystem, or system resources
+Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 
-**Solutions**:
-
-1. **Wait longer** (large files take time)
-   - Pro variant: ~60 seconds
-   - Standard variant: ~30 seconds
-   - Lite variant: ~10 seconds
-
-2. **Cancel and retry**:
-```bash
-# Press Ctrl+C
-^C
-
-# Retry installation
-liteagents install
-```
-
-3. **Check system resources**:
-```bash
-# Check CPU and memory
-top
-
-# Check disk I/O
-iostat -x 1
-```
-
-4. **Install to faster filesystem**:
-```bash
-# Avoid network drives, use local SSD
-liteagents install --tools=claude --path claude=/home/user/.claude/
-```
-
----
-
-#### Issue: "Verification Failed"
-
-**Error Message**:
-```
-✗ Verification failed: Expected 29 files, found 27 files
-```
-
-**Cause**: Installation interrupted or filesystem issue
-
-**Solutions**:
-
-1. **Uninstall and reinstall**:
-```bash
-liteagents install --uninstall --tools=claude
-liteagents install --variant=standard --tools=claude
-```
-
-2. **Check filesystem**:
-```bash
-# Check for errors
-dmesg | tail
-
-# Test write access
-touch ~/.claude/test-write && rm ~/.claude/test-write
-```
-
-3. **Use different path**:
-```bash
-liteagents install --tools=claude --path claude=/tmp/.claude-test/
-```
-
----
-
-#### Issue: "Module Not Found"
-
-**Error Message**:
-```
-Error: Cannot find module 'installer/cli.js'
-```
-
-**Cause**: npm installation issue or wrong working directory
-
-**Solutions**:
-
-1. **Reinstall globally**:
-```bash
-npm install -g liteagents
-```
-
-2. **Check npm prefix**:
-```bash
-npm config get prefix
-# Should be: /usr/local or /home/user/.npm-global
-```
-
-3. **Fix npm permissions** (Linux/macOS):
-```bash
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
-#### Issue: "Tool Not Detecting Installation"
-
-**Symptoms**: Installed successfully but tool doesn't see agents/skills
-
-**Solutions**:
-
-1. **Verify installation location**:
-```bash
-# Check manifest exists
-cat ~/.claude/manifest.json
-
-# Verify contents
-ls -la ~/.claude/
-```
-
-2. **Restart tool** (if running)
-
-3. **Check tool configuration**:
-```bash
-# Claude example
-cat ~/.claude/config.json
-
-# Ensure paths are correct
-```
-
-4. **Reinstall with default paths**:
-```bash
-liteagents install --uninstall --tools=claude
-liteagents install --variant=standard --tools=claude
-# Use default paths
-```
-
----
-
-#### Issue: "ANSI Colors Not Displaying"
-
-**Symptoms**: Strange characters like `\u001b[32m` in output
-
-**Cause**: Terminal doesn't support ANSI colors
-
-**Solutions**:
-
-1. **Use different terminal**:
-   - Linux: gnome-terminal, konsole
-   - macOS: iTerm2, Terminal.app
-   - Windows: Windows Terminal, PowerShell
-
-2. **Disable colors** (if needed):
-```bash
-NO_COLOR=1 liteagents install
-```
-
----
+**Solutions:**
+- Use a modern terminal (Windows Terminal, iTerm2, gnome-terminal, konsole).
+- Disable colors: `NO_COLOR=1 liteagents`.
 
 ### Getting Help
 
-If you encounter an issue not listed here:
-
-1. **Check logs**:
-```bash
-cat ~/.liteagents-install.log
-```
-
-2. **File an issue**:
-   - GitHub: https://github.com/hamr0/liteagents/issues
-   - Include: OS, Node.js version, error message, installation log
-
-3. **Community support**:
-   - Discussions: https://github.com/hamr0/liteagents/discussions
-   - Discord: [link if available]
+1. Check the log: `cat ~/.liteagents-install.log`
+2. File an issue (include OS, Node.js version, the error, and the log): https://github.com/hamr0/liteagents/issues
+3. Discussions: https://github.com/hamr0/liteagents/discussions
 
 ---
 
 ## FAQ
 
-### General Questions
+### General
 
-#### Q: What is Agentic Kit?
+**Q: What is liteagents?**
+A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
-**A**: Agentic Kit is a collection of AI agents and skills that enhance AI-powered development tools like Claude, Opencode, Ampcode, and Droid. It provides pre-built agents for common tasks (code generation, refactoring, testing) and skills for specific capabilities (document processing, design, automation).
+**Q: Are there different editions or variants?**
+No. Each tool receives the full package — 11 agents and 23 commands (Claude Code also gets skills and the live-canvas plugin marketplace as native features). There are no Lite/Standard/Pro variants.
 
-#### Q: Which variant should I choose?
+**Q: Can I install multiple tools?**
+Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.
 
-**A**:
-- **First-time users**: Start with **Standard** (recommended)
-- **Just trying it out**: Use **Lite** (minimal)
-- **Need all features**: Choose **Pro** (complete)
+**Q: How much disk space do I need?**
+A few MB per tool, plus at least 50 MB free recommended for the install and backups.
 
-#### Q: Can I install multiple tools?
+### Installation
 
-**A**: Yes! You can install all 4 tools simultaneously. Each tool is completely isolated with no conflicts. They can even use different variants.
+**Q: Where are tools installed by default?**
+- Claude Code: `~/.claude`
+- Opencode: `~/.config/opencode`
+- Ampcode: `~/.config/amp`
+- Droid: `~/.factory`
 
-#### Q: How much disk space do I need?
+**Q: Can I install to a custom location?**
+Yes. When asked "Do you want to customize any paths? (y/N)", answer `y` and enter your path. The installer validates it.
 
-**A**:
-- Lite: ~510 KB per tool
-- Standard: ~8.4 MB per tool
-- Pro: ~9 MB per tool
-- Plus: 50 MB minimum free space required
+**Q: Does the installer take command-line flags (silent/CI mode)?**
+No. The installer is interactive only — run `liteagents` and answer the prompts.
 
-#### Q: Can I upgrade from Lite to Standard or Pro later?
+**Q: Do I need sudo/admin permissions?**
+Not for the default paths in your home directory. You only need elevated permissions for system directories like `/opt` or `/usr/local`.
 
-**A**: Yes! Simply run the installer again and select the new variant. The installer will detect your existing installation and upgrade it.
+### Tools
 
----
+**Q: Which tool should I use?**
+Install the agents into whichever AI development tool(s) you already use — Claude Code, Opencode, Ampcode, or Droid.
 
-### Installation Questions
+**Q: Do tools share agents and commands?**
+No. Each tool has its own isolated installation, which allows tool-specific layouts.
 
-#### Q: Where are tools installed by default?
+### Uninstall
 
-**A**:
-- Claude: `~/.claude/`
-- Opencode: `~/.opencode/`
-- Ampcode: `~/.ampcode/`
-- Droid: `~/.droid/`
+**Q: How do I uninstall a tool?**
+Run `liteagents`, choose **2. Uninstall tools**, and select the tools to remove. The installer backs up before removing.
 
-These paths are automatically detected by each tool.
+**Q: Will uninstalling remove my own settings?**
+The installer creates a timestamped backup before removing files, so you can recover anything you need from it.
 
-#### Q: Can I install to a custom location?
+**Q: Does uninstall remove the installer itself?**
+No. Remove the installer with `npm uninstall -g liteagents`.
 
-**A**: Yes! When prompted "Do you want to customize any paths? (y/N)", answer `y` and enter your preferred path. The installer will validate it for you.
+### Technical
 
-#### Q: How long does installation take?
+**Q: What Node.js version is required?**
+14.0.0 or higher (`node --version`).
 
-**A**:
-- Lite: ~10 seconds
-- Standard: ~30 seconds
-- Pro: ~60 seconds
+**Q: Can I install on Windows?**
+Yes. Windows, macOS, and Linux are supported; paths are adjusted per platform.
 
-Times vary based on system performance.
+**Q: Is internet required during installation?**
+No. Once the npm package is installed, the installer works offline — all content is bundled.
 
-#### Q: Can I install without user interaction?
+**Q: How do I migrate from an old installation?**
+Just run the installer again. If an existing installation is detected at the target path, it is backed up before the new one is installed.
 
-**A**: Yes! Use silent mode:
-```bash
-liteagents install --silent --variant=standard --tools=claude
-```
-
-#### Q: Do I need sudo/admin permissions?
-
-**A**: Not for default paths (in your home directory). You only need elevated permissions if installing to system directories like `/opt/` or `/usr/local/`.
-
----
-
-### Variant Questions
-
-#### Q: What's the difference between Standard and Pro?
-
-**A**: Standard includes 8 core skills (document processing, design, branding). Pro adds 14 advanced skills (ML, blockchain, DevOps, security, etc.). Size difference is only ~600 KB.
-
-#### Q: Can I mix variants across tools?
-
-**A**: Yes! You can install Claude Standard, Opencode Lite, and Ampcode Pro simultaneously. Each tool's variant is independent.
-
-#### Q: Will Lite work for professional development?
-
-**A**: Lite is suitable for basic code generation but lacks document processing and advanced features. We recommend Standard for professional use.
-
-#### Q: How do I know what's in each variant?
-
-**A**: Check the [Variant Configuration documentation](./VARIANT_CONFIGURATION.md) for detailed information about what's included in each variant.
-
----
-
-### Tool Questions
-
-#### Q: Which tool should I use?
-
-**A**:
-- **Claude**: General development, documentation, research
-- **Opencode**: Terminal/CLI development, scripts
-- **Ampcode**: Rapid development, high velocity
-- **Droid**: Mobile/Android development
-
-#### Q: Can I use multiple tools in the same project?
-
-**A**: Yes! Tools are isolated and can coexist. Use different tools for different tasks or compare outputs.
-
-#### Q: Do tools share agents and skills?
-
-**A**: No. Each tool has its own isolated installation. This allows tool-specific optimizations.
-
-#### Q: Can I transfer settings between tools?
-
-**A**: Not automatically, but you can manually copy configuration files if tools are compatible.
-
----
-
-### Uninstall Questions
-
-#### Q: How do I uninstall a tool?
-
-**A**:
-```bash
-liteagents install --uninstall --tools=claude
-```
-
-#### Q: Will uninstalling remove my settings?
-
-**A**: By default, yes. To preserve settings, back up your config files first:
-```bash
-cp ~/.claude/config.json ~/claude-config-backup.json
-```
-
-#### Q: Can I uninstall all tools at once?
-
-**A**: Yes:
-```bash
-liteagents install --uninstall --tools=all
-```
-
-#### Q: Does uninstall remove the installer itself?
-
-**A**: No. To remove the installer:
-```bash
-npm uninstall -g liteagents
-```
-
----
-
-### Technical Questions
-
-#### Q: What Node.js version is required?
-
-**A**: Node.js 14.0.0 or higher. Check your version:
-```bash
-node --version
-```
-
-#### Q: Can I install on Windows?
-
-**A**: Yes! The installer supports Windows, macOS, and Linux. Paths are automatically adjusted for each platform.
-
-#### Q: Is internet required during installation?
-
-**A**: No. Once you've installed the npm package, installation works offline. All content is bundled.
-
-#### Q: Can I use this in CI/CD?
-
-**A**: Yes! Use silent mode:
-```bash
-liteagents install --silent --variant=standard --tools=claude --path claude=/opt/ci/claude
-```
-
-#### Q: Does installation require compilation?
-
-**A**: No. All content is pre-built JavaScript and Markdown. No compilation needed.
-
-#### Q: Can I run multiple installations simultaneously?
-
-**A**: Not recommended. Run installations sequentially to avoid file conflicts.
-
----
-
-### Troubleshooting Questions
-
-#### Q: Installation failed. What should I do?
-
-**A**:
-1. Check the error message
-2. Review the [Troubleshooting section](#troubleshooting)
-3. Check logs: `cat ~/.liteagents-install.log`
-4. Retry with: `liteagents install`
-5. File an issue if problem persists
-
-#### Q: Tool can't find installed agents. Why?
-
-**A**:
-1. Verify installation: `ls ~/.claude/`
-2. Check manifest: `cat ~/.claude/manifest.json`
-3. Restart tool
-4. Reinstall if needed
-
-#### Q: Can I install in a Docker container?
-
-**A**: Yes! Make sure:
-- Node.js 14+ is installed
-- Write permissions to installation directory
-- Sufficient disk space
-
-Example Dockerfile:
-```dockerfile
-FROM node:18
-RUN npm install -g liteagents
-RUN liteagents install --silent --variant=standard --tools=claude
-```
-
----
-
-### Configuration Questions
-
-#### Q: Where is the installation configuration saved?
-
-**A**: Configuration is saved in:
-- Installation manifest: `~/.claude/manifest.json` (per tool)
-- Global config: `~/.liteagents-config.json`
-
-#### Q: Can I use a configuration file?
-
-**A**: Yes! Create `install-config.json`:
-```json
-{
-  "variant": "standard",
-  "tools": {
-    "claude": {"enabled": true}
-  }
-}
-```
-
-Then run:
-```bash
-liteagents install --config=install-config.json
-```
-
-#### Q: How do I customize which skills are installed?
-
-**A**: Edit the `variants.json` file in the package directory. See [Variant Configuration docs](./VARIANT_CONFIGURATION.md) for details.
-
----
-
-### Advanced Questions
-
-#### Q: Can I create custom variants?
-
-**A**: Yes! Edit `variants.json` in the package. See the [Variant Configuration documentation](./VARIANT_CONFIGURATION.md).
-
-#### Q: How do I migrate from an old installation?
-
-**A**: Simply run the installer again. If an existing installation is detected, you'll be prompted to upgrade, replace, or install alongside it.
-
-#### Q: Can I install development/beta versions?
-
-**A**: Yes:
+**Q: How do I install a beta version?**
 ```bash
 npm install -g liteagents@beta
-liteagents install
+liteagents
 ```
 
-#### Q: How do I contribute new agents or skills?
-
-**A**: See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+**Q: How do I contribute new agents or skills?**
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ---
 
 ## Additional Resources
 
-- **Package Baseline**: [PACKAGE_BASELINE.md](./PACKAGE_BASELINE.md) - Complete package structure reference
-- **Variant Configuration**: [VARIANT_CONFIGURATION.md](./VARIANT_CONFIGURATION.md) - Variant system details
-- **Validation Report**: [PACKAGE_VALIDATION_REPORT.md](./PACKAGE_VALIDATION_REPORT.md) - Quality assurance report
-- **API Reference**: [API_REFERENCE.md](./API_REFERENCE.md) - Developer API documentation
-- **Development Guide**: [DEVELOPMENT.md](./DEVELOPMENT.md) - Contributing and development
-- **Main README**: [README.md](../README.md) - Project overview
+- **Package Baseline**: [PACKAGE_BASELINE.md](./PACKAGE_BASELINE.md) — package structure reference
+- **Validation Report**: [PACKAGE_VALIDATION_REPORT.md](./PACKAGE_VALIDATION_REPORT.md) — quality assurance report
+- **Main README**: [../README.md](../README.md) — project overview
 
 ---
 
 ## Support
 
-Need help? Here's how to get support:
-
-1. **Documentation**: Check this guide and related docs
+1. **Documentation**: this guide and the related docs above
 2. **Issues**: https://github.com/hamr0/liteagents/issues
 3. **Discussions**: https://github.com/hamr0/liteagents/discussions
-4. **Email**: support@liteagents.dev (if available)
 
 ---
 
-**Last Updated**: 2025-11-04
-**Installer Version**: 1.2.0
+**Last Updated**: 2026-05-24
+**Installer Version**: 2.8.1
 **Maintainer**: @hamr0
