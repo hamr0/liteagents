@@ -264,7 +264,6 @@ function validateDocumentation() {
 
   const docs = [
     'docs/INSTALLER_GUIDE.md',
-    'docs/VARIANT_CONFIGURATION.md',
     'docs/PRIVACY.md',
     'docs/SECURITY.md',
     'docs/MIGRATION.md'
