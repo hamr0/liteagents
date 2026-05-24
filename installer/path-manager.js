@@ -58,8 +58,9 @@ class PathManager {
       const homeDir = this.homeDir;
       const tmpDir = os.tmpdir();
 
-      const isInHome = sanitized.startsWith(homeDir);
-      const isInTmp = sanitized.startsWith(tmpDir);
+      // Match on a path boundary so a sibling like `${homeDir}-evil` can't pass.
+      const isInHome = sanitized === homeDir || sanitized.startsWith(homeDir + path.sep);
+      const isInTmp = sanitized === tmpDir || sanitized.startsWith(tmpDir + path.sep);
 
       if (!isInHome && !isInTmp) {
         return {

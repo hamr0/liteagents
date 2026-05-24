@@ -151,12 +151,13 @@ You can install any combination of tools in a single run. Each tool's installati
 
 ### When to Use Custom Paths
 
-The defaults above are detected automatically by each tool and are recommended. Use a custom path when:
+The defaults above are detected automatically by each tool and are recommended. You can point a tool at a different location **within your home directory** — for example:
 
-1. **Team installations** — a shared directory accessible to multiple users
-2. **Project-specific setups** — installing within a particular project structure
-3. **External storage** — using an external drive or network storage
-4. **Corporate policy** — a company-mandated installation location
+1. **Project-local** — install inside a project, e.g. `~/projects/my-app/.agentic/claude`
+2. **Grouped** — keep tools together, e.g. `~/.config/liteagents/claude`
+3. **Versioned** — multiple copies side by side under your home directory
+
+> **Paths are confined to your home directory (or the system temp dir) for safety.** The installer rejects system directories (`/etc`, `/usr`, `/var`, `/bin`, `/root`, …) and anything outside your home, so shared locations like `/opt/...` or external mounts like `/mnt/...` are **not** accepted. Use a location under `~/` instead.
 
 ### Custom Path Flow
 
@@ -164,10 +165,10 @@ When you choose to customize paths, the installer prompts for each path, validat
 
 ```
 Enter custom path for Claude Code (or press Enter for default):
-> /opt/liteagents/claude
+> ~/projects/my-app/.agentic/claude
 
-Validating path: /opt/liteagents/claude
-  ✓ Path is absolute
+Validating path: /home/user/projects/my-app/.agentic/claude
+  ✓ Within your home directory
   ✓ Parent directory exists
   ✓ Write permissions verified
   ⚠ Directory does not exist (will be created)
@@ -178,19 +179,18 @@ Use this path instead of the default ~/.claude? (y/N):
 ### Path Validation Rules
 
 **Required:**
-- ✓ Absolute path (not relative)
-- ✓ Parent directory exists
-- ✓ Write permissions
-- ✓ At least 50 MB free space
+- ✓ Resolves to a location inside your home directory (or the system temp dir)
+- ✓ Not a system directory (`/etc`, `/usr`, `/var`, `/bin`, `/root`, …) and no null bytes
+- ✓ Parent directory exists and is writable
 
 **Warnings** (allowed with confirmation):
 - ⚠ Directory doesn't exist (will be created)
 - ⚠ Directory already exists (existing install is backed up first)
 
 **Errors** (installation blocked):
-- ✗ Parent directory missing
-- ✗ No write permissions
-- ✗ Insufficient disk space
+- ✗ Path outside your home directory
+- ✗ System directory
+- ✗ Parent directory missing or not writable
 
 ### Tilde (~) Expansion
 
@@ -203,21 +203,20 @@ Expands to: /home/user/.claude
 
 ### Path Examples
 
-**Valid:**
+**Valid** (within your home directory):
 ```
-/home/user/.claude                              # home directory
-/home/user/projects/my-app/.agentic/claude      # project-specific
-/opt/team/ai-tools/claude                        # team shared
-/mnt/external/liteagents/claude                  # external drive
-~/.config/liteagents/claude                      # tilde expansion
+~/.claude                              # default
+~/.config/liteagents/claude            # grouped under ~/.config
+~/projects/my-app/.agentic/claude      # project-local
 ```
 
-**Invalid:**
+**Rejected:**
 ```
-./claude                  # relative path (missing leading /)
-/nonexistent/parent/x     # parent directory does not exist
-/usr/bin/claude           # system directory without permissions
-C:\Users\user\claude      # Windows-style path on Linux
+./claude                    # relative path (must be absolute)
+/opt/team/ai-tools/claude   # outside your home directory
+/mnt/external/claude        # outside your home directory
+/usr/bin/claude             # system directory
+C:\Users\user\claude        # Windows-style path on Linux
 ```
 
 ---

@@ -28,7 +28,7 @@ Specialized AI agents and workflow commands for product management, agile develo
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Option 1: NPX (recommended)
@@ -71,7 +71,7 @@ liteagents
 
 ---
 
-## 🧠 Hot Memory — project-local learning from your own sessions
+## Hot Memory — project-local learning from your own sessions
 
 Liteagents ships a three-command pipeline that turns Claude Code's session logs into project-local memory. No databases, no external services, just markdown files the assistant reads via `@MEMORY.md`.
 
@@ -95,7 +95,7 @@ Per-Project:
 WORST: my-app/0203-1630-11eb903a  peak=225  turns=127
 BEST:  web-client/0202-2121-8d8608e1  peak=0  turns=4
 
-Verdict: ✓ USEFUL    Intervention predictability: 93%
+Verdict: USEFUL    Intervention predictability: 93%
 ```
 
 Results land in `.claude/friction/antigen_review.md` with projects, error patterns, and offending tool sequences called out per cluster — so `/remember` can pick them up and encode them as rules the next session sees.
@@ -104,7 +104,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 🤖 What's Included
+## What's Included
 
 ### 11 Agents
 
@@ -132,7 +132,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 **Manual Skills/Commands (20):**
 
-*Hot Memory Pipeline (3)* — see the [🧠 Hot Memory](#-hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
+*Hot Memory Pipeline (3)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
 - **stash** - Snapshot session context to `.claude/stash/` before compaction, handoff, or ending complex work
 - **friction** - Analyze all JSONL sessions for frustration signals, cluster failures per project, surface antigens
 - **remember** - Consolidate stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected via `@MEMORY.md`
@@ -162,7 +162,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -171,7 +171,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 💡 Example Workflows
+## Example Workflows
 
 **Feature Development:**
 ```
@@ -198,7 +198,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 📊 Stats
+## Stats
 
 - **11** Specialized Agents
 - **22** Workflow Commands & Skills
@@ -207,7 +207,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 🔗 Links
+## Links
 
 - **npm:** https://www.npmjs.com/package/liteagents
 - **GitHub:** https://github.com/hamr0/liteagents
@@ -215,7 +215,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 ---
 
-## 📄 License
+## License
 
 Apache-2.0 © 2026 hamr0 — see [LICENSE](LICENSE).
 
