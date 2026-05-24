@@ -9,18 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+---
+
+## [2.8.3] - 2026-05-24
+
 ### Security
 - **Path containment uses a boundary match.** `installer/path-manager.js` confined installs to the home directory via `startsWith(homeDir)`, which would also accept a sibling like `${homeDir}-evil`. Now matches on a path separator (`=== homeDir || startsWith(homeDir + path.sep)`), and likewise for the temp dir. Defense-in-depth for a local installer; verified install/backup/uninstall still work.
 
 ### Changed
 - **`docs/INSTALLER_GUIDE.md` custom-path docs now match the installer.** It advertised `/opt/...`, `/mnt/...`, and team/external locations, but the installer confines paths to the home directory (or temp dir). Documented the real rule and corrected the examples.
 - Removed decorative emoji from `README.md` headings (kept the friction traffic-light indicators).
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
+- CI: bumped `actions/checkout` and `actions/setup-node` to v6 (Node 24) ahead of the June 2026 Node 20 deprecation.
 
 ---
 
