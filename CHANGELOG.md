@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+---
+
+## [2.8.2] - 2026-05-24
+
+Maintenance release: removes the last of the legacy 3-variant system, fixes the broken `liteag` alias and post-install message, and trims the shipped documentation down to the README plus an accurate installer guide. No changes to the installed agents/commands/skills.
+
 ### Fixed
 - **`npm test` (the CI publish gate) was failing, blocking releases.** The installer test suites still assumed the removed 3-variant system (Lite/Standard/Pro). The multi-tool suite has been rewritten for the single-variant installer (one `pro` package per tool), and the cross-platform suite's terminal checks no longer assert raw environment presence (`stdout` TTY, `TERM`, `SHELL`) — those failed whenever output is piped (i.e. always under the runner and in CI). They now verify the installer's graceful fallback instead. `npm test` passes 138/138, including under a minimal CI environment.
 - **The `liteag` short alias was broken.** Its `cli.js` was a leftover 3-variant wrapper that defaulted to a non-existent `standard` variant, looked for a `.claude-plugin/plugin-standard.json` that no longer exists, and exited 1. It now simply forwards all arguments to the real interactive installer (`installer/cli.js`), so `liteag` and `liteagents` behave identically (check existing installs, backup, install, uninstall). The actual installer was not modified.
@@ -26,12 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stale `variant-system` npm keyword — there is one package per tool, not a variant matrix.
 - Dead 3-variant migration code in `installer/path-manager.js` (`detectLegacyInstallation`, `countLegacyComponents`, `classifyVariantFromComponents`, `createManifestForLegacy`). These classified pre-1.2.0 installs into lite/standard/pro by counting `resources`/`hooks` dirs that no longer exist, and nothing in the installer ever called them. Verified the installer still installs, backs up, and uninstalls correctly after removal; `npm test` 138/138 and the installation-engine suite 60/60 still pass.
 - Obsolete documentation describing removed features: `docs/VARIANT_CONFIGURATION.md`, `docs/UPDATED_VARIANT_CONFIGURATION.md` (the 3-variant matrix), `docs/SILENT_MODE_GUIDE.md` and `docs/INSTALLATION_DEMO.md` (a `--variant`/`--tools`/`--silent` flag CLI the installer never had — it is interactive only). Dropped the stale `VARIANT_CONFIGURATION.md` entry from `scripts/validate-package.js`.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ---
 
