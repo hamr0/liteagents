@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **`npm test` (the CI publish gate) was failing, blocking releases.** The installer test suites still assumed the removed 3-variant system (Lite/Standard/Pro). The multi-tool suite has been rewritten for the single-variant installer (one `pro` package per tool), and the cross-platform suite's terminal checks no longer assert raw environment presence (`stdout` TTY, `TERM`, `SHELL`) — those failed whenever output is piped (i.e. always under the runner and in CI). They now verify the installer's graceful fallback instead. `npm test` passes 138/138, including under a minimal CI environment.
+- **The `liteag` short alias was broken.** Its `cli.js` was a leftover 3-variant wrapper that defaulted to a non-existent `standard` variant, looked for a `.claude-plugin/plugin-standard.json` that no longer exists, and exited 1. It now simply forwards all arguments to the real interactive installer (`installer/cli.js`), so `liteag` and `liteagents` behave identically (check existing installs, backup, install, uninstall). The actual installer was not modified.
+- **`postinstall` pointed at a command that doesn't exist.** The post-install message told users to run `$ agentic-kit`; the published bin is `liteagents`. Corrected.
 
 ### Added
 - **Content-integrity check in the multi-tool test suite.** It now pins the expected per-tool counts of agents, commands, skills, and plugins (counting `.md` dispatch entries and skill/plugin directories, not raw files). Accidentally adding or removing a command/skill/agent fails the publish gate with the exact delta until the expected number is updated deliberately — so the CI gate now protects what actually ships, not just installer plumbing.
+
+### Removed
+- Stale `variant-system` npm keyword — there is one package per tool, not a variant matrix.
 
 ### Planned
 - Community marketplace submissions

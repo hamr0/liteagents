@@ -15,7 +15,7 @@ console.log(`==========================================${colors.reset}`);
 console.log('');
 console.log(`${colors.bright}${colors.yellow}Next step: Run the installer${colors.reset}`);
 console.log('');
-console.log(`  ${colors.cyan}$ agentic-kit${colors.reset}`);
+console.log(`  ${colors.cyan}$ liteagents${colors.reset}`);
 console.log('');
 console.log(`${colors.green}==========================================${colors.reset}`);
 console.log('');

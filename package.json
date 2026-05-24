@@ -42,8 +42,7 @@
     "xlsx",
     "pptx",
     "document-generation",
-    "cli",
-    "variant-system"
+    "cli"
   ],
   "author": "hamr0 <avoidaccess@msn.com>",
   "license": "Apache-2.0",
