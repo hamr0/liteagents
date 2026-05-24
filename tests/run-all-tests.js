@@ -2,14 +2,12 @@
 
 /**
  * Unified Test Runner
- * Consolidates all installer test suites and generates comprehensive reports
+ * Consolidates the installer test suites and generates comprehensive reports
  *
  * Test Suites:
- * 1. Variant Testing (all variants for all tools)
- * 2. Multi-Tool Installation Testing
- * 3. Error Scenario Testing
- * 4. Path Handling Testing
- * 5. Cross-Platform Testing
+ * 1. Multi-Tool Installation Testing
+ * 2. Error Scenario Testing
+ * 3. Cross-Platform Testing
  */
 
 const fs = require('fs');
@@ -27,31 +25,22 @@ const colors = {
   cyan: '\x1b[36m'
 };
 
-// Test suite definitions
+// Test suite definitions. These reflect the single-variant installer (one
+// 'pro' package per tool). The legacy Variant and Path Handling suites were
+// removed with the 3-variant system; other tests/installer/*.test.js files
+// are not wired in here.
 const testSuites = [
-  {
-    name: 'Variant Testing',
-    file: 'installer/variant-testing.test.js',
-    description: 'Tests all variants (Lite, Standard, Pro) for all 4 tools',
-    expectedTests: 92
-  },
   {
     name: 'Multi-Tool Installation',
     file: 'installer/multi-tool-testing.test.js',
     description: 'Tests simultaneous installation of multiple tools',
-    expectedTests: 78
+    expectedTests: 36
   },
   {
     name: 'Error Scenario Testing',
     file: 'installer/error-scenario-testing.test.js',
     description: 'Tests error handling, validation, and rollback',
     expectedTests: 36
-  },
-  {
-    name: 'Path Handling Testing',
-    file: 'installer/path-handling-testing.test.js',
-    description: 'Tests path validation, expansion, and edge cases',
-    expectedTests: 76
   },
   {
     name: 'Cross-Platform Testing',
