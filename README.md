@@ -166,10 +166,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 | Document | Description |
 |----------|-------------|
-| **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide with troubleshooting |
-| **[KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)** | Complete reference: agents, commands, architecture |
-| **[QUICK-START.md](QUICK-START.md)** | 15-minute onboarding guide |
-| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Common issues and solutions |
+| **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
 
 ---
@@ -224,4 +221,4 @@ Apache-2.0 © 2026 hamr0 — see [LICENSE](LICENSE).
 
 ---
 
-**Need help?** Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) or [open an issue](https://github.com/hamr0/liteagents/issues)
+**Need help?** See the [Installer Guide](docs/INSTALLER_GUIDE.md) or [open an issue](https://github.com/hamr0/liteagents/issues)

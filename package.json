@@ -65,13 +65,10 @@
     "installer/",
     "packages/",
     "tools/",
-    "docs/",
     "cli.js",
     "index.js",
     "postinstall.js",
     "README.md",
-    "QUICK-START.md",
-    "TROUBLESHOOTING.md",
     "CHANGELOG.md",
     "LICENSE"
   ],

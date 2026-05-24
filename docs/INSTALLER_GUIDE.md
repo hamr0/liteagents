@@ -439,15 +439,13 @@ liteagents
 ```
 
 **Q: How do I contribute new agents or skills?**
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+Open an issue or pull request at https://github.com/hamr0/liteagents.
 
 ---
 
 ## Additional Resources
 
-- **Package Baseline**: [PACKAGE_BASELINE.md](./PACKAGE_BASELINE.md) — package structure reference
-- **Validation Report**: [PACKAGE_VALIDATION_REPORT.md](./PACKAGE_VALIDATION_REPORT.md) — quality assurance report
-- **Main README**: [../README.md](../README.md) — project overview
+- **Main README**: [../README.md](../README.md) — project overview, usage, and example workflows
 
 ---
 
