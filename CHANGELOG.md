@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.9.0] - 2026-05-26
+
+Redesign of the `/friction` → `/remember` memory pipeline so friction stops poisoning hot memory and antigens come from what the user actually said. Applied identically across all four tool packages (claude, opencode, ampcode, droid).
+
+### Changed
+- **`/friction` now seeds antigens from observed user reactions, not machine proxies.** Antigen candidates are anchored only on real user reactions (corrections, curses, interrupts); inferred signals survive only as corroborating severity. Clustering is by what the user *said* (content/phrase overlap) instead of `(signal, tool_pattern)`, and recurrence × severity drives a `suggested_artifact` — only patterns recurring across 5+ sessions are meant to load into hot memory. On a 253-session corpus this took false hot preferences from 15 → 0.
+- **`/remember` rewritten to consolidate from friction's short quotes, never raw logs.** It classifies each reaction's target (agent vs. self), drops self-corrections, semantically merges paraphrases that lexical clustering left split, and tiers antigens by recurrence. The generated `MEMORY.md` section is renamed `Preferences` → `Antigens` (High loads hot / Medium recorded / Low = episode).
+
+### Fixed
+- **Terminal pastes are no longer mistaken for friction.** Pasted SSH/shell dumps (prompt lines like `> sudo …` and `root@host:~#`, command output) were captured as user reactions, polluting antigen keywords with shell vocabulary (`postconf`, `qemu`). They are now detected and excluded from both signal detection and keyword extraction, while genuine short corrections that merely mention a command are preserved.
+- **Profanity only counts when it's aimed at the agent.** Narrative/rhetorical curses ("does anyone search any shit?", a pasted reddit story) no longer raise a `user_curse` signal; a curse is kept only in a short reaction turn or when an agent-directed word sits next to it.
+- **Self-corrections are now surfaced to the consolidation step.** The `self_suspect` hint ("wrong project", "nevermind") is propagated from candidate to cluster and rendered in `antigen_review.md`, so `/remember` is told to confirm agent-vs-self target before treating a cluster as an antigen.
+
+### Removed
+- Dead scaffolding left over from the redesign in `friction.js`: the unused `overlap()` helper, the `MIN_KW`/`MIN_INTER` constants, the unread `selfCount` counter (superseded by the `anySelf` flag), and the always-empty `top_files` field with its unreachable renderer block.
+
+---
+
 ## [2.8.3] - 2026-05-24
 
 ### Security

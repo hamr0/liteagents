@@ -26,22 +26,25 @@ const path = require('path');
 
 const CONFIG = {
   weights: {
-    exit_error: 1,
-    exit_success: 0,
-    user_curse: 5,
-    user_negation: 0.5,
-    user_intervention: 10,
+    // OBSERVED (primary) — the user reacted; hard to fake, high trust.
+    user_correction: 8,
+    user_curse: 8,
+    interrupt_cascade: 8,
     tool_loop: 6,
-    false_success: 8,
-    request_interrupted: 2.5,
+    repeated_question: 5,
+    request_interrupted: 3,
+    // INFERRED (corroboration only) — machine proxies; noisy, never seed alone.
+    exit_error: 0.5,
+    false_success: 1,
+    no_resolution: 0.5,
+    session_abandoned: 1,
+    user_intervention: 1,
+    rapid_exit: 1,
     long_silence: 0.5,
-    repeated_question: 1,
     compaction: 0.5,
-    interrupt_cascade: 5,
-    rapid_exit: 6,
-    no_resolution: 8,
-    session_abandoned: 10,
     sibling_tool_error: 0.5,
+    exit_success: 0,
+    checkpoint: 0,   // a gated stash/abandon/silence with no preceding reaction — routine, ignored
   },
   thresholds: {
     friction_peak: 15,
@@ -194,6 +197,31 @@ function deriveSessionName(sessionFile, metadata) {
 function extractToolNameFromResult(result) {
   const match = result.match(/●\s+(\w+)\(/);
   return match ? match[1] : 'unknown';
+}
+
+// A user turn that is mostly pasted shell prompts/output (SSH session dumps,
+// command logs) is context the user pasted — not a reaction to the agent.
+// Treating it as friction pollutes antigens (e.g. keywords like "postconf",
+// "sendmail"). A *prompted* command line ("> sudo …", "$ git …") is an
+// unambiguous paste even at 2 lines; otherwise require shell lines to dominate
+// a 3+ line block, so a real 2-line correction ("no\nls the logs please")
+// stays a correction.
+const SHELL_CMD = /(sudo|ls|cd|cat|rm|cp|mv|mkdir|chmod|chown|export|source|ssh|scp|sed|awk|grep|echo|curl|wget|tar|systemctl|service|journalctl|apt|apt-get|dpkg|yum|dnf|rpm|npm|npx|node|pip|git|docker|postconf|postfix|opendkim|certbot|nginx|dig|host|nslookup|ping|traceroute|df|du|free|ps|uname|tail|head)\b/;
+const SHELL_OUT = /(No such file or directory|command not found|cannot access|Permission denied|Exit code\s*\d|Traceback \(most recent|: line \d+:|^E: )/;
+function looksLikeTerminalPaste(text) {
+  if (typeof text !== 'string') return false;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return false;
+  const prompted = lines.filter(l =>
+    /^[\w.-]+@[\w.-]+:\S*[#$]/.test(l) ||                          // host prompt: "root@terribic:~#"
+    (/^[>$#]\s+/.test(l) && SHELL_CMD.test(l))                     // "> dig …", "$ npm ci"
+  ).length;
+  if (prompted >= 1) return true;
+  if (lines.length < 3) return false;
+  const shellish = lines.filter(l =>
+    new RegExp('^' + SHELL_CMD.source).test(l) || SHELL_OUT.test(l)
+  ).length;
+  return shellish / lines.length >= 0.5;
 }
 
 // =============================================================================
@@ -419,20 +447,34 @@ function extractSignals(sessionFile) {
           });
         }
 
-        if (/\b(fuck|shit|damn)\b/i.test(content)) {
-          signals.push({
-            ts,
-            source: 'user',
-            signal: 'user_curse',
-            details: content.slice(0, 50),
-          });
+        const isPaste = looksLikeTerminalPaste(content);
+
+        // Curse only counts as friction when aimed at the agent's work — not
+        // rhetorical/narrative profanity ("does anyone search any shit?", a
+        // pasted reddit story). Keep it when the turn is a short reaction, or
+        // when an agent-directed token sits next to the curse; otherwise the
+        // profanity is buried in a long narrative and isn't friction.
+        const curseMatch = content.match(/\b(fuck|shit|damn)\b/i);
+        if (curseMatch && !isPaste) {
+          const i = curseMatch.index;
+          const near = content.slice(Math.max(0, i - 40), i + 40);
+          const shortReaction = content.trim().length <= 120;
+          const directed = /\b(you|your|you'?ve|you'?re|stop|quit|keep|again|why)\b/i.test(near);
+          if (shortReaction || directed) {
+            signals.push({
+              ts,
+              source: 'user',
+              signal: 'user_curse',
+              details: content.slice(0, 50),
+            });
+          }
         }
 
-        if (isInteractive && /\b(no|didn't work|still broken)\b/i.test(content)) {
+        if (!isPaste && isInteractive && /^\s*(no\b|nope\b|wrong\b|don'?t\b|didn'?t work|that'?s not|not what|stop\b|revert\b|undo\b|still broken)/i.test(content)) {
           signals.push({
             ts,
             source: 'user',
-            signal: 'user_negation',
+            signal: 'user_correction',
             details: content.slice(0, 50),
           });
         }
@@ -578,7 +620,7 @@ function extractSignals(sessionFile) {
   const frictionWeights = {
     exit_error: 1,
     user_curse: 5,
-    user_negation: 1,
+    user_correction: 1,
     tool_loop: 6,
     false_success: 8,
     request_interrupted: 4,
@@ -623,6 +665,29 @@ function extractSignals(sessionFile) {
       signal: 'session_abandoned',
       details: `friction ${last5Friction} in last 5 signals, no resolution`,
     });
+  }
+
+  // FIX #1/#2: stash, abandonment and silence are "unresolved markers", not
+  // friction on their own. A clean-start stash, a context-switch, or an idle gap
+  // is routine. They only count when a real user reaction (correction / curse /
+  // interrupt) preceded them in the recent signals — i.e. a frustrated thread
+  // that was then dropped. Otherwise demote to a zero-weight checkpoint.
+  const GATED = new Set(['user_intervention', 'session_abandoned', 'long_silence']);
+  const REACTION = new Set(['user_correction', 'user_curse', 'interrupt_cascade']);
+  for (let i = 0; i < finalSignals.length; i++) {
+    if (!GATED.has(finalSignals[i].signal)) continue;
+    let precededByReaction = false;
+    for (let j = i - 1, seen = 0; j >= 0 && seen < 8; j--, seen++) {
+      if (REACTION.has(finalSignals[j].signal)) { precededByReaction = true; break; }
+    }
+    if (!precededByReaction) {
+      finalSignals[i] = {
+        ...finalSignals[i],
+        signal: 'checkpoint',
+        gated_from: finalSignals[i].signal,
+        details: 'routine/idle — no preceding user reaction',
+      };
+    }
   }
 
   return [finalSignals, metadata];
@@ -1782,21 +1847,20 @@ function extractUserMessage(event) {
 function analyzeBadSession(sessionFile, analysis, signals) {
   const sessionId = analysis.session_id;
 
+  // NEW: anchor antigens only on OBSERVED user-reaction signals. Inferred
+  // proxies (false_success/session_abandoned/user_intervention) never seed —
+  // they only color severity. No fallback: a session with no observed reaction
+  // produces no candidate (silence is not an antigen).
+  // Seed only on genuine USER REACTIONS. tool_loop / repeated_question are
+  // agent-behavior signals (no user text to cluster, and repeated_question
+  // over-fires on tool output) — they corroborate severity, never seed.
   const anchorSignals = [
-    'user_intervention',
-    'session_abandoned',
-    'false_success',
+    'user_correction',
+    'user_curse',
     'interrupt_cascade',
   ];
 
-  let anchors = signals.filter(s => s.session === sessionId && anchorSignals.includes(s.signal));
-
-  if (anchors.length === 0) {
-    const sessionSignals = signals.filter(s => s.session === sessionId);
-    if (sessionSignals.length > 0) {
-      anchors = [sessionSignals[sessionSignals.length - 1]];
-    }
-  }
+  const anchors = signals.filter(s => s.session === sessionId && anchorSignals.includes(s.signal));
 
   const candidates = [];
 
@@ -1819,7 +1883,7 @@ function analyzeBadSession(sessionFile, analysis, signals) {
       allErrors.push(...extractErrorsFromTurn(event));
       if (turn.type === 'user') {
         const msg = extractUserMessage(event);
-        if (msg && !msg.startsWith('[Request interrupted')) {
+        if (msg && !msg.startsWith('[Request interrupted') && !looksLikeTerminalPaste(msg)) {
           userMessagesArr.push(msg);
         }
       }
@@ -1854,6 +1918,25 @@ function analyzeBadSession(sessionFile, analysis, signals) {
     ]);
     for (const c of common) keywords.delete(c);
 
+    // FIX #4: capture the agent's last action + result just before the reaction.
+    // Often it's a *claimed* success (exit 0) the user is contradicting, not a
+    // crash — so record the action and whether it reported ok/error, plus any
+    // error line. This is the technical half of the antigen (the trigger).
+    const calls = allTools.filter(t => t.action === 'call').map(t => t.tool);
+    const sawError = allTools.some(t => t.action === 'error');
+    const sawSuccess = allTools.some(t => t.action === 'success');
+    const preceding = {
+      action: calls.slice(-2).join(' → ') || 'none',
+      result: sawError ? 'error' : (sawSuccess ? 'claimed success (exit 0)' : 'unknown'),
+      error: allErrors[allErrors.length - 1] || null,
+    };
+
+    // FIX #3: self/context corrections ("wrong project", "nevermind", "my bad")
+    // are the user redirecting THEMSELVES, not an antigen against the agent. Flag
+    // them so the clusterer won't mark them severe; the LLM makes the final call.
+    const selfPhrase = /\b(wrong (project|window|repo|directory|folder)|never ?mind|nvm|scratch that|ignore (that|this)|disregard|my bad|oops)\b/i;
+    const self_suspect = userMessagesArr.some(m => selfPhrase.test(m));
+
     const candidate = {
       session_id: sessionId,
       anchor_signal: anchorSignal,
@@ -1863,6 +1946,8 @@ function analyzeBadSession(sessionFile, analysis, signals) {
       files: Array.from(allFiles).sort().slice(0, 10),
       tool_sequence: toolSeq.slice(0, 15),
       errors: allErrors.slice(0, 5),
+      preceding,
+      self_suspect,
       keywords: Array.from(keywords).sort().slice(0, 15),
       user_context: userMessagesArr.slice(0, 3),
       inhibitory_instruction: '# TODO: Write prevention instruction based on pattern above',
@@ -1879,93 +1964,208 @@ function analyzeBadSession(sessionFile, analysis, signals) {
 // =============================================================================
 
 function clusterCandidates(allCandidates) {
-  const signalWeights = {
-    user_intervention: 10,
-    session_abandoned: 10,
-    false_success: 8,
-    no_resolution: 8,
-    interrupt_cascade: 5,
-    tool_loop: 6,
-    rapid_exit: 6,
+  // NEW: cluster by CONTENT (keyword overlap of what the user actually said),
+  // not by (anchor_signal, tool_pattern). Inferred signals were already barred
+  // from seeding upstream; here they survive only as corroborating "errors"
+  // that color a cluster's severity. Recurrence across sessions is the score.
+  const SIM = 0.5;       // overlap-coefficient threshold to join a content cluster
+
+  // Ubiquitous path/file tokens that carry no topical meaning — if we cluster on
+  // these we re-create OLD's over-merge (everything touches README/package.json).
+  const PATH_STOP = new Set([
+    'home', 'hamr', 'documents', 'pycharmprojects', 'projects', 'claude', 'stash',
+    'memory', 'commands', 'command', 'skills', 'skill', 'src', 'lib', 'app', 'dist',
+    'build', 'node_modules', 'public', 'assets', 'utils', 'util', 'config', 'scripts',
+    'readme', 'package', 'index', 'main', 'test', 'tests', 'spec', 'lock',
+    'components', 'component', 'styles', 'style', 'types', 'data', 'templates',
+    'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'sh', 'txt', 'html', 'css', 'json',
+    'yaml', 'yml', 'toml', 'env', 'log', 'tmp',
+  ]);
+
+  // English fillers to drop from phrase matching (path tokens use PATH_STOP).
+  const STOP = new Set([
+    'the', 'and', 'you', 'for', 'not', 'but', 'was', 'are', 'get', 'use', 'one', 'out',
+    'can', 'all', 'any', 'has', 'had', 'have', 'this', 'that', 'with', 'from', 'what',
+    'when', 'where', 'which', 'there', 'their', 'would', 'could', 'should', 'about',
+    'been', 'were', 'they', 'them', 'then', 'than', 'these', 'those', 'some', 'into',
+    'only', 'other', 'also', 'just', 'more', 'very', 'here', 'after', 'before', 'being',
+    'doing', 'make', 'made', 'like', 'want', 'need', 'your', 'dont', 'did', 'does',
+    'done', 'now', 'yet', 'too', 'will', 'wont', 'cant', 'got', 'let',
+  ]);
+
+  // Significant words in order (>=3 chars, not a filler / path token).
+  const unigrams = (text) =>
+    (String(text).toLowerCase().match(/\b[a-z']{3,}\b/g) || [])
+      .filter(w => !STOP.has(w) && !PATH_STOP.has(w));
+
+  // SHINGLES = unigrams + adjacent bigrams (word proximity + phrase repetition).
+  // A repeated phrase like "wrong project" scores as one shingle AND its two words.
+  const shingles = (texts) => {
+    const m = new Map();
+    for (const t of texts) {
+      const u = unigrams(t);
+      for (const w of u) m.set(w, (m.get(w) || 0) + 1);
+      for (let i = 0; i < u.length - 1; i++) {
+        const bg = u[i] + ' ' + u[i + 1];
+        m.set(bg, (m.get(bg) || 0) + 1);
+      }
+    }
+    return m;
   };
 
-  const clusterMap = {};
+  const fileTokens = (sessionId, files) => {
+    const proj = (sessionId || '').split('/')[0].toLowerCase();
+    const out = [];
+    for (const f of (files || [])) {
+      for (const seg of String(f).toLowerCase().split(/[/._\-\s]+/)) {
+        if (seg.length >= 4 && seg !== proj && !PATH_STOP.has(seg)) out.push(seg);
+      }
+    }
+    return out;
+  };
 
+  // Pick the quote from a session that best contains a cluster's seed phrase —
+  // a multi-topic session should be shown by the line that actually matched.
+  const bestQuote = (texts, seedSig) => {
+    let best = texts[0] || '', bestN = -1;
+    for (const t of texts) {
+      const u = unigrams(t);
+      let n = 0;
+      for (const w of u) if (seedSig.has(w)) n++;
+      for (let i = 0; i < u.length - 1; i++) if (seedSig.has(u[i] + ' ' + u[i + 1])) n++;
+      if (n > bestN) { bestN = n; best = t; }
+    }
+    return best;
+  };
+
+  // ---- Stage 1: INTRA-SESSION — one consolidated signal per session ----
+  // Frustration/repetition is short and reuses words; pool a session's reaction
+  // texts so the repeated/overlapping part becomes that session's signal.
+  const bySession = {};
   for (const c of allCandidates) {
-    // Normalize tool sequence: strip :error/:ok suffixes for grouping
-    const toolNorm = c.tool_sequence
-      .map(t => t.replace(/:error|:ok/g, ''))
-      .join(',') || '(none)';
-    const key = c.anchor_signal + '|' + toolNorm;
-
-    if (!(key in clusterMap)) {
-      clusterMap[key] = {
-        anchor_signal: c.anchor_signal,
-        tool_pattern: toolNorm,
-        count: 0,
-        sessions: {},
-        contexts: [],
-        errors: [],
-        files: {},
-        keywords: {},
-        peaks: [],
-      };
-    }
-
-    const cl = clusterMap[key];
-    cl.count++;
-    cl.sessions[c.session_id] = true;
-    cl.peaks.push(c.peak_friction);
-
-    // Collect unique user contexts (up to 5 per cluster, deduplicated)
-    if (c.user_context.length > 0 && cl.contexts.length < 5) {
-      for (const ctx of c.user_context.slice(0, 1)) {
-        if (ctx.length > 10 && !cl.contexts.includes(ctx)) cl.contexts.push(ctx);
-      }
-    }
-
-    // Collect unique errors (up to 5 per cluster)
-    if (c.errors.length > 0 && cl.errors.length < 5) {
-      for (const err of c.errors.slice(0, 1)) {
-        if (!cl.errors.includes(err)) cl.errors.push(err);
-      }
-    }
-
-    // Tally files and keywords
-    for (const f of c.files) cl.files[f] = (cl.files[f] || 0) + 1;
-    for (const kw of c.keywords) cl.keywords[kw] = (cl.keywords[kw] || 0) + 1;
+    const id = c.session_id;
+    if (!bySession[id]) bySession[id] = { id, texts: [], files: new Set(), signals: {}, errors: [], peak: 0, preceding: null, selfVotes: 0, total: 0 };
+    const b = bySession[id];
+    for (const m of (c.user_context || [])) if (m && m.length > 2) b.texts.push(m);
+    for (const f of (c.files || [])) b.files.add(f);
+    b.signals[c.anchor_signal] = (b.signals[c.anchor_signal] || 0) + 1;
+    for (const e of (c.errors || [])) if (!b.errors.includes(e)) b.errors.push(e);
+    b.peak = Math.max(b.peak, c.peak_friction || 0);
+    b.total++;
+    if (c.self_suspect) b.selfVotes++;
+    // keep the most informative preceding action/error (#4)
+    if (c.preceding && (!b.preceding || (c.preceding.action !== 'none' || c.preceding.error))) b.preceding = c.preceding;
   }
 
-  // Score and sort clusters
-  const clusters = Object.values(clusterMap).map(cl => {
-    const weight = signalWeights[cl.anchor_signal] || 1;
-    const peaks = cl.peaks.sort((a, b) => a - b);
-    // Session IDs follow "project/dateStr-shortId", so the first segment is
-    // the project. Preserve both the ID list and the deduped project set so
-    // downstream renderers can surface which repos produced the cluster.
+  const sessionSignals = Object.values(bySession).map(b => {
+    const sh = shingles(b.texts);
+    if (sh.size < 2) {                       // terse/empty → fall back to file referent
+      for (const seg of fileTokens(b.id, b.files)) sh.set(seg, (sh.get(seg) || 0) + 1);
+    }
+    return {
+      id: b.id,
+      sig: new Set(sh.keys()),
+      signals: b.signals,
+      errors: b.errors,
+      peak: b.peak,
+      texts: b.texts,
+      preceding: b.preceding,
+      anySelf: b.selfVotes > 0,                        // at least one self-correction → warn, LLM confirms target
+    };
+  });
+
+  // ---- Stage 2: CROSS-SESSION — match session signals by shared shingles ----
+  const clusters = [];
+  for (const ss of sessionSignals) {
+    // Merge on a shared PHRASE (bigram = word proximity) — the strong signal —
+    // or on strong unigram overlap. A single generic shared word won't merge.
+    let best = null, bestSim = 0;
+    if (ss.sig.size >= 2) {
+      for (const cl of clusters) {
+        let bi = 0, uni = 0;
+        for (const x of ss.sig) if (cl.seedSig.has(x)) { x.includes(' ') ? bi++ : uni++; }
+        const sim = (bi + uni) / Math.min(ss.sig.size, cl.seedSig.size);
+        const mergeable = bi >= 1 && sim >= SIM;
+        if (mergeable && sim > bestSim) { bestSim = sim; best = cl; }
+      }
+    }
+    let cl;
+    if (best) {
+      cl = best;
+    } else {
+      cl = { sig: new Set(), seedSig: new Set(ss.sig), shCount: new Map(), sessions: {}, signals: {}, contexts: [], errors: [], peaks: [], anySelf: false, preceding: null };
+      clusters.push(cl);
+    }
+    for (const s of ss.sig) { cl.sig.add(s); cl.shCount.set(s, (cl.shCount.get(s) || 0) + 1); }
+    cl.sessions[ss.id] = true;
+    for (const [k, v] of Object.entries(ss.signals)) cl.signals[k] = (cl.signals[k] || 0) + v;
+    const q = bestQuote(ss.texts, cl.seedSig);
+    if (q && cl.contexts.length < 5 && !cl.contexts.includes(q)) cl.contexts.push(q);
+    for (const e of ss.errors) if (!cl.errors.includes(e) && cl.errors.length < 5) cl.errors.push(e);
+    cl.peaks.push(ss.peak);
+    if (ss.anySelf) cl.anySelf = true;
+    if (ss.preceding && (!cl.preceding || (ss.preceding.action !== 'none' || ss.preceding.error))) cl.preceding = ss.preceding;
+  }
+
+  const out = clusters.map(cl => {
+    const peaks = cl.peaks.slice().sort((a, b) => a - b);
+    const topSh = [...cl.shCount.entries()]
+      .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length).map(([k]) => k);
     const sessionIds = Object.keys(cl.sessions);
     const projects = [...new Set(
       sessionIds.map(s => s.includes('/') ? s.split('/')[0] : 'unknown')
     )].sort();
+    const nSessions = sessionIds.length;
+    const signalNames = Object.keys(cl.signals);
+    const dominant = sortedEntries(cl.signals)[0] ? sortedEntries(cl.signals)[0][0] : 'unknown';
+
+    // Severity: an explicit AGENT-directed reaction (curse / interrupt, or a
+    // correction that isn't the user redirecting themselves) is severe; machine
+    // corroboration (errors) also escalates. #3: judge self-correction from the
+    // MATCHED quotes — a cluster whose grouping phrase is "wrong project" etc. is
+    // the user redirecting themselves, not an antigen → not severe.
+    const SELF_RE = /\b(wrong (project|window|repo|directory|folder)|never ?mind|nvm|scratch that|ignore (that|this)|disregard|my bad|oops)\b/i;
+    const allSelf = cl.contexts.length > 0 && cl.contexts.every(q => SELF_RE.test(q || ''));
+    const severe = signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
+      || (signalNames.includes('user_correction') && !allSelf)
+      || cl.errors.length > 0;
+    const recurring = nSessions >= 3;   // recurrence × severity → artifact (the 2×2)
+    let artifact;
+    if (recurring && severe) artifact = 'antigen';
+    else if (recurring && !severe) artifact = 'fact';
+    else if (!recurring && severe) artifact = 'episode';
+    else artifact = 'drop';
+    const confidence = nSessions >= 5 ? 'high' : nSessions >= 3 ? 'medium' : 'low';
+    const theme = topSh.slice(0, 4).join(' / ') || '(thin)';
+
     return {
-      anchor_signal: cl.anchor_signal,
-      tool_pattern: cl.tool_pattern,
-      count: cl.count,
-      score: cl.count * weight,
-      sessions: sessionIds.length,
+      theme,
+      suggested_artifact: artifact,
+      confidence,
+      severity: severe ? 'severe' : 'mild',
+      signals: cl.signals,
+      // backward-compat fields for existing renderers:
+      anchor_signal: dominant,
+      tool_pattern: `${artifact}/${severe ? 'severe' : 'mild'}`,
+      count: nSessions,
+      score: nSessions * (severe ? 2 : 1),
+      sessions: nSessions,
       session_ids: sessionIds,
-      projects: projects,
+      projects,
       median_peak: peaks[Math.floor(peaks.length / 2)],
       max_peak: peaks[peaks.length - 1],
       contexts: cl.contexts,
       errors: cl.errors,
-      top_files: sortedEntries(cl.files).slice(0, 5).map(([f]) => f),
-      top_keywords: sortedEntries(cl.keywords).slice(0, 10).map(([k]) => k),
+      preceding: cl.preceding,          // #4: agent action + result just before the reaction
+      self_suspect: allSelf || cl.anySelf,  // #3: a self-correction is present — LLM confirms target (advisory)
+      top_keywords: topSh.slice(0, 10),
     };
   });
 
-  clusters.sort((a, b) => b.score - a.score);
-  return clusters;
+  // Drop the noise tier (one-off + mild); rank by recurrence then severity.
+  const kept = out.filter(c => c.suggested_artifact !== 'drop');
+  kept.sort((a, b) => b.score - a.score || b.sessions - a.sessions);
+  return kept;
 }
 
 // =============================================================================
@@ -1990,15 +2190,16 @@ function extractMain(sessionsDir) {
     signals = rawContent.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
   }
 
-  // Find BAD sessions
-  const badSessions = analyses.filter(a => a.quality === 'BAD');
+  // NEW: no per-session BAD verdict. Seed from ALL sessions; the observed-only
+  // anchor filter in analyzeBadSession decides which produce candidates.
+  const badSessions = analyses;
 
   if (badSessions.length === 0) {
-    console.log('No BAD sessions found. Nothing to extract.');
+    console.log('No sessions to analyze.');
     return 0;
   }
 
-  console.log(`Extracting antigens from ${badSessions.length} BAD sessions...\n`);
+  console.log(`Scanning ${badSessions.length} sessions for observed user-reaction signals...\n`);
 
   // Extract antigens
   const allCandidates = [];
@@ -2053,17 +2254,17 @@ function extractMain(sessionsDir) {
 
   reviewLines.push('# Friction Antigen Clusters\n\n');
   reviewLines.push(`Generated: ${new Date().toISOString()}\n`);
-  reviewLines.push(`BAD sessions: ${badSessions.length} | Raw candidates: ${allCandidates.length} | Clusters: ${clusters.length}\n\n`);
+  reviewLines.push(`Sessions scanned: ${badSessions.length} | Reaction candidates: ${allCandidates.length} | Clusters: ${clusters.length}\n\n`);
 
   // Summary table
   reviewLines.push('## Cluster Summary\n\n');
-  reviewLines.push('| # | Signal | Tool Pattern | Count | Sessions | Projects | Score | Median Peak |\n');
-  reviewLines.push('|---|--------|-------------|-------|----------|----------|-------|-------------|\n');
+  reviewLines.push('| # | Signal | Artifact/Severity | Sessions | Projects | Score | Median Peak |\n');
+  reviewLines.push('|---|--------|-------------------|----------|----------|-------|-------------|\n');
   reviewClusters.forEach((cl, idx) => {
     const projs = cl.projects || [];
     const projectsShort = projs.slice(0, 3).join(', ') +
       (projs.length > 3 ? `, +${projs.length - 3}` : '');
-    reviewLines.push(`| ${idx + 1} | ${cl.anchor_signal} | ${cl.tool_pattern} | ${cl.count} | ${cl.sessions} | ${projectsShort || '-'} | ${cl.score} | ${cl.median_peak} |\n`);
+    reviewLines.push(`| ${idx + 1} | ${cl.anchor_signal} | ${cl.tool_pattern} | ${cl.sessions} | ${projectsShort || '-'} | ${cl.score} | ${cl.median_peak} |\n`);
   });
   reviewLines.push('\n---\n\n');
 
@@ -2075,12 +2276,23 @@ function extractMain(sessionsDir) {
       reviewLines.push(`**Projects:** ${cl.projects.join(', ')}\n\n`);
     }
 
+    if (cl.self_suspect) {
+      reviewLines.push('> ⚠️ **Looks like user self-correction** (e.g. "wrong project") — LLM should confirm target before treating as an antigen.\n\n');
+    }
+
     if (cl.contexts.length > 0) {
       reviewLines.push('### User Context (what the user said)\n\n');
       for (const ctx of cl.contexts.slice(0, 3)) {
         const truncated = ctx.length > 300 ? ctx.slice(0, 300) + '...' : ctx;
         reviewLines.push(`> ${truncated}\n\n`);
       }
+    }
+
+    if (cl.preceding && (cl.preceding.action !== 'none' || cl.preceding.error)) {
+      reviewLines.push('### Trigger (agent action just before)\n\n');
+      reviewLines.push(`- **Action:** ${cl.preceding.action} → ${cl.preceding.result}\n`);
+      if (cl.preceding.error) reviewLines.push(`- **Error:** \`${cl.preceding.error}\`\n`);
+      reviewLines.push('\n');
     }
 
     if (cl.errors.length > 0) {
@@ -2090,14 +2302,6 @@ function extractMain(sessionsDir) {
         reviewLines.push(`${err}\n`);
       }
       reviewLines.push('```\n\n');
-    }
-
-    if (cl.top_files.length > 0) {
-      reviewLines.push('### Files involved\n\n');
-      for (const f of cl.top_files) {
-        reviewLines.push(`- \`${f}\`\n`);
-      }
-      reviewLines.push('\n');
     }
 
     if (cl.top_keywords.length > 0) {
@@ -2161,7 +2365,7 @@ Outputs (all in .claude/friction/):
 
   // Step 2: Extract antigens
   console.log('\n' + '='.repeat(60));
-  console.log('\n[2/2] Extracting antigens from BAD sessions...\n');
+  console.log('\n[2/2] Extracting antigens from user-reaction signals...\n');
   extractMain(sessionsDir);
 
   // Final summary
