@@ -117,12 +117,12 @@ Install for your platform:
 - `skill-creator` - Guide for creating new skills
 - `debug-method` - Four-phase debugging framework
 
-**Simple Commands (12)**
+**Simple Commands (9)**
 - `friction` - Analyze session logs for failure patterns and behavioral signals
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory
-- `review` - Comprehensive code review
+- `diff-review` - Review a file, branch, or range; verifies findings before fixing
 - `security` - Vulnerability scanning
 - `ship` - Pre-deployment checklist
 - `stash` - Save session context for compaction recovery or handoffs
