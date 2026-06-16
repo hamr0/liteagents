@@ -34,10 +34,16 @@ jobs:
       - name: Upgrade npm (trusted publishing needs >= 11.5.1)
         run: npm install -g npm@latest
       - name: Install dependencies
-        # This toolkit is dependency-free (no package-lock.json), so `npm ci`
-        # (which requires a lockfile) fails. `npm install` is a fast no-op here
-        # and still installs correctly if deps are ever added.
-        run: npm install --no-audit --no-fund
+        # Use `npm ci` when a lockfile is present (reproducible installs for
+        # projects with dependencies). Dependency-free repos have no
+        # package-lock.json — `npm ci` errors there (EUSAGE), so fall back to
+        # `npm install` (a fast no-op when there's nothing to install).
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
       - name: Typecheck
         run: npm run typecheck --if-present
       - name: Test
