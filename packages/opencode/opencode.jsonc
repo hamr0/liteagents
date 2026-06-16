@@ -157,8 +157,8 @@
       "template": "{file:./command/refactor.md}",
       "description": "Refactor code while maintaining behavior and tests"
     },
-    "review": {
-      "template": "{file:./command/review.md}",
+    "diff-review": {
+      "template": "{file:./command/diff-review.md}",
       "description": "Comprehensive code review including quality, tests, and architecture"
     },
     "security": {

@@ -148,8 +148,8 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 - **debug-method** - Four-phase debugging framework
 - **optimize** - Performance analysis
 - **refactor** - Safe refactoring with behavior preservation
-- **review** - Review a file, branch, or range; verifies findings, fixes confirmed/unambiguous ones, asks on ambiguous or downstream-affecting ones
-- **security** - Vulnerability scan; same verify→fix→ask flow as `/review`
+- **diff-review** - Review a file, branch, or range; verifies findings, fixes confirmed/unambiguous ones, asks on ambiguous or downstream-affecting ones
+- **security** - Vulnerability scan; same verify→fix→ask flow as `/diff-review`
 - **ship** - Pre-deployment checklist
 - **test-generate** - Generate test suites
 
@@ -181,7 +181,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 **Code Quality:**
 ```
 @quality-assurance Review this PR before merge
-/review main  # review branch vs main, fixes confirmed issues, asks on ambiguous ones
+/diff-review main  # review branch vs main, fixes confirmed issues, asks on ambiguous ones
 /debug-method Investigate this race condition
 ```
 

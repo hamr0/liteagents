@@ -44,7 +44,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
-| review | Comprehensive code review including quality, tests, and architecture | /review |
+| diff-review | Comprehensive code review including quality, tests, and architecture | /diff-review |
 | security | Security vulnerability scan and analysis | /security |
 | ship | Pre-deployment verification checklist | /ship |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |

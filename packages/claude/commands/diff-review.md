@@ -1,7 +1,7 @@
 ---
-name: review
-description: Review code [file, branch, or range]
-usage: /review
+name: diff-review
+description: Review diff [file, branch, or range]
+usage: /diff-review
 argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty]
 allowed-tools: Read, Edit, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 ---
