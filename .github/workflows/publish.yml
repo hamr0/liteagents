@@ -34,7 +34,10 @@ jobs:
       - name: Upgrade npm (trusted publishing needs >= 11.5.1)
         run: npm install -g npm@latest
       - name: Install dependencies
-        run: npm ci
+        # This toolkit is dependency-free (no package-lock.json), so `npm ci`
+        # (which requires a lockfile) fails. `npm install` is a fast no-op here
+        # and still installs correctly if deps are ever added.
+        run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck --if-present
       - name: Test
