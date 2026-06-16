@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**AI development toolkit with 11 specialized agents and 19 commands per tool**
+**AI development toolkit with 11 specialized agents and 18 commands per tool**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version (auto from package.json)">
@@ -45,10 +45,10 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 10 skills + 9 commands (+ optional live-canvas channel plugin)
-- **Opencode** - 11 agent references + 19 commands
-- **Ampcode** - 11 subagents + 19 commands
-- **Droid** - 11 agent references + 19 commands
+- **Claude Code** - 11 subagents + 9 skills + 9 commands (+ optional live-canvas channel plugin)
+- **Opencode** - 11 agent references + 18 commands
+- **Ampcode** - 11 subagents + 18 commands
+- **Droid** - 11 agent references + 18 commands
 
 **Key Difference:**
 - **Claude Code**: Full subagent system with orchestrator + skills (auto-triggering)
@@ -123,14 +123,14 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 - **system-architect** - System design, technology selection, API design, scalability planning
 - **ui-designer** - UI/UX design, wireframes, prototypes, accessibility, design systems
 
-### 19 Commands/Skills
+### 18 Commands/Skills
 
 **Auto-Triggering Skills (3)** - Claude Code only:
 - **test-driven-development** - Write test first, watch fail, minimal passing code
 - **testing-anti-patterns** - Prevent mocking anti-patterns
 - **verification-before-completion** - Verify before claiming done
 
-**Manual Skills/Commands (16):**
+**Manual Skills/Commands (15):**
 
 *Hot Memory Pipeline (3)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
 - **stash** - Snapshot session context to `.claude/stash/` before compaction, handoff, or ending complex work
@@ -142,7 +142,6 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 *Workflow & analysis*:
 - **brainstorming** - Structured brainstorming sessions
-- **condition-based-waiting** - Replace timeouts with condition polling
 - **docs-builder** - Project documentation generation
 - **trace-back** - Trace bugs backward through call stack
 - **skill-creator** - Guide for creating new skills

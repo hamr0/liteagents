@@ -137,10 +137,6 @@
       "template": "{file:./command/trace-back.md}",
       "description": "Trace issues to their root cause using systematic investigation techniques"
     },
-    "condition-based-waiting": {
-      "template": "{file:./command/condition-based-waiting.md}",
-      "description": "Implement robust waiting mechanisms based on conditions rather than fixed delays"
-    },
     "brainstorming": {
       "template": "{file:./command/brainstorming.md}",
       "description": "Facilitate structured brainstorming sessions with proven techniques and frameworks"

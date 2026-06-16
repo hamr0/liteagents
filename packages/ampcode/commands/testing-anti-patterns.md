@@ -253,6 +253,79 @@ TDD cycle:
 4. THEN claim complete
 ```
 
+## Anti-Pattern 6: Timeout-Based Waiting
+
+**The violation:**
+```typescript
+// Wait an arbitrary amount of time, then check
+await new Promise(r => setTimeout(r, 50));
+const result = getResult();
+expect(result).toBeDefined();
+```
+
+```python
+time.sleep(0.5)
+assert get_result() is not None
+```
+
+**Why this is wrong:**
+- Passes on fast machines, fails in CI under load (or vice versa).
+- Either too short (flaky) or too long (slow suite) — every value is wrong somewhere.
+- Hides the actual condition the test cares about.
+- A real bug in the async machinery looks identical to a "too-short sleep."
+
+**The fix — poll for the actual condition:**
+```typescript
+await waitFor(() => getResult() !== undefined);
+const result = getResult();
+expect(result).toBeDefined();
+```
+
+| Scenario | Pattern |
+|----------|---------|
+| Wait for event | `waitFor(() => events.find(e => e.type === 'DONE'))` |
+| Wait for state | `waitFor(() => machine.state === 'ready')` |
+| Wait for count | `waitFor(() => items.length >= 5)` |
+| Wait for file | `waitFor(() => fs.existsSync(path))` |
+| Complex condition | `waitFor(() => obj.ready && obj.value > 10)` |
+
+Minimal generic poller:
+```typescript
+async function waitFor<T>(
+  condition: () => T | undefined | null | false,
+  description = 'condition',
+  timeoutMs = 5000
+): Promise<T> {
+  const start = Date.now();
+  while (true) {
+    const result = condition();
+    if (result) return result;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`Timeout waiting for ${description} after ${timeoutMs}ms`);
+    }
+    await new Promise(r => setTimeout(r, 10));
+  }
+}
+```
+
+See `example.ts` for domain-specific helpers (`waitForEvent`, `waitForEventCount`, `waitForEventMatch`) drawn from a real debugging session.
+
+**Polling pitfalls:**
+- **Polling too fast** (`setTimeout(check, 1)`) wastes CPU. **Fix:** poll every ~10ms.
+- **No timeout** means a never-met condition hangs the suite forever. **Fix:** always include a timeout with a descriptive error.
+- **Stale data** — if you read state once before the loop, you'll never see updates. **Fix:** call the getter *inside* the loop.
+
+**When an arbitrary timeout IS correct:**
+```typescript
+// Tool ticks every 100ms; observe 2 ticks of partial output.
+await waitForEvent(manager, 'TOOL_STARTED'); // condition first
+await new Promise(r => setTimeout(r, 200));  // then a documented, calculated wait
+// 200ms = 2 ticks at the documented 100ms cadence
+```
+Requirements: (1) wait for the triggering condition first, (2) the delay is based on a *known* interval (not a guess), (3) a comment explains why a sleep is correct here.
+
+**Real-world impact** (debugging session, 2025-10-03): 15 flaky tests across 3 files, pass rate 60% → 100%, suite 40% faster, race conditions gone.
+
 ## When Mocks Become Too Complex
 
 **Warning signs:**
@@ -284,6 +357,7 @@ TDD cycle:
 | Mock without understanding | Understand dependencies first, mock minimally |
 | Incomplete mocks | Mirror real API completely |
 | Tests as afterthought | TDD - tests first |
+| Timeout-based waiting | Poll for the actual condition with `waitFor()` |
 | Over-complex mocks | Consider integration tests |
 
 ## Red Flags

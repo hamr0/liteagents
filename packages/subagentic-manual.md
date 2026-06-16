@@ -31,10 +31,10 @@ Install for your platform:
 
 | Platform | Installation | What's Included |
 |----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 10 skills + 9 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 19 commands (subagent references) |
+| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 9 skills + 9 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r droid/* ~/.factory/` | 18 commands (subagent references) |
 | **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 10 skills + 9 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 19 commands (subagent references) |
+| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 18 commands (subagent references) |
 
 **Key Difference**:
 - **Claude Code / Ampcode** implement full subagent system with orchestrator
