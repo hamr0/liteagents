@@ -15,7 +15,11 @@ const path = require('path');
 const readline = require('readline');
 
 // Single source of truth for version; UPDATE_VERSION.sh bumps only package.json.
-const PACKAGE_VERSION = require('../package.json').version;
+const PACKAGE_JSON = require('../package.json');
+const PACKAGE_VERSION = PACKAGE_JSON.version;
+// Banner counts derived from the description field — same source as README.
+const AGENT_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+specialized agents/) || [, '11'])[1];
+const COMMAND_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+commands/) || [, '18'])[1];
 
 // ANSI color codes
 const colors = {
@@ -459,7 +463,7 @@ ${colors.bright}${colors.cyan}██╔══██║██║   ██║█�
 ${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
 ${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
 
-${colors.bright}v${PACKAGE_VERSION} | 11 agents + 18 commands per tool${colors.reset}
+${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${COMMAND_COUNT} commands per tool${colors.reset}
     `);
   }
 
