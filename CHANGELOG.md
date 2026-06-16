@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+---
+
+## [2.10.0] - 2026-06-16
+
 ### Changed
 - **`/friction` collapsed into `/remember`; the hot-memory pipeline is now two commands (`/stash → /remember`), down from three.** `/remember` now runs `friction.js` itself as a best-effort first step before consolidating — so the antigen data is always fresh and friction can't be forgotten. Friction targets the tool's **global sessions root** (all projects, since behavioral patterns are cross-project), resolved from an editable, never-prompt probe list baked into `remember.md` (Claude Code, Droid/Factory, Amp, opencode, plus Codex and Antigravity roots; add your own at the top). A no-sessions miss is surfaced **loudly** and degrades to stash-only — never a silent skip. The standalone `/friction` command was removed across all four packages (the `friction.js` script stays, directly runnable for inspection). Counts: claude commands 9→8, droid/opencode/ampcode 17 each.
 - **`/stash` now nudges toward consolidation.** After saving, it derives the unprocessed backlog (`stash files − .processed manifest entries`) and, at ≥5, emits a one-line prompt to run `/remember`. No counter is stored — the count is derived from ground truth, and running `/remember` clears it. The nudge is informational; `/remember` never runs automatically.
@@ -36,12 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/debug`** — was a thin 17-line echo of the `systematic-debugging` skill. The skill (now `debug-method`) carries the real workflow with its pressure-test scenarios; the command added nothing.
 - **`/explain`** — was 11 lines of "explain this code" with no real constraints or workflow. The model does this naturally from a plain prompt.
 - **`/git-commit`** — Claude Code has built-in commit handling and the other three tools don't need a thin wrapper around `git diff --staged` + a templated message either. Use natural-language prompts instead.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ---
 
