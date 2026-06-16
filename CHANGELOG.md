@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`packages/subagentic-manual.md` restored after a range-sed corrupted ~310 lines.** A `sed '/start/,/end/{s/.../...}'` earlier this session had `test-generate$` as the end pattern; the range matched far past its intended scope (later occurrences in tree diagrams and category bullets), overwriting the entire tail of the document — Subagents reference, Commands reference, Hot Memory, Usage Patterns, Platform Architecture, Frontmatter Architecture, Contributing — with ~310 duplicate copies of the "Simple Commands" bullet. Restored from the pre-corruption snapshot and re-applied all the renames + count updates that should have happened cleanly. Same fix mirrored to `agentic-toolkit/ai/subagentic/subagentic-manual.md`.
+
 ### Changed
 - **`/review` renamed to `/diff-review` across all four tool packages.** Avoids the name collision with the Anthropic-official `code-review` plugin (which also ships a skill named `review` that operates on PRs). `/diff-review` is more accurate to what the command does — it operates on a diff (staged, working tree, branch range, or against a ref), not on a remote PR. Mirrored into `~/.claude/commands/` and all docs/agents/`opencode.jsonc` references swept.
 - **`/diff-review` absorbed `/code-review`; collapsed to a single command across all four tool packages.** `/diff-review` now accepts a file, a branch (`/diff-review main` diffs `merge-base(main, HEAD)..HEAD` — the common "review my branch before merging" path), or an explicit range (`main..HEAD`). It bakes in the user's standing review focus: bugs needing a fix, dead code, loose ends (added TODO/FIXME, swallowed errors, stubs, abandoned flags), correctness, security, performance, maintainability.
