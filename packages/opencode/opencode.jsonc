@@ -145,10 +145,6 @@
       "template": "{file:./command/brainstorming.md}",
       "description": "Facilitate structured brainstorming sessions with proven techniques and frameworks"
     },
-    "code-review": {
-      "template": "{file:./command/code-review.md}",
-      "description": "Conduct thorough code reviews with focus on quality, security, and maintainability"
-    },
     "docs-builder": {
       "template": "{file:./command/docs-builder/SKILL.md}",
       "description": "Create comprehensive project documentation with structured /docs hierarchy"

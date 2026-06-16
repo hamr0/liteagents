@@ -50,9 +50,9 @@ Install for your platform:
 - 3 Workflow Agents (PRD, Tasks, Implementation)
 - 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
 
-**11 Skills** - Auto-triggering + manual workflow components
+**10 Skills** - Auto-triggering + manual workflow components
 - test-driven-development, testing-anti-patterns, verification-before-completion (auto-trigger)
-- brainstorming, code-review, systematic-debugging, docs-builder, live-canvas, etc.
+- brainstorming, systematic-debugging, docs-builder, live-canvas, etc.
 
 **12 Commands** - Simple workflow helpers
 - debug, explain, friction, git-commit, optimize, refactor, remember, review, security, ship, stash, test-generate
@@ -109,9 +109,8 @@ Install for your platform:
 - `testing-anti-patterns` - Prevent mocking anti-patterns and test pollution
 - `verification-before-completion` - Run verification before claiming done
 
-**Manual Skills (8)**
+**Manual Skills (7)**
 - `brainstorming` - Refine rough ideas through collaborative questioning
-- `code-review` - Review implementation against requirements
 - `condition-based-waiting` - Replace timeouts with condition polling
 - `docs-builder` - Create structured /docs hierarchy
 - `live-canvas` - Design UI variations with click-to-annotate browser feedback. **Claude Code ships a companion MCP channel plugin (`live-canvas-channel`) that enables live mode — each overlay Save streams into the session in real time.** Other tools run in batch mode only. One-time setup required: see `packages/claude/skills/live-canvas/README.md`.
@@ -133,7 +132,7 @@ Install for your platform:
 - `stash` - Save session context for compaction recovery or handoffs
 - `test-generate` - Test suite generation
 
-### Droid/OpenCode: 23 Commands
+### Droid/OpenCode: 22 Commands
 
 Same functionality as skills+commands, but:
 - All invoked as commands (no auto-triggering)
@@ -142,7 +141,7 @@ Same functionality as skills+commands, but:
 - `live-canvas` runs in batch mode only (no channel plugin — that's Claude Code specific)
 
 **Command Categories**:
-- **Development & Testing (9)**: test-driven-development, testing-anti-patterns, test-generate, code-review, systematic-debugging, root-cause-tracing, debug, condition-based-waiting, verification-before-completion
+- **Development & Testing (8)**: test-driven-development, testing-anti-patterns, test-generate, systematic-debugging, root-cause-tracing, debug, condition-based-waiting, verification-before-completion
 - **Code Operations (6)**: refactor, optimize, explain, review, security, ship
 - **Session & Memory (7)**: brainstorming, skill-creator, docs-builder, git-commit, stash, friction, remember
 - **Design (1)**: live-canvas

@@ -22,12 +22,11 @@ These subagents are available when using Ampcode CLI.
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (10 total)
+### Skills (9 total)
 
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| code-review | Reviews implementation against plan or requirements before proceeding | /code-review <review-scope> <focus-areas> | false |
 | condition-based-waiting | Replaces arbitrary timeouts with condition polling to wait for actual state changes | /condition-based-waiting <condition-type> <timeout-specs> | false |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
 | root-cause-tracing | Systematically traces bugs backward through call stack to identify source | /root-cause-tracing <issue-description> | false |

@@ -142,7 +142,6 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 *Workflow & analysis*:
 - **brainstorming** - Structured brainstorming sessions
-- **code-review** - Implementation review against requirements
 - **condition-based-waiting** - Replace timeouts with condition polling
 - **docs-builder** - Project documentation generation
 - **root-cause-tracing** - Trace bugs backward through call stack
@@ -153,8 +152,8 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 - **git-commit** - Intelligent commit creation
 - **optimize** - Performance analysis
 - **refactor** - Safe refactoring with behavior preservation
-- **review** - Comprehensive code review
-- **security** - Vulnerability scanning
+- **review** - Review a file, branch, or range; verifies findings, fixes confirmed/unambiguous ones, asks on ambiguous or downstream-affecting ones
+- **security** - Vulnerability scan; same verify→fix→ask flow as `/review`
 - **ship** - Pre-deployment checklist
 - **test-generate** - Generate test suites
 
@@ -186,7 +185,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 **Code Quality:**
 ```
 @quality-assurance Review this PR before merge
-/code-review Check security and performance
+/review main  # review branch vs main, fixes confirmed issues, asks on ambiguous ones
 /systematic-debugging Investigate this race condition
 ```
 

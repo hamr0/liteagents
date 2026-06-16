@@ -3,7 +3,7 @@ name: security
 description: Scan security [target]
 usage: /security
 argument-hint: [file, directory, or leave empty for full scan]
-allowed-tools: Read, Grep, Glob, Bash(git log:*), Bash(git grep:*), Bash(rg:*)
+allowed-tools: Read, Edit, Grep, Glob, Bash(git log:*), Bash(git grep:*), Bash(rg:*)
 ---
 Audit $ARGUMENTS for security vulnerabilities. Adapt scope to what the target
 actually is — a library, CLI, web app, and service won't all have every
@@ -57,3 +57,30 @@ Severity-ranked findings (Critical → High → Medium → Low), each with:
 End with: which of the six classes were checked and found **clean**, and any
 marked **N/A** for this target — so the scan's coverage is auditable, not just
 its hits.
+
+## After the scan — verify, then fix
+
+Findings are claims, not facts. Validate before acting; validate again after.
+
+**Verify each claim.** Re-read the cited `file:line` in context. Confirm the
+risk actually holds here — not in the abstract. Mark each **confirmed**, **false
+positive** (with reason), or **uncertain**.
+
+**Fix what's confirmed and unambiguous** — minimal shape, one obvious way, no
+change to a public API / response / caller contract. Apply directly. After
+each edit, re-read the changed region and confirm it closes the gap without
+breaking nearby logic. A fix isn't done until you've grounded it the same way
+you grounded the claim.
+
+**Stop and ask** when any of these hold (HITL gates — not all the time, only
+here):
+- the finding is **uncertain** after grounding (you'd need info you don't have),
+- the fix has **multiple reasonable shapes** (e.g. reject-vs-sanitize,
+  index-vs-paginate) — present options with tradeoffs, not a chosen path,
+- it **affects downstream** (function signatures, response shape, DB schema,
+  any caller contract), or
+- it touches **auth / crypto / session / token** primitives — even an "obvious"
+  fix here warrants confirmation.
+
+Final report: **confirmed-and-fixed** · **confirmed-but-asking** (why + options)
+· **false-positive** (why) · **uncertain** (what's needed to decide).

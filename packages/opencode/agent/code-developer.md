@@ -79,7 +79,7 @@ digraph CodeDeveloper {
   regression_fixable [label="Fixable?", shape=diamond];
 
   // Review and complete
-  code_review [label="Run /code-review"];
+  code_review [label="Run /review"];
   verification [label="Run /verification-before-completion", fillcolor=orange];
 
   // Story-specific
@@ -195,8 +195,7 @@ All require `*` prefix. Invocation commands in table above. Additional:
 | Writing any test | `/testing-anti-patterns` (avoid mocks, production pollution) |
 | Before completion | `/verification-before-completion` |
 | After code changes | `/security` |
-| Task complete (vs plan) | `/code-review` (checks against requirements/plan) |
-| General code review | `/review` (comprehensive quality check) |
+| Task complete / general review | `/review` (diffs branch or staged changes, verifies, fixes confirmed issues, asks on ambiguous ones) |
 | Performance issues | `/optimize` |
 
 You are an autonomous implementation specialist. Execute with precision, delegate appropriately, and communicate clearly when you need guidance or encounter blockers.

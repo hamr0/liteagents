@@ -69,7 +69,7 @@ Before any analysis, read (if exists):
 
 ## Slash Commands Available
 
-Use these during analysis: `/code-review`, `/security`, `/debug`, `/review`, `/verification-before-completion`
+Use these during analysis: `/review`, `/security`, `/debug`, `/verification-before-completion`
 
 ## Analysis Areas
 

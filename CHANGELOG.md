@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **`/review` absorbed `/code-review`; collapsed to a single command across all four tool packages.** `/review` now accepts a file, a branch (`/review main` diffs `merge-base(main, HEAD)..HEAD` — the common "review my branch before merging" path), or an explicit range (`main..HEAD`). It bakes in the user's standing review focus: bugs needing a fix, dead code, loose ends (added TODO/FIXME, swallowed errors, stubs, abandoned flags), correctness, security, performance, maintainability.
+- **`/review` and `/security` now verify findings, selectively auto-fix, and stop to ask only when needed.** After listing findings, each cited `file:line` is re-grounded in context (and `git grep`'d for dead-code claims) and marked confirmed / false-positive / uncertain. Confirmed + unambiguous + no-contract-change fixes apply directly; the changed region is re-read after the edit. HITL gates fire only for: uncertain findings, multiple reasonable fix shapes, downstream-affecting changes (signatures / response shape / schema / public symbol removal), security primitives (auth / crypto / session / token), or "dead code" that looks intentionally kept. `/review` ends with a one-line **Ready to merge? Yes / No / With fixes** verdict.
 - **CI:** the publish workflow now polls the npm registry for ~2 min (was ~15s; `--prefer-online` skips npm's view cache) and accepts an `exit 0` publish even if the registry hasn't reflected it yet, so a successful-but-slow-to-reflect publish no longer reports a false failure.
 - **`publish.yml` is now manual-only (`workflow_dispatch`) — npm OIDC trusted publishing with provenance, idempotent, and verifies the registry end-state.**
+
+### Removed
+- `/code-review` (was: workflow ceremony about *when* to request a review, mostly overlapping `/review`'s purpose). Use `/review` instead — `/review main` for branch-vs-main, `/review` with no args for staged/working-tree.
 
 ### Planned
 - Community marketplace submissions

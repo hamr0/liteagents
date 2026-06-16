@@ -22,12 +22,11 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Opencode Commands (22 total)
+## Opencode Commands (21 total)
 
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| code-review | Reviews implementation against plan or requirements before proceeding | /code-review <review-scope> <focus-areas> | false |
 | condition-based-waiting | Replaces arbitrary timeouts with condition polling to wait for actual state changes | /condition-based-waiting <condition-type> <timeout-specs> | false |
 | debug | Debug an issue systematically using structured investigation techniques | /debug <issue-description> | - |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
