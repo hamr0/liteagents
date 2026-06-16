@@ -49,7 +49,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | security | Security vulnerability scan and analysis | /security |
 | ship | Pre-deployment verification checklist | /ship |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
-| test-generate | Generate comprehensive test suites for existing code | /test-generate <code-section> |
+| test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
 
 All resources are auto-discovered from frontmatter in their respective directories:
 - **Agents**: `./agents/*.md`

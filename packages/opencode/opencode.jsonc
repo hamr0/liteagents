@@ -187,7 +187,7 @@
     },
     "test-generate": {
       "template": "{file:./command/test-generate.md}",
-      "description": "Generate comprehensive test suites for existing code"
+      "description": "Generate tests, run them, and verify each test actually exercises the code (not just passes)"
     },
     "subagent-spawning": {
       "template": "{file:./command/subagent-spawning.md}",
