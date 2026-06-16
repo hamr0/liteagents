@@ -113,8 +113,8 @@
     }
   },
   "command": {
-    "systematic-debugging": {
-      "template": "{file:./command/systematic-debugging.md}",
+    "debug-method": {
+      "template": "{file:./command/debug-method.md}",
       "description": "Systematic four-phase debugging framework - investigate root cause before any fixes"
     },
     "verification-before-completion": {
@@ -133,8 +133,8 @@
       "template": "{file:./command/testing-anti-patterns.md}",
       "description": "Identify and avoid common testing anti-patterns that create fragile, useless tests"
     },
-    "root-cause-tracing": {
-      "template": "{file:./command/root-cause-tracing.md}",
+    "trace-back": {
+      "template": "{file:./command/trace-back.md}",
       "description": "Trace issues to their root cause using systematic investigation techniques"
     },
     "condition-based-waiting": {
@@ -148,18 +148,6 @@
     "docs-builder": {
       "template": "{file:./command/docs-builder/SKILL.md}",
       "description": "Create comprehensive project documentation with structured /docs hierarchy"
-    },
-    "debug": {
-      "template": "{file:./command/debug.md}",
-      "description": "Debug an issue systematically using structured investigation techniques"
-    },
-    "explain": {
-      "template": "{file:./command/explain.md}",
-      "description": "Explain code for someone new to the codebase"
-    },
-    "git-commit": {
-      "template": "{file:./command/git-commit.md}",
-      "description": "Analyze changes and create intelligent git commits"
     },
     "live-canvas": {
       "template": "{file:./command/live-canvas.md}",

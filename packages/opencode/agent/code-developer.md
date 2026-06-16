@@ -45,7 +45,7 @@ digraph CodeDeveloper {
   context_discovery [label="Context Discovery\n(search related code,\ndeps, usages)", fillcolor=lightyellow];
 
   // Debug path
-  use_debug [label="Use /systematic-debugging\nor /root-cause-tracing"];
+  use_debug [label="Use /debug-method\nor /trace-back"];
 
   // Refactor path
   use_refactor [label="Use /refactor"];
@@ -63,7 +63,7 @@ digraph CodeDeveloper {
   // Validation
   run_validations [label="Run validations\n(lint, build, tests)"];
   validations_pass [label="Pass?", shape=diamond];
-  fix_issues [label="Fix issues\n(use /debug if needed)"];
+  fix_issues [label="Fix issues\n(use /debug-method if needed)"];
   failure_count [label="3+ failures?", shape=diamond];
 
   // Security check
@@ -188,8 +188,8 @@ All require `*` prefix. Invocation commands in table above. Additional:
 
 | Situation | Delegate To |
 |-----------|-------------|
-| Bug encountered | `/systematic-debugging` first, then `/debug` |
-| Error deep in stack | `/root-cause-tracing` |
+| Bug encountered | `/debug-method` (use `/trace-back` when the error is deep in the stack) |
+| Error deep in stack | `/trace-back` |
 | Refactoring code | `/refactor` |
 | Need tests (when required) | `/test-generate` or `/test-driven-development` |
 | Writing any test | `/testing-anti-patterns` (avoid mocks, production pollution) |

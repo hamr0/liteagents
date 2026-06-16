@@ -1,11 +1,11 @@
 ---
-name: systematic-debugging
+name: debug-method
 description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes - four-phase framework (root cause investigation, pattern analysis, hypothesis testing, implementation) that ensures understanding before attempting solutions
-usage: /systematic-debugging <bug-or-error-description>
+usage: /debug-method <bug-or-error-description>
 auto_trigger: false
 ---
 
-# Systematic Debugging
+# Debug Method
 
 ## Overview
 
@@ -113,7 +113,7 @@ You MUST complete each phase before proceeding to the next.
 
    **WHEN error is deep in call stack:**
 
-   **REQUIRED SUB-SKILL:** Use root-cause-tracing for backward tracing technique
+   **REQUIRED SUB-SKILL:** Use trace-back for backward tracing technique
 
    **Quick version:**
    - Where does bad value originate?
@@ -280,7 +280,7 @@ If systematic investigation reveals issue is truly environmental, timing-depende
 ## Integration with Other Skills
 
 **This skill requires using:**
-- **root-cause-tracing** - REQUIRED when error is deep in call stack (see Phase 1, Step 5)
+- **trace-back** - REQUIRED when error is deep in call stack (see Phase 1, Step 5)
 - **test-driven-development** - REQUIRED for creating failing test case (see Phase 4, Step 1)
 
 **Complementary skills:**

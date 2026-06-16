@@ -22,28 +22,25 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Opencode Commands (21 total)
+## Opencode Commands (19 total)
 
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
 | condition-based-waiting | Replaces arbitrary timeouts with condition polling to wait for actual state changes | /condition-based-waiting <condition-type> <timeout-specs> | false |
-| debug | Debug an issue systematically using structured investigation techniques | /debug <issue-description> | - |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
-| explain | Explain code for someone new to the codebase | /explain <code-section> | - |
 | friction | Analyze session logs for failure patterns and behavioral signals | /friction <sessions-path> | - |
-| git-commit | Analyze changes and create intelligent git commits | /git-commit | - |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas | false |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | review | Comprehensive code review including quality, tests, and architecture | /review | - |
-| root-cause-tracing | Systematically traces bugs backward through call stack to identify source | /root-cause-tracing <issue-description> | false |
+| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
 | security | Security vulnerability scan and analysis | /security | - |
 | ship | Pre-deployment verification checklist | /ship | - |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
-| systematic-debugging | Four-phase debugging framework - investigate root cause before any fixes | /systematic-debugging <bug-or-error-description> | false |
+| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
 | test-driven-development | Write test first, watch it fail, write minimal code to pass | /test-driven-development <feature-or-behavior-to-test> | true |
 | test-generate | Generate comprehensive test suites for existing code | /test-generate <code-section> | - |
 | testing-anti-patterns | Prevents testing mock behavior and production pollution with test-only methods | /testing-anti-patterns <testing-scenario> | true |

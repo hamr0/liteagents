@@ -1,11 +1,11 @@
 ---
-name: root-cause-tracing
+name: trace-back
 description: Use when errors occur deep in execution and you need to trace back to find the original trigger - systematically traces bugs backward through call stack, adding instrumentation when needed, to identify source of invalid data or incorrect behavior
-usage: /root-cause-tracing <issue-description>
+usage: /trace-back <issue-description>
 auto_trigger: false
 ---
 
-# Root Cause Tracing
+# Trace Back
 
 ## Overview
 
