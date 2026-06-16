@@ -32,9 +32,9 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | live-canvas | Conduct design interviews, generate UI variations, collect live click-to-annotate feedback via a browser overlay that streams into the session | /live-canvas | false |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
-| test-driven-development | Write test first, watch it fail, write minimal code to pass | /test-driven-development <feature-or-behavior-to-test> | true |
-| testing-anti-patterns | Prevents testing mock behavior and production pollution with test-only methods | /testing-anti-patterns <testing-scenario> | true |
-| verification-before-completion | Requires running verification commands before making any success claims | /verification-before-completion <work-to-verify> | true |
+| tdd-flow | Write test first, watch it fail, write minimal code to pass | /tdd-flow <feature-or-behavior-to-test> | true |
+| test-traps | Prevents testing mock behavior and production pollution with test-only methods | /test-traps <testing-scenario> | true |
+| verify-done | Requires running verification commands before making any success claims | /verify-done <work-to-verify> | true |
 
 ### Commands (9 total)
 

@@ -61,12 +61,12 @@ liteagents
 @orchestrator help
 @1-create-prd Create a PRD for a task management app
 /brainstorming Explore authentication approaches
-/test-driven-development Implement user login
+/tdd-flow Implement user login
 
 # Opencode/Ampcode/Droid examples
 /1-create-prd Create a PRD for a task management app
 /brainstorming Explore authentication approaches
-/test-driven-development Implement user login
+/tdd-flow Implement user login
 ```
 
 ---
@@ -126,9 +126,9 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 ### 18 Commands/Skills
 
 **Auto-Triggering Skills (3)** - Claude Code only:
-- **test-driven-development** - Write test first, watch fail, minimal passing code
-- **testing-anti-patterns** - Prevent mocking anti-patterns
-- **verification-before-completion** - Verify before claiming done
+- **tdd-flow** - Write test first, watch fail, minimal passing code
+- **test-traps** - Prevent mocking anti-patterns
+- **verify-done** - Verify before claiming done
 
 **Manual Skills/Commands (15):**
 

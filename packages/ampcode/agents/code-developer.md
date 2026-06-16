@@ -54,7 +54,7 @@ digraph CodeDeveloper {
 
   // Conditional testing
   tdd_needed [label="TDD specified\nor tests needed?", shape=diamond];
-  use_tdd [label="Use /test-driven-development\nor /test-generate"];
+  use_tdd [label="Use /tdd-flow\nor /test-generate"];
 
   // Validation
   run_validations [label="Run validations\n(lint, build, tests)"];
@@ -76,7 +76,7 @@ digraph CodeDeveloper {
 
   // Review and complete
   code_review [label="Run /review"];
-  verification [label="Run /verification-before-completion", fillcolor=orange];
+  verification [label="Run /verify-done", fillcolor=orange];
 
   // Story-specific
   update_story [label="Update story\n(checkbox, changelog)"];
@@ -187,9 +187,9 @@ All require `*` prefix. Invocation commands in table above. Additional:
 | Bug encountered | `/debug-method` (use `/trace-back` when the error is deep in the stack) |
 | Error deep in stack | `/trace-back` |
 | Refactoring code | `/refactor` |
-| Need tests (when required) | `/test-generate` or `/test-driven-development` |
-| Writing any test | `/testing-anti-patterns` (avoid mocks, production pollution) |
-| Before completion | `/verification-before-completion` |
+| Need tests (when required) | `/test-generate` or `/tdd-flow` |
+| Writing any test | `/test-traps` (avoid mocks, production pollution) |
+| Before completion | `/verify-done` |
 | After code changes | `/security` |
 | Task complete / general review | `/review` (diffs branch or staged changes, verifies, fixes confirmed issues, asks on ambiguous ones) |
 | Performance issues | `/optimize` |

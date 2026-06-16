@@ -1,11 +1,11 @@
 ---
-name: verification-before-completion
+name: verify-done
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
-usage: /verification-before-completion <work-to-verify>
+usage: /verify-done <work-to-verify>
 auto_trigger: true
 ---
 
-# Verification Before Completion
+# Verify Done
 
 ## Auto-Trigger
 

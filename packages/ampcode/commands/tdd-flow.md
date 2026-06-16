@@ -1,9 +1,9 @@
 ---
-name: test-driven-development
+name: tdd-flow
 description: Use when implementing any feature or bugfix, before writing implementation code - write the test first, watch it fail, write minimal code to pass; ensures tests actually verify behavior by requiring failure first
 ---
 
-# Test-Driven Development (TDD)
+# TDD Flow
 
 ## Auto-Trigger
 

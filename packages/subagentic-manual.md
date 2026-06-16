@@ -51,7 +51,7 @@ Install for your platform:
 - 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
 
 **10 Skills** - Auto-triggering + manual workflow components
-- test-driven-development, testing-anti-patterns, verification-before-completion (auto-trigger)
+- tdd-flow, test-traps, verify-done (auto-trigger)
 - brainstorming, debug-method, docs-builder, live-canvas, etc.
 
 **9 Commands** - Simple workflow helpers

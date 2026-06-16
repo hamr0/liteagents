@@ -28,7 +28,7 @@ Match existing patterns:
   or new test-runner config.
 - Do **not** add test-only public methods or exports to production code to
   make a test possible — if the test wants a hook the prod code doesn't
-  expose, stop and ask (`testing-anti-patterns` territory).
+  expose, stop and ask (`test-traps` territory).
 
 ## 3. Run
 Execute the project's real test command, scoped to just the new tests
