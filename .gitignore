@@ -67,3 +67,6 @@ test-report.json
 
 # Local browser-automation scratch (barebrowse mcp)
 .barebrowse/
+
+# Local litectx MCP index
+.litectx/

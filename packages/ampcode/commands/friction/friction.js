@@ -81,6 +81,24 @@ function loadConfig() {
   return CONFIG;
 }
 
+/**
+ * Parse newline-delimited JSON, skipping (and warning about) malformed lines
+ * instead of crashing the whole run on one bad record.
+ */
+function parseJsonl(raw, source) {
+  const records = [];
+  const lines = raw.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    try {
+      records.push(JSON.parse(lines[i]));
+    } catch (e) {
+      console.error(`Warning: skipping malformed JSONL line ${i + 1}${source ? ` in ${source}` : ''}: ${e.message}`);
+    }
+  }
+  return records;
+}
+
 function parseISODate(s) {
   if (!s) return null;
   try {
@@ -235,9 +253,7 @@ function extractSignals(sessionFile) {
   const metadata = {};
 
   const raw = fs.readFileSync(sessionFile, 'utf-8');
-  const events = raw.split('\n')
-    .filter(line => line.trim())
-    .map(line => JSON.parse(line));
+  const events = parseJsonl(raw, sessionFile);
 
   let turnCount = 0;
   const userMessages = [];
@@ -1695,7 +1711,7 @@ function extractContextWindow(sessionFile, anchorTs, windowSize) {
   windowSize = windowSize || 5;
 
   const raw = fs.readFileSync(sessionFile, 'utf-8');
-  const events = raw.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+  const events = parseJsonl(raw, sessionFile);
 
   const turns = [];
   for (const event of events) {
@@ -2180,14 +2196,20 @@ function extractMain(sessionsDir) {
     return 1;
   }
 
-  const analyses = JSON.parse(fs.readFileSync(analysisFile, 'utf-8'));
+  let analyses;
+  try {
+    analyses = JSON.parse(fs.readFileSync(analysisFile, 'utf-8'));
+  } catch (e) {
+    console.log(`Error: ${analysisFile} is not valid JSON (${e.message}). Re-run friction analysis.`);
+    return 1;
+  }
 
   // Load raw signals
   const rawFile = '.amp/friction/friction_raw.jsonl';
   let signals = [];
   if (fs.existsSync(rawFile)) {
     const rawContent = fs.readFileSync(rawFile, 'utf-8');
-    signals = rawContent.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+    signals = parseJsonl(rawContent, rawFile);
   }
 
   // NEW: no per-session BAD verdict. Seed from ALL sessions; the observed-only
