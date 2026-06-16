@@ -38,7 +38,8 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/friction/antigen_clust
      ~/.gemini/antigravity-cli/brain/    # Antigravity
      ```
      > Note: `friction.js` parses Claude Code's session schema. The Codex/Antigravity roots
-     > will resolve but may yield no signals until friction learns their formats.
+     > will resolve but yield no signals until friction learns their formats — open an issue
+     > to request one: https://github.com/hamr0/liteagents/issues
    - **Run** `node <friction.js> "<resolved-root>"`. friction writes its output to
      `.factory/friction/` in the current project.
    - **On any miss — loud, never silent.** If no root resolves, or friction errors, or it
