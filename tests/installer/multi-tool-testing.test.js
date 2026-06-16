@@ -12,10 +12,10 @@
  *
  * ── Updating counts ──────────────────────────────────────────────────────
  * If you add or remove a command/skill/agent/plugin, the matching assertion
- * fails (e.g. "commands: expected 12, got 11"). Bump the number in EXPECTED
+ * fails (e.g. "commands: expected 8, got 7"). Bump the number in EXPECTED
  * to lock in the new, intended contents. Claude has native skills (own dir),
- * so its commands stay at 12; opencode/ampcode/droid fold those 11 skills
- * into commands as .md files, hence 23.
+ * so it ships 8 commands + 9 skills; opencode/ampcode/droid fold those 9 skills
+ * into commands as .md files, hence 17 (8 + 9).
  *
  * Tests:
  * - Claude + Opencode simultaneous installation
@@ -45,10 +45,10 @@ const COUNT_BY = { agents: 'md', commands: 'md', skills: 'dir', plugins: 'dir' }
 
 // Expected delivered counts per tool. Update deliberately when content changes.
 const EXPECTED = {
-  claude:   { agents: 11, commands: 12, skills: 11, plugins: 1 },
-  opencode: { agents: 11, commands: 23 },
-  ampcode:  { agents: 11, commands: 23 },
-  droid:    { agents: 11, commands: 23 }
+  claude:   { agents: 11, commands: 8, skills: 9, plugins: 1 },
+  opencode: { agents: 11, commands: 17 },
+  ampcode:  { agents: 11, commands: 17 },
+  droid:    { agents: 11, commands: 17 }
 };
 
 // Test results tracker
