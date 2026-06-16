@@ -459,7 +459,7 @@ ${colors.bright}${colors.cyan}██╔══██║██║   ██║█�
 ${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
 ${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
 
-${colors.bright}v${PACKAGE_VERSION} | 11 agents + 23 commands per tool${colors.reset}
+${colors.bright}v${PACKAGE_VERSION} | 11 agents + 18 commands per tool${colors.reset}
     `);
   }
 

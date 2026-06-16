@@ -33,7 +33,7 @@ Install for your platform:
 |----------|--------------|-----------------|
 | **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 9 skills + 9 commands + live-canvas-channel plugin |
 | **Droid** | `cp -r droid/* ~/.factory/` | 18 commands (subagent references) |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 10 skills + 9 commands |
+| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 9 skills + 9 commands |
 | **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 18 commands (subagent references) |
 
 **Key Difference**:
