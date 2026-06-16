@@ -22,13 +22,12 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Opencode Commands (18 total)
+## Opencode Commands (17 total)
 
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
-| friction | Analyze session logs for failure patterns and behavioral signals | /friction <sessions-path> | - |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas | false |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |

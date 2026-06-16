@@ -31,10 +31,10 @@ Install for your platform:
 
 | Platform | Installation | What's Included |
 |----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 9 skills + 9 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 18 commands (subagent references) |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 9 skills + 9 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 18 commands (subagent references) |
+| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 9 skills + 8 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r droid/* ~/.factory/` | 17 commands (subagent references) |
+| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 9 skills + 8 commands |
+| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 17 commands (subagent references) |
 
 **Key Difference**:
 - **Claude Code / Ampcode** implement full subagent system with orchestrator
@@ -54,8 +54,8 @@ Install for your platform:
 - tdd-flow, test-traps, verify-done (auto-trigger)
 - brainstorming, debug-method, docs-builder, live-canvas, etc.
 
-**9 Commands** - Simple workflow helpers
-- friction, optimize, refactor, remember, diff-review, security, ship, stash, test-generate
+**8 Commands** - Simple workflow helpers
+- optimize, refactor, remember, diff-review, security, ship, stash, test-generate
 
 **Orchestration System**
 - Automatic intent matching to 9 workflow patterns
@@ -117,8 +117,7 @@ Install for your platform:
 - `skill-creator` - Guide for creating new skills
 - `debug-method` - Four-phase debugging framework
 
-**Simple Commands (9)**
-- `friction` - Analyze session logs for failure patterns and behavioral signals
+**Simple Commands (8)**
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory
@@ -128,7 +127,7 @@ Install for your platform:
 - `stash` - Save session context for compaction recovery or handoffs
 - `test-generate` - Test suite generation
 
-### Droid/OpenCode: 18 Commands
+### Droid/OpenCode: 17 Commands
 
 Same functionality as skills+commands, but:
 - All invoked as commands (no auto-triggering)
@@ -138,23 +137,33 @@ Same functionality as skills+commands, but:
 
 **Command Categories**:
 - **Development & Testing (6)**: tdd-flow, test-traps, test-generate, debug-method, trace-back, verify-done
-- **Code Operations (6)**: refactor, optimize, explain, review, security, ship
-- **Session & Memory (6)**: brainstorming, skill-creator, docs-builder, stash, friction, remember
+- **Code Operations (5)**: refactor, optimize, diff-review, security, ship
+- **Session & Memory (5)**: brainstorming, skill-creator, docs-builder, stash, remember
 - **Design (1)**: live-canvas
 
 ---
 
 ## Hot Memory
 
-Lightweight session memory that learns from your usage patterns across sessions.
+Lightweight session memory that learns from your usage patterns across sessions. **`/stash` is
+the only command you actively run — it drives the whole pipeline.** Once a few stashes pile up
+it nudges you to run `/remember`, which does everything else: friction analysis, consolidation,
+and wiring the memory into your agent config file.
 
 ```
-/stash → /friction → /remember
+/stash → (nudge at 5+ unprocessed) → /remember
 ```
 
-1. **`/stash`** - Snapshot current session context to `.claude/stash/`. Use before compaction, handoffs, or ending complex work.
-2. **`/friction`** - Analyze session logs for failure patterns. Scores sessions, clusters failures by signal and tool sequence, outputs actionable antigens to `.claude/friction/`.
-3. **`/remember`** - Consolidate stashes + friction into `.claude/memory/MEMORY.md`. Extracts facts, episodes, and behavioral preferences. References into CLAUDE.md via `@MEMORY.md`.
+1. **`/stash`** - Snapshot current session context to the tool's `…/stash/`. Use before
+   compaction, handoffs, or ending complex work. After saving it counts the unprocessed backlog
+   (`stash files − .processed entries`) and, at 5+, nudges you to run `/remember`. No counter is
+   stored; running `/remember` clears the backlog.
+2. **`/remember`** - Runs friction analysis first (best-effort — scores sessions across *all* your
+   projects from the tool's global sessions root, clusters failures into antigens), then
+   consolidates stashes + antigens into `…/memory/MEMORY.md` and injects `@MEMORY.md` into the
+   **per-tool agent config — `CLAUDE.md` (Claude Code), `AGENTS.md` (Droid / OpenCode), or
+   `AGENT.md` (Ampcode)** — so every future session loads it. Each package writes to its own
+   tool's config file; the global probe list only governs which logs friction *reads*.
 
 **Result:** Project-local memory that accumulates across sessions — no external dependencies, no databases, just markdown.
 
@@ -253,7 +262,7 @@ Subagent workflows require manual coordination.
 ├── CLAUDE.md           # Registry + orchestrator workflows
 ├── agents/             # 11 subagent implementations (*.md)
 ├── skills/             # 9 skills (subdirectories with SKILL.md)
-└── commands/           # 9 commands (*.md)
+└── commands/           # 8 commands (*.md)
 ```
 
 **Features**:
@@ -268,7 +277,7 @@ Subagent workflows require manual coordination.
 ├── AGENT.md            # Reference doc (subagents + commands)
 ├── agents/             # 11 subagent implementations (*.md)
 ├── skills/             # 9 skills (subdirectories with SKILL.md)
-└── commands/           # 9 commands (*.md)
+└── commands/           # 8 commands (*.md)
 ```
 
 **Features**:
@@ -280,7 +289,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.factory/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── commands/           # 18 commands (*.md)
+└── commands/           # 17 commands (*.md)
 ```
 
 **Features**:
@@ -292,7 +301,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.config/opencode/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── command/            # 18 commands (*.md)
+└── command/            # 17 commands (*.md)
 ```
 
 **Features**:

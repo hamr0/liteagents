@@ -4,7 +4,7 @@ description: Consolidate stashes + friction into project memory
 usage: /remember
 ---
 
-Consolidate session stashes and friction analysis into a single project-local MEMORY.md, then inject into CLAUDE.md.
+Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into CLAUDE.md. Friction runs automatically (best-effort) — there is no separate `/friction` command.
 
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
@@ -17,12 +17,42 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/friction/antigen_cluster
 
 **Steps**
 
+0. **Run friction first** (best-effort — friction analyzes ALL your usage, not just this repo)
+
+   Friction's signal is *global*: recurring corrections and frustrations across every
+   project are behavioral lessons worth keeping everywhere. So point it at the tool's
+   **global sessions root** (all projects), not a per-project directory.
+
+   - **Locate `friction.js`** — it is bundled next to this command at `friction/friction.js`
+     (the same directory as `remember.md`, whether installed or run from the package). If it
+     exists nowhere, skip to step 1 (stash-only) and tell the user friction.js is missing.
+   - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
+     exists and contains `.jsonl` files (recursively). **Never prompt the user.**
+     ```
+     # ── Add your own global sessions root at the TOP so it is checked first ──
+     ~/.claude/projects/                 # Claude Code
+     ~/.factory/projects/                # Droid / Factory
+     ~/.config/amp/projects/             # Amp
+     ~/.config/opencode/projects/        # opencode
+     ~/.codex/sessions/                  # Codex CLI  (use $CODEX_HOME/sessions/ if set)
+     ~/.gemini/antigravity-cli/brain/    # Antigravity
+     ```
+     > Note: `friction.js` parses Claude Code's session schema. The Codex/Antigravity roots
+     > will resolve but may yield no signals until friction learns their formats.
+   - **Run** `node <friction.js> "<resolved-root>"`. friction writes its output to
+     `.claude/friction/` in the current project.
+   - **On any miss — loud, never silent.** If no root resolves, or friction errors, or it
+     finds no usable sessions, print this and continue with stash-only consolidation:
+     > ⚠️ Friction didn't run — no sessions found. To enable it, open this command file
+     > (`remember.md`) and add your tool's **global** sessions root to the TOP of the probe
+     > list in step 0, then re-run `/remember`. Consolidating stashes only this time.
+
 1. **Gather sources**
    - Read all `.claude/stash/*.md` files in the current project
-   - Check for friction output at `.claude/friction/antigen_clusters.json` (preferred) or `.claude/friction/antigen_review.md` (fallback)
+   - Read friction output written in step 0: `.claude/friction/antigen_clusters.json` (preferred) or `.claude/friction/antigen_review.md` (fallback)
    - Read existing `.claude/memory/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.claude/memory/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND no friction output, report "nothing to consolidate" and stop
+   - If no unprocessed stashes AND friction produced no new antigens, report "nothing to consolidate" and stop
 
 2. **Extract from unprocessed stashes** (use Task tool with sonnet model for each)
    - For each unprocessed stash, call sonnet to extract:

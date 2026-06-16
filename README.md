@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**AI development toolkit with 11 specialized agents and 18 commands per tool**
+**AI development toolkit with 11 specialized agents and 17 commands per tool**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version (auto from package.json)">
@@ -45,10 +45,10 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 9 skills + 9 commands (+ optional live-canvas channel plugin)
-- **Opencode** - 11 agent references + 18 commands
-- **Ampcode** - 11 subagents + 18 commands
-- **Droid** - 11 agent references + 18 commands
+- **Claude Code** - 11 subagents + 9 skills + 8 commands (+ optional live-canvas channel plugin)
+- **Opencode** - 11 agent references + 17 commands
+- **Ampcode** - 11 subagents + 17 commands
+- **Droid** - 11 agent references + 17 commands
 
 **Key Difference:**
 - **Claude Code**: Full subagent system with orchestrator + skills (auto-triggering)
@@ -73,18 +73,17 @@ liteagents
 
 ## Hot Memory — project-local learning from your own sessions
 
-Liteagents ships a three-command pipeline that turns Claude Code's session logs into project-local memory. No databases, no external services, just markdown files the assistant reads via `@MEMORY.md`.
+Liteagents ships a two-command pipeline that turns Claude Code's session logs into project-local memory. No databases, no external services, just markdown files the assistant reads via `@MEMORY.md`.
 
 ```
-/stash  →  /friction  →  /remember
-capture    analyze        consolidate
+/stash  →  /remember
+capture    analyze + consolidate
 ```
 
-- **`/stash`** — snapshot the current session's context before compaction or handoff
-- **`/friction`** — mine JSONL session logs for frustration signals, failed flows, and abandonment patterns; cluster them into antigen candidates per project
-- **`/remember`** — consolidate stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session in the project benefits
+- **`/stash`** — snapshot the current session's context before compaction or handoff; nudges you to consolidate once a few stashes pile up
+- **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits
 
-What you get is a memory that *learns from your own mistakes and interventions*, grows quietly in your repo, and works anywhere Claude Code runs. The friction analyzer alone scans all your projects and gives you a per-repo reliability verdict:
+What you get is a memory that *learns from your own mistakes and interventions*, grows quietly in your repo, and works anywhere Claude Code runs. The friction pass inside `/remember` scans all your projects and gives you a per-repo reliability verdict:
 
 ```
 Per-Project:
@@ -98,7 +97,7 @@ BEST:  web-client/0202-2121-8d8608e1  peak=0  turns=4
 Verdict: USEFUL    Intervention predictability: 93%
 ```
 
-Results land in `.claude/friction/antigen_review.md` with projects, error patterns, and offending tool sequences called out per cluster — so `/remember` can pick them up and encode them as rules the next session sees.
+Results land in `.claude/friction/antigen_review.md` with projects, error patterns, and offending tool sequences called out per cluster — which `/remember` then encodes as rules the next session sees.
 
 > This is the thing in liteagents that nothing else ships. Normal skill bundles give you instructions. The hot-memory pipeline gives you instructions the assistant wrote for itself, from your own logs.
 

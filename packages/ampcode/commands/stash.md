@@ -17,6 +17,13 @@ Save session context for compaction recovery or handoffs.
 3. Stores important findings and insights
 4. Creates stash file in `.amp/stash/`
 5. Enables context restoration after compaction
+6. **Consolidation nudge** — after saving, count the unprocessed backlog:
+   `unprocessed = (files in .amp/stash/*.md) − (entries in .amp/memory/.processed)`
+   (a missing `.processed` manifest means 0 processed). If `unprocessed >= 5`, end with one line:
+   > 📝 N stashes since last consolidation — run `/remember` to fold them into memory.
+
+   No counter is stored — the count is derived each time, and running `/remember` updates
+   `.processed`, so the backlog drops on its own. Just emit the nudge; never run `/remember` automatically.
 
 **When to use**
 - Before long-running tasks that may trigger compaction

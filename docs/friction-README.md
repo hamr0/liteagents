@@ -1,8 +1,9 @@
-# Hot Memory — the stash → friction → remember pipeline
+# Hot Memory — the stash → remember pipeline
 
-This is the one document to read before touching `/stash`, `/friction`, or `/remember`.
-It explains what each step does, how they complement each other, and the design
-decisions behind the current behaviour so we don't have to reverse-engineer it again.
+This is the one document to read before touching `/stash` or `/remember` (and the
+`friction.js` sensor that `/remember` runs). It explains what each step does, how they
+complement each other, and the design decisions behind the current behaviour so we don't
+have to reverse-engineer it again.
 
 ---
 
@@ -13,22 +14,25 @@ decisions behind the current behaviour so we don't have to reverse-engineer it a
 **every future session in the project**. So whatever lands there steers all later work —
 which is exactly why the bar for writing to it is deliberately high.
 
-Three project-local commands feed it. None call an external service; the whole thing is
-markdown files in your repo.
+Two project-local commands feed it — and friction runs as a step *inside* `/remember`, not
+as a separate command. None call an external service; the whole thing is markdown files in
+your repo.
 
 ```
-/stash    ┐  snapshots you write                      .claude/memory/MEMORY.md
-          ├─►  /remember  ──►  Facts / Episodes / Antigens  ──►  @MEMORY.md  ──► HOT
-/friction ┘  antigens mined from your own logs                            (every session)
+/stash  ┐  snapshots you write                          .claude/memory/MEMORY.md
+        ├─►  /remember  ──►  Facts / Episodes / Antigens  ──►  @MEMORY.md  ──► HOT
+        │     └─ runs friction.js first: antigens mined from your logs    (every session)
 ```
 
 - **`/stash`** — you snapshot a session's context (before compaction, handoff, or a break).
-- **`/friction`** — mines *all* your session logs for moments you had to correct the agent.
-- **`/remember`** — consolidates stashes + friction into `MEMORY.md` and wires up `@MEMORY.md`.
+  Once a few unprocessed stashes pile up it nudges you to run `/remember`.
+- **`/remember`** — runs the `friction.js` sensor first (mining *all* your session logs for
+  moments you had to correct the agent), then consolidates stashes + friction antigens into
+  `MEMORY.md` and wires up `@MEMORY.md`.
 
-They complement each other by **source and trust**: stashes are what *you deliberately
-wrote down*; friction is what the agent *did wrong that you reacted to*, recovered
-automatically from logs. `/remember` is the only step that writes hot memory, and it
+The two sources complement each other by **source and trust**: stashes are what *you
+deliberately wrote down*; friction is what the agent *did wrong that you reacted to*,
+recovered automatically from logs. `/remember` is the step that writes hot memory, and it
 treats the two sources differently (below).
 
 ---
@@ -42,9 +46,10 @@ treats the two sources differently (below).
   fresh. Friction treats a bare stash as a *checkpoint* (ignored) — it only matters when a
   real frustration preceded it (see §3, fix #1).
 
-### `/friction` — mine logs for agent↔user friction
-`node friction.js <sessions-dir>` (e.g. `~/.claude/projects/`). Two stages, seven output
-files in `.claude/friction/`.
+### friction — the log sensor `/remember` runs
+`node friction.js <sessions-dir>` (e.g. `~/.claude/projects/`), invoked automatically by
+`/remember` against your global sessions root. Two stages, seven output files in
+`.claude/friction/`.
 
 **What it is:** the *sensor*. It reads raw session logs (which an LLM can't cheaply do —
 hundreds of multi-MB transcripts), detects where you had to correct the agent, and emits
@@ -77,7 +82,10 @@ guessed. An antigen is a **triad**:
 | `friction_raw.jsonl` | every detected signal |
 | `friction_analysis.json` / `friction_summary.json` / `report.md` | per-session texture + aggregate dashboard (kept, but **not** the antigen pipeline) |
 
-### `/remember` — consolidate into hot memory
+### `/remember` — run friction, then consolidate into hot memory
+- **Runs `friction.js` first** (best-effort) against the global sessions root, regenerating
+  `.claude/friction/` so the antigen data below is always fresh. If no sessions root
+  resolves it says so out loud and consolidates stashes only — never silently skips.
 - Reads `.claude/stash/*.md` → **Facts** + **Episodes** (via sonnet, skipping already-processed stashes).
 - Reads `.claude/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
@@ -124,25 +132,31 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-05-26)
+## 4. Status (as of 2026-06-16)
 
-- The redesign is **implemented and validated** as a POC at `.claude/port-preview/`
-  (`friction.NEW.js`, `remember.NEW.md`), with old/new outputs side-by-side in
-  `.claude/port-preview/out-OLD/` and `out-NEW/`. Result on 253 sessions: false hot
+- The redesign is **shipped** in all four packages (`packages/{claude,opencode,ampcode,
+  droid}/commands/friction/friction.js`). Validation on 253 sessions: false hot
   preferences **15 → 0**, antigen candidates now **100% observed user reactions** (was 100%
   machine-inferred).
-- **Not yet ported** into the four shipped packages (`packages/{claude,opencode,ampcode,
-  droid}/commands/`). That's the next step.
+- **`/friction` is no longer a standalone command.** It was collapsed into `/remember`,
+  which runs `friction.js` automatically (best-effort) against the global sessions root
+  before consolidating. Rationale: friction was a thin script-wrapper rarely run on its own,
+  and bundling guarantees the antigen data is fresh — without silently skipping (a no-sessions
+  miss is surfaced loudly). The script is still directly runnable for inspection (§5).
 - The per-session dashboard (`report.md` / `friction_summary.json`, the BAD-rate) is
   intentionally unchanged — it's a separate concern from the antigen pipeline.
-- Full design history: `.claude/stash/2026-05-25-friction-redesign-experiment.md`.
+- Full design history: `.claude/stash/2026-05-25-friction-redesign-experiment.md` and
+  `.claude/stash/2026-06-16-command-consolidation-shipped.md`.
 
 ## 5. Reproduce / inspect
 
+`/remember` runs friction automatically, but you can invoke the sensor directly to inspect
+its output without consolidating:
+
 ```bash
-# run friction over all projects
+# run friction over all projects (what /remember does for you)
 node friction.js ~/.claude/projects/
-# the file /remember consumes:
+# the antigen contract /remember consumes:
 cat .claude/friction/antigen_clusters.json
 # human-readable:
 cat .claude/friction/antigen_review.md

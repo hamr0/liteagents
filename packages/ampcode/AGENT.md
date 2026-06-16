@@ -35,11 +35,10 @@ These subagents are available when using Ampcode CLI.
 | test-traps | Prevents testing mock behavior and production pollution with test-only methods | /test-traps <testing-scenario> | true |
 | verify-done | Requires running verification commands before making any success claims | /verify-done <work-to-verify> | true |
 
-### Commands (9 total)
+### Commands (8 total)
 
 | ID | Description | Usage |
 |---|---|---|
-| friction | Analyze session logs for failure patterns and behavioral signals | /friction <sessions-path> |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
