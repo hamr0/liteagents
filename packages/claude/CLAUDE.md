@@ -36,7 +36,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | test-traps | Prevents testing mock behavior and production pollution with test-only methods | /test-traps <testing-scenario> | true |
 | verify-done | Requires running verification commands before making any success claims | /verify-done <work-to-verify> | true |
 
-### Commands (8 total)
+### Commands (9 total)
 
 | ID | Description | Usage |
 |---|---|---|
@@ -46,6 +46,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | diff-review | Comprehensive code review including quality, tests, and architecture | /diff-review |
 | security | Security vulnerability scan and analysis | /security |
 | ship | Pre-deployment verification checklist | /ship |
+| release | Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual) | /release [branch] |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
 

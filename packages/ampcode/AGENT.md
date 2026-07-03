@@ -28,6 +28,7 @@ These subagents are available when using Ampcode CLI.
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
 | docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas | false |
 | trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
@@ -35,17 +36,17 @@ These subagents are available when using Ampcode CLI.
 | test-traps | Prevents testing mock behavior and production pollution with test-only methods | /test-traps <testing-scenario> | true |
 | verify-done | Requires running verification commands before making any success claims | /verify-done <work-to-verify> | true |
 
-### Commands (8 total)
+### Commands (9 total)
 
 | ID | Description | Usage |
 |---|---|---|
-| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
 | diff-review | Comprehensive code review including quality, tests, and architecture | /diff-review |
 | security | Security vulnerability scan and analysis | /security |
 | ship | Pre-deployment verification checklist | /ship |
+| release | Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual) | /release [branch] |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
 

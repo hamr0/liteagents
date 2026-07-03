@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.0] - 2026-07-03
+
+### Added
+- **`/release` — end-to-end feature-delivery orchestrator, added across all four packages.** A thin orchestrator (it delegates, never re-implements): resolves a feature branch (arg → `git switch` to it; on `main` with no arg → creates `feat/<slug>` and carries the work over; otherwise the current branch), then runs `/ship` + `/security` + `/diff-review` under `/verify-done` discipline — reading each sibling command's real checklist so nothing is hand-waved. A hard gate splits the safe/read-only verify half from the irreversible release half (docs → version bump → commit → push → PR → merge → tag), which confirms each step. It **stops before `npm publish`** — `publish.yml` is manual `workflow_dispatch` by design. Counts: claude commands 8→9; droid/opencode/ampcode 17→18.
+
+### Fixed
+- **Doc count drift corrected while adding `/release`.** `packages/ampcode/AGENT.md` had mis-filed `live-canvas` (a skill) under its Commands table, leaving Skills at 8 rows beneath a "9 total" header; moved it to Skills so both tables reconcile at 9. README's "Commands/Skills" section still listed a standalone `/friction` bullet (collapsed into `/remember` back in 2.9.0) — removed, and the section total corrected to match "9 skills + 9 commands".
+
+---
+
 ## [2.10.0] - 2026-06-16
 
 ### Changed

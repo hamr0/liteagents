@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**AI development toolkit with 11 specialized agents and 17 commands per tool**
+**AI development toolkit with 11 specialized agents and 18 commands per tool**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version (auto from package.json)">
@@ -45,10 +45,10 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 9 skills + 8 commands (+ optional live-canvas channel plugin)
-- **Opencode** - 11 agent references + 17 commands
-- **Ampcode** - 11 subagents + 17 commands
-- **Droid** - 11 agent references + 17 commands
+- **Claude Code** - 11 subagents + 9 skills + 9 commands (+ optional live-canvas channel plugin)
+- **Opencode** - 11 agent references + 18 commands
+- **Ampcode** - 11 subagents + 18 commands
+- **Droid** - 11 agent references + 18 commands
 
 **Key Difference:**
 - **Claude Code**: Full subagent system with orchestrator + skills (auto-triggering)
@@ -131,9 +131,8 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 **Manual Skills/Commands (15):**
 
-*Hot Memory Pipeline (3)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
+*Hot Memory Pipeline (2)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
 - **stash** - Snapshot session context to `.claude/stash/` before compaction, handoff, or ending complex work
-- **friction** - Analyze all JSONL sessions for frustration signals, cluster failures per project, surface antigens
 - **remember** - Consolidate stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected via `@MEMORY.md`
 
 *Design*:
@@ -150,6 +149,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 - **diff-review** - Review a file, branch, or range; verifies findings, fixes confirmed/unambiguous ones, asks on ambiguous or downstream-affecting ones
 - **security** - Vulnerability scan; same verify→fix→ask flow as `/diff-review`
 - **ship** - Pre-deployment checklist
+- **release** - Deliver a feature end-to-end: verify → docs → merge → tag (publish stays manual)
 - **test-generate** - Generate test suites
 
 > **Claude-only plugin:** `live-canvas-channel` is a bundled Claude Code MCP channel plugin that ships under `~/.claude/plugins/live-canvas-marketplace/`. One-time `/plugin install` + a session started with `--dangerously-load-development-channels` unlocks live mode. Skill probes for the channel on each invocation and handholds setup when missing. See [`packages/claude/skills/live-canvas/README.md`](packages/claude/skills/live-canvas/README.md) for the full walkthrough.

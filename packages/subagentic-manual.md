@@ -54,8 +54,8 @@ Install for your platform:
 - tdd-flow, test-traps, verify-done (auto-trigger)
 - brainstorming, debug-method, docs-builder, live-canvas, etc.
 
-**8 Commands** - Simple workflow helpers
-- optimize, refactor, remember, diff-review, security, ship, stash, test-generate
+**9 Commands** - Simple workflow helpers
+- optimize, refactor, remember, diff-review, security, ship, release, stash, test-generate
 
 **Orchestration System**
 - Automatic intent matching to 9 workflow patterns
@@ -117,17 +117,18 @@ Install for your platform:
 - `skill-creator` - Guide for creating new skills
 - `debug-method` - Four-phase debugging framework
 
-**Simple Commands (8)**
+**Simple Commands (9)**
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory
 - `diff-review` - Review a file, branch, or range; verifies findings before fixing
 - `security` - Vulnerability scanning
 - `ship` - Pre-deployment checklist
+- `release` - Deliver a feature end-to-end: verify → docs → merge → tag (publish stays manual)
 - `stash` - Save session context for compaction recovery or handoffs
 - `test-generate` - Test suite generation
 
-### Droid/OpenCode: 17 Commands
+### Droid/OpenCode: 18 Commands
 
 Same functionality as skills+commands, but:
 - All invoked as commands (no auto-triggering)
@@ -137,7 +138,7 @@ Same functionality as skills+commands, but:
 
 **Command Categories**:
 - **Development & Testing (6)**: tdd-flow, test-traps, test-generate, debug-method, trace-back, verify-done
-- **Code Operations (5)**: refactor, optimize, diff-review, security, ship
+- **Code Operations (6)**: refactor, optimize, diff-review, security, ship, release
 - **Session & Memory (5)**: brainstorming, skill-creator, docs-builder, stash, remember
 - **Design (1)**: live-canvas
 

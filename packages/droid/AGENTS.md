@@ -22,7 +22,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Droid Commands (17 total)
+## Droid Commands (18 total)
 
 | ID | Description | Usage | Auto |
 |---|---|---|---|
@@ -36,6 +36,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
 | security | Security vulnerability scan and analysis | /security | - |
 | ship | Pre-deployment verification checklist | /ship | - |
+| release | Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual) | /release [branch] | - |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
 | debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |

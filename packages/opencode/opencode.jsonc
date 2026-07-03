@@ -169,6 +169,10 @@
       "template": "{file:./command/ship.md}",
       "description": "Pre-deployment verification checklist"
     },
+    "release": {
+      "template": "{file:./command/release.md}",
+      "description": "Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual)"
+    },
     "remember": {
       "template": "{file:./command/remember.md}",
       "description": "Consolidate stashes + friction into project memory"
