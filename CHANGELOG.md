@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.1] - 2026-07-03
+
+### Changed
+- **`/release` merge step now documents the solo-repo path.** Its "stop and ask the user to approve" guard assumed a second reviewer exists — a dead end on a solo repo, where you cannot approve your own PR. Added: the expected path is then an owner-authorized admin-merge (`gh pr merge --admin`), run only on explicit say-so — a sanctioned owner action, not a silent bypass. Mirrored across all four packages + the global copy. Surfaced by dogfooding `/release` on its own v2.11.0 release.
+
+---
+
 ## [2.11.0] - 2026-07-03
 
 ### Added
