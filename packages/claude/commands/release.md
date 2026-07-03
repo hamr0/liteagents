@@ -72,7 +72,9 @@ own sake.
 4. **Open PR** — `gh pr create` into `main` (main is PR-protected: 1 approving
    review).
 5. **Merge** — `gh pr merge --delete-branch`. If the review requirement blocks
-   it, **stop** and ask the user to approve — never force or bypass protection.
+   it, **stop** and ask — never force or silently bypass. On a **solo repo** you
+   cannot approve your own PR, so the expected path is an owner-authorized
+   admin-merge (`gh pr merge --admin`), run only on the user's explicit say-so.
 6. **Tag** — after the merge, `git tag vX.Y.Z` on `main` and push it. Keep
    cut→tag tight — one frozen step.
 
