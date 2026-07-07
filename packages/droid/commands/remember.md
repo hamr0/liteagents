@@ -23,7 +23,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/friction/antigen_clust
    project are behavioral lessons worth keeping everywhere. So point it at the tool's
    **global sessions root** (all projects), not a per-project directory.
 
-   - **Locate `friction.js`** — it is bundled next to this command at `friction/friction.js`
+   - **Locate `friction.js`** — it is bundled next to this command at `remember/friction.js`
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.js is missing.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
