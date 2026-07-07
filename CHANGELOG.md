@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.1] - 2026-07-07
+
+### Fixed
+- **Non-Claude helper dir renamed `friction/` → `remember/`** (opencode, ampcode, droid). These tools expect a command's bundled directory to share the owning command's name; `friction.js` is run by `/remember`, so it now lives in `remember/friction.js` instead of the mismatched `friction/`. `remember.md`'s bundle-path reference updated to match. Claude keeps `friction/` — its command loader has no such naming constraint. `opencode.jsonc` needed no change (its only `friction` mention is a description string, not a path).
+
+---
+
 ## [2.12.0] - 2026-07-07
 
 ### Changed
