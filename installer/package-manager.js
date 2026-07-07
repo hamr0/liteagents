@@ -583,7 +583,7 @@ class PackageManager {
       const selectedContent = await this.selectVariantContent(toolId, variant, availableContent);
 
       // Helper function to check if file/directory exists
-      const checkContentExists = async (category, items, dirName, addExtension = false) => {
+      const checkContentExists = async (category, items, dirName, addExtension = false, allowBundleDir = false) => {
         const categoryDir = path.join(packageDir, dirName);
 
         // If directory doesn't exist but items are expected, that's an issue
@@ -611,6 +611,15 @@ class PackageManager {
           }
 
           if (!fs.existsSync(itemPath)) {
+            // A command may ship as a bundled helper subdirectory (no .md doc),
+            // e.g. friction/friction.js run by /remember. The installer bundles
+            // such subdirs; accept them here so validation matches install.
+            if (allowBundleDir) {
+              const bundleDir = path.join(categoryDir, item);
+              if (fs.existsSync(bundleDir) && fs.statSync(bundleDir).isDirectory()) {
+                continue;
+              }
+            }
             const displayPath = addExtension ? `${item}.md` : item;
             issues.push(`${category.slice(0, -1)} '${displayPath}' not found in ${dirName}/ (required by ${variant} variant)`);
             missingFiles++;
@@ -627,7 +636,7 @@ class PackageManager {
 
       // Validate commands (use dynamic directory name)
       const commandsDirName = availableContent.commandsDir || 'commands';
-      await checkContentExists('commands', selectedContent.commands || [], commandsDirName, true);
+      await checkContentExists('commands', selectedContent.commands || [], commandsDirName, true, true);
 
       // Validate plugins (directories, like skills)
       await checkContentExists('plugins', selectedContent.plugins || [], 'plugins', false);

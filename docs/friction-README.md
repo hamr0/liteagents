@@ -123,6 +123,13 @@ caught next time. So friction under-detects rather than over-writes.
    success the user is contradicting) is attached to each reaction, so an antigen carries
    both halves: what the agent did **and** what you said about it.
 
+**Cluster ranking is recurrence-first, intensity-on-ties.** Clusters are ordered by tier
+(severity × recurrence), then by how often they recurred, then — only to break a tie — by
+median peak friction, so a more intense reaction ranks above a milder one that recurred
+equally. Ranking never promotes across the 2×2: a loud one-off stays an episode, it just
+sorts ahead of quieter ones. Rarity still gates what becomes a rule; intensity only sorts
+within it.
+
 **Where the LLM lives:** lexical matching catches verbatim repetition ("wrong project" ×3)
 but cannot merge paraphrases ("nothing landed" vs "says pushed but none got it") — that's a
 semantic judgment. So the split is: **friction detects + cheaply pre-groups (precise); the

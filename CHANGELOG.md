@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.0] - 2026-07-07
+
+### Changed
+- **Friction cluster ranking now breaks ties by intensity.** Antigen/episode clusters were ordered by tier then recurrence, with equal-recurrence ties left to incidental feed order — so a mild reaction could outrank a far more intense one that recurred equally. Added a final tiebreak on median peak friction (a value already computed), so the more intense reaction ranks first. Ranking-only: it reorders within what recurrence already gated and never promotes across the severity × recurrence 2×2 (a loud one-off stays an episode). Applied identically across all four packages.
+
+### Fixed
+- **`validate-packages` failed 0/4 valid on every package.** `validatePackage` demanded a `<name>.md` for each selected command, but a command can legitimately ship as a helper subdirectory with no doc — `commands/friction/friction.js`, run by `/remember` after `/friction` was collapsed into it. The installer already bundles such subdirs; validation now matches that instead of requiring a resurrected `friction.md`. No user-facing command is re-added.
+
+---
+
 ## [2.11.1] - 2026-07-03
 
 ### Changed

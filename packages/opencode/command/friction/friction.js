@@ -2179,8 +2179,14 @@ function clusterCandidates(allCandidates) {
   });
 
   // Drop the noise tier (one-off + mild); rank by recurrence then severity.
+  // Final tiebreak on median peak friction — graded intensity discriminates
+  // among clusters that tie on tier and recurrence. Ranking only: it reorders
+  // within what recurrence already gated, never promotes across the 2x2.
   const kept = out.filter(c => c.suggested_artifact !== 'drop');
-  kept.sort((a, b) => b.score - a.score || b.sessions - a.sessions);
+  kept.sort((a, b) =>
+    b.score - a.score
+    || b.sessions - a.sessions
+    || (b.median_peak || 0) - (a.median_peak || 0));
   return kept;
 }
 
