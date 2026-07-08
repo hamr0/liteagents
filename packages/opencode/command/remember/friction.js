@@ -6,7 +6,7 @@
  *     node friction.js <sessions-directory>
  *     node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
  *
- * Outputs (all in .opencode/friction/):
+ * Outputs (all in .opencode/remember/friction/):
  *     friction_analysis.json   - Per-session analysis
  *     friction_summary.json    - Aggregate stats
  *     friction_raw.jsonl       - Raw signals
@@ -1483,7 +1483,7 @@ function analyzeMain(sessionsDir) {
   }
 
   // Create output dir
-  const outputDir = '.opencode/friction';
+  const outputDir = '.opencode/remember/friction';
   fs.mkdirSync(outputDir, { recursive: true });
 
   // Process each session
@@ -1641,12 +1641,12 @@ function analyzeMain(sessionsDir) {
 
   // Output files
   console.log('Outputs:');
-  console.log('  \uD83D\uDCCA .opencode/friction/report.md (detailed analysis)');
-  console.log('  \uD83D\uDCCB .opencode/friction/antigen_review.md (clustered failure patterns)');
-  console.log(`  \uD83D\uDCC1 .opencode/friction/*.json (raw data: ${allSignals.length} signals, ${analyses.length} sessions)`);
+  console.log('  \uD83D\uDCCA .opencode/remember/friction/report.md (detailed analysis)');
+  console.log('  \uD83D\uDCCB .opencode/remember/friction/antigen_review.md (clustered failure patterns)');
+  console.log(`  \uD83D\uDCC1 .opencode/remember/friction/*.json (raw data: ${allSignals.length} signals, ${analyses.length} sessions)`);
   console.log();
 
-  console.log('Next: Review .opencode/friction/report.md');
+  console.log('Next: Review .opencode/remember/friction/report.md');
   console.log('='.repeat(60));
 
   if (errors.length > 0) {
@@ -2196,9 +2196,9 @@ function clusterCandidates(allCandidates) {
 
 function extractMain(sessionsDir) {
   // Load friction analysis
-  const analysisFile = '.opencode/friction/friction_analysis.json';
+  const analysisFile = '.opencode/remember/friction/friction_analysis.json';
   if (!fs.existsSync(analysisFile)) {
-    console.log('Error: Run friction analysis first to generate .opencode/friction/friction_analysis.json');
+    console.log('Error: Run friction analysis first to generate .opencode/remember/friction/friction_analysis.json');
     return 1;
   }
 
@@ -2211,7 +2211,7 @@ function extractMain(sessionsDir) {
   }
 
   // Load raw signals
-  const rawFile = '.opencode/friction/friction_raw.jsonl';
+  const rawFile = '.opencode/remember/friction/friction_raw.jsonl';
   let signals = [];
   if (fs.existsSync(rawFile)) {
     const rawContent = fs.readFileSync(rawFile, 'utf-8');
@@ -2266,7 +2266,7 @@ function extractMain(sessionsDir) {
   console.log();
 
   // Save outputs
-  const outputDir = '.opencode/friction';
+  const outputDir = '.opencode/remember/friction';
   fs.mkdirSync(outputDir, { recursive: true });
 
   // Raw candidates (kept for debugging)
@@ -2340,7 +2340,7 @@ function extractMain(sessionsDir) {
   });
 
   fs.writeFileSync(path.join(outputDir, 'antigen_review.md'), reviewLines.join(''));
-  console.log('Output: .opencode/friction/antigen_review.md\n');
+  console.log('Output: .opencode/remember/friction/antigen_review.md\n');
 
   return 0;
 }
@@ -2358,7 +2358,7 @@ Usage:
     node friction.js <sessions-directory>
     node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
 
-Outputs (all in .opencode/friction/):
+Outputs (all in .opencode/remember/friction/):
     friction_analysis.json   - Per-session analysis
     friction_summary.json    - Aggregate stats
     friction_raw.jsonl       - Raw signals
@@ -2385,7 +2385,7 @@ Outputs (all in .opencode/friction/):
   analyzeMain(sessionsDir);
 
   // Check if analysis produced output
-  const analysisFile = '.opencode/friction/friction_analysis.json';
+  const analysisFile = '.opencode/remember/friction/friction_analysis.json';
   if (!fs.existsSync(analysisFile)) {
     console.log('\nNo analysis output. Check session directory.');
     return 1;
@@ -2401,7 +2401,7 @@ Outputs (all in .opencode/friction/):
   console.log(' DONE');
   console.log('='.repeat(60));
 
-  const reviewFile = '.opencode/friction/antigen_review.md';
+  const reviewFile = '.opencode/remember/friction/antigen_review.md';
   if (fs.existsSync(reviewFile)) {
     console.log('\nReview your antigens:');
     console.log(`  cat ${reviewFile}`);

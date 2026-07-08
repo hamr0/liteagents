@@ -17,6 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.0] - 2026-07-08
+
+### Added
+- **Antigen ledger (`/remember` step 4c).** Every behavioral rule now carries an evidence trail in `<tool-dir>/remember/ledger.json`: which mistake-class it targets (`class_hints` dedup key), the evidence that promoted it, and every phrasing ever tried (`attempts` — failed attempts are the rejected-edit buffer, never re-proposed). A class that fires again *while its rule is loaded* increments `recurred_while_hot`: at 2 the phrasing is marked failed and rephrased; after 2 failed phrasings the antigen is **ESCALATED** — removed from hot, recorded as a Fact, flagged for a human decision. Failure detection without statistics; instructions-only (no new code), identical across all four packages. Design + the POC evidence that killed the statistical ON/OFF gate (deferred, un-defer condition named): `docs/antigen-gate-prd.md`.
+- **`/remember` writes its run report** to `<tool-dir>/remember/report.md` (latest snapshot, overwritten each run).
+
+### Changed
+- **Pipeline consolidated to two dirs, each owned by its command:** `<tool-dir>/stash/` (`/stash`) and `<tool-dir>/remember/` (MEMORY.md, ledger.json, report.md, `.processed`, transient `friction/` output). Was three (`stash/`, `friction/`, `memory/`). `/remember` performs a one-time loud migration: pipeline files move, user-owned files in the old `memory/` stay put, stale friction output is discarded (always regenerated fresh). Validated live on this repo's own memory.
+- **Claude's bundled dir joins the naming convention:** `packages/claude/commands/friction/` → `commands/remember/` — a command's helper dir is named after the owning command in **all four** packages now (2.12.1 did the other three).
+- **docs: `friction-README.md` → `remember-README.md`** — updated for the new layout + ledger, linked from README as the pipeline explainer.
+
+### Fixed
+- **Hot memory was silently not loading in Claude Code.** The managed CLAUDE.md section injected a bare `@MEMORY.md`, which resolves relative to the containing file — i.e. a nonexistent root-level file. Now an explicit `@<tool-dir>/remember/MEMORY.md` path in all four packages' injection instructions.
+- **`/remember` step 4b tier ambiguity:** LLM-merged antigen groups now explicitly obey the recurrence tiers (merging consolidates evidence, never elevates it) — surfaced by dogfooding the ledger's first live run.
+
+---
+
 ## [2.12.1] - 2026-07-07
 
 ### Fixed

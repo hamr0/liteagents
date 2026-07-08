@@ -612,7 +612,7 @@ class PackageManager {
 
           if (!fs.existsSync(itemPath)) {
             // A command may ship as a bundled helper subdirectory (no .md doc),
-            // e.g. friction/friction.js run by /remember. The installer bundles
+            // e.g. remember/friction.js run by /remember. The installer bundles
             // such subdirs; accept them here so validation matches install.
             if (allowBundleDir) {
               const bundleDir = path.join(categoryDir, item);
