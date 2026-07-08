@@ -81,7 +81,7 @@ capture    analyze + consolidate
 ```
 
 - **`/stash`** — snapshot the current session's context before compaction or handoff; nudges you to consolidate once a few stashes pile up
-- **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits
+- **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits
 
 What you get is a memory that *learns from your own mistakes and interventions*, grows quietly in your repo, and works anywhere Claude Code runs. The friction pass inside `/remember` scans all your projects and gives you a per-repo reliability verdict:
 
@@ -97,7 +97,7 @@ BEST:  web-client/0202-2121-8d8608e1  peak=0  turns=4
 Verdict: USEFUL    Intervention predictability: 93%
 ```
 
-Results land in `.claude/friction/antigen_review.md` with projects, error patterns, and offending tool sequences called out per cluster — which `/remember` then encodes as rules the next session sees.
+Results land in `.claude/remember/friction/antigen_review.md` with projects, error patterns, and offending tool sequences called out per cluster — which `/remember` then encodes as rules the next session sees.
 
 > This is the thing in liteagents that nothing else ships. Normal skill bundles give you instructions. The hot-memory pipeline gives you instructions the assistant wrote for itself, from your own logs.
 
@@ -133,7 +133,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 
 *Hot Memory Pipeline (2)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
 - **stash** - Snapshot session context to `.claude/stash/` before compaction, handoff, or ending complex work
-- **remember** - Consolidate stashes + friction antigens into `.claude/memory/MEMORY.md`; auto-injected via `@MEMORY.md`
+- **remember** - Consolidate stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected via `@MEMORY.md`
 
 *Design*:
 - **live-canvas** - Design UI variations with click-to-annotate feedback in the browser; ships a companion MCP channel plugin for Claude Code so Saves stream into the session in real time. Other tools use batch mode.
@@ -162,6 +162,7 @@ Results land in `.claude/friction/antigen_review.md` with projects, error patter
 |----------|-------------|
 | **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
+| **[remember-README.md](docs/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
 
 ---
 

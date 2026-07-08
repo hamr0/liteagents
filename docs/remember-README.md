@@ -9,17 +9,31 @@ have to reverse-engineer it again.
 
 ## 1. What "hot memory" is
 
-**Hot memory** is `.claude/memory/MEMORY.md`, injected into `CLAUDE.md` between
-`<!-- MEMORY:START -->` / `<!-- MEMORY:END -->` as `@MEMORY.md`. Claude loads it into
+**Hot memory** is `.claude/remember/MEMORY.md`, injected into `CLAUDE.md` between
+`<!-- MEMORY:START -->` / `<!-- MEMORY:END -->` as `@.claude/remember/MEMORY.md` (an
+explicit path — `@`-references resolve relative to the containing file, so a bare
+`@MEMORY.md` would point at a nonexistent root file). Claude loads it into
 **every future session in the project**. So whatever lands there steers all later work —
 which is exactly why the bar for writing to it is deliberately high.
+
+Everything project-local lives in **two dirs, each owned by its command**:
+
+```
+.claude/stash/            ← /stash: your deliberate snapshots
+.claude/remember/         ← /remember: everything it derives
+  MEMORY.md                 hot memory (the render — read as guidance)
+  ledger.json               antigen ledger (the record — checked, never injected)
+  report.md                 latest consolidation report
+  .processed                stash manifest
+  friction/                 transient sensor output, regenerated each run
+```
 
 Two project-local commands feed it — and friction runs as a step *inside* `/remember`, not
 as a separate command. None call an external service; the whole thing is markdown files in
 your repo.
 
 ```
-/stash  ┐  snapshots you write                          .claude/memory/MEMORY.md
+/stash  ┐  snapshots you write                          .claude/remember/MEMORY.md
         ├─►  /remember  ──►  Facts / Episodes / Antigens  ──►  @MEMORY.md  ──► HOT
         │     └─ runs friction.js first: antigens mined from your logs    (every session)
 ```
@@ -49,7 +63,7 @@ treats the two sources differently (below).
 ### friction — the log sensor `/remember` runs
 `node friction.js <sessions-dir>` (e.g. `~/.claude/projects/`), invoked automatically by
 `/remember` against your global sessions root. Two stages, seven output files in
-`.claude/friction/`.
+`.claude/remember/friction/`.
 
 **What it is:** the *sensor*. It reads raw session logs (which an LLM can't cheaply do —
 hundreds of multi-MB transcripts), detects where you had to correct the agent, and emits
@@ -73,7 +87,7 @@ guessed. An antigen is a **triad**:
   (`/stash`), `session_abandoned`, `long_silence`. These never seed — they only add context
   or escalate, and only when they actually surround a real reaction.
 
-**Outputs (`.claude/friction/`):**
+**Outputs (`.claude/remember/friction/`):**
 | file | contents |
 |---|---|
 | `antigen_clusters.json` | **the contract `/remember` reads** — clusters with `theme`, `suggested_artifact`, `confidence`, `severity`, `sessions`, `projects`, `contexts` (verbatim quotes), `preceding` (trigger), `self_suspect` |
@@ -84,15 +98,30 @@ guessed. An antigen is a **triad**:
 
 ### `/remember` — run friction, then consolidate into hot memory
 - **Runs `friction.js` first** (best-effort) against the global sessions root, regenerating
-  `.claude/friction/` so the antigen data below is always fresh. If no sessions root
+  `.claude/remember/friction/` so the antigen data below is always fresh. If no sessions root
   resolves it says so out loud and consolidates stashes only — never silently skips.
 - Reads `.claude/stash/*.md` → **Facts** + **Episodes** (via sonnet, skipping already-processed stashes).
-- Reads `.claude/friction/antigen_clusters.json` → **Antigens** (step 4):
+- Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
   2. **Semantic-merge** — sonnet groups same-complaint-different-words quotes friction left split.
   3. **Tier by recurrence** — High (5+ sessions, *loads hot*), Medium (3-4, recorded), Low (<3, episode).
 - It works **only from friction's short quotes — never the raw logs.**
-- Writes `MEMORY.md` (Facts / Episodes / Antigens) and injects `@MEMORY.md` into `CLAUDE.md`.
+- **Updates the antigen ledger** (`.claude/remember/ledger.json`, step 4c) — the evidence
+  trail behind the Antigens section. One entry per mistake-class: which rule targets it,
+  the evidence that promoted it, every phrasing ever tried. Two things it buys:
+  1. **Failure detection without statistics** — if a class fires again *while its rule is
+     loaded* (`recurred_while_hot`), the phrasing demonstrably failed: at 2 recurrences the
+     rule is rephrased (never reusing a failed phrasing — the `attempts` list is the
+     rejected-edit buffer); after 2 failed phrasings the antigen is **ESCALATED**: removed
+     from hot, recorded as a Fact ("no phrasing fixes this"), and flagged for a human
+     decision — enforcement (a hook) or accepted limit.
+  2. **No duplicate rules** — new corrections are matched to existing classes by
+     `class_hints` before anything new is minted.
+  Division of labor: **MEMORY.md is the render (read as guidance); the ledger is the
+  record (checked, never injected).** Design + the POC evidence that shaped it:
+  `docs/antigen-gate-prd.md`.
+- Writes `MEMORY.md` (Facts / Episodes / Antigens), injects `@.claude/remember/MEMORY.md`
+  into `CLAUDE.md`, and writes the run report to `.claude/remember/report.md`.
 
 ---
 
@@ -139,10 +168,26 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-06-16)
+## 4. Status (as of 2026-07-08)
+
+- **Antigen ledger shipped (v1)** — `/remember` step 4c maintains
+  `.claude/remember/ledger.json` in all four packages: per-class evidence trail,
+  rejected-phrasing buffer, recurrence-while-hot lifecycle, ESCALATED lane. The prospective
+  ON/OFF validation gate was POC'd against real data and **deferred** — signal density is
+  ~an order of magnitude too thin (37 correction events across 681 sessions; every antigen
+  class a singleton). Numbers and the un-defer condition: `docs/antigen-gate-prd.md` §9.
+- **Directory cleanup** — three dirs (`stash/`, `friction/`, `memory/`) consolidated to two
+  (`stash/`, `remember/`); friction output moved under `remember/friction/`. `/remember`
+  performs a one-time loud migration of legacy layouts (pipeline files only — user-owned
+  files in old `memory/` are left in place).
+- **Injection fix** — the managed CLAUDE.md section now uses the explicit
+  `@.claude/remember/MEMORY.md` path; the previous bare `@MEMORY.md` resolved to a
+  nonexistent root-level file, so hot memory was silently not loading in Claude Code.
+
+### Earlier (2026-06-16)
 
 - The redesign is **shipped** in all four packages (`packages/{claude,opencode,ampcode,
-  droid}/commands/friction/friction.js`). Validation on 253 sessions: false hot
+  droid}/commands/remember/friction.js`). Validation on 253 sessions: false hot
   preferences **15 → 0**, antigen candidates now **100% observed user reactions** (was 100%
   machine-inferred).
 - **`/friction` is no longer a standalone command.** It was collapsed into `/remember`,
@@ -164,7 +209,7 @@ its output without consolidating:
 # run friction over all projects (what /remember does for you)
 node friction.js ~/.claude/projects/
 # the antigen contract /remember consumes:
-cat .claude/friction/antigen_clusters.json
+cat .claude/remember/friction/antigen_clusters.json
 # human-readable:
-cat .claude/friction/antigen_review.md
+cat .claude/remember/friction/antigen_review.md
 ```

@@ -161,7 +161,7 @@ and wiring the memory into your agent config file.
    stored; running `/remember` clears the backlog.
 2. **`/remember`** - Runs friction analysis first (best-effort — scores sessions across *all* your
    projects from the tool's global sessions root, clusters failures into antigens), then
-   consolidates stashes + antigens into `…/memory/MEMORY.md` and injects `@MEMORY.md` into the
+   consolidates stashes + antigens into `…/remember/MEMORY.md` and injects `@MEMORY.md` into the
    **per-tool agent config — `CLAUDE.md` (Claude Code), `AGENTS.md` (Droid / OpenCode), or
    `AGENT.md` (Ampcode)** — so every future session loads it. Each package writes to its own
    tool's config file; the global probe list only governs which logs friction *reads*.

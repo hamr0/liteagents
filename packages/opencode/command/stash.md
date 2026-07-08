@@ -18,7 +18,7 @@ Save session context for compaction recovery or handoffs.
 4. Creates stash file in `.opencode/stash/`
 5. Enables context restoration after compaction
 6. **Consolidation nudge** — after saving, count the unprocessed backlog:
-   `unprocessed = (files in .opencode/stash/*.md) − (entries in .opencode/memory/.processed)`
+   `unprocessed = (files in .opencode/stash/*.md) − (entries in .opencode/remember/.processed)`
    (a missing `.processed` manifest means 0 processed). If `unprocessed >= 5`, end with one line:
    > 📝 N stashes since last consolidation — run `/remember` to fold them into memory.
 

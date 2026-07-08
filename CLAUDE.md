@@ -24,5 +24,5 @@ See `README.md` for usage and `docs/INSTALLER_GUIDE.md` for installation details
 For full standards (testing, twelve-factor, deployment), see `.claude/memory/AGENT_RULES.md`.
 
 <!-- MEMORY:START -->
-@MEMORY.md
+@.claude/remember/MEMORY.md
 <!-- MEMORY:END -->

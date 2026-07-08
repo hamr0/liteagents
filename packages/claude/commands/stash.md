@@ -18,7 +18,7 @@ Save session context for compaction recovery or handoffs.
 4. Creates stash file in `.claude/stash/`
 5. Enables context restoration after compaction
 6. **Consolidation nudge** — after saving, count the unprocessed backlog:
-   `unprocessed = (files in .claude/stash/*.md) − (entries in .claude/memory/.processed)`
+   `unprocessed = (files in .claude/stash/*.md) − (entries in .claude/remember/.processed)`
    (a missing `.processed` manifest means 0 processed). If `unprocessed >= 5`, end with one line:
    > 📝 N stashes since last consolidation — run `/remember` to fold them into memory.
 
