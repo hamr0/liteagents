@@ -258,6 +258,21 @@ consolidation, no statistical power required.
   use — never injected on proposal (else it is SELECT-with-extra-steps, already falsified at
   ~75% noise). Un-defer condition: the gate is live and a session-confirmation mechanism for
   proposed links exists.
+- **DEFERRED — local classifier model as paraphrase-blocking proposer:** a small local
+  matching model (proven in ER exploration: ~94% recall at top-20 shortlists, weak at yes/no
+  deciding) could sit between friction's shingle clustering and `/remember`'s LLM merge,
+  shortlisting cross-session paraphrase pairs that keyword shingles miss ("did you ground
+  your check" ↔ "you will fucking validate this" — same antigen, near-zero token overlap).
+  Role is strictly *proposer*: its known failure mode (pulling near-identical-but-different
+  items together) is exactly the false-recurrence-inflation → false-promotion poisoning the
+  observed-signal redesign killed, so the LLM always disposes each shortlisted merge. Not now
+  because (a) no scale problem — ~63 clusters fit in one LLM pass, which is both proposer and
+  a better decider at this N; (b) it adds a weights+runtime dependency against the
+  single-file, dependency-free `friction.js` invariant (optional tier at best, never core).
+  Un-defer condition: an offline measurement on the existing candidate corpus shows
+  paraphrase merges that shingles missed would move at least one class across a recurrence
+  tier (i.e. undercounted recurrence is demonstrably suppressing promotions). If no class
+  changes tier, it's a dependency for nothing — same verdict as the shelved priority formula.
 - **POSTPONED — the full SkillOpt loop on deterministic benches** (optimize a `best_skill.md`
   against litectx/aurora bench scores). Real and probably the highest-ceiling item, but a
   separate effort with real rollout cost. Parked by explicit user decision (2026-07-08).

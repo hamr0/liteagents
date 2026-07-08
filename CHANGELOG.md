@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+- **Antigen-gate PRD (§10):** deferred entry for a local classifier model as a paraphrase-blocking *proposer* between friction's shingle clustering and `/remember`'s LLM merge (LLM always disposes each shortlisted merge). Un-defer condition: offline measurement on the existing candidate corpus shows shingle-missed paraphrase merges would move at least one class across a recurrence tier.
+
 ### Planned
 - Community marketplace submissions
 - Additional skills for data analysis
