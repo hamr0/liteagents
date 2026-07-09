@@ -70,3 +70,8 @@ test-report.json
 
 # Local litectx MCP index
 .litectx/
+
+# Agent / IDE scratch — never commit (per hamr0 LIBRARY_CONVENTIONS §7)
+.claude/
+.litectx/
+.idea/
