@@ -22,6 +22,7 @@ Everything project-local lives in **two dirs, each owned by its command**:
 .claude/stash/            ← /stash: your deliberate snapshots
 .claude/remember/         ← /remember: everything it derives
   MEMORY.md                 hot memory (the render — read as guidance)
+  AGENT_RULES.md            standards guide, bootstrapped once — not hot memory
   ledger.json               antigen ledger (the record — checked, never injected)
   report.md                 latest consolidation report
   .processed                stash manifest
@@ -42,7 +43,10 @@ your repo.
   Once a few unprocessed stashes pile up it nudges you to run `/remember`.
 - **`/remember`** — runs the `friction.js` sensor first (mining *all* your session logs for
   moments you had to correct the agent), then consolidates stashes + friction antigens into
-  `MEMORY.md` and wires up `@MEMORY.md`.
+  `MEMORY.md` and wires up `@MEMORY.md`. On first run only, it also bootstraps a bundled
+  `AGENT_RULES.md` standards template into `.claude/remember/` and wires up a second,
+  independent `@`-reference — a guide to consult when building something new, not hot
+  context (see §2).
 
 The two sources complement each other by **source and trust**: stashes are what *you
 deliberately wrote down*; friction is what the agent *did wrong that you reacted to*,
@@ -122,6 +126,12 @@ guessed. An antigen is a **triad**:
   `docs/antigen-gate-prd.md`.
 - Writes `MEMORY.md` (Facts / Episodes / Antigens), injects `@.claude/remember/MEMORY.md`
   into `CLAUDE.md`, and writes the run report to `.claude/remember/report.md`.
+- **Bootstraps `AGENT_RULES.md` once.** If `.claude/remember/AGENT_RULES.md` doesn't exist,
+  it's copied from the bundled template next to `friction.js`; if it already exists, it's
+  left alone — user-owned from that point on. When present, `/remember` injects a second,
+  independent `<!-- AGENT_RULES:START -->…<!-- AGENT_RULES:END -->` section into CLAUDE.md
+  (`@.claude/remember/AGENT_RULES.md`), framed as a standards guide for new-feature work —
+  not hot context loaded every session like MEMORY.md.
 
 ---
 
@@ -168,8 +178,13 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-07-08)
+## 4. Status (as of 2026-07-10)
 
+- **`AGENT_RULES.md` bootstrap shipped.** A standards-guide template ships bundled next to
+  `friction.js` in all four packages; `/remember` copies it into `.claude/remember/` on
+  first run only (never overwritten again) and injects it into CLAUDE.md via its own marker
+  pair, separate from the MEMORY.md block. This repo dogfoods it: its own copy moved from
+  the old `.claude/memory/AGENT_RULES.md` location.
 - **Antigen ledger shipped (v1)** — `/remember` step 4c maintains
   `.claude/remember/ledger.json` in all four packages: per-class evidence trail,
   rejected-phrasing buffer, recurrence-while-hot lifecycle, ESCALATED lane. The prospective

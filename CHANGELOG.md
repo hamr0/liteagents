@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`/remember` bootstraps a standards-guide template.** A new `AGENT_RULES.md` (an AI
+  agent collaboration/coding-standards guide) ships bundled next to `friction.js` in all
+  four packages. On first `/remember` run in a project, if `<tool-dir>/remember/AGENT_RULES.md`
+  doesn't already exist, it's copied from the bundled template — never overwritten again
+  after that, so local edits persist. When present, it's injected into CLAUDE.md/AGENTS.md/
+  AGENT.md via its own independent marker pair (`<!-- AGENT_RULES:START/END -->`), separate
+  from the MEMORY.md block and framed as a guide to consult when building something new —
+  not hot context loaded every session. This repo dogfoods it: its own copy moved from
+  `.claude/memory/AGENT_RULES.md` to `.claude/remember/AGENT_RULES.md`. Design + pipeline
+  walkthrough: `docs/remember-README.md`.
+
 ### Docs
 - **Antigen-gate PRD (§10):** deferred entry for a local classifier model as a paraphrase-blocking *proposer* between friction's shingle clustering and `/remember`'s LLM merge (LLM always disposes each shortlisted merge). Un-defer condition: offline measurement on the existing candidate corpus shows shingle-missed paraphrase merges would move at least one class across a recurrence tier.
 
