@@ -64,6 +64,7 @@ liteagents-*.tgz
 # Local test reports (ephemeral output from local test runs)
 TEST_REPORT.md
 test-report.json
+validation-results.json
 
 # Local browser-automation scratch (barebrowse mcp)
 .barebrowse/
