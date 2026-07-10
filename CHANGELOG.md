@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+---
+
+## [2.14.1] - 2026-07-10
+
+### Changed
+- **`/remember` extraction is parallel and model-agnostic.** Step 2's per-stash extraction
+  calls are now spawned as concurrent subagent calls instead of one at a time. Every
+  hardcoded `sonnet` mention (steps 2, 3, 4a) is replaced with "the mid-tier model" — a new
+  Guardrails note explains the intent (capable of semantic judgment, cheaper/faster than
+  your top reasoning tier; Sonnet is the Claude example, not a requirement) so the
+  instructions work unmodified across Claude/opencode/ampcode/droid regardless of which
+  models each tool has configured. Identical across all four packages.
+
+---
+
+## [2.14.0] - 2026-07-10
+
 ### Added
 - **`/remember` bootstraps a standards-guide template.** A new `AGENT_RULES.md` (an AI
   agent collaboration/coding-standards guide) ships bundled next to `friction.js` in all
@@ -23,12 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Docs
 - **Antigen-gate PRD (§10):** deferred entry for a local classifier model as a paraphrase-blocking *proposer* between friction's shingle clustering and `/remember`'s LLM merge (LLM always disposes each shortlisted merge). Un-defer condition: offline measurement on the existing candidate corpus shows shingle-missed paraphrase merges would move at least one class across a recurrence tier.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ---
 

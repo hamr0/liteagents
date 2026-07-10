@@ -10,6 +10,13 @@ Run friction analysis, then consolidate session stashes + friction antigens into
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
 - Keep changes tightly scoped to the requested outcome.
 - **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, record as a low-confidence episode — do not promote.
+- **Mid-tier model, not hardcoded.** Steps 2/3/4a delegate to a mid-tier model — capable of
+  semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's Sonnet vs
+  Opus). Use whatever your tool designates as that balanced default; never hardcode a
+  vendor-specific model name.
+- **Batch independent subagent calls.** Step 2's per-stash extractions are independent of
+  each other — spawn them concurrently (parallel/background subagent calls in one turn)
+  where your tool supports it, instead of processing stashes one at a time.
 
 **What it does**
 
@@ -69,8 +76,8 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    - Read processed manifest at `.factory/remember/.processed` — skip already-processed stashes
    - If no unprocessed stashes AND friction produced no new antigens, report "nothing to consolidate" and stop
 
-2. **Extract from unprocessed stashes** (use Task tool with sonnet model for each)
-   - For each unprocessed stash, call sonnet to extract:
+2. **Extract from unprocessed stashes** (spawn one subagent per stash, in parallel — see Guardrails)
+   - For each unprocessed stash, call the mid-tier model (see Guardrails) to extract:
      - **FACTS** (atomic, one-line): stable preferences, decisions, corrections, explicit "remember this"
      - **EPISODE** (3-5 bullet narrative): what was the goal, what was tried, outcome, lesson
      - **SKIP**: code details, file paths, errors, mechanical steps, LLM responses
@@ -78,7 +85,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 
 3. **Merge into MEMORY.md**
    - Read existing `.factory/remember/MEMORY.md` and parse its sections (## Facts, ## Episodes, ## Antigens)
-   - **Facts section**: call sonnet with existing facts + newly extracted facts
+   - **Facts section**: call the mid-tier model with existing facts + newly extracted facts
      - Rules: new updates replace old, contradictions keep new version, duplicates dropped
      - Keep facts atomic, one line each
    - **Episodes section**: append new episode entries (append-only, timestamped, no dedup)
@@ -99,7 +106,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 
    - Read `.factory/remember/friction/antigen_clusters.json`.
    - **4a. Classify target, then semantically consolidate** (the parts lexical matching can't do).
-     Call sonnet with the cluster quotes + their `preceding`/`projects`/`sessions`/`self_suspect`
+     Call the mid-tier model with the cluster quotes + their `preceding`/`projects`/`sessions`/`self_suspect`
      (NOT the logs), and have it:
      1. **Decide the target of each reaction — agent or self.** Drop *self/context*
         corrections where the user redirected themselves ("wrong project", "wrong window",
