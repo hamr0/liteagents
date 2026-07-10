@@ -164,7 +164,14 @@ and wiring the memory into your agent config file.
    consolidates stashes + antigens into `…/remember/MEMORY.md` and injects `@MEMORY.md` into the
    **per-tool agent config — `CLAUDE.md` (Claude Code), `AGENTS.md` (Droid / OpenCode), or
    `AGENT.md` (Ampcode)** — so every future session loads it. Each package writes to its own
-   tool's config file; the global probe list only governs which logs friction *reads*.
+   tool's config file; the global probe list only governs which logs friction *reads*. Per-stash
+   extraction runs as concurrent subagent calls on a mid-tier model — no vendor-specific model
+   name hardcoded, so it works with whatever your tool has configured.
+3. **`AGENT_RULES.md` bootstrap** - On first `/remember` run, if `…/remember/AGENT_RULES.md`
+   doesn't exist, it's copied from a bundled standards-guide template — never overwritten again
+   after that, so local edits persist — and injected into the agent config via its own
+   independent marker pair. It's a guide to consult when building something new, separate from
+   the MEMORY.md hot-context block above.
 
 **Result:** Project-local memory that accumulates across sessions — no external dependencies, no databases, just markdown.
 
