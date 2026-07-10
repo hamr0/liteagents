@@ -83,6 +83,8 @@ capture    analyze + consolidate
 - **`/stash`** — snapshot the current session's context before compaction or handoff; nudges you to consolidate once a few stashes pile up
 - **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits
 
+`/remember` also bootstraps a one-time `AGENT_RULES.md` coding-standards template into `.claude/remember/` on first run (never overwritten again after that), referenced separately in `CLAUDE.md` for the assistant to consult when building something new — a static guide, not something the pipeline learns or extracts.
+
 What you get is a memory that *learns from your own mistakes and interventions*, grows quietly in your repo, and works anywhere Claude Code runs. The friction pass inside `/remember` scans all your projects and gives you a per-repo reliability verdict:
 
 ```

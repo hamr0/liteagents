@@ -58,6 +58,11 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      fresh output). **Move only those pipeline files** — anything else in `.amp/memory/`
      (e.g. user-owned rule files) stays where it is. Remove the old dirs only if empty, update the managed MEMORY section in AGENT.md to
      the new reference (step 5), and tell the user exactly what moved.
+   - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
+     `.amp/remember/AGENT_RULES.md` does not exist, copy it from the bundled template next
+     to this command (`remember/AGENT_RULES.md`, same directory as `friction.js`). If it
+     already exists, leave it untouched — never overwrite, even if the bundled template
+     changes in a later version; it becomes user-owned the moment it lands in the project.
    - Read all `.amp/stash/*.md` files in the current project
    - Read friction output written in step 0: `.amp/remember/friction/antigen_clusters.json` (preferred) or `.amp/remember/friction/antigen_review.md` (fallback)
    - Read existing `.amp/remember/MEMORY.md` if it exists — create dir if missing
@@ -173,7 +178,7 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      lines. If ledger.json is malformed, say so loudly, move it aside as
      `ledger.json.bad-<date>`, and start fresh — never silently overwrite.
 
-5. **Inject memory reference into AGENT.md**
+5. **Inject memory + rules references into AGENT.md**
    - Compose the section between `<!-- MEMORY:START -->` and `<!-- MEMORY:END -->` markers:
      ```
      <!-- MEMORY:START -->
@@ -184,9 +189,19 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      resolve relative to the file containing them, so a bare `@MEMORY.md` in the project root
      would point at a nonexistent root-level file. Claude loads the full file directly, so no
      inline duplication is needed
-   - If AGENT.md already has MEMORY markers, replace the section between them
-   - If AGENT.md has no MEMORY markers, append the section at the end
-   - If no AGENT.md exists, create one with just the memory section
+   - If `.amp/remember/AGENT_RULES.md` exists (bootstrapped in step 1), compose a second,
+     independent section between `<!-- AGENT_RULES:START -->` and `<!-- AGENT_RULES:END -->`
+     markers:
+     ```
+     <!-- AGENT_RULES:START -->
+     Consult when building something new or adding a feature — a standards guide, not hot
+     context like MEMORY.md above:
+     @.amp/remember/AGENT_RULES.md
+     <!-- AGENT_RULES:END -->
+     ```
+   - Each marker pair is independent: if AGENT.md already has a given pair, replace the
+     section between them; if not, append it at the end; if no AGENT.md exists, create one
+     containing whichever section(s) apply
 
    ```markdown
    # Project Memory
@@ -227,13 +242,15 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      ledger: ag-003 "don't commit per change"    RECURRED while hot (2/2) → rephrased, attempt 2
      ledger: ag-002 "literal scoped ask"         ESCALATED → Fact; 2 phrasings failed. Hook or accept?
      ```
+   - If AGENT_RULES.md was bootstrapped this run, say so (one line)
    - Confirm MEMORY.md and AGENT.md updated
 
 **File locations (all project-local — two dirs: `/stash` owns `.amp/stash/`, `/remember` owns `.amp/remember/`)**
 - Stash files: `.amp/stash/*.md`
 - Memory file: `.amp/remember/MEMORY.md` (single source of truth, referenced as `@.amp/remember/MEMORY.md`)
+- Rules template: `.amp/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced as `@.amp/remember/AGENT_RULES.md`)
 - Antigen ledger: `.amp/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.amp/remember/report.md` (latest step-7 report, overwritten each run)
 - Processed manifest: `.amp/remember/.processed`
 - Friction output (transient, regenerated each run): `.amp/remember/friction/` — `antigen_clusters.json` (preferred input), `antigen_review.md` (fallback), plus raw analysis files
-- Output: `AGENT.md` (managed MEMORY section)
+- Output: `AGENT.md` (managed MEMORY section, plus an AGENT_RULES section once bootstrapped)

@@ -5,7 +5,7 @@ AI development toolkit with 11 specialized agents and 20 commands per tool. Supp
 ## Documentation
 See `README.md` for usage and `docs/INSTALLER_GUIDE.md` for installation details.
 
-## Dev Rules (mandatory — full source: `.claude/memory/AGENT_RULES.md`)
+## Dev Rules (mandatory — full source: `.claude/remember/AGENT_RULES.md`)
 
 **Simple > clever.** Readable code a junior can follow beats elegant code that needs a PhD to debug. Be the Simplicity Advocate: call out overcomplications and suggest simpler alternatives BEFORE building, not after.
 
@@ -21,8 +21,14 @@ See `README.md` for usage and `docs/INSTALLER_GUIDE.md` for installation details
 
 **POC first.** Validate logic with ~15min proof-of-concept before designing properly. Never ship the POC — rewrite it.
 
-For full standards (testing, twelve-factor, deployment), see `.claude/memory/AGENT_RULES.md`.
+For full standards (testing, twelve-factor, deployment), see `.claude/remember/AGENT_RULES.md`.
 
 <!-- MEMORY:START -->
 @.claude/remember/MEMORY.md
 <!-- MEMORY:END -->
+
+<!-- AGENT_RULES:START -->
+Consult when building something new or adding a feature — a standards guide, not hot
+context like MEMORY.md above:
+@.claude/remember/AGENT_RULES.md
+<!-- AGENT_RULES:END -->
