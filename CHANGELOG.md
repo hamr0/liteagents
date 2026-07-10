@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+---
+
+## [2.14.1] - 2026-07-10
+
 ### Changed
 - **`/remember` extraction is parallel and model-agnostic.** Step 2's per-stash extraction
   calls are now spawned as concurrent subagent calls instead of one at a time. Every
@@ -17,12 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   your top reasoning tier; Sonnet is the Claude example, not a requirement) so the
   instructions work unmodified across Claude/opencode/ampcode/droid regardless of which
   models each tool has configured. Identical across all four packages.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ---
 
