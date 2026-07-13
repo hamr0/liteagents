@@ -156,7 +156,10 @@ and wiring the memory into your agent config file.
 ```
 
 1. **`/stash`** - Snapshot current session context to the tool's `…/stash/`. Use before
-   compaction, handoffs, or ending complex work. After saving it counts the unprocessed backlog
+   compaction, handoffs, or ending complex work. The session drafts the raw content inline
+   (only it holds conversation context), then a mid-tier-model subagent expands and writes the
+   file — dispatched in the background where the tool supports it, falling back to writing
+   inline otherwise. Whichever actor wrote the file counts the unprocessed backlog
    (`stash files − .processed entries`) and, at 5+, nudges you to run `/remember`. No counter is
    stored; running `/remember` clears the backlog.
 2. **`/remember`** - Runs friction analysis first (best-effort — scores sessions across *all* your

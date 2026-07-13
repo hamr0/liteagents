@@ -10,14 +10,25 @@ Save session context for compaction recovery or handoffs.
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
 - Keep changes tightly scoped to the requested outcome.
+- **Mid-tier model, not hardcoded.** The write-up subagent (step 2) uses a mid-tier model —
+  capable of semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's
+  Sonnet vs Opus). Use whatever your tool designates as that balanced default; never hardcode
+  a vendor-specific model name.
+- **Background dispatch where supported.** Run the write-up subagent in the background
+  (non-blocking) so the session isn't held up waiting on formatting/file I/O. Fall back to
+  writing inline (today's behavior) if your tool has no subagent or background-dispatch
+  mechanism.
 
 **What it does**
-1. Captures current conversation context and key decisions
-2. Records active work in progress
-3. Stores important findings and insights
-4. Creates stash file in `.opencode/stash/`
-5. Enables context restoration after compaction
-6. **Consolidation nudge** — after saving, count the unprocessed backlog:
+1. Drafts a compact brief of current conversation context, key decisions, active work in
+   progress, and findings/insights — done inline, since only the running session holds full
+   conversation context
+2. Hands the brief to a subagent on the mid-tier model (see Guardrails) to expand into the
+   full stash file at `.opencode/stash/<name>.md`, dispatched in the background where the tool
+   supports it. Falls back to writing inline if subagent/background dispatch isn't available
+3. Enables context restoration after compaction
+4. **Consolidation nudge** — whichever actor wrote the file (the subagent, or the session
+   itself on the inline fallback) counts the unprocessed backlog after saving:
    `unprocessed = (files in .opencode/stash/*.md) − (entries in .opencode/remember/.processed)`
    (a missing `.processed` manifest means 0 processed). If `unprocessed >= 5`, end with one line:
    > 📝 N stashes since last consolidation — run `/remember` to fold them into memory.
@@ -50,3 +61,5 @@ cat .opencode/stash/<name>.md
 - Stashes stored in `.opencode/stash/` (project-local)
 - Automatically includes: timestamp, active plan, recent decisions
 - Maximum context retention with minimal token usage
+- When dispatched in the background, the "Stashed to X" confirmation and consolidation nudge
+  arrive as the subagent's completion notification rather than inline in the same turn
