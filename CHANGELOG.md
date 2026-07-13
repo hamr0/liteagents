@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `/stash` delegates the write-up to a mid-tier-model subagent, dispatched in the background
+  where the tool supports it, instead of writing inline on the top-tier session model —
+  drafting stays inline (only the running session has conversation context), but formatting
+  and file I/O move off the main turn. Falls back to inline writing if subagent/background
+  dispatch isn't available.
+
 ### Planned
 - Community marketplace submissions
 - Additional skills for data analysis
