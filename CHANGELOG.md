@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.15.2] - 2026-07-24
+
+### Security
+
+- **Cleared the last plugin audit finding via an `overrides` pin: `@hono/node-server` → 2.0.11.** The advisory [GHSA-frvp-7c67-39w9](https://github.com/advisories/GHSA-frvp-7c67-39w9) (moderate, Windows-only serve-static path traversal) is patched only in `@hono/node-server@2.0.5`+ — a **major** bump. The plugin's `@modelcontextprotocol/sdk@1.29.0` (latest) pins `@hono/node-server: ^1.19.9`, a `1.x` range that can never resolve to the fix, so `npm audit fix` couldn't clear it (upstream tracked in [modelcontextprotocol/typescript-sdk#2531](https://github.com/modelcontextprotocol/typescript-sdk/issues/2531), still open). Added the community-confirmed `overrides` block to the plugin's `package.json` forcing `@hono/node-server` to `^2.0.11` within the SDK subtree. Plugin `npm audit` is now **0 findings**. The path was already unreachable here (stdio server, no `@hono/node-server`/HTTP-transport usage); this just removes the audit noise. Note: `@hono/node-server@2.x` needs Node 20+, but the plugin never loads it, so its own `>=18` runtime floor is unchanged. 138 root tests green; remove the override once the SDK widens its range.
+
 ## [2.15.1] - 2026-07-24
 
 ### Security
