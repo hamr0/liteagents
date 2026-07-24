@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+## [2.15.1] - 2026-07-24
+
+### Security
+
+- **Bumped the bundled `live-canvas-channel` plugin's transitive deps to patched versions.** `fast-uri` 3.1.2 → 3.1.4 (clears a **high**-severity host-confusion advisory), `body-parser` 2.2.2 → 2.3.0 (DoS via a silently-disabled size limit), and `hono` 4.12.25 → 4.12.31 (moderate). These come in via the plugin's `@modelcontextprotocol/sdk` and ship in the tarball's `package-lock.json`. All sit on unused transport paths — the plugin server is stdio (`StdioServerTransport`) + raw `node:http`, with no `@hono/node-server`/express/Streamable-HTTP surface — so this is defense-in-depth hardening of the bundled lockfile, not a runtime fix. `npm audit` in the plugin drops from 4 findings (incl. 1 high) to 1 residual moderate (`@hono/node-server` serve-static), which is gated on the MCP SDK's own dependency range and has no upstream fix yet. 138 root tests green.
+
 ### Fixed
 
 - **Publish workflow pinned to `npm@11` — npm 12.0.0's `npm publish --provenance` is broken.** The job ran `npm install -g npm@latest`, which started resolving to npm 12.0.0 (released 2026-07-09) on the Node 22 runner. npm 12's `libnpmpublish` provenance code does `require('sigstore')`, but the tarball bundles only the `@sigstore/*` scoped packages — so `--provenance` dies with `MODULE_NOT_FOUND` and the publish fails outright. npm@11 bundles `sigstore` and publishes fine. Pinned to the major rather than floating on `@latest`. Revisit once npm ships a provenance fix. CI only — no runtime or published-artifact change.
@@ -16,12 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Agent/IDE scratch is gitignored and de-tracked (`.claude/`, `.litectx/`, `.idea/`).** Per-machine agent and IDE state is no part of the package — it regenerates locally and only added noise and churn. Now ignored, and any already-committed copies removed from tracking (local files kept on disk). Functional dot-paths (`.github/`, `.gitignore`, `.npmignore`, `.mcp.json`) stay tracked. Repo hygiene only.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ---
 
