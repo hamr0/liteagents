@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.15.3] - 2026-08-04
+
+### Security
+- Merges Dependabot #29/#28: hono 4.13.0 (closes residual moderate ReDoS,
+  GHSA-8j4g-w8fx-2239), ip-address 10.4.0 (3 high SSRF/trust-boundary
+  advisories). Also applies `npm audit fix` for fast-uri 3.1.5 (high,
+  GHSA-7p8r-x3mc-p8w7) — flagged by audit but not yet proposed as a
+  separate Dependabot PR. Transitive deps of the bundled live-canvas-channel
+  plugin's MCP SDK; unreachable in its stdio server. Plugin audit: 3 → 0
+  vulnerabilities. 138 root tests green.
+
 ## [2.15.2] - 2026-07-24
 
 ### Security
