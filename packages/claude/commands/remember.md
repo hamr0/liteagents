@@ -241,8 +241,8 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
    prints at most one nudge line. Wrapped so any failure here can never block the memory
    write that already happened in steps 3-6.
 
-   - **Locate `docs-builder.js`** — bundled next to this command at
-     `docs-builder/docs-builder.js` (same convention as `remember/friction.js`).
+   - **Locate `docs-builder.cjs`** — bundled next to this command at
+     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.js`).
    - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
      saying anything. Most projects have no doc corpus and a nudge every run is noise.
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
@@ -252,7 +252,7 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      once, then move on — do not offer to create a ledger unless the user asks.
    - Otherwise run it and pass through its verdict:
      ```bash
-     node docs-builder/docs-builder.js due
+     node docs-builder/docs-builder.cjs due
      ```
      `due` compares `docs/` against the SHA stamped in `docs/.docs-builder/ledger.json`
      using `git diff --numstat -M`, classifying each doc as new / moved / moved+changed /

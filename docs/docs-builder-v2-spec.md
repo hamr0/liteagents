@@ -5,7 +5,7 @@ UNMEASURED. Nothing is asserted from intuition.
 **Last updated:** 2026-08-21
 **Evidence:** `/home/hamr/poc/docs-builder/` — POC A, A2, A3, B, C, D, E. Six pre-registered
 bars, six failures, all recorded. bareloop was READ-ONLY throughout.
-**Built:** `packages/claude/skills/docs-builder/` — `docs-builder.js` (385 lines, vanilla
+**Built:** `packages/claude/skills/docs-builder/` — `docs-builder.cjs` (385 lines, vanilla
 Node, zero deps) + `SKILL.md`. Validated against every POC number; see §17.
 
 ---
@@ -82,7 +82,7 @@ Steps 1, 3, 5, 6, 7 are pure script. Only 2 and 4 use a model.
 
 ---
 
-## 5. Layer 1 — the scan (`docs-builder.js scan`)
+## 5. Layer 1 — the scan (`docs-builder.cjs scan`)
 
 Vanilla Node, zero deps. One record per H2:
 
@@ -309,8 +309,8 @@ script does it at 100% and a model does it at 27%.
 git is the diff engine; the ledger stores only what git cannot — **when we last
 consolidated**. Nothing is inferred, so the two cannot drift apart.
 
-`docs-builder.js ledger` stamps `docs/.docs-builder/ledger.json` (HEAD SHA + per-doc line
-counts). `docs-builder.js due` runs `git diff --numstat -M <sha>..HEAD -- docs/` and
+`docs-builder.cjs ledger` stamps `docs/.docs-builder/ledger.json` (HEAD SHA + per-doc line
+counts). `docs-builder.cjs due` runs `git diff --numstat -M <sha>..HEAD -- docs/` and
 classifies every doc:
 
 | kind | means |
@@ -366,7 +366,7 @@ lines; the real number is **38% higher**.
 cost = $0.083 per page  +  $0.200 per 1,000 source lines
 ```
 
-Per-page fixed overhead is **42% of the write bill**. `docs-builder.js plan` prints this
+Per-page fixed overhead is **42% of the write bill**. `docs-builder.cjs plan` prints this
 estimate before any writer launches; on the bareloop PRD it predicted $1.96 against a
 measured $1.9664 (0.3% error).
 
@@ -442,7 +442,7 @@ Catalog counts unchanged (9 skills / 18 commands) — no count sweep needed.
 
 ## 17. Build validation
 
-`packages/claude/skills/docs-builder/` — `docs-builder.js` (385 lines, vanilla Node, zero
+`packages/claude/skills/docs-builder/` — `docs-builder.cjs` (385 lines, vanilla Node, zero
 deps, six subcommands) + `SKILL.md` (204 lines, down from 309). `references/templates.md`
 deleted per §14.
 
@@ -499,3 +499,78 @@ of a kind, and it is the class worth probing first on any future step.
 
 One improvement over the POC scanner: headings inside ``` fences are excluded, which drops
 982 false sections on aurora (2,213 → 1,231).
+
+---
+
+## 18. The dogfood — a real end-to-end run on a bareloop clone
+
+Run 2026-08-21 on a `git clone` of bareloop, `docs/01-product/PRD.md` (5,679 lines, 86 H2
+sections). The real bareloop repo was never touched — verified clean before and after.
+
+### Result: it works
+
+| check | result |
+|---|---|
+| propose -> assign -> **validate gate** | **PASS** — 86/86 keys, 0 invented, 0 dupes, 0 missing, 5,669 of 5,669 lines |
+| pages written | **11**, largest theme 27% of lines — no blob |
+| page length ceiling (250) | every page under it, unprompted. 55–188 lines |
+| citations | **265, 0 malformed, 0 outside the page's own ranges** |
+| original preserved | `docs/archive/PRD.md`, sha256 identical to the untouched source |
+| original removed from old path | yes — `git mv`, history follows |
+| index | 86 rows / 11 pages / 10,072 chars — under the 100-row ceiling |
+| lint on the new corpus | 1 supersession, 0 uncited, 0 redundant |
+| `ledger` -> `due` after commit | "docs unchanged — NOT due" |
+| output size | 1,473 page lines from 5,669 source lines (26%) |
+
+### Cost, measured on the real run
+
+| step | cost |
+|---|---|
+| propose | $0.0574 |
+| assign, attempt 1 | $0.2831 — **wasted**, see below |
+| assign, attempt 2 | $0.2164 |
+| write (11 pages) | $2.1404 |
+| **this run** | **$2.6972** ($0.476 per 1,000 lines) |
+| **a clean re-run** | **$2.4142** ($0.426 per 1,000 lines) |
+
+The write-cost law predicted **$2.05** for 11 pages / 5,669 lines against an actual
+**$2.14** — **4% under**, on a corpus grouped differently from the one it was fitted on.
+
+### Three bugs only a real run could find
+
+**1. Keys the model cannot echo (the gate caught it, cost $0.28).**
+The first assign pass FAILED validation: 11 of 86 keys came back wrong. Neither was a model
+failure — both were mine.
+- **5 keys**: truncating at 110 chars lands on a space (9 of 86 headings), and no model
+  faithfully echoes a trailing space. Fixed: keys are trimmed.
+- **6 keys**: the prompt wrote `KEY: <text>` then the snippet on the next line, so a key cut
+  mid-sentence had no visible end and the model glued snippet text onto it. Fixed: keys are
+  delimited `<<<KEY>>>...<<<END>>>`.
+
+**The rule: never ask a model to reproduce a boundary it cannot see.** The gate did exactly
+its job — it refused bad grouping before $2 of page writing was spent on it.
+
+**2. `.js` is unloadable in a `"type": "module"` project — a hard blocker.**
+Installed project-locally into a repo whose `package.json` declares `"type": "module"`, a
+`.js` file loads as an ES module and every `require` throws before the first line of work.
+bareloop is such a project. Renamed to **`docs-builder.cjs`**.
+
+> **`packages/*/commands/remember/friction.js` has the identical bug**, pre-existing and
+> shipping in all four packages today. `/remember`'s step 0 dies in any ESM project. Not
+> fixed here — it is a four-package sweep and a separate change.
+
+**3. A checkpoint nobody validates is not a checkpoint — the worst bug found.**
+The page writers hit a genuine account session limit (HTTP 429) on the last batch. Two
+writers failed, and the error string was written into `docs/wiki/` as the page body. `plan`
+then reported **"all pages written — nothing to do"** while two themes covering **2,238
+source lines** had no page at all. A silent, successful-looking, incomplete cleanup.
+
+Fixed: `plan` validates each checkpoint (YAML frontmatter present, >= 10 lines) and reports
+`PARTIAL` instead of `done`, so a failed page is rewritten. Re-verified: 9 done / 2 PARTIAL,
+$0.61 to finish. **Existence is not completion.**
+
+### On the concurrency cap
+The session limit is real and was reproduced at a cap of **3**, so the cap is not what
+prevents it. What matters is that failure is *survivable*: nothing is written from a failed
+call, and `plan` can tell a finished page from wreckage. Resume, not concurrency, is the
+protection. The right cap is still unmeasured.

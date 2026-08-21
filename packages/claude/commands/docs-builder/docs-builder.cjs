@@ -15,6 +15,10 @@
 //
 // Env: REPO (default cwd), OUT (output path override).
 
+// Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
+// package.json declares "type": "module", a `.js` file is loaded as an ES module and every
+// `require` below throws before the first line of work. `.cjs` pins CommonJS regardless of
+// the host project. Found the hard way: bareloop is such a project.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
@@ -57,7 +61,10 @@ const KEY_WIDTH = 110;
 function makeKeys(records, multiFile) {
   const seen = new Map();
   for (const r of records) {
-    let base = r.id || (r.h2.length > KEY_WIDTH ? r.h2.slice(0, KEY_WIDTH) : r.h2);
+    // .trim() is load-bearing: truncating at a fixed width lands mid-space often enough
+    // (9 of 86 headings on the bareloop PRD), and no model will faithfully echo back a key
+    // with a trailing space. Never ask a model to reproduce something it cannot see.
+    let base = (r.id || (r.h2.length > KEY_WIDTH ? r.h2.slice(0, KEY_WIDTH) : r.h2)).trim();
     if (multiFile) base = `${r.file} :: ${base}`;
     const n = (seen.get(base) || 0) + 1;
     seen.set(base, n);
@@ -93,7 +100,7 @@ function snippet(lines, from, to, cap) {
 // ---------------------------------------------------------------- scan (Layer 1)
 
 function scan(files) {
-  if (!files.length) die('usage: docs-builder.js scan <file.md...>');
+  if (!files.length) die('usage: docs-builder.cjs scan <file.md...>');
   const records = [];
   for (const f of files) {
     const lines = read(f).split('\n');
@@ -141,7 +148,7 @@ function scan(files) {
 // This is the gate that catches the POC A failure class: positional drift producing
 // dropped, shifted and duplicated keys inside confident-looking output.
 function keyOf(r) {
-  if (!r.key) die('outline.json has no records[].key — re-run `docs-builder.js scan`');
+  if (!r.key) die('outline.json has no records[].key — re-run `docs-builder.cjs scan`');
   return r.key;
 }
 
@@ -158,7 +165,7 @@ function loadPair(outlineF, labelsF) {
 }
 
 function validate(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.js validate <outline.json> <labels.json>');
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs validate <outline.json> <labels.json>');
   const [o, l] = loadPair(outlineF, labelsF);
   const expect = new Map(o.records.map(r => [keyOf(r), r]));
   const themes = new Set((l.themes || []).map(t => t.name));
@@ -194,6 +201,20 @@ function validate(outlineF, labelsF) {
 
 // ---------------------------------------------------------------- plan (page writer inputs)
 
+// A checkpoint you do not validate is not a checkpoint. MEASURED the hard way: a page
+// writer that died on a 429 left the error string as the page body, and `plan` reported
+// "all pages written — nothing to do" while two themes (2,238 source lines) had no page at
+// all. Existence is not completion — a resumable step must be able to tell a finished
+// artifact from the wreckage of a failed one.
+const MIN_PAGE_LINES = 10;
+function pageStatus(file) {
+  if (!fs.existsSync(file)) return 'TODO';
+  const txt = fs.readFileSync(file, 'utf8');
+  const lines = txt.split('\n');
+  const hasFrontmatter = lines[0].trim() === '---' && lines.slice(1).some(l => l.trim() === '---');
+  return hasFrontmatter && lines.length >= MIN_PAGE_LINES ? 'done' : 'PARTIAL';
+}
+
 function slugOf(t) {
   return t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'page';
 }
@@ -228,7 +249,7 @@ function group(o, l) {
 }
 
 function plan(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.js plan <outline.json> <labels.json>');
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs plan <outline.json> <labels.json>');
   const [o, l] = loadPair(outlineF, labelsF);
   const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
   const dir = process.env.OUT || path.join(ARTIFACTS, 'tasks');
@@ -252,10 +273,15 @@ function plan(outlineF, labelsF) {
       sections: recs.map(r => ({ file: r.file, h2: r.h2, s: r.s, e: r.e, lines: r.lines, sub: r.h3.length }))
     };
     fs.writeFileSync(path.join(dir, `task-${slug}.json`), JSON.stringify(task, null, 1));
-    const done = fs.existsSync(path.join(REPO, pages, `${slug}.md`));
-    rows.push({ theme: slug, sections: task.n, lines: task.lines, status: done ? 'done' : 'TODO' });
+    rows.push({ theme: slug, sections: task.n, lines: task.lines,
+                status: pageStatus(path.join(REPO, pages, `${slug}.md`)) });
   }
-  const todo = rows.filter(r => r.status === 'TODO');
+  const todo = rows.filter(r => r.status !== 'done');
+  const partial = rows.filter(r => r.status === 'PARTIAL');
+  if (partial.length)
+    console.error(`WARN: ${partial.length} page(s) exist but are not a finished page `
+      + '(no frontmatter, or too short) — they will be rewritten: '
+      + partial.map(r => r.theme).join(', '));
   const tot = todo.reduce((a, r) => a + r.lines, 0);
   console.table(rows);
   if (todo.length < rows.length)
@@ -274,7 +300,7 @@ function plan(outlineF, labelsF) {
 const ROW_CEILING = 100;
 
 function index(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.js index <outline.json> <labels.json>');
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs index <outline.json> <labels.json>');
   const [o, l] = loadPair(outlineF, labelsF);
   const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
   const g = [...group(o, l)].sort((a, b) => b[1].length - a[1].length);
@@ -285,7 +311,7 @@ function index(outlineF, labelsF) {
      + 'below. If it is not listed here, it does not exist — do not sweep other files to '
      + 'check for stragglers, this table IS the check.\n\n';
   s += 'To answer a question: read the rows that match, open only those pages, and stop.\n\n';
-  s += '_Generated by `docs-builder.js index`. Never hand-edit — it is rebuilt every reconcile._\n\n';
+  s += '_Generated by `docs-builder.cjs index`. Never hand-edit — it is rebuilt every reconcile._\n\n';
   for (const [theme, recs] of g) {
     const slug = slugs.get(theme);
     s += `## [${theme}](wiki/${slug}.md)\n\n`;
@@ -317,7 +343,7 @@ function index(outlineF, labelsF) {
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
 function archive(src, dest) {
-  if (!src) die('usage: docs-builder.js archive <src.md> [dest.md]');
+  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
   const s = path.isAbsolute(src) ? src : path.join(REPO, src);
   if (!fs.existsSync(s)) die(`no such file: ${src}`);
   const rel = dest || path.join('docs/archive', path.basename(src));
@@ -379,7 +405,7 @@ function ledger() {
 function due() {
   const f = path.join(REPO, process.env.OUT || LEDGER);
   if (!fs.existsSync(f)) {
-    console.log('no ledger yet — run `docs-builder.js ledger` to start tracking. NOT due.');
+    console.log('no ledger yet — run `docs-builder.cjs ledger` to start tracking. NOT due.');
     return;
   }
   const L = JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -392,7 +418,7 @@ function due() {
     execFileSync('git', ['-C', REPO, 'cat-file', '-e', `${L.sha}^{commit}`], { stdio: 'ignore' });
   } catch {
     die(`ledger SHA ${L.sha.slice(0, 8)} is not in this repository (rebased, amended or \n`
-      + 'garbage-collected). Re-stamp with `docs-builder.js ledger`.');
+      + 'garbage-collected). Re-stamp with `docs-builder.cjs ledger`.');
   }
   const raw = git(['diff', '--numstat', '-M', `${L.sha}..HEAD`, '--', 'docs/'],
                   'diffing docs against the ledger SHA');
@@ -456,7 +482,7 @@ function sentences(t) {
 }
 
 function lint(files) {
-  if (!files.length) die('usage: docs-builder.js lint <file.md...>');
+  if (!files.length) die('usage: docs-builder.cjs lint <file.md...>');
   const sections = [];
   for (const f of files) {
     const lines = read(f).split('\n');
@@ -569,7 +595,7 @@ switch (cmd) {
   case 'due':      due(); break;
   case 'lint':     lint(rest); break;
   default:
-    die('usage: docs-builder.js <scan|validate|plan|index|archive|ledger|due|lint> [args]\n'
+    die('usage: docs-builder.cjs <scan|validate|plan|index|archive|ledger|due|lint> [args]\n'
       + '  scan     <file.md...>                 -> outline.json\n'
       + '  validate <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
       + '  plan     <outline.json> <labels.json> -> task-<theme>.json per page\n'

@@ -15,7 +15,7 @@ its row in `docs/README.md`.
 > cut reading. The winning arm wins because **synthesis caps cost**: the pages already did
 > the reading. Never sell this as a token saving.
 
-Every mechanical step is `docs-builder/docs-builder.js` (vanilla Node, zero deps). A model is used for
+Every mechanical step is `docs-builder/docs-builder.cjs` (vanilla Node, zero deps). A model is used for
 exactly **two** things: proposing themes, and writing pages. Bookkeeping done by a script is
 100% correct; done by a model it was 27%.
 
@@ -76,7 +76,7 @@ Never move: `CLAUDE.md`, `AGENTS.md`, `AGENT.md`, root `README.md`, `CHANGELOG.m
 
 ```bash
 REPO=<repo> OUT=docs/.docs-builder/outline.json \
-  node docs-builder/docs-builder.js scan docs/BIG.md
+  node docs-builder/docs-builder.cjs scan docs/BIG.md
 ```
 
 One record per H2, each carrying the doc's H1 identity, a 2-line snippet, every H3 **with
@@ -97,8 +97,19 @@ Each section gets a theme **from that fixed list**. Five rules, all paid for:
 
 1. **Never emit a positional index.** One call over 97 sections keyed on `{index, id}`
    dropped 1 section, shifted 41 IDs from #55 on, and emitted one heading twice.
-2. **Echo `records[].key` back verbatim.** The script guarantees it is unique; you must not
-   re-derive, re-truncate or prettify it.
+2. **Echo `records[].key` back verbatim** — and **delimit it explicitly in the prompt** so
+   the model can see where the key ends:
+
+   ```
+   <<<KEY>>>the exact key text<<<END>>>
+   snippet text on the following lines
+   ```
+
+   Measured the hard way: a bare `KEY: <text>` line followed by the snippet made the model
+   glue snippet text onto 6 of 86 keys, because a key truncated mid-sentence has no visible
+   end. The script also trims the key, because a truncation landing on a space produces a
+   trailing space no model will echo back (5 more failures). Never ask a model to reproduce
+   a boundary it cannot see.
 3. **Chunk to ~20.** (40–50 may be cheaper — untested, see Open.)
 4. **Validate before use** (step 3). Script, not model.
 5. **Propose globally before assigning** (2a).
@@ -108,7 +119,7 @@ Write the result as `{ "themes": [{name, gloss}], "labels": [{key, theme}] }`.
 ### 3. Validate (script) — **hard gate, exits 1 on failure**
 
 ```bash
-node docs-builder/docs-builder.js validate \
+node docs-builder/docs-builder.cjs validate \
   docs/.docs-builder/{outline,labels}.json
 ```
 
@@ -118,7 +129,7 @@ lines covered vs total. **Do not proceed on FAIL** — re-run the failing chunk.
 ### 4. Plan (script)
 
 ```bash
-OUT=docs/.docs-builder/tasks node docs-builder/docs-builder.js plan \
+OUT=docs/.docs-builder/tasks node docs-builder/docs-builder.cjs plan \
   docs/.docs-builder/{outline,labels}.json
 ```
 
@@ -146,7 +157,7 @@ Each agent reads **only its own line ranges**. The value is context isolation.
 ### 6. Archive the original (script)
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.js archive docs/BIG.md
+REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
 ```
 
 A **verified move**, not a copy: hash → `git mv` (so history follows) → hash again →
@@ -160,7 +171,7 @@ Pruning the archive is a **separate, opt-in, destructive** invocation
 ### 7. Index (script)
 
 ```bash
-OUT=docs/index.md node docs-builder/docs-builder.js index \
+OUT=docs/index.md node docs-builder/docs-builder.cjs index \
   docs/.docs-builder/outline.json docs/.docs-builder/labels.json
 ```
 
@@ -180,7 +191,7 @@ Re-run **scan → validate → index → lint**. Never touches `product/`. Owns 
 
 ```bash
 REPO=<repo> OUT=docs/.docs-builder/lint.json \
-  node docs-builder/docs-builder.js lint $(git ls-files 'docs/*.md')
+  node docs-builder/docs-builder.cjs lint $(git ls-files 'docs/*.md')
 ```
 
 | check | precision | how to treat it |
@@ -216,8 +227,8 @@ git is the diff engine. The ledger stores only the one thing git cannot know —
 last consolidated** — so the two can never drift apart.
 
 ```bash
-node docs-builder/docs-builder.js ledger   # stamp the current state (run after a reconcile)
-node docs-builder/docs-builder.js due      # what changed since, and by how much
+node docs-builder/docs-builder.cjs ledger   # stamp the current state (run after a reconcile)
+node docs-builder/docs-builder.cjs due      # what changed since, and by how much
 ```
 
 `due` classifies every doc against the stamped SHA using `git diff --numstat -M`:

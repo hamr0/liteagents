@@ -10,7 +10,7 @@ updated: 2026-08-21
 The `/docs-builder` skill splits a documentation file once it outgrows its row in
 `docs/README.md`, keeps the resulting pages current, and generates an index so they can be
 found. It is a **slash command**, not a skill: `packages/claude/commands/docs-builder.md`
-plus a bundled `commands/docs-builder/docs-builder.js` (vanilla Node, zero deps, eight
+plus a bundled `commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, eight
 subcommands) — the same shape as `/remember`.
 
 ---
@@ -79,7 +79,7 @@ snippet, and every H3 with its own start/end line so a page writer can pull a su
 alone.
 
 ```bash
-REPO=<repo> OUT=outline.json node docs-builder.js scan docs/BIG.md
+REPO=<repo> OUT=outline.json node docs-builder.cjs scan docs/BIG.md
 ```
 
 **2a. Propose themes (cheap tier, one call over everything)** — feed every `records[].key` plus
@@ -95,14 +95,14 @@ already guaranteed it's unique.
 failing chunk.
 
 ```bash
-node docs-builder.js validate outline.json labels.json
+node docs-builder.cjs validate outline.json labels.json
 ```
 
 **4. Plan (script)** — writes `task-<theme>.json` per page and prints the estimated write
 cost using the measured cost law (§E).
 
 ```bash
-OUT=tasks node docs-builder.js plan outline.json labels.json
+OUT=tasks node docs-builder.cjs plan outline.json labels.json
 ```
 
 **5. Write pages (mid tier, one agent per page)** — each agent reads only its own line ranges.
@@ -114,20 +114,20 @@ so a cleanup that dies partway can resume instead of restarting.
 to overwrite.
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.js archive docs/BIG.md
+REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
 ```
 
 **7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Regenerated
 every reconcile so it cannot drift.
 
 ```bash
-OUT=docs/index.md node docs-builder.js index outline.json labels.json
+OUT=docs/index.md node docs-builder.cjs index outline.json labels.json
 ```
 
 **Lint (script)** — declared-only checks, see §D and §C.
 
 ```bash
-REPO=<repo> OUT=lint.json node docs-builder.js lint $(git ls-files 'docs/*.md')
+REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 ```
 
 ---
@@ -207,7 +207,7 @@ cost = $0.083 per page  +  $0.200 per 1,000 source lines
 ```
 
 Per-page fixed overhead is **42% of the write bill** — page count matters almost as much as
-total size. `docs-builder.js plan` prints this estimate before any writer launches; on the
+total size. `docs-builder.cjs plan` prints this estimate before any writer launches; on the
 bareloop test doc it predicted $1.96 against a measured $1.9664 (0.3% error). Per-page range
 observed: $0.111 (191 lines) up to $0.403 (1,528 lines) — the *smallest* page cost more than
 a separately measured 775-line page, which is the fixed term showing up directly.
@@ -229,8 +229,8 @@ git is the diff engine. The ledger stores only the one thing git cannot know: **
 last consolidated.** Nothing is inferred, so the two cannot drift apart.
 
 ```bash
-node docs-builder/docs-builder.js ledger   # stamp the current state
-node docs-builder/docs-builder.js due      # what changed since, and by how much
+node docs-builder/docs-builder.cjs ledger   # stamp the current state
+node docs-builder/docs-builder.cjs due      # what changed since, and by how much
 ```
 
 `due` runs `git diff --numstat -M <sha>..HEAD -- docs/` and answers the three questions
@@ -257,6 +257,21 @@ bookkeeping system is just a second thing that can be wrong.
 crash-isolated so it can never block a memory write. It stays silent in a repo with no
 `docs/`, says so loudly if `docs/` exists but the check could not run, and otherwise prints
 one line when a reconcile is due. It never reconciles for you.
+
+---
+
+## Proven end-to-end
+
+Run on a clone of bareloop (5,679-line PRD, 86 sections) on 2026-08-21: gate PASSED 86/86 at
+5,669 of 5,669 lines, 11 pages written, **265 citations with 0 bad and 0 out of scope**,
+original preserved byte-identical in `docs/archive/` and removed from its old path, index at
+86 rows. **$2.70** for the run (**$2.41** for a clean re-run — one grouping pass was wasted on
+a bug it then found). The cost law predicted the write step within **4%**.
+
+It also found three bugs no unit test would have: keys a model cannot echo back, a `.js`
+extension that is unloadable in `"type": "module"` projects, and a failed page writer leaving
+a stub that made `plan` report "nothing to do" while two themes had no page. All three fixed;
+see spec §18.
 
 ---
 
@@ -338,4 +353,4 @@ revision.
 
 ## Sources
 
-`docs/docs-builder-v2-spec.md`, `SKILL.md`, `docs-builder.js`, `POC-E-RESULT.md`.
+`docs/docs-builder-v2-spec.md`, `SKILL.md`, `docs-builder.cjs`, `POC-E-RESULT.md`.
