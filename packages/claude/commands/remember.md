@@ -4,7 +4,7 @@ description: Consolidate stashes + friction into project memory
 usage: /remember
 ---
 
-Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into CLAUDE.md. Friction runs automatically (best-effort) — there is no separate `/friction` command.
+Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into CLAUDE.md. Friction runs automatically (best-effort) — there is no separate `/friction` command. A docs reconcile check runs at the end, detect-only.
 
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
@@ -235,7 +235,35 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.claude/remember/.processed`
 
-7. **Report to user** — print it AND write the same content to `.claude/remember/report.md`
+7. **Docs reconcile check — DETECT ONLY** (best-effort, crash-isolated like step 0)
+
+   `/remember` never reconciles docs, never writes frontmatter, never edits a page. It
+   prints at most one nudge line. Wrapped so any failure here can never block the memory
+   write that already happened in steps 3-6.
+
+   - **Locate `docs-builder.js`** — bundled next to this command at
+     `docs-builder/docs-builder.js` (same convention as `remember/friction.js`).
+   - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
+     saying anything. Most projects have no doc corpus and a nudge every run is noise.
+   - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
+     missing, `git` fails, or the command errors, print one line explaining why the check
+     was skipped. Never fail silently.
+   - **No ledger yet:** `due` says so itself and reports NOT due. Pass that line through
+     once, then move on — do not offer to create a ledger unless the user asks.
+   - Otherwise run it and pass through its verdict:
+     ```bash
+     node docs-builder/docs-builder.js due
+     ```
+     `due` compares `docs/` against the SHA stamped in `docs/.docs-builder/ledger.json`
+     using `git diff --numstat -M`, classifying each doc as new / moved / moved+changed /
+     changed (with the line delta and rough percentage) / deleted. It is **due at >=5
+     changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
+   - If DUE, end with one line and nothing more:
+     ```
+     docs: 7 changed since 991f72d3 — run /docs-builder reconcile
+     ```
+
+8. **Report to user** — print it AND write the same content to `.claude/remember/report.md`
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
    - Facts count (total, new)
@@ -259,5 +287,6 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
 - Antigen ledger: `.claude/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.claude/remember/report.md` (latest step-7 report, overwritten each run)
 - Processed manifest: `.claude/remember/.processed`
+- Docs ledger (READ ONLY from here — owned by `/docs-builder`): `docs/.docs-builder/ledger.json`
 - Friction output (transient, regenerated each run): `.claude/remember/friction/` — `antigen_clusters.json` (preferred input), `antigen_review.md` (fallback), plus raw analysis files
 - Output: `CLAUDE.md` (managed MEMORY section, plus an AGENT_RULES section once bootstrapped)

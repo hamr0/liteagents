@@ -45,7 +45,7 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 9 skills + 9 commands (+ optional live-canvas channel plugin)
+- **Claude Code** - 11 subagents + 8 skills + 10 commands (+ optional live-canvas channel plugin)
 - **Opencode** - 11 agent references + 18 commands
 - **Ampcode** - 11 subagents + 18 commands
 - **Droid** - 11 agent references + 18 commands
