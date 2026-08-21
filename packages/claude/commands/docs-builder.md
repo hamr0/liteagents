@@ -1,7 +1,7 @@
 ---
 name: docs-builder
-description: Split an oversized doc into synthesised pages, keep them current, index them
-usage: /docs-builder [reconcile | archive-cleanup]
+description: Reorg a docs corpus, split an oversized doc, keep pages current, index them
+usage: /docs-builder [reorg | reconcile | archive-cleanup]
 ---
 
 # docs-builder
@@ -36,9 +36,15 @@ carry over, the absolute prices do not.
 
 | Mode | Does | Destructive |
 |---|---|---|
-| `/docs-builder` | first cleanup: big doc → pages + index | no (original preserved) |
+| `/docs-builder reorg` | classify a WHOLE corpus into product/wiki/archive | no (moves are `git mv`, plan reviewed first) |
+| `/docs-builder` | split ONE oversized doc → pages + index | no (original preserved) |
 | `/docs-builder reconcile` | rebuild index, run lint, propose fixes | no |
 | `/docs-builder archive-cleanup` | prune | **yes** — separate invocation, default keep, requires git |
+
+`reorg` and the single-file split solve different problems and compose: `reorg` sorts an
+entire messy `docs/` tree into the three-bucket structure below in one pass; anything it
+tags `oversized` still needs a human to run the split flow on it individually (below),
+because that step spends real model budget and should never fire without a look first.
 
 ## Layout
 
@@ -67,6 +73,79 @@ would break the one mechanism that works. Only machine state goes in `.docs-buil
 Never move: `CLAUDE.md`, `AGENTS.md`, `AGENT.md`, root `README.md`, `CHANGELOG.md`,
 `CONTRIBUTING.md`, `LICENSE*`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/`, `.claude/`,
 `node_modules/`, `.git/`.
+
+---
+
+## Mode 0 — reorg (a whole corpus, not one file)
+
+The old skill (v1) did this job by handing an agent a file list and a prose rulebook
+("KEEP/CONSOLIDATE/ARCHIVE", "when uncertain → ARCHIVE") and letting it read, judge and
+`mv` every file itself — the exact shape that measured 27% correct on bookkeeping elsewhere
+in this pipeline. `reorg` does the same JOB with the same discipline as everything else
+here: classification is **mechanical and script-run**; nothing is guessed; nothing moves
+until a plan has been written and reviewed.
+
+**Not rebuilt:** v1's CONSOLIDATE (merging two docs' content into one). That rewrites
+content, a different and higher-risk operation than anything measured so far. Descoped on
+purpose, not silently dropped.
+
+### 1. Discover (script) — classifies, never moves
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs discover        # defaults to docs/
+```
+
+Recursively finds every `*.md` under the root (skipping `wiki/`, `archive/`, `product/`,
+`.docs-builder/`, and the three protected files), and sorts each into one bucket:
+
+| bucket | rule | precision |
+|---|---|---|
+| `archive` | path already under `archive/old/reports/phases`, **or** the doc's own opening declares a SHOUTED status word (`CLOSED`, `FROZEN`, `DEPRECATED`, `SUPERSEDED`, `WITHDRAWN`, `RETRACTED`, `REFUTED`, `ARCHIVAL`, `ARCHIVED`), **or** the filename matches an archive-shaped prefix (`REPORT_`, `STATUS_`, `PHASE_`, `DRAFT`, `WIP`, `OLD`, `TEMP`, …) | see below |
+| `oversized` | over the line ceiling (`OVERSIZED_LINES`, default 500 — an UNMEASURED starting point) and no archive signal | needs the split flow, per file |
+| `product` | has an H1, current size, no archive signal | default when nothing else applies |
+| `review` | no H1 at all — cannot tell what the doc even is | shown separately; `apply-reorg` treats it as an archive candidate |
+
+**Why the status check requires SHOUTED caps, case-sensitively.** Tried case-insensitive
+first, against a real, uncrafted corpus (not a fixture built to pass). It false-positived
+three separate ways on real files: `"Supersedes **nothing**"` (negation), `"this rung
+BUILDS three frozen records"` (an input being described, not the doc itself), `"archived
+spines"` (data the doc references, not the doc). Same failure species as the lint fix
+above — a word that means one thing in isolation matches unrelated prose. Restricting to
+the ALL-CAPS form fixed every one of those, because this corpus's own writing convention
+(observed, not designed around) SHOUTS a genuine self-declaration — `**Status: CLOSED**`,
+`(FROZEN 2026-07-25, before any number; archival)` — while narrative mentions of the same
+word stay lowercase or Title Case. Traded away: 2 real misses (`"Frozen 2026-07-26"`,
+`"job #4 ... (frozen)"`) — consistent with precision-over-recall. Neither miss is
+dangerous: a miss just lands the doc in `product`, one bucket short of ideal, not
+mis-archived.
+
+**Also dropped from v1's own heuristics, on the same evidence standard:** "filename has a
+date → likely stale." Tested against a real corpus and wrong — `2026-07-28-p-palette-
+design.md` is a current, locked, actively-built spec, not a stale report. A dated filename
+alone proves nothing.
+
+Output: `docs/.docs-builder/reorg-plan.json`, plus a printed table. **Nothing has moved
+yet.**
+
+### 2. Review the plan
+
+Read the table. Anything under `review` (no H1) needs a human glance before `apply-reorg`
+runs — it defaults to archive, which is reversible (`git mv`), but it's still a guess.
+
+### 3. Apply (script) — verified moves, survives a bad file
+
+```bash
+node docs-builder/docs-builder.cjs apply-reorg      # defaults to the plan above
+```
+
+- `product` → verified `git mv` to `docs/product/<basename>`
+- `archive` and `review` → verified `git mv` to `docs/archive/<basename>`
+- `oversized` → **left in place.** Printed as a follow-up list — run Mode 1 below on each,
+  by hand. Auto-splitting N unknown files in one shot would spend real model money with no
+  confirmation; the pipeline never does that unprompted.
+- A basename collision (two files, same name, different original folders) is
+  disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
+  destination** is skipped, logged, and does not stop the rest of the run.
 
 ---
 
@@ -282,3 +361,14 @@ carry a per-step cost shape across steps.
    beat it. But that corpus was an append-only log, where a chop wins by construction. n=1.
 4. **Page density is unjudged.** CLI-written pages ran ~half the prose of subagent-written
    ones at the same citation count. Which reads better is untested.
+5. **`reorg`'s 500-line oversized ceiling is a stated default, not a measured one.**
+   Classification quality (archive/product split) was validated against real, uncrafted
+   corpora; the size cutoff itself was not tuned against anything.
+6. **`reorg` was validated on ONE real corpus family** (bareloop's docs/, ~35 files). Its
+   SHOUTED-caps status rule leans on that corpus's own writing convention; a repo that
+   never shouts status in caps will simply get fewer `archive` hits (a recall loss, not a
+   false-archive risk) rather than a wrong one — but that's inferred from the design, not
+   independently confirmed on a second differently-styled corpus. n=1.
+7. **`reorg` has not been run on a repo it doesn't control the content of.** Every corpus
+   tested so far was one this session had full visibility into. No adversarial or
+   unusually-formatted real-world corpus has been thrown at it yet.

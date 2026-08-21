@@ -12,6 +12,8 @@
 //   ledger                                         -> record the current state of docs/
 //   due                                            -> what changed since the ledger, and how much
 //   lint     <file.md...>                          -> lint.json      (declared-only checks)
+//   discover [root]                                -> reorg-plan.json (classify, NEVER moves)
+//   apply-reorg [plan.json]                        -> executes the plan's product/archive moves
 //
 // Env: REPO (default cwd), OUT (output path override).
 
@@ -342,23 +344,33 @@ function index(outlineF, labelsF) {
 // destructive, opt-in invocation.
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
-function archive(src, dest) {
-  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
+// Core logic THROWS, never exits — so a caller doing many moves in a loop (apply-reorg)
+// can catch one bad file and keep going. `archive()` below is the CLI-facing wrapper that
+// turns a throw into a `die()` for a single direct invocation.
+function doArchive(src, dest) {
   const s = path.isAbsolute(src) ? src : path.join(REPO, src);
-  if (!fs.existsSync(s)) die(`no such file: ${src}`);
+  if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
   const rel = dest || path.join('docs/archive', path.basename(src));
   const d = path.isAbsolute(rel) ? rel : path.join(REPO, rel);
-  if (fs.existsSync(d)) die(`refusing to overwrite ${rel}`);
+  if (fs.existsSync(d)) throw new Error(`refusing to overwrite ${rel}`);
   const before = sha(s), size = fs.statSync(s).size;
   fs.mkdirSync(path.dirname(d), { recursive: true });
   let how = 'git mv';
   try { execFileSync('git', ['-C', REPO, 'mv', src, rel], { stdio: 'pipe' }); }
   catch { how = 'copy+unlink'; fs.copyFileSync(s, d); fs.unlinkSync(s); }
-  if (!fs.existsSync(d)) die('FAIL: destination missing after move');
+  if (!fs.existsSync(d)) throw new Error('FAIL: destination missing after move');
   const after = sha(d);
-  if (before !== after) die(`FAIL: content changed in transit (${before} != ${after})`);
-  if (fs.existsSync(s)) die(`FAIL: original still present at ${src}`);
-  console.log(`archived ${src} -> ${rel}  ${size} bytes  sha256 ${before.slice(0, 16)} MATCH  (${how})`);
+  if (before !== after) throw new Error(`FAIL: content changed in transit (${before} != ${after})`);
+  if (fs.existsSync(s)) throw new Error(`FAIL: original still present at ${src}`);
+  return { rel, size, sha: before, how };
+}
+
+function archive(src, dest) {
+  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
+  try {
+    const r = doArchive(src, dest);
+    console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
+  } catch (e) { die(e.message); }
 }
 
 // ---------------------------------------------------------------- ledger + due
@@ -573,6 +585,131 @@ function lint(files) {
     supersessionInBody, uncited: uncited.length, redundantPairs: redundant.length }, null, 1));
 }
 
+// ---------------------------------------------------------------- discover + apply-reorg
+//
+// Mode 0: full-corpus reorg. v1 (the old skill) did this whole job by handing an agent a
+// file list and a prose rulebook ("KEEP/CONSOLIDATE/ARCHIVE", "when uncertain -> ARCHIVE")
+// and letting it read, judge and `mv` everything itself — the exact shape that measured
+// 27% correct on bookkeeping elsewhere in this pipeline. This does the same JOB with the
+// same discipline as the rest of the file: classification is mechanical and script-run;
+// only genuinely unclear cases are surfaced, never silently decided; nothing moves until
+// a human (or a caller) looks at the plan and asks for `apply-reorg`.
+//
+// NOT rebuilt here: v1's CONSOLIDATE (merge two docs' content into one). That is a content
+// rewrite, not a move — a different, higher-risk operation than anything measured so far.
+// Descoped on purpose, not dropped silently.
+
+// Filename hints alone are WEAK — kept only because v1 used them and they don't false-flag
+// on real data (checked against 40 files across 4 repos). The dated-filename rule from v1
+// ("2024-01-15-x.md is stale") was tested and DROPPED: on a real corpus, dated filenames are
+// how current, un-stale design docs are named (`2026-07-28-p-palette-design.md`), so that
+// signal alone would file live specs into archive/. A dated name proves nothing about
+// staleness on its own.
+const ARCHIVE_FILENAME_RE = /^(REPORT|STATUS|SUMMARY|FIX_|PHASE_|SPRINT_|DRAFT|WIP|OLD|TEMP)[-_]/i;
+const ARCHIVE_PATH_RE = /(^|\/)(archive|old|reports?|phases?)\//i;
+
+// STRONG signal: the doc says about ITSELF, in its own opening, that it is done.
+//
+// MEASURED, not assumed, and case-sensitivity is load-bearing. A case-INsensitive version
+// of this regex was tried first against a real, uncrafted corpus (bareloop's docs/) and
+// false-positived on real files: "Supersedes **nothing**" (negation), "this rung BUILDS
+// three frozen records" (describing an input, not itself), "archived spines" (data the doc
+// references, not the doc). Same failure species as the lint fix in §10 — a word that means
+// one thing in isolation matches unrelated prose. Restricting to the ALL-CAPS form fixes
+// every one of those, because this corpus's own convention (independently, not designed
+// around) SHOUTS a genuine status declaration — "Status: CLOSED", "(FROZEN 2026-07-25,
+// before any number; archival)" — while narrative mentions of the same word stay lowercase
+// or Title Case. Traded away: 2 real misses ("Frozen 2026-07-26" / "job #4 ... (frozen)"),
+// consistent with this project's precision-over-recall law. Neither miss is dangerous —
+// `discover` only classifies, `apply-reorg` requires a human to have looked at the plan.
+const ARCHIVAL_STATUS_RE = /\b(CLOSED|FROZEN|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RETRACTED|REFUTED|DEPRECATED)\b/;
+
+const DEFAULT_OVERSIZED_LINES = 500; // a starting default, UNMEASURED — see docs-builder.md
+
+function classifyDoc(rel, text) {
+  const lines = text.split('\n');
+  const h1 = lines.find(l => l.startsWith('# '));
+  const opening = lines.slice(0, 20).join(' ').slice(0, 2000);
+
+  if (ARCHIVE_PATH_RE.test(rel))
+    return { file: rel, bucket: 'archive', reason: 'path already under archive/old/reports/phases', lines: lines.length };
+  if (ARCHIVAL_STATUS_RE.test(opening))
+    return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, FROZEN, deprecated)', lines: lines.length };
+  if (ARCHIVE_FILENAME_RE.test(path.basename(rel)))
+    return { file: rel, bucket: 'archive', reason: 'filename matches an archive-shaped pattern (weak signal, no content confirmation)', lines: lines.length };
+  if (!h1)
+    return { file: rel, bucket: 'review', reason: 'no H1 — cannot tell what this doc is', lines: lines.length };
+
+  const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
+  if (lines.length > ceiling)
+    return { file: rel, bucket: 'oversized', reason: `${lines.length} lines > ${ceiling}-line ceiling — run the split pipeline (scan/propose/assign/validate/plan/write), then archive the original`, lines: lines.length };
+
+  return { file: rel, bucket: 'product', reason: 'structured (has an H1), current size, no archive signal', lines: lines.length };
+}
+
+function walkMd(dir, base, out) {
+  for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, name.name), rel = path.join(base, name.name);
+    if (name.isDirectory()) {
+      // Idempotent: never reclassify what discover/apply already placed, or machine state.
+      if (['wiki', 'archive', 'product', '.docs-builder'].includes(name.name)) continue;
+      walkMd(abs, rel, out);
+    } else if (name.isFile() && name.name.endsWith('.md')) {
+      // The entry point and the two generated/append-only files are never subject to reorg.
+      if (['README.md', 'index.md', 'log.md'].includes(name.name) && base === 'docs') continue;
+      out.push(rel);
+    }
+  }
+}
+
+function discover(root) {
+  const rootRel = root || 'docs';
+  const rootAbs = path.join(REPO, rootRel);
+  if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
+  const files = [];
+  walkMd(rootAbs, rootRel, files);
+  const rows = files.map(rel => classifyDoc(rel, read(rel)));
+  const byBucket = { product: 0, oversized: 0, archive: 0, review: 0 };
+  for (const r of rows) byBucket[r.bucket]++;
+  write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
+  console.table(rows.map(r => ({ file: r.file, bucket: r.bucket, lines: r.lines })));
+  console.log(JSON.stringify(byBucket, null, 1));
+  console.log(`plan written to docs/.docs-builder/reorg-plan.json — review it, then run `
+    + '`apply-reorg` to move product/ and archive/ candidates. `oversized` files are NOT '
+    + 'auto-split (that spends model budget); run the normal pipeline on each, by hand.');
+  if (byBucket.review)
+    console.log(`WARN: ${byBucket.review} file(s) had no clear signal at all (no H1). `
+      + 'apply-reorg treats these as archive candidates too — check the plan first.');
+}
+
+function applyReorg(planFile) {
+  const f = planFile || path.join(REPO, ARTIFACTS, 'reorg-plan.json');
+  if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
+  const plan = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0 };
+  const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
+  for (const row of plan.rows) {
+    if (row.bucket === 'oversized') { results.oversizedLeftAlone++; continue; }
+    const destDir = row.bucket === 'product' ? 'docs/product' : 'docs/archive';
+    let base = path.basename(row.file);
+    const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
+    usedNames.set(destDir + '/' + base, n);
+    if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+    try {
+      const r = doArchive(row.file, path.join(destDir, base));
+      console.log(`  ${row.file} -> ${r.rel}`);
+      results.moved++;
+    } catch (e) {
+      console.error(`SKIP ${row.file}: ${e.message}`);
+      results.skipped++;
+    }
+  }
+  console.log(JSON.stringify(results, null, 1));
+  if (results.oversizedLeftAlone)
+    console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `
+      + 'pipeline on each, then `archive` the original.');
+}
+
 // ---------------------------------------------------------------- dispatch
 
 // Machine state has one home. Callers can override with OUT, but the default must never
@@ -586,23 +723,27 @@ function write(obj, fallback) {
 
 const [cmd, ...rest] = process.argv.slice(2);
 switch (cmd) {
-  case 'scan':     scan(rest); break;
-  case 'validate': validate(rest[0], rest[1]); break;
-  case 'plan':     plan(rest[0], rest[1]); break;
-  case 'index':    index(rest[0], rest[1]); break;
-  case 'archive':  archive(rest[0], rest[1]); break;
-  case 'ledger':   ledger(); break;
-  case 'due':      due(); break;
-  case 'lint':     lint(rest); break;
+  case 'scan':        scan(rest); break;
+  case 'validate':    validate(rest[0], rest[1]); break;
+  case 'plan':        plan(rest[0], rest[1]); break;
+  case 'index':       index(rest[0], rest[1]); break;
+  case 'archive':     archive(rest[0], rest[1]); break;
+  case 'ledger':      ledger(); break;
+  case 'due':         due(); break;
+  case 'lint':        lint(rest); break;
+  case 'discover':    discover(rest[0]); break;
+  case 'apply-reorg': applyReorg(rest[0]); break;
   default:
-    die('usage: docs-builder.cjs <scan|validate|plan|index|archive|ledger|due|lint> [args]\n'
-      + '  scan     <file.md...>                 -> outline.json\n'
-      + '  validate <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
-      + '  plan     <outline.json> <labels.json> -> task-<theme>.json per page\n'
-      + '  index    <outline.json> <labels.json> -> index.md\n'
-      + '  archive  <src.md> [dest.md]           -> verified MOVE into docs/archive/\n'
-      + '  ledger                                -> record current state of docs/\n'
-      + '  due                                   -> what changed since the ledger\n'
-      + '  lint     <file.md...>                 -> lint.json\n'
-      + 'env: REPO (default cwd), OUT (output path)');
+    die('usage: docs-builder.cjs <scan|validate|plan|index|archive|ledger|due|lint|discover|apply-reorg> [args]\n'
+      + '  scan        <file.md...>                 -> outline.json\n'
+      + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
+      + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
+      + '  index       <outline.json> <labels.json> -> index.md\n'
+      + '  archive     <src.md> [dest.md]            -> verified MOVE into docs/archive/\n'
+      + '  ledger                                    -> record current state of docs/\n'
+      + '  due                                       -> what changed since the ledger\n'
+      + '  lint        <file.md...>                  -> lint.json\n'
+      + '  discover    [root=docs]                   -> reorg-plan.json (classify, never moves)\n'
+      + '  apply-reorg [plan.json]                    -> executes the plan\n'
+      + 'env: REPO (default cwd), OUT (output path), OVERSIZED_LINES (default 500)');
 }

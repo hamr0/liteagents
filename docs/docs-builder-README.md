@@ -132,16 +132,20 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 
 ---
 
-## The three modes and the docs/ layout
+## The four modes and the docs/ layout
 
 | Mode | Does | Destructive |
 |---|---|---|
-| `/docs-builder` | first cleanup: big doc → pages + index | no (original preserved) |
+| `/docs-builder reorg` | classify a WHOLE corpus into product/wiki-candidate/archive | no (plan reviewed before anything moves) |
+| `/docs-builder` | split ONE oversized doc → pages + index | no (original preserved) |
 | `/docs-builder reconcile` | re-run scan → validate → index → lint, propose fixes | no |
 | `/docs-builder archive-cleanup` | prune | **yes** — separate invocation, default keep, requires clean git tree |
 
-`reconcile` never touches `docs/product/`; it owns `docs/wiki/`. `archive-cleanup` moves
-files to `docs/archive/`, never deletes, and appends one line to `docs/log.md`.
+`reorg` and the single-file split compose rather than compete: `reorg` sorts a whole messy
+`docs/` tree in one pass; anything it tags `oversized` still needs a human to run the split
+flow on it individually, since that step spends real model money. `reconcile` never touches
+`docs/product/`; it owns `docs/wiki/`. `archive-cleanup` moves files to `docs/archive/`,
+never deletes, and appends one line to `docs/log.md`.
 
 ```
 docs/
@@ -153,13 +157,36 @@ docs/
   archive/             what got cleaned up: originals, moved via `git mv`. Pruning is a
                        separate, opt-in, destructive invocation.
   .docs-builder/       machine-only state: ledger.json, outline.json, labels.json,
-                       validate.json, lint.json, tasks/
-  archive/             only archive-cleanup touches this.
+                       validate.json, lint.json, reorg-plan.json, tasks/
 ```
 
 Never moved by any mode: `CLAUDE.md`, `AGENTS.md`, `AGENT.md`, root `README.md`,
 `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE*`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
 `.github/`, `.claude/`, `node_modules/`, `.git/`.
+
+---
+
+## Mode 0 — reorg a whole corpus, not just one file
+
+v1 (the old skill) did full-corpus reorg by handing an agent a prose rulebook and letting
+it `mv` files by judgement — the exact shape that measured 27% correct on bookkeeping
+elsewhere in this pipeline. `reorg` rebuilds v1's scope with v2's discipline: `discover`
+classifies every doc mechanically (script, no model, no cost) into `product` / `archive` /
+`oversized` / `review`, writes a plan, and moves **nothing** until `apply-reorg` is run
+against a reviewed plan.
+
+Run for real on bareloop's actual `docs/` (35 files, not a fixture): 16 → `product`,
+12 → `archive`, 8 → `oversized` (left in place with a follow-up list, never auto-split),
+0 → unclassifiable. 28 verified moves, 0 skipped, `git status` showed clean renames.
+
+The classification rule that took two tries: the archive signal ("this doc says it's
+CLOSED/FROZEN/deprecated") went case-insensitive first, and false-positived on real files —
+"Supersedes **nothing**" (negation), "archived spines" (describing input data, not the doc
+itself). Fixed by requiring the SHOUTED all-caps form, which is how this corpus's own
+writing convention marks a genuine self-declaration. Two real misses were traded away for
+that precision, and neither is dangerous — a miss just leaves a doc classified `product`
+instead of `archive`, and nothing moves without a reviewed plan anyway. Full account,
+including a process-killing bug the negative-control test caught before it shipped: spec §19.
 
 ---
 

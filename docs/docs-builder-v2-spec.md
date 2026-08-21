@@ -574,3 +574,101 @@ The session limit is real and was reproduced at a cap of **3**, so the cap is no
 prevents it. What matters is that failure is *survivable*: nothing is written from a failed
 call, and `plan` can tell a finished page from wreckage. Resume, not concurrency, is the
 protection. The right cap is still unmeasured.
+
+---
+
+## 19. Mode 0 — reorg (whole-corpus classification)
+
+v1's own scope was never "split one file" — it was "reorganize `/docs`," done by handing an
+agent a prose rulebook (KEEP/CONSOLIDATE/ARCHIVE, "when uncertain -> ARCHIVE") and letting
+it read, judge and `mv` everything itself. Same shape as the model-does-bookkeeping failure
+this whole rebuild replaced elsewhere (27% correct). `reorg` rebuilds v1's SCOPE with v2's
+DISCIPLINE: classification is mechanical script, archive/product moves are verified `git
+mv`, nothing executes until a plan is written and can be reviewed.
+
+Descoped on purpose: v1's CONSOLIDATE (merging two docs into one). That rewrites content —
+a different, higher-risk operation than anything measured in this file. Not silently
+dropped, explicitly out of scope.
+
+### 19a. Classification rules, and the false positives that shaped them
+
+Four buckets: `product` (default, has an H1, under the size ceiling, no archive signal),
+`oversized` (over `OVERSIZED_LINES`, default 500, **an UNMEASURED starting point** — feed
+through the Mode 1 split pipeline), `archive` (path/filename/content signal), `review` (no
+H1 — genuinely can't tell).
+
+**The archive-content signal went through the same failure class twice, on real data, in
+the same session.**
+
+Round 1 (case-insensitive `closed|frozen|archival|archived|superseded|...` over the
+opening 20 lines) false-positived on bareloop's real `docs/` — not a crafted fixture:
+
+| file | matched | actual meaning |
+|---|---|---|
+| `docs/FINDINGS.md` (root, 8,298 lines, an ACTIVE log) | "closed" | *"adaptlearn's F1-F23 are a closed record"* — describes a DIFFERENT file |
+| `p-palette-design.md` (a current, locked, in-build spec) | "superseded" | *"Supersedes **nothing**"* — negated |
+| `n4-verdict-classes-build.md` (an active build plan) | "frozen" | *"BUILDS three frozen records"* — an input, not itself |
+| `upstream-ledger-design.md` (a current design) | "archived" | *"against its archived spines"* — data it references |
+
+Round 2 fix: require the SAME words in **ALL CAPS**, case-sensitive. This corpus's own
+writing convention — independently observed, not designed around — SHOUTS a genuine
+self-declaration (`**Status: CLOSED**`, `(FROZEN 2026-07-25, before any number; archival)`)
+while narrative mentions of the identical word stay lowercase or Title Case. Re-tested
+against the full corpus:
+
+| file | before | after |
+|---|---|---|
+| `FINDINGS.md`, `p-palette-design.md`, `upstream-ledger-design.md`, `n4-verdict-classes-build.md` | false archive | **product/oversized (correct)** |
+| `REPORT-AIM.md`, `JOB2-PREREG.md`, `AURORA-PREREG.md`, 8 more PREREG/design docs | archive | **archive (still correct)** |
+
+Traded away, and named rather than hidden: **2 real misses** —
+`MATERIALS-PREREG.md` ("Frozen 2026-07-26") and `TESTGEN-PREREG.md` ("(frozen)") are
+genuinely archival but not shouted, so land in `product`/`oversized` instead. Consistent
+with this file's precision-over-recall law throughout, and safe by construction: a miss
+here is one bucket short of ideal, not a wrongly-archived doc, and nothing moves before a
+human sees the plan.
+
+**A v1 heuristic was tested and dropped, not carried forward on faith:** "dated filename ->
+likely stale." `2026-07-28-p-palette-design.md` is a current, actively-built spec named
+with a date, same as every other design doc in this corpus's convention. A dated filename
+alone proved nothing about staleness on real data.
+
+**Filename-keyword signal** (`REPORT_`, `STATUS_`, `PHASE_`, `DRAFT`, `WIP`, `OLD`, `TEMP`,
+…, from v1, kept) — checked against ~35 files across bareloop's `docs/`: 1 match
+(`REPORT-AIM.md`), true positive, already independently confirmed by the content signal.
+No false positives found, but n is small; kept as a weak secondary signal, never sole cause.
+
+### 19b. A real bug the discipline itself would have missed if not tested for
+
+`doArchive`'s original form called `die()` (exit the process) on any failure — refusing to
+overwrite, missing file, hash mismatch. `apply-reorg` wraps many moves in one run; wrapping
+a `die()`-calling function in `try/catch` does nothing, because `process.exit` doesn't
+throw. **The first bad file in a batch would have silently killed the entire reorg run
+with no indication which files it never reached.** Caught before it shipped, by testing the
+negative: a forced destination collision. Fixed by splitting `archive()` into a throwing
+core (`doArchive`) used by `apply-reorg`, and a CLI wrapper that turns the throw into
+`die()` for single-invocation use. Re-verified: one forced collision skips, logs, and the
+run continues — `{"moved":1,"skipped":1}`.
+
+### 19c. End-to-end on the real bareloop corpus (35 files, not a fixture)
+
+| bucket | count |
+|---|---|
+| product | 16 |
+| archive | 12 |
+| oversized | 8 (includes the just-split PRD.md's sibling docs — `FINDINGS.md` 8,298 lines, `UPSTREAM-ASKS.md` 2,066, `LAYERS.md` 959, `CYBERNETICS.md` 546, and 4 more) |
+| review | 0 |
+
+`apply-reorg`: 28 moved, 0 skipped, 8 correctly left in place with a follow-up list. Non-.md
+experiment artifacts (`.json`, `.jsonl`, `.py`) in the same directories were correctly never
+touched — `discover` only walks `*.md`. `git status` showed clean Renames (`R`), confirming
+history survives the move once committed.
+
+### 19d. Open, honestly
+
+- The 500-line oversized ceiling is unmeasured, a stated default.
+- Validated on one corpus family (bareloop). The SHOUTED-caps rule leans on that corpus's
+  own convention; a differently-styled repo should just get fewer `archive` hits (recall
+  loss, not a false-archive risk), but that is inferred from the design, not independently
+  confirmed on a second, differently-styled real corpus.
+- Not yet run on a repo this session doesn't already have full visibility into.
