@@ -3,8 +3,13 @@
  * Friction analysis pipeline - analyze sessions and extract antigens.
  *
  * Usage:
- *     node friction.js <sessions-directory>
- *     node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *     node friction.cjs <sessions-directory>
+ *     node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *
+ * Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
+ * package.json declares "type": "module", a `.js` file loads as an ES module and every
+ * `require` below throws before the first line of work. `.cjs` pins CommonJS regardless of
+ * the host project. Found via docs-builder.cjs hitting the identical bug on a real repo.
  *
  * Outputs (all in .opencode/remember/friction/):
  *     friction_analysis.json   - Per-session analysis
@@ -2355,8 +2360,8 @@ function main() {
 Friction analysis pipeline - analyze sessions and extract antigens.
 
 Usage:
-    node friction.js <sessions-directory>
-    node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+    node friction.cjs <sessions-directory>
+    node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
 
 Outputs (all in .opencode/remember/friction/):
     friction_analysis.json   - Per-session analysis

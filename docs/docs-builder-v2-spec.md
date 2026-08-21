@@ -555,7 +555,7 @@ Installed project-locally into a repo whose `package.json` declares `"type": "mo
 `.js` file loads as an ES module and every `require` throws before the first line of work.
 bareloop is such a project. Renamed to **`docs-builder.cjs`**.
 
-> **`packages/*/commands/remember/friction.js` has the identical bug**, pre-existing and
+> **`packages/*/commands/remember/friction.cjs` has the identical bug**, pre-existing and
 > shipping in all four packages today. `/remember`'s step 0 dies in any ESM project. Not
 > fixed here — it is a four-package sweep and a separate change.
 

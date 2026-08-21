@@ -30,9 +30,9 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    project are behavioral lessons worth keeping everywhere. So point it at the tool's
    **global sessions root** (all projects), not a per-project directory.
 
-   - **Locate `friction.js`** — it is bundled next to this command at `remember/friction.js`
+   - **Locate `friction.cjs`** — it is bundled next to this command at `remember/friction.cjs`
      (the same directory as `remember.md`, whether installed or run from the package). If it
-     exists nowhere, skip to step 1 (stash-only) and tell the user friction.js is missing.
+     exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
      exists and contains `.jsonl` files (recursively). **Never prompt the user.**
      ```
@@ -44,10 +44,10 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      ~/.codex/sessions/                  # Codex CLI  (use $CODEX_HOME/sessions/ if set)
      ~/.gemini/antigravity-cli/brain/    # Antigravity
      ```
-     > Note: `friction.js` parses Claude Code's session schema. The Codex/Antigravity roots
+     > Note: `friction.cjs` parses Claude Code's session schema. The Codex/Antigravity roots
      > will resolve but yield no signals until friction learns their formats — open an issue
      > to request one: https://github.com/hamr0/liteagents/issues
-   - **Run** `node <friction.js> "<resolved-root>"`. friction writes its output to
+   - **Run** `node <friction.cjs> "<resolved-root>"`. friction writes its output to
      `.opencode/remember/friction/` in the current project.
    - **On any miss — loud, never silent.** If no root resolves, or friction errors, or it
      finds no usable sessions, print this and continue with stash-only consolidation:
@@ -67,7 +67,7 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      the new reference (step 5), and tell the user exactly what moved.
    - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
      `.opencode/remember/AGENT_RULES.md` does not exist, copy it from the bundled template next
-     to this command (`remember/AGENT_RULES.md`, same directory as `friction.js`). If it
+     to this command (`remember/AGENT_RULES.md`, same directory as `friction.cjs`). If it
      already exists, leave it untouched — never overwrite, even if the bundled template
      changes in a later version; it becomes user-owned the moment it lands in the project.
    - Read all `.opencode/stash/*.md` files in the current project
