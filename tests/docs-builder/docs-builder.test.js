@@ -514,6 +514,116 @@ function archiveCleanup() {
     exists(bypass, 'docs/archive/UNCITED.md'));
 }
 
+// ---------------------------------------------------------------- 14. chokepoint fixes
+
+/**
+ * Four functions used to do work AND call `process.exit` (directly or via `die()`), which is
+ * fatal once another in-process caller invokes them: `process.exit` cannot be caught by a
+ * `try/catch`. `validate` killed `reconcile` mid-sequence — on PASS as well as FAIL — so
+ * `index`, `lint` and reconcile's own log line silently never ran. This group pins the fix:
+ * a throwing/returning core (`doValidate`) plus a thin CLI wrapper (`validate`), the same
+ * split this file already used for `doArchive`/`archive` and `gitOrThrow`/`git`.
+ */
+function reconcileChokepoints() {
+  group('14. reconcile / validate / archive — the exit-mid-pipeline chokepoint');
+
+  // reconcile WITH labels.json present must run index + lint, not stop dead inside validate.
+  const d = repo({ 'docs/product/A.md': DOC('A') });
+  db(d, ['scan', 'docs/product/A.md']);
+  const key = artifact(d, 'outline.json').records[0].key;
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
+  const r = db(d, ['reconcile']);
+  ok('reconcile with labels.json exits clean on PASS', r.code, 0);
+  // docs/index.md, not cwd-relative index.md — must match checkLinks()'s own `INDEX` default,
+  // or the file `index` writes and the file `validate`'s link check reads are never the same
+  // file (MEASURED: with no env vars set, exactly how `reconcile` calls this, they used to
+  // disagree — validate could only ever LOUD-SKIP or check a stale index from an earlier run).
+  okTrue('index.md gets written to docs/index.md (where validate\'s link check looks)',
+    exists(d, 'docs/index.md'));
+  okTrue('index.md is NOT written to the cwd root instead', !exists(d, 'index.md'));
+  okTrue('lint.json gets written', exists(d, 'docs/.docs-builder/lint.json'));
+  okTrue('log.md records BOTH the validate line and the reconcile line',
+    /validate \|/.test(read(d, 'docs/log.md')) && /reconcile \|/.test(read(d, 'docs/log.md')));
+
+  // A FAILING validate must NOT abort reconcile: lint still runs, and reconcile still exits
+  // non-zero at the very end (decision: reconcile reports the FAIL loudly and keeps going).
+  const d2 = repo({ 'docs/product/B.md': DOC('B') });
+  db(d2, ['scan', 'docs/product/B.md']);
+  write(d2, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }],
+    labels: [{ key: 'docs/product/B.md :: Not A Real Heading', theme: 't' }] }) });
+  const r2 = db(d2, ['reconcile']);
+  ok('reconcile still exits non-zero when validate FAILs', r2.code, 1);
+  okTrue('lint still ran despite the FAIL', /== lint ==/.test(r2.out));
+  okTrue('lint.json still gets written on a FAIL', exists(d2, 'docs/.docs-builder/lint.json'));
+
+  // reconcile's OUTPUT (docs/wiki/) must not be pulled back into its own scan corpus.
+  const d3 = repo({ 'docs/product/C.md': DOC('C'), 'docs/wiki/synth.md': DOC('Synth') });
+  db(d3, ['reconcile']);
+  okTrue('docs/wiki/ pages are excluded from the reconcile corpus',
+    !artifact(d3, 'outline.json').files.some(f => f.startsWith('docs/wiki/')));
+
+  // archive: exit 2 (not 1) when the move succeeded but a follow-up failed — 1 means "nothing
+  // moved, retry"; re-running `archive` after a successful move would be actively wrong.
+  const shim = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim2-'));
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
+  fs.writeFileSync(path.join(shim, 'git'),
+    `#!/bin/sh\nfor a in "$@"; do [ "$a" = "ls-files" ] && { echo "fatal: simulated" >&2; exit 1; }; done\nexec ${realGit} "$@"\n`);
+  fs.chmodSync(path.join(shim, 'git'), 0o755);
+  const d4 = repo({ 'docs/A.md': DOC('A') });
+  const arch = db(d4, ['archive', 'docs/A.md'], { PATH: `${shim}:${process.env.PATH}` });
+  ok('archive exits 2 when the move succeeded but a follow-up failed', arch.code, 2);
+  okTrue('the file DID move despite exit 2', exists(d4, 'docs/archive/A.md'));
+
+  const d5 = repo({});
+  fs.mkdirSync(path.join(d5, 'docs'), { recursive: true });
+  const archFail = db(d5, ['archive', 'docs/NOPE.md']);
+  ok('archive still exits 1 when the move itself fails (nothing moved)', archFail.code, 1);
+
+  // A malformed task-*.json (what a crashed page-writer leaves behind) must isolate to its
+  // own page: the OTHER page still gets checked, and validate.json still gets written.
+  const d6 = repo({ 'docs/A.md': DOC('A') });
+  fs.mkdirSync(path.join(d6, 'docs/wiki'), { recursive: true });
+  fs.mkdirSync(path.join(d6, 'docs/.docs-builder/tasks'), { recursive: true });
+  db(d6, ['scan', 'docs/A.md']);
+  const rec6 = artifact(d6, 'outline.json').records[0];
+  write(d6, {
+    'docs/wiki/good.md': `# Good\n\nbody (docs/A.md:${rec6.s}-${rec6.e})\n`,
+    'docs/wiki/bad.md': '# Bad\n\nno citations here\n',
+    'docs/.docs-builder/tasks/task-good.json': JSON.stringify({
+      sections: [{ file: 'docs/A.md', h2: rec6.h2, s: rec6.s, e: rec6.e }] }),
+    'docs/.docs-builder/tasks/task-bad.json': '{ not valid json',
+    'docs/.docs-builder/labels.json': JSON.stringify({
+      themes: [{ name: 't', gloss: 'g' }], labels: [{ key: rec6.key, theme: 't' }] }),
+  });
+  db(d6, ['validate', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  const validateJson = read(d6, 'docs/.docs-builder/validate.json');
+  okTrue('a malformed task file is recorded as a gate failure, not silently skipped',
+    /"page": "bad\.md"/.test(validateJson));
+  okTrue('the OTHER page was still checked and reports no violation of its own',
+    !/"page": "good\.md"/.test(validateJson));
+  okTrue('validate.json is still written despite the malformed file', exists(d6, 'docs/.docs-builder/validate.json'));
+
+  // rewriteLinks: a known, deliberate trade-off, pinned so it stays deliberate rather than
+  // accidental. Exact-path match rewrites a historical prose mention too — only CHANGELOG.md
+  // and log.md, at any depth, are exempt.
+  const d7 = repo({
+    'docs/OLD.md': DOC('Old'),
+    'NOTE.md': 'this used to live at docs/OLD.md, moved recently\n',
+    'CHANGELOG.md': '- docs/OLD.md added\n',
+    'log.md': '## note: docs/OLD.md was here\n',
+    'sub/CHANGELOG.md': '- also mentions docs/OLD.md, nested\n',
+  });
+  const r7 = db(d7, ['archive', 'docs/OLD.md']);
+  ok('archive of OLD.md exits clean', r7.code, 0);
+  okTrue('a historical prose mention in an ordinary file IS rewritten (documented trade-off)',
+    read(d7, 'NOTE.md').includes('docs/archive/OLD.md') && !read(d7, 'NOTE.md').includes(' docs/OLD.md'));
+  okTrue('CHANGELOG.md at the root is NEVER rewritten', read(d7, 'CHANGELOG.md').includes('docs/OLD.md'));
+  okTrue('log.md at the root is NEVER rewritten', read(d7, 'log.md').includes('docs/OLD.md'));
+  okTrue('a CHANGELOG.md at ANY depth is also never rewritten', read(d7, 'sub/CHANGELOG.md').includes('docs/OLD.md'));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -549,7 +659,7 @@ function main() {
 
   const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, reorgCollision,
-    ledgerAndDue, search, reconcileMode, archiveCleanup, packageParity];
+    ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints, packageParity];
 
   for (const g of groups) {
     try { g(); }

@@ -251,7 +251,17 @@ function checkCitations() {
   for (const pageFile of fs.readdirSync(repoPath(pagesDir)).filter(f => f.endsWith('.md'))) {
     const taskF = path.join(tasksDir, `task-${pageFile.slice(0, -3)}.json`);
     if (!fs.existsSync(taskF)) { console.error(`WARN: no task file for ${pageFile} — citations not checked`); continue; }
-    const task = parseJSONFile(taskF);
+    // Per-page isolation: a truncated task-*.json — exactly what a crashed page-writer leaves
+    // behind — must not stop every OTHER page's citations from being checked, and must not
+    // stop validate.json from being written at all. A file this broken IS a real gate failure
+    // (silently skipping it would hide a genuine problem), so it counts as a violation rather
+    // than a WARN-and-skip.
+    let task;
+    try { task = parseJSONFileOrThrow(taskF); }
+    catch (e) {
+      violations.push({ page: pageFile, cite: '(task file)', reason: `malformed task file ${taskF}: ${e.message}` });
+      continue;
+    }
     const byFile = new Map();
     for (const sec of task.sections || []) {
       if (!byFile.has(sec.file)) byFile.set(sec.file, []);
@@ -310,8 +320,12 @@ function logOp(op, desc) {
   fs.appendFileSync(f, `## [${new Date().toISOString().slice(0, 10)}] ${op} | ${desc}\n`);
 }
 
-function validate(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.cjs validate <outline.json> <labels.json>');
+// Core THROWS-free / exit-free — same split as doArchive()/archive() and gitOrThrow()/git()
+// above, for the same reason: `reconcile` calls this IN-PROCESS and must survive a FAIL
+// verdict to still run index + lint, which no caller can do once `process.exit` has fired.
+// `validate()` below is the CLI-facing wrapper that turns the verdict into an exit code for a
+// single direct invocation — its own hard-gate behaviour (exit 1 on FAIL) is UNCHANGED.
+function doValidate(outlineF, labelsF) {
   const [o, l] = loadPair(outlineF, labelsF);
   const expect = new Map(o.records.map(r => [keyOf(r), r]));
   const themes = new Set((l.themes || []).map(t => t.name));
@@ -375,7 +389,13 @@ function validate(outlineF, labelsF) {
       + `${key} — likely not a one-off. Stop retrying, escalate to a human.`);
   write(res, 'validate.json');
   logOp('validate', `${res.verdict} — ${missingFiles.length + links.bad.length + citations.violations.length} gate failure(s)`);
-  process.exit(pass ? 0 : 1);
+  return res;
+}
+
+function validate(outlineF, labelsF) {
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs validate <outline.json> <labels.json>');
+  const res = doValidate(outlineF, labelsF);
+  process.exit(res.verdict === 'PASS' ? 0 : 1);
 }
 
 // ---------------------------------------------------------------- plan (page writer inputs)
@@ -504,7 +524,17 @@ function index(outlineF, labelsF) {
     s += '\n';
   }
   s += `---\n\nTotal: ${rows} rows across ${g.length} pages.\n`;
-  const dest = process.env.OUT || 'index.md';
+  // Same default STRING as checkLinks()'s `INDEX` default above, resolved the same
+  // REPO-relative way (repoPath) — not cwd-relative like the other pipeline JSON artifacts
+  // (see the cwd-vs-repo comment on `read`/`repoPath` near the top of the file). index.md is
+  // a DELIVERABLE that lives in the target repo's docs/ tree (Layout, docs-builder.md), not
+  // throwaway pipeline state, so it must land where validate's link check will actually look
+  // for it. MEASURED the disagreement: with no env vars set — exactly how `reconcile` calls
+  // this — the old cwd-relative `'index.md'` default and checkLinks' `docs/index.md` default
+  // never pointed at the same file, so the link gate could only ever LOUD-SKIP or check a
+  // stale file from an unrelated earlier run.
+  const dest = repoPath(process.env.OUT || 'docs/index.md');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, s);
   console.log(`wrote ${dest}: ${rows} rows / ${g.length} pages / ${s.length} chars`);
   if (rows > ROW_CEILING)
@@ -746,10 +776,15 @@ function archive(src, dest) {
   console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
   for (const m of r.artifactNotes) console.log(`  ${m}`);
   for (const { file, n } of r.linkFiles) console.log(`  ${file}: ${n} link(s) -> ${r.rel}`);
-  if (r.failures.length)
-    die(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
+  if (r.failures.length) {
+    // Exit 2, not 1: 1 means "nothing moved, retry `archive`" and this is the OPPOSITE —
+    // the file DID move and re-running `archive` would be wrong, exactly as the message says.
+    // A caller branching on exit code alone must be able to tell these two outcomes apart.
+    console.error(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
       + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
       + `${src}, it has already moved.`);
+    process.exit(2);
+  }
   logOp('archive', `${src} -> ${r.rel}`
     + (r.links ? `, ${r.links} link(s) rewritten` : ''));
 }
@@ -1135,7 +1170,10 @@ function applyReorg(planFile) {
 // to remove (model-driven bookkeeping measured 27%; script-driven measured ~100%), so the
 // order is code now. It never writes docs/product/; it owns docs/wiki/.
 function reconcile() {
-  const files = docFiles().filter(f => !f.startsWith('docs/archive/'));
+  // docs/wiki/ is reconcile's OWN OUTPUT (the synthesised pages), not source material — pulling
+  // it into the scan corpus made validate's `missing` check fail on every wiki heading a
+  // product-only labels.json never covered.
+  const files = docFiles().filter(f => !f.startsWith('docs/archive/') && !f.startsWith('docs/wiki/'));
   if (!files.length) die('no docs to reconcile — docs/ has no tracked .md outside archive/');
   console.log(`reconcile: ${files.length} doc(s)\n`);
   console.log('== scan =='); scan(files);
@@ -1144,15 +1182,27 @@ function reconcile() {
   // validate/index need a theme assignment, which only a model can produce. Reconcile is the
   // CHEAP path and never calls a model, so with no labels.json it says so and skips — loudly,
   // never silently, and never by inventing labels of its own.
+  let validateFailed = false;
   if (fs.existsSync(labelsF)) {
-    console.log('\n== validate =='); validate(outlineF, labelsF);
+    console.log('\n== validate ==');
+    const res = doValidate(outlineF, labelsF);
+    // A FAIL must NOT abort reconcile: reconcile is the cheap, read-only-ish path, and lint is
+    // the part most likely to be useful when validate is unhappy. So it's reported loudly here
+    // and reconcile still runs index + lint, then exits non-zero at the very end. The standalone
+    // `validate` subcommand keeps its own hard-gate behaviour unchanged (see validate() above).
+    if (res.verdict !== 'PASS') {
+      validateFailed = true;
+      console.error(`\nreconcile: validate FAILED — continuing to index + lint anyway `
+        + '(a FAIL does not abort reconcile); exiting non-zero once everything below has run.');
+    }
     console.log('\n== index ==');    index(outlineF, labelsF);
   } else {
     console.log(`\nLOUD-SKIP: validate + index need ${labelsF}, which only the grouping step`
       + ' can write. Run the split flow on a doc first, or pass labels.json by hand.');
   }
   console.log('\n== lint =='); lint(files);
-  logOp('reconcile', `${files.length} doc(s) scanned`);
+  logOp('reconcile', `${files.length} doc(s) scanned` + (validateFailed ? ', validate FAILED' : ''));
+  if (validateFailed) process.exit(1);
 }
 
 // `archive-cleanup` DELETES files from docs/archive/. It is the only destructive command in
