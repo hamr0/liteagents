@@ -56,7 +56,14 @@ test-installation-*/
 .factory/
 .opencode/
 .amp/
-/tests/
+# `/tests/` (not `/tests/*`) would prune traversal into the directory entirely, and git
+# cannot re-include a path whose parent directory is itself excluded — so this is written as
+# "ignore every direct child" instead, which still lets the negation below re-admit one.
+/tests/*
+# Narrow re-admit: the docs-builder suite must be trackable, or it rots outside version
+# control exactly like the suite it replaced (see tests/docs-builder/docs-builder.test.js).
+!/tests/docs-builder/
+!/tests/docs-builder/docs-builder.test.js
 
 # Release artifacts
 liteagents-*.tgz
