@@ -718,11 +718,19 @@ REPO=<repo> node docs-builder/docs-builder.cjs reconcile
 ```
 
 It runs **scan -> validate -> index -> lint** over every tracked `docs/**.md`, excluding
-`docs/archive/`. Never touches `product/`; owns `wiki/`. validate and index both need a
-theme assignment, and only the model's grouping step (§6) can produce one — `reconcile`
-never calls a model itself, so with no `labels.json` present it **LOUD-SKIPs** those two
-steps and says exactly why, rather than inventing labels or passing silently. scan and lint
-always run regardless, since neither needs a theme.
+`docs/archive/` **and `docs/wiki/`** — wiki pages are reconcile's own output, not source
+material; scanning them back in would fail `validate`'s `missing` check against a
+product-only `labels.json`. Never touches `product/`; owns `wiki/`. validate and index both
+need a theme assignment, and only the model's grouping step (§6) can produce one —
+`reconcile` never calls a model itself, so with no `labels.json` present it **LOUD-SKIPs**
+those two steps and says exactly why, rather than inventing labels or passing silently. scan
+and lint always run regardless, since neither needs a theme.
+
+**A validate FAIL does not abort reconcile.** Reconcile is the cheap, read-mostly path, and
+lint is the part most likely to be useful when validate is unhappy, so a FAIL is reported
+loudly, `index` and `lint` still run, and reconcile exits non-zero only at the very end. The
+standalone `validate` subcommand is unaffected — it stays a hard gate that exits 1 on FAIL,
+immediately.
 
 ## 21. Mode 3 — archive-cleanup (the only destructive command)
 

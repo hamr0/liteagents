@@ -445,6 +445,15 @@ loudly, `index` and `lint` still run, and reconcile exits non-zero only at the v
 standalone `validate` subcommand (step 3 above) is unaffected: it is still a **hard gate that
 exits 1 on FAIL**, immediately.
 
+`lint` is also runnable standalone, on any file list, not only as part of `reconcile`:
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs lint <file.md...>
+```
+
+-> `lint.json`. Every check below is declared-only (see the governing rule further down) —
+nothing is inferred from similarity.
+
 | check | precision | how to treat it |
 |---|---|---|
 | `supersession` (declared in a HEADING) | **24/24 across 4 repos** | act on it |

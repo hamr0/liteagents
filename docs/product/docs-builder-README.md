@@ -180,12 +180,18 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 
 `reorg` and the single-file split compose rather than compete: `reorg` sorts a whole messy
 `docs/` tree in one pass; anything it tags `oversized` still needs a human to run the split
-flow on it individually, since that step spends real model money. `reconcile` never touches
-`docs/product/`; it owns `docs/wiki/`. `archive-cleanup` is the one destructive command: a
-bare run only reports uncited candidates under `docs/archive/`; `--apply <f>...` deletes
-exactly the files named, after the user has confirmed them — tracked files via `git rm`
-(recoverable from history), untracked files unlinked directly (NOT recoverable, flagged per
-file). It appends one line to `docs/log.md`.
+flow on it individually, since that step spends real model money. `reconcile` scans every
+tracked `docs/**.md` **excluding both `docs/archive/` and `docs/wiki/`** (wiki pages are
+reconcile's own output, not source material — scanning them back in would fail `validate`'s
+`missing` check against a product-only `labels.json`); it never touches `docs/product/`, it
+owns `docs/wiki/`. **A validate FAIL does not abort reconcile** — it is reported loudly,
+`index` and `lint` still run, and reconcile exits non-zero only at the very end; the
+standalone `validate` subcommand is unaffected and stays a hard gate that exits 1 on FAIL
+immediately. `archive-cleanup` is the one destructive command: a bare run only reports
+uncited candidates under `docs/archive/`; `--apply <f>...` deletes exactly the files named,
+after the user has confirmed them — tracked files via `git rm` (recoverable from history),
+untracked files unlinked directly (NOT recoverable, flagged per file). It appends one line
+to `docs/log.md`.
 
 ```
 docs/

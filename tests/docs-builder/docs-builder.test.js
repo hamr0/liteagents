@@ -624,6 +624,130 @@ function reconcileChokepoints() {
   okTrue('a CHANGELOG.md at ANY depth is also never rewritten', read(d7, 'sub/CHANGELOG.md').includes('docs/OLD.md'));
 }
 
+// ---------------------------------------------------------------- 15. move chokepoint fixes
+
+/**
+ * checkCitations() used to hardcode `docs/.docs-builder/tasks` while `plan` honoured a
+ * custom OUT= for the same directory — so a `plan` run against a non-default tasks dir left
+ * checkCitations silently checking whatever stale content happened to still be sitting at
+ * the default path. TASKS is checkCitations' own reader-side var (mirroring INDEX/OUT for
+ * index.md/checkLinks) — deliberately NOT the same var as `plan`'s OUT, because doValidate
+ * already reads OUT for its own `write(res, 'validate.json')`; reusing OUT here would make
+ * one `validate` invocation fight itself over what OUT means (MEASURED: `write()` crashes
+ * with EISDIR the moment OUT points at an existing directory).
+ */
+function tasksDirChokepoint() {
+  group('15a. checkCitations reads the SAME tasks dir plan wrote to, not a stale default');
+
+  const d = repo({ 'docs/A.md': DOC('A', 'Sec', 'line body text') });
+  db(d, ['scan', 'docs/A.md']);
+  const key = artifact(d, 'outline.json').records[0].key;
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
+
+  // The REAL task file, written by `plan` into a non-default OUT dir.
+  const p = db(d, ['plan', 'docs/.docs-builder/outline.json',
+    'docs/.docs-builder/labels.json'], { OUT: 'real-tasks' });
+  okTrue('plan wrote the real task file to the custom OUT dir', exists(d, 'real-tasks/task-t.json'));
+  okTrue('plan exits clean', p.code === 0);
+
+  // A STALE task file at the default path, simulating a leftover from an earlier run, with
+  // a permissive range the real task does NOT grant.
+  write(d, { 'docs/.docs-builder/tasks/task-t.json': JSON.stringify({
+    sections: [{ file: 'docs/A.md', h2: 'Sec', s: 1, e: 2 }] }) });
+  write(d, { 'docs/wiki/t.md': '# T\n\nbody (docs/A.md:1-2)\n' });
+
+  const r = db(d, ['validate', 'docs/.docs-builder/outline.json',
+    'docs/.docs-builder/labels.json'], { TASKS: 'real-tasks' });
+  ok('validate FAILs against the real (TASKS-pointed) task, not the stale default one',
+    r.code, 1);
+  okTrue('the citation violation names the real task\'s allowed range',
+    /outside allowed ranges/.test(r.out));
+}
+
+/**
+ * `archiveCleanup` had two unwrapped `gitOrThrow` calls — a git failure inside either one
+ * dumped a raw Node stack trace instead of the guarded one-line message every other git
+ * failure in this file produces. Both are exercised via a PATH shim that fails one specific
+ * git subcommand while passing everything else through to the real binary.
+ */
+// Matches on the LAST arg only — `docFiles()` already guards its own `ls-files docs/` call
+// (via `git()`, the die-based wrapper), so a shim that fails on ANY `ls-files` arg trips
+// that call first and never reaches the unwrapped one this test targets. The two calls
+// under test end their arg list differently (`ls-files` bare vs. `status --porcelain`),
+// so matching the last arg isolates each one precisely.
+function shimGitLastArgIs(dir, value) {
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
+  fs.writeFileSync(path.join(dir, 'git'),
+    `#!/bin/sh\nlast=""\nfor a in "$@"; do last="$a"; done\n`
+    + `[ "$last" = "${value}" ] && { echo "fatal: simulated" >&2; exit 1; }\nexec ${realGit} "$@"\n`);
+  fs.chmodSync(path.join(dir, 'git'), 0o755);
+  return { PATH: `${dir}:${process.env.PATH}` };
+}
+
+function archiveCleanupGitGuard() {
+  group('15b. archive-cleanup guards BOTH its gitOrThrow calls, never a raw stack trace');
+
+  // 1: the referrer-scan `ls-files` call (bare invocation, no --apply).
+  const shim1 = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim-lsfiles-'));
+  const d1 = repo({ 'docs/archive/OLD.md': DOC('Old') });
+  const r1 = db(d1, ['archive-cleanup'], shimGitLastArgIs(shim1, 'ls-files'));
+  okTrue('a git failure during the referrer scan is a guarded message, not a stack trace',
+    /git failed while/.test(r1.out) && !/at Object\.<anonymous>/.test(r1.out));
+  ok('archive-cleanup exits non-zero on that guarded failure', r1.code, 1);
+
+  // 2: the dirty-tree `status --porcelain` call (--apply path).
+  const shim2 = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim-status-'));
+  const d2 = repo({ 'docs/archive/OLD.md': DOC('Old') });
+  const r2 = db(d2, ['archive-cleanup', '--apply', 'docs/archive/OLD.md'],
+    shimGitLastArgIs(shim2, '--porcelain'));
+  okTrue('a git failure during the clean-tree check is a guarded message, not a stack trace',
+    /git failed while/.test(r2.out) && !/at Object\.<anonymous>/.test(r2.out));
+  ok('archive-cleanup exits non-zero on that guarded failure', r2.code, 1);
+  okTrue('nothing was deleted when the guard itself failed', exists(d2, 'docs/archive/OLD.md'));
+}
+
+/**
+ * Mode 1 (split one oversized doc) ends with the model writing wiki pages and a human
+ * running `archive` on the original — six script calls plus two model steps, hand-sequenced.
+ * If the model finishes the pages but `archive` never runs, the source doc and its derived
+ * pages both exist — "duplication, not cleanup" per the doc's own words — and nothing said
+ * so. Detection is derived entirely from existing artifacts (outline.json + labels.json +
+ * the same slug/pageStatus logic `plan` already uses to report "done"), never a new state
+ * file: it is a WARNING surfaced by `plan` and `reconcile`, and never changes their exit code.
+ */
+function halfFinishedSplitDetection() {
+  group('15c. a half-finished split (pages written, archive never run) is flagged');
+
+  const d = repo({ 'docs/A.md': DOC('A', 'Sec', 'line body text') });
+  db(d, ['scan', 'docs/A.md']);
+  const key = artifact(d, 'outline.json').records[0].key;
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
+
+  // A finished page (frontmatter + enough lines to count as `done`) exists at docs/wiki/t.md,
+  // but `archive` was never run: docs/A.md still sits at its original, non-archive path.
+  const donePage = ['---', 'type: reference', 'title: t', '---', '', '# T', '',
+    'one', 'two', 'three', 'four', 'five', ''].join('\n');
+  write(d, { 'docs/wiki/t.md': donePage });
+
+  const p = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  okTrue('plan warns about the half-finished split, naming the source file',
+    /docs\/A\.md/.test(p.out) && /archive/.test(p.out));
+  ok('the warning does not change plan\'s exit code', p.code, 0);
+
+  const r = db(d, ['reconcile']);
+  okTrue('reconcile surfaces the same warning',
+    /docs\/A\.md/.test(r.out) && /archive/.test(r.out));
+
+  // Once `archive` actually runs, the warning must go away — it is derived from current
+  // artifact state, not a stateful flag that could go stale.
+  db(d, ['archive', 'docs/A.md']);
+  const p2 = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  okTrue('the warning clears once archive actually runs',
+    !/half-finished/i.test(p2.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -659,7 +783,8 @@ function main() {
 
   const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, reorgCollision,
-    ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints, packageParity];
+    ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints,
+    tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection, packageParity];
 
   for (const g of groups) {
     try { g(); }

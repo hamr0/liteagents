@@ -17,8 +17,9 @@
 //   apply-reorg [plan.json]                        -> executes the plan's product/archive moves
 //
 // Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
-// link check), PAGES (default docs/wiki, validate's citations + plan), N (search count,
-// default 10), OVERSIZED_LINES (default 500, discover's oversized ceiling).
+// link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
+// docs/.docs-builder/tasks, validate's citations reader-side match for plan's OUT), N
+// (search count, default 10), OVERSIZED_LINES (default 500, discover's oversized ceiling).
 
 // Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
 // package.json declares "type": "module", a `.js` file is loaded as an ES module and every
@@ -240,9 +241,23 @@ function checkLinks() {
 // sections (d) are the mirror check — flagged, never blocking (see docstring at call site).
 const CITE_RE = /\(([\w./-]+\.\w+):(\d+)(?:-(\d+))?\)/g;
 
+// `plan` writes task-*.json into `process.env.OUT || <default>`; checkCitations used to
+// hardcode the default only, so a `plan` run against a custom OUT left it silently checking
+// whatever stale content still sat at the default path instead of LOUD-SKIPping. Fixed with
+// a reader-side var of its own (TASKS), not by reading OUT directly here: OUT is already
+// doValidate's own var for `write(res, 'validate.json')`, and MEASURED, reusing it made
+// `write()` crash (EISDIR) the moment OUT pointed at an existing directory. Same shape as
+// INDEX/OUT for index.md/checkLinks — writer and reader share one default, each through its
+// own var — so a caller must pass TASKS= to match a non-default `plan` OUT=, same as it
+// already has to pass INDEX= to match a non-default `index` OUT=.
+// A function, not a top-level const: ARTIFACTS itself is declared further down the file (near
+// `write()`), and every OTHER site that reads it the same way (e.g. rewriteArchivedPath above)
+// only ever does so from inside a function body, run after the whole module has loaded.
+function tasksDirDefault() { return path.join(ARTIFACTS, 'tasks'); }
+
 function checkCitations() {
   const pagesDir = process.env.PAGES || 'docs/wiki';
-  const tasksDir = path.join(ARTIFACTS, 'tasks');
+  const tasksDir = process.env.TASKS || tasksDirDefault();
   if (!fs.existsSync(repoPath(pagesDir)) || !fs.existsSync(tasksDir)) {
     console.error(`LOUD-SKIP: citations check did not run — missing ${pagesDir} or ${tasksDir}`);
     return { checked: false, violations: [], uncited: [] };
@@ -447,11 +462,44 @@ function group(o, l) {
   return g;
 }
 
+// A half-finished Mode 1 split: the model wrote one or more DONE pages under PAGES/, but
+// `archive` was never run on the source — so the same content now sits at its original path
+// AND in docs/wiki/, which the doc calls "duplication, not cleanup". Derived entirely from
+// artifacts that already exist (outline.json's records[].file, labels.json's theme
+// assignment, and the same slug/pageStatus logic `plan` already uses to report a page
+// "done") — no new state file, because the finished page already IS the checkpoint. Flag
+// only, never a gate: callers print this as a WARNING and never change their exit code on it.
+function unarchivedSplits(o, l, pages) {
+  const g = [...group(o, l)];
+  const slugs = slugMap(g.map(([t]) => t));
+  const bySrc = new Map();
+  for (const [theme, recs] of g) {
+    const slug = slugs.get(theme);
+    if (pageStatus(path.join(REPO, pages, `${slug}.md`)) !== 'done') continue;
+    for (const f of new Set(recs.map(r => r.file))) {
+      if (!bySrc.has(f)) bySrc.set(f, new Set());
+      bySrc.get(f).add(slug);
+    }
+  }
+  const flagged = [];
+  for (const [file, slugSet] of bySrc)
+    if (fs.existsSync(repoPath(file)) && !file.startsWith('docs/archive/'))
+      flagged.push({ file, pages: [...slugSet] });
+  return flagged;
+}
+
+function warnUnarchivedSplits(o, l, pages) {
+  for (const w of unarchivedSplits(o, l, pages))
+    console.error(`WARN: half-finished split — ${w.file} has finished page(s) `
+      + `(${w.pages.join(', ')}) in ${pages}/, but the source is still at ${w.file}. `
+      + `Run \`archive ${w.file}\` to finish the split.`);
+}
+
 function plan(outlineF, labelsF) {
   if (!outlineF || !labelsF) die('usage: docs-builder.cjs plan <outline.json> <labels.json>');
   const [o, l] = loadPair(outlineF, labelsF);
   const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
-  const dir = process.env.OUT || path.join(ARTIFACTS, 'tasks');
+  const dir = process.env.OUT || tasksDirDefault();
   fs.mkdirSync(dir, { recursive: true });
   const grouped = [...group(o, l)];
   const slugs = slugMap(grouped.map(([t]) => t));
@@ -481,6 +529,7 @@ function plan(outlineF, labelsF) {
     console.error(`WARN: ${partial.length} page(s) exist but are not a finished page `
       + '(no frontmatter, or too short) — they will be rewritten: '
       + partial.map(r => r.theme).join(', '));
+  warnUnarchivedSplits(o, l, pages);
   const tot = todo.reduce((a, r) => a + r.lines, 0);
   console.table(rows);
   if (todo.length < rows.length)
@@ -1196,6 +1245,8 @@ function reconcile() {
         + '(a FAIL does not abort reconcile); exiting non-zero once everything below has run.');
     }
     console.log('\n== index ==');    index(outlineF, labelsF);
+    const [o, l] = loadPair(outlineF, labelsF);
+    warnUnarchivedSplits(o, l, process.env.PAGES || 'docs/wiki');
   } else {
     console.log(`\nLOUD-SKIP: validate + index need ${labelsF}, which only the grouping step`
       + ' can write. Run the split flow on a doc first, or pass labels.json by hand.');
@@ -1243,9 +1294,15 @@ function archiveCleanup(args) {
 
   // Referrer scan mirrors rewriteLinks: same file types, same exclusions. A doc's own text
   // never counts as a reference to itself.
-  const scanned = gitOrThrow(['ls-files'], 'listing tracked files').split('\n')
-    .filter(f => f && LINK_EXTS.has(path.extname(f)) && !LINK_SKIP.test(f)
-                 && !f.startsWith('docs/.docs-builder/'));
+  // archiveCleanup is a top-level CLI command, so a git failure here is guarded the same way
+  // as everywhere else in this file: caught and die()'d cleanly, never left to throw past this
+  // function and dump a raw Node stack trace.
+  let scanned;
+  try {
+    scanned = gitOrThrow(['ls-files'], 'listing tracked files').split('\n')
+      .filter(f => f && LINK_EXTS.has(path.extname(f)) && !LINK_SKIP.test(f)
+                   && !f.startsWith('docs/.docs-builder/'));
+  } catch (e) { die(e.message); }
   const rows = archived.map(a => {
     const esc = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`(?<![\\w./-])${esc}(?![\\w-]|\\.[A-Za-z0-9])`);
@@ -1291,8 +1348,11 @@ function archiveCleanup(args) {
   //     and can never be deleted via this exception either.
   const deletable = new Set(rows.filter(r => files.includes(r.file) && !r.tracked)
     .map(r => r.file));
-  const dirty = gitOrThrow(['status', '--porcelain'], 'checking the tree is clean').split('\n')
-    .filter(l => !(l.startsWith('?? ') && deletable.has(l.slice(3)))).join('\n');
+  let dirty;
+  try {
+    dirty = gitOrThrow(['status', '--porcelain'], 'checking the tree is clean').split('\n')
+      .filter(l => !(l.startsWith('?? ') && deletable.has(l.slice(3)))).join('\n');
+  } catch (e) { die(e.message); }
   if (dirty) die('archive-cleanup needs a clean git tree — commit or stash first, so a '
     + 'pruned file can be restored with `git checkout`.\n' + dirty);
   let deleted = 0, unrecoverable = 0;
@@ -1355,6 +1415,6 @@ switch (cmd) {
       + '  reconcile                                 -> scan+validate+index+lint over docs/\n'
       + '  archive-cleanup [--apply <f>...]          -> report, or prune NAMED archived files\n'
       + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
-      + 'PAGES (default docs/wiki), N (search result count, default 10), '
-      + 'OVERSIZED_LINES (default 500)');
+      + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
+      + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');
 }
