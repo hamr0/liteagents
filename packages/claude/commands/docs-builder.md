@@ -210,6 +210,31 @@ node docs-builder/docs-builder.cjs apply-reorg      # defaults to the plan above
   disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
   destination** is skipped, logged, and does not stop the rest of the run.
 
+**After each move it repairs the paths that move just broke** — the whole point of doing this
+in a script. Both movers (`apply-reorg` and `archive`) go through ONE function, `moveDoc`, so
+the follow-up list cannot be added to one and missed by the other; that exact miss shipped
+three times. `moveDoc` prints nothing — each caller reports in its own format — and it throws
+only if the MOVE failed. A failed follow-up is collected instead, so a moved file is never
+reported as a file that needs re-moving. Two follow-ups:
+
+1. **Pipeline artifacts** — `rewriteArchivedPath` syncs `outline.json` / `labels.json`
+   (`records[].file`, and the `<file> :: ` prefix inside every key). This is the same
+   function `archive` calls; `apply-reorg` used to bypass it, which silently invalidated
+   every key of every file it moved. Both now reach it through `moveDoc`.
+2. **Inbound links** — every git-tracked `.md`/`.js`/`.cjs`/`.mjs`/`.json`/`.yml` file that
+   points at the old path is rewritten to the new one. Reported per file, counted in the
+   summary, and recorded in `log.md`.
+
+**Why rewriting is safe here when the dangling-reference *lint* was cut outright.** That lint
+had to **infer** whether `P95` was a reference (1/27 precision). This infers nothing:
+`apply-reorg` is holding the old path and the new path in a variable at the instant it breaks
+the link. The match is exact and anchored — a lookbehind rejects `xdocs/A.md` and
+`./docs/A.md`, a lookahead rejects `docs/A.md.bak` and `docs/A.md-old`, while a sentence-final
+`docs/A.md.` still matches. A plain substring replace corrupts all four.
+
+**Never rewritten:** `CHANGELOG.md` and `docs/log.md`. Both are append-only history — a record
+of where a file *was* is not a broken link. `docs/.docs-builder/` is excluded too; item 1 owns it.
+
 ---
 
 ## Mode 1 — cleanup

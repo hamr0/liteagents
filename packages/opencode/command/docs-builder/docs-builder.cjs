@@ -631,9 +631,15 @@ function doArchive(src, dest) {
 // one as a substring. Missing artifacts are not an error: `archive` is documented as usable
 // standalone, before `scan` has ever run.
 function rewriteArchivedPath(oldPath, newPath) {
+  // Collects its notes instead of printing them. It runs INSIDE moveDoc, before the caller
+  // has printed the move itself, so printing here put the follow-up above the thing it
+  // followed. `archive` replays these after its header; `apply-reorg` counts them instead,
+  // because per-file chatter across N moves drowns the summary.
+  const totals = { outline: 0, labels: 0, messages: [] };
+  const log = m => totals.messages.push(m);
   const oldPrefix = `${oldPath} :: `, newPrefix = `${newPath} :: `;
   const outlineF = path.join(ARTIFACTS, 'outline.json');
-  if (!fs.existsSync(outlineF)) console.log('outline.json: not present — skipped');
+  if (!fs.existsSync(outlineF)) log('outline.json: not present — skipped');
   else {
     const o = parseJSONFileOrThrow(outlineF);
     let files = 0, recFiles = 0, keys = 0;
@@ -642,44 +648,110 @@ function rewriteArchivedPath(oldPath, newPath) {
       if (r.file === oldPath) { r.file = newPath; recFiles++; }
       if (typeof r.key === 'string' && r.key.startsWith(oldPrefix)) { r.key = newPrefix + r.key.slice(oldPrefix.length); keys++; }
     }
-    if (!files && !recFiles && !keys) console.log(`outline.json: no references to ${oldPath} — nothing to update`);
+    if (!files && !recFiles && !keys) log(`outline.json: no references to ${oldPath} — nothing to update`);
     else {
       fs.writeFileSync(outlineF, JSON.stringify(o, null, 1));
-      console.log(`outline.json: updated files[] x${files}, records[].file x${recFiles}, records[].key x${keys}`);
+      log(`outline.json: updated files[] x${files}, records[].file x${recFiles}, records[].key x${keys}`);
+      totals.outline = files + recFiles + keys;
     }
   }
   const labelsF = path.join(ARTIFACTS, 'labels.json');
-  if (!fs.existsSync(labelsF)) console.log('labels.json: not present — skipped');
+  if (!fs.existsSync(labelsF)) log('labels.json: not present — skipped');
   else {
     const l = parseJSONFileOrThrow(labelsF);
     let keys = 0;
     for (const row of (l.labels || []))
       if (typeof row.key === 'string' && row.key.startsWith(oldPrefix)) { row.key = newPrefix + row.key.slice(oldPrefix.length); keys++; }
-    if (!keys) console.log(`labels.json: no references to ${oldPath} — nothing to update`);
+    if (!keys) log(`labels.json: no references to ${oldPath} — nothing to update`);
     else {
       fs.writeFileSync(labelsF, JSON.stringify(l, null, 1));
-      console.log(`labels.json: updated labels[].key x${keys}`);
+      log(`labels.json: updated labels[].key x${keys}`);
+      totals.labels = keys;
     }
   }
+  return totals;
+}
+
+// `apply-reorg` is the only command in this pipeline that changes a doc's PATH, so it is the
+// only one that can break an inbound link. Both the old and the new path are in hand at the
+// moment of the move: this is an exact mechanical swap, not an inferred one — which is why it
+// is safe to do here even though the *inferred* dangling-reference lint was cut outright
+// (1/27 precision). Bounded on purpose: git-tracked text files only; never CHANGELOG.md or
+// log.md (append-only history — a record of where a file WAS is not a broken link); never the
+// pipeline's own JSON (rewriteArchivedPath owns those).
+const LINK_EXTS = new Set(['.md', '.js', '.cjs', '.mjs', '.json', '.yml', '.yaml']);
+const LINK_SKIP = /(^|\/)(CHANGELOG\.md|log\.md)$/;
+function rewriteLinks(oldPath, newPath) {
+  const esc = oldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Exact-path match. The lookbehind stops `xdocs/A.md` and `./docs/A.md` counting as this
+  // path; the lookahead stops `docs/A.md.bak` and `docs/A.md-old`, while still allowing a
+  // sentence-final `docs/A.md.` — a plain substring replace corrupts all four.
+  const re = new RegExp(`(?<![\\w./-])${esc}(?![\\w-]|\\.[A-Za-z0-9])`, 'g');
+  // Returns what it did; prints nothing. `archive` and `apply-reorg` format their output
+  // differently, and a helper that prints straight to stdout cannot be reused by both.
+  const result = { total: 0, files: [] };
+  for (const f of gitOrThrow(['ls-files'], 'listing tracked files').split('\n')) {
+    if (!f || !LINK_EXTS.has(path.extname(f))) continue;
+    if (LINK_SKIP.test(f) || f.startsWith('docs/.docs-builder/')) continue;
+    let text;
+    try { text = fs.readFileSync(repoPath(f), 'utf8'); } catch { continue; }
+    let n = 0;
+    const out = text.replace(re, () => (n++, newPath));
+    if (!n) continue;
+    fs.writeFileSync(repoPath(f), out);
+    result.files.push({ file: f, n });
+    result.total += n;
+  }
+  return result;
+}
+
+// THE single path through which a doc changes location. Every follow-up a move requires
+// lives here, and nowhere else.
+//
+// It exists because the same defect shipped three times running: a follow-up was added to
+// one caller and missed by the other. Round 1 fixed repo-vs-cwd path resolution; round 4
+// found eight more sites of it. Round 4 fixed the artifact key-sync inside `archive`, but
+// `apply-reorg` had never called it at all. Adding link rewriting to `apply-reorg` then left
+// `archive` behind in exactly the same way. The two callers differ ONLY in how they report —
+// never in what a move entails — so reporting is the parameter and the follow-up list is not.
+//
+// THROWS only if the move itself failed, in which case nothing on disk has changed. A
+// follow-up that fails is collected in `failures` instead, so it can never be mistaken for a
+// failed move: the file HAS moved, and telling the caller to retry would be wrong.
+function moveDoc(src, dest) {
+  const r = doArchive(src, dest);
+  const out = { ...r, artifacts: 0, artifactNotes: [], links: 0, linkFiles: [], failures: [] };
+  try {
+    const t = rewriteArchivedPath(src, r.rel);
+    out.artifacts = t.outline + t.labels;
+    out.artifactNotes = t.messages;
+  } catch (e) { out.failures.push(`syncing outline/labels failed: ${e.message}`); }
+  try {
+    const l = rewriteLinks(src, r.rel);
+    out.links = l.total; out.linkFiles = l.files;
+  } catch (e) { out.failures.push(`rewriting inbound links failed: ${e.message}`); }
+  return out;
 }
 
 function archive(src, dest) {
   if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
-  // Two try/catches ON PURPOSE: a caller must be able to tell "the move did not happen"
-  // (doArchive threw) from "the move happened, artifact sync did not" (rewriteArchivedPath
-  // threw AFTER git mv). MEASURED: a malformed outline.json used to crash here with a bare
-  // stack trace naming neither the artifact nor the fact the file had already moved.
+  // A throw and a `failures` entry mean different things and must be reported differently:
+  // a throw means NOTHING moved and retrying is correct; a failure means the file DID move
+  // and telling the user to re-run `archive` would be actively wrong. MEASURED: a malformed
+  // outline.json used to crash here with a bare stack trace naming neither the artifact nor
+  // the fact that the file had already moved.
   let r;
-  try { r = doArchive(src, dest); }
+  try { r = moveDoc(src, dest); }
   catch (e) { die(e.message); }
   console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
-  try { rewriteArchivedPath(src, r.rel); }
-  catch (e) {
-    die(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But syncing the pipeline's `
-      + `record of it failed: ${e.message}\nFix that file, then re-run \`scan\` (and redo `
-      + `labels) — do NOT re-run \`archive\` for ${src}, it has already moved.`);
-  }
-  logOp('archive', `${src} -> ${r.rel}`);
+  for (const m of r.artifactNotes) console.log(`  ${m}`);
+  for (const { file, n } of r.linkFiles) console.log(`  ${file}: ${n} link(s) -> ${r.rel}`);
+  if (r.failures.length)
+    die(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
+      + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
+      + `${src}, it has already moved.`);
+  logOp('archive', `${src} -> ${r.rel}`
+    + (r.links ? `, ${r.links} link(s) rewritten` : ''));
 }
 
 // ---------------------------------------------------------------- ledger + due
@@ -693,14 +765,23 @@ const DUE_THRESHOLD = 5;
 // One guarded entry point for git. Two things it must never do: dump a Node stack trace at
 // the user, and truncate on a large repo (execFileSync defaults to a 1 MB buffer, which
 // `ls-files` can exceed on a big tree).
-function git(args, what) {
+// Core THROWS; the wrapper below turns that into process.exit for top-level callers. The
+// split is load-bearing, not tidiness: `die` runs process.exit, which NO try/catch can
+// intercept. A caller that must SURVIVE a git failure — rewriteLinks, running mid-loop in
+// `apply-reorg` after files have already moved — has to call gitOrThrow, or one bad git
+// invocation kills the run partway through and prints neither a summary nor a log line.
+function gitOrThrow(args, what) {
   try {
     return execFileSync('git', ['-C', REPO, ...args],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }).trim();
   } catch (e) {
     const msg = (e.stderr || '').toString().trim().split('\n')[0] || e.message;
-    die(`git failed while ${what}: ${msg}`);
+    throw new Error(`git failed while ${what}: ${msg}`);
   }
+}
+function git(args, what) {
+  try { return gitOrThrow(args, what); }
+  catch (e) { die(e.message); }
 }
 
 function docFiles() {
@@ -1007,7 +1088,8 @@ function applyReorg(planFile) {
   const f = planFile || path.join(ARTIFACTS, 'reorg-plan.json');
   if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
   const plan = parseJSONFile(f);
-  const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0 };
+  const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0,
+                    artifactsSynced: 0, linksRewritten: 0, syncFailed: 0 };
   const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
   for (const row of plan.rows) {
     if (row.bucket === 'oversized') { results.oversizedLeftAlone++; continue; }
@@ -1016,13 +1098,25 @@ function applyReorg(planFile) {
     const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
     usedNames.set(destDir + '/' + base, n);
     if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+    // Only a failed MOVE skips the file. A failed follow-up is a warning on a file that has
+    // already moved — counting it as skipped would be a lie, and stopping the loop would
+    // strand the rest of the plan half-applied.
+    let r;
     try {
-      const r = doArchive(row.file, path.join(destDir, base));
-      console.log(`  ${row.file} -> ${r.rel}`);
-      results.moved++;
+      r = moveDoc(row.file, path.join(destDir, base));
     } catch (e) {
       console.error(`SKIP ${row.file}: ${e.message}`);
       results.skipped++;
+      continue;
+    }
+    console.log(`  ${row.file} -> ${r.rel}`);
+    results.moved++;
+    results.artifactsSynced += r.artifacts;
+    results.linksRewritten += r.links;
+    for (const { file, n } of r.linkFiles) console.log(`    ${file}: ${n} link(s) -> ${r.rel}`);
+    for (const f of r.failures) {
+      console.error(`  WARN ${row.file} MOVED, but ${f}`);
+      results.syncFailed++;
     }
   }
   console.log(JSON.stringify(results, null, 1));
@@ -1030,7 +1124,8 @@ function applyReorg(planFile) {
     console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `
       + 'pipeline on each, then `archive` the original.');
   logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
-    + `${results.oversizedLeftAlone} oversized left in place`);
+    + `${results.oversizedLeftAlone} oversized left in place, `
+    + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s)`);
 }
 
 // ---------------------------------------------------------------- dispatch
