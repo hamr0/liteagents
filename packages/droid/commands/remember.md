@@ -4,7 +4,7 @@ description: Consolidate stashes + friction into project memory
 usage: /remember
 ---
 
-Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into AGENTS.md. Friction runs automatically (best-effort) — there is no separate `/friction` command.
+Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into AGENTS.md. Friction runs automatically (best-effort) — there is no separate `/friction` command. A docs reconcile check runs at the end, detect-only.
 
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
@@ -30,9 +30,9 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    project are behavioral lessons worth keeping everywhere. So point it at the tool's
    **global sessions root** (all projects), not a per-project directory.
 
-   - **Locate `friction.js`** — it is bundled next to this command at `remember/friction.js`
+   - **Locate `friction.cjs`** — it is bundled next to this command at `remember/friction.cjs`
      (the same directory as `remember.md`, whether installed or run from the package). If it
-     exists nowhere, skip to step 1 (stash-only) and tell the user friction.js is missing.
+     exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
      exists and contains `.jsonl` files (recursively). **Never prompt the user.**
      ```
@@ -44,10 +44,10 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      ~/.codex/sessions/                  # Codex CLI  (use $CODEX_HOME/sessions/ if set)
      ~/.gemini/antigravity-cli/brain/    # Antigravity
      ```
-     > Note: `friction.js` parses Claude Code's session schema. The Codex/Antigravity roots
+     > Note: `friction.cjs` parses Claude Code's session schema. The Codex/Antigravity roots
      > will resolve but yield no signals until friction learns their formats — open an issue
      > to request one: https://github.com/hamr0/liteagents/issues
-   - **Run** `node <friction.js> "<resolved-root>"`. friction writes its output to
+   - **Run** `node <friction.cjs> "<resolved-root>"`. friction writes its output to
      `.factory/remember/friction/` in the current project.
    - **On any miss — loud, never silent.** If no root resolves, or friction errors, or it
      finds no usable sessions, print this and continue with stash-only consolidation:
@@ -67,7 +67,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      the new reference (step 5), and tell the user exactly what moved.
    - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
      `.factory/remember/AGENT_RULES.md` does not exist, copy it from the bundled template next
-     to this command (`remember/AGENT_RULES.md`, same directory as `friction.js`). If it
+     to this command (`remember/AGENT_RULES.md`, same directory as `friction.cjs`). If it
      already exists, leave it untouched — never overwrite, even if the bundled template
      changes in a later version; it becomes user-owned the moment it lands in the project.
    - Read all `.factory/stash/*.md` files in the current project
@@ -235,7 +235,35 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.factory/remember/.processed`
 
-7. **Report to user** — print it AND write the same content to `.factory/remember/report.md`
+7. **Docs reconcile check — DETECT ONLY** (best-effort, crash-isolated like step 0)
+
+   `/remember` never reconciles docs, never writes frontmatter, never edits a page. It
+   prints at most one nudge line. Wrapped so any failure here can never block the memory
+   write that already happened in steps 3-6.
+
+   - **Locate `docs-builder.cjs`** — bundled next to this command at
+     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`).
+   - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
+     saying anything. Most projects have no doc corpus and a nudge every run is noise.
+   - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
+     missing, `git` fails, or the command errors, print one line explaining why the check
+     was skipped. Never fail silently.
+   - **No ledger yet:** `due` says so itself and reports NOT due. Pass that line through
+     once, then move on — do not offer to create a ledger unless the user asks.
+   - Otherwise run it and pass through its verdict:
+     ```bash
+     node docs-builder/docs-builder.cjs due
+     ```
+     `due` compares `docs/` against the SHA stamped in `docs/.docs-builder/ledger.json`
+     using `git diff --numstat -M`, classifying each doc as new / moved / moved+changed /
+     changed (with the line delta and rough percentage) / deleted. It is **due at >=5
+     changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
+   - If DUE, end with one line and nothing more:
+     ```
+     docs: 7 changed since 991f72d3 — run /docs-builder reconcile
+     ```
+
+8. **Report to user** — print it AND write the same content to `.factory/remember/report.md`
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
    - Facts count (total, new)
@@ -259,5 +287,6 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 - Antigen ledger: `.factory/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.factory/remember/report.md` (latest step-7 report, overwritten each run)
 - Processed manifest: `.factory/remember/.processed`
+- Docs ledger (READ ONLY from here — owned by `/docs-builder`): `docs/.docs-builder/ledger.json`
 - Friction output (transient, regenerated each run): `.factory/remember/friction/` — `antigen_clusters.json` (preferred input), `antigen_review.md` (fallback), plus raw analysis files
 - Output: `AGENTS.md` (managed MEMORY section, plus an AGENT_RULES section once bootstrapped)

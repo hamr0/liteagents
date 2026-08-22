@@ -3,8 +3,13 @@
  * Friction analysis pipeline - analyze sessions and extract antigens.
  *
  * Usage:
- *     node friction.js <sessions-directory>
- *     node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *     node friction.cjs <sessions-directory>
+ *     node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *
+ * Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
+ * package.json declares "type": "module", a `.js` file loads as an ES module and every
+ * `require` below throws before the first line of work. `.cjs` pins CommonJS regardless of
+ * the host project. Found via docs-builder.cjs hitting the identical bug on a real repo.
  *
  * Outputs (all in .amp/remember/friction/):
  *     friction_analysis.json   - Per-session analysis
@@ -1383,13 +1388,13 @@ function generateDetailedReport(outputDir, analyses, summary, config, signalCoun
   const recommendations = [];
 
   if (falseSuccessCount > 10) {
-    recommendations.push('**High Priority:** Add CLAUDE.md rule to verify exit codes before claiming success');
+    recommendations.push('**High Priority:** Add AGENT.md rule to verify exit codes before claiming success');
   }
   if (interruptCount > 20) {
     recommendations.push('**High Priority:** Commands timing out or stuck - review for heavy operations that need optimization');
   }
   if ((signalCounts.tool_loop || 0) > 3) {
-    recommendations.push('**Medium Priority:** Add CLAUDE.md rule to detect and break out of tool loops');
+    recommendations.push('**Medium Priority:** Add AGENT.md rule to detect and break out of tool loops');
   }
   if (interventionCountLocal / summary.overall.interactive_sessions > 0.4) {
     recommendations.push('**Critical:** >40% abandonment rate - major UX issues, review antigens for patterns');
@@ -2355,8 +2360,8 @@ function main() {
 Friction analysis pipeline - analyze sessions and extract antigens.
 
 Usage:
-    node friction.js <sessions-directory>
-    node friction.js ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+    node friction.cjs <sessions-directory>
+    node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
 
 Outputs (all in .amp/remember/friction/):
     friction_analysis.json   - Per-session analysis
@@ -2406,7 +2411,7 @@ Outputs (all in .amp/remember/friction/):
     console.log('\nReview your antigens:');
     console.log(`  cat ${reviewFile}`);
     console.log('\nOr feed to LLM:');
-    console.log(`  cat ${reviewFile} | claude "write CLAUDE.md rules to prevent these patterns"`);
+    console.log(`  cat ${reviewFile} | claude "write AGENT.md rules to prevent these patterns"`);
   }
 
   return 0;

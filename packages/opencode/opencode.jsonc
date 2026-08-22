@@ -142,8 +142,8 @@
       "description": "Facilitate structured brainstorming sessions with proven techniques and frameworks"
     },
     "docs-builder": {
-      "template": "{file:./command/docs-builder/SKILL.md}",
-      "description": "Create comprehensive project documentation with structured /docs hierarchy"
+      "template": "{file:./command/docs-builder.md}",
+      "description": "Reorg a docs corpus, split an oversized doc, keep pages current, index them"
     },
     "live-canvas": {
       "template": "{file:./command/live-canvas.md}",
@@ -184,10 +184,6 @@
     "test-generate": {
       "template": "{file:./command/test-generate.md}",
       "description": "Generate tests, run them, and verify each test actually exercises the code (not just passes)"
-    },
-    "subagent-spawning": {
-      "template": "{file:./command/subagent-spawning.md}",
-      "description": "Provides TDD-aware templates for spawning fresh subagents"
     }
   }
 }

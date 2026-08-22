@@ -14,7 +14,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | 2-generate-tasks | 2-Generate Tasks | Detailed Planning - use to break down the PRD into a granular, actionable task list |
 | 3-process-task-list | 3-Process Task List | Iterative Implementation - use to guide the AI to tackle one task at a time, allowing you to review and approve each change |
 | code-developer | Full Stack Developer | Use for code implementation, debugging, refactoring, and development best practices |
-| context-builder | Context Initializer | Use to initialize project context for new/existing projects, discover and organize documentation, create CLAUDE.md and KNOWLEDGE_BASE.md for optimal token-efficient memory |
+| context-builder | Context Initializer | Use to initialize project context for new/existing projects, discover and organize documentation, create AGENTS.md and KNOWLEDGE_BASE.md for optimal token-efficient memory |
 | feature-planner | Product Manager | Use for creating epics and user stories, prioritization, backlog navigation, story refinement, and retrospectives |
 | market-researcher | Business Analyst | Use for market research, brainstorming, competitive analysis, project briefs, and initial project discovery |
 | orchestrator | Master Orchestrator | Use for workflow coordination, multi-agent tasks, role switching guidance, and when unsure which specialist to consult |
@@ -27,7 +27,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Create comprehensive project documentation with structured /docs hierarchy | /docs-builder | false |
+| docs-builder | Reorg a docs corpus, split an oversized doc, keep pages current, index them | /docs-builder [reorg \| reconcile \| archive-cleanup \| <file.md>] | false |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Droid) | /live-canvas | false |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |

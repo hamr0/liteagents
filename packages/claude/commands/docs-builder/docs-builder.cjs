@@ -1,0 +1,1076 @@
+#!/usr/bin/env node
+'use strict';
+// docs-builder — every mechanical step of the pipeline. Vanilla Node, zero deps, NO MODEL.
+// The model is used for exactly two things (propose themes, write pages); everything else
+// lives here, because bookkeeping done by a script is 100% and done by a model is 27%.
+//
+//   scan     <file.md...>                          -> outline.json   (Layer 1)
+//   validate <outline.json> <labels.json>          -> PASS/FAIL      (Layer 2 gate)
+//   plan     <outline.json> <labels.json>          -> task-<theme>.json per page (resumes)
+//   index    <outline.json> <labels.json>          -> index.md       (coarse reader index)
+//   search   <outline.json> <query words...>       -> ranked sections (BM25, zero deps)
+//   archive  <src.md> [dest.md]                    -> verified MOVE into docs/archive/
+//   ledger                                         -> record the current state of docs/
+//   due                                            -> what changed since the ledger, and how much
+//   lint     <file.md...>                          -> lint.json      (declared-only checks)
+//   discover [root]                                -> reorg-plan.json (classify, NEVER moves)
+//   apply-reorg [plan.json]                        -> executes the plan's product/archive moves
+//
+// Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
+// link check), PAGES (default docs/wiki, validate's citations + plan), N (search count,
+// default 10), OVERSIZED_LINES (default 500, discover's oversized ceiling).
+
+// Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
+// package.json declares "type": "module", a `.js` file is loaded as an ES module and every
+// `require` below throws before the first line of work. `.cjs` pins CommonJS regardless of
+// the host project. Found the hard way: bareloop is such a project.
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const { execFileSync } = require('child_process');
+
+const REPO = process.env.REPO || process.cwd();
+const clean = s => s.replace(/\s+/g, ' ').trim();
+// Source .md paths are repo-relative; JSON artifacts the pipeline itself produced are
+// cwd-relative. Keeping these separate stops `plan` looking for outline.json inside the
+// repo being documented.
+const repoPath = f => path.isAbsolute(f) ? f : path.join(REPO, f);
+const read = f => fs.readFileSync(repoPath(f), 'utf8');
+const die = m => { console.error(m); process.exit(1); };
+// Guarded chokepoint for every JSON pipeline artifact this script reads. Used to be TWO
+// readers: a guarded one (2 callers) and 5 bare `JSON.parse(fs.readFileSync(...))` sites
+// that dumped a raw node stack trace on a hand-edited or truncated file. Core THROWS, never
+// exits (same split as doArchive()/archive() below) so rewriteArchivedPath() can catch a
+// malformed-JSON failure and report it alongside "the git mv already succeeded" instead of
+// a bare die(). `parseJSONFile` is the die-on-throw convenience wrapper most callers want.
+// `sha()` reads raw bytes for hashing, a different job, and stays outside this.
+const parseJSONFileOrThrow = f => {
+  try { return JSON.parse(fs.readFileSync(f, 'utf8')); }
+  catch (e) { throw new Error(`malformed JSON in ${f}: ${e.message}`); }
+};
+const parseJSONFile = f => {
+  try { return parseJSONFileOrThrow(f); }
+  catch (e) { die(e.message); }
+};
+const readArtifactJSON = f => {
+  if (!fs.existsSync(f)) die(`no such file: ${f} — did an earlier pipeline step not run yet?`);
+  return parseJSONFile(f);
+};
+
+// ---------------------------------------------------------------- shared parsing
+
+// Headings inside ``` or ~~~ fences are not headings.
+function fenceMask(lines) {
+  const mask = new Array(lines.length).fill(false);
+  let open = false, marker = null;
+  lines.forEach((ln, i) => {
+    const t = ln.trimStart();
+    if (t.startsWith('```') || t.startsWith('~~~')) {
+      const m = t.slice(0, 3);
+      if (!open) { open = true; marker = m; mask[i] = true; }
+      else if (m === marker) { mask[i] = true; open = false; marker = null; }
+      else mask[i] = true;
+    } else mask[i] = open;
+  });
+  return mask;
+}
+
+// Fence-awareness used to be FOUR implementations: this mask, snippet()'s own lone
+// `startsWith('```')` check (caught the marker but let CODE inside it leak into a snippet as
+// prose), sentences()'s own regex strip, and checkCitations/checkLinks doing none at all — so
+// a page documenting the citation/link syntax INSIDE a fence got its own example flagged as
+// a real violation. One mechanism: mask with fenceMask(), drop the masked lines.
+function stripFences(text) {
+  const lines = text.split('\n');
+  const mask = fenceMask(lines);
+  return lines.filter((_, i) => !mask[i]).join('\n');
+}
+
+const ID_RE = /^([A-Z]{1,4}\d{1,4}(?:[-–][A-Z]?\d{1,4})?)\b/;
+
+// THE KEY. The model echoes this string back verbatim; the validator checks that same
+// string. One function, so the two can never disagree — the POC scored "86/86 byte-exact"
+// against keys the prompt had silently truncated at 110 chars while the source headings
+// ran longer, which is only a pass because both sides shared the same truncation by luck.
+// Uniqueness is GUARANTEED here, not assumed: bareloop's PRD has 0 collisions, but a repo
+// with "## Cache Invalidation" in three files has three.
+const KEY_WIDTH = 110;
+// The `${r.file} :: ` prefix is ALWAYS applied, never conditional on batch size. MEASURED
+// bug: scanning one file alone vs. alongside a second file used to produce different keys
+// for the same heading ("The core mappings" vs "docs/00-context/CYBERNETICS.md :: The core
+// mappings"), so a labels.json made from a single-doc cleanup silently stopped matching the
+// same file's key the moment it was rescanned as part of a corpus-wide reconcile. Key format
+// must not depend on scan batch size.
+function makeKeys(records) {
+  const seen = new Map();
+  for (const r of records) {
+    // .trim() is load-bearing: truncating at a fixed width lands mid-space often enough
+    // (9 of 86 headings on the bareloop PRD), and no model will faithfully echo back a key
+    // with a trailing space. Never ask a model to reproduce something it cannot see.
+    const head = (r.id || (r.h2.length > KEY_WIDTH ? r.h2.slice(0, KEY_WIDTH) : r.h2)).trim();
+    const base = `${r.file} :: ${head}`;
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    r.key = n === 1 ? base : `${base} #${n}`;
+    if (n > 1) console.error(`WARN: key collision disambiguated -> ${r.key}`);
+  }
+  return records;
+}
+
+// `mask` is fenceMask(lines), computed once per file in scan() and shared with snippet().
+function headings(lines, mask) {
+  const h1 = (lines.find((l, i) => !mask[i] && l.startsWith('# ')) || '').slice(2).trim();
+  const heads = [];
+  lines.forEach((l, i) => {
+    if (mask[i]) return;
+    const m = l.match(/^(#{2,4})\s+(.+)$/);
+    if (m) heads.push({ lvl: m[1].length, text: clean(m[2]), line: i + 1 });
+  });
+  return { h1, heads };
+}
+
+// First two prose lines under a heading. `mask[i]` now excludes fence CODE lines too, not
+// just the opening marker — the old `startsWith('```')` check let fenced content leak in.
+function snippet(lines, mask, from, to, cap) {
+  const out = [];
+  for (let i = from; i < to && out.length < 2; i++) {
+    if (mask[i]) continue;
+    const t = lines[i].trim();
+    if (!t || t.startsWith('#') || /^[|>-]{3,}$/.test(t)) continue;
+    out.push(t);
+  }
+  return clean(out.join(' ')).slice(0, cap);
+}
+
+// ---------------------------------------------------------------- scan (Layer 1)
+
+function scan(files) {
+  if (!files.length) die('usage: docs-builder.cjs scan <file.md...>');
+  const records = [];
+  for (const f of files) {
+    const lines = read(f).split('\n');
+    const mask = fenceMask(lines);
+    const { h1, heads } = headings(lines, mask);
+    const h2s = heads.filter(h => h.lvl === 2);
+    h2s.forEach((h2, k) => {
+      const s = h2.line;
+      const e = k + 1 < h2s.length ? h2s[k + 1].line - 1 : lines.length;
+      const kids = heads.filter(h => h.lvl >= 3 && h.line > s && h.line <= e);
+      // Every H3 carries its OWN start/end so a page writer can read it alone.
+      const h3 = kids.map((c, ci) => ({
+        t: c.t || c.text, lvl: c.lvl, s: c.line,
+        e: ci + 1 < kids.length ? kids[ci + 1].line - 1 : e
+      }));
+      const idm = h2.text.match(ID_RE);
+      records.push({
+        h1, file: f, h2: h2.text, id: idm ? idm[1] : null, s, e,
+        lines: e - s + 1,
+        chars: lines.slice(s - 1, e).join('\n').length,
+        snip: snippet(lines, mask, s, h3.length ? h3[0].s - 1 : e, 300),
+        h3
+      });
+    });
+  }
+  makeKeys(records);
+  const out = {
+    generated: new Date().toISOString(), repo: REPO, files,
+    totals: {
+      records: records.length,
+      h3Rows: records.reduce((a, r) => a + r.h3.length, 0),
+      withId: records.filter(r => r.id).length,
+      truncatedKeys: records.filter(r => !r.id && r.h2.length > KEY_WIDTH).length
+    },
+    records
+  };
+  write(out, 'outline.json');
+  console.log(JSON.stringify(out.totals, null, 1));
+  // Say the contract out loud so a caller cannot get it wrong.
+  console.log('key: echo records[].key back VERBATIM. Never emit a positional index.');
+}
+
+// ---------------------------------------------------------------- validate (Layer 2 gate)
+
+// labels.json: { themes: [{name, gloss}], labels: [{key, theme}] }
+// This is the gate that catches the POC A failure class: positional drift producing
+// dropped, shifted and duplicated keys inside confident-looking output.
+function keyOf(r) {
+  if (!r.key) die('outline.json has no records[].key — re-run `docs-builder.cjs scan`');
+  return r.key;
+}
+
+function loadPair(outlineF, labelsF) {
+  const o = readArtifactJSON(outlineF), l = readArtifactJSON(labelsF);
+  if (!Array.isArray(o.records)) die('outline.json has no records[]');
+  if (!Array.isArray(l.labels)) die('labels.json has no labels[]');
+  // Without a theme list the "none off-list" check silently passes anything. A gate that
+  // quietly stops checking is worse than no gate.
+  if (!Array.isArray(l.themes) || !l.themes.length)
+    die('labels.json has no themes[] — the off-list check cannot run. Emit the propose '
+      + 'pass output alongside the labels.');
+  return [o, l];
+}
+
+// (a) every outline record's source file must still exist. Catches an outline gone stale
+// after a move that bypassed `archive` (Change 2 keeps `archive` itself in sync).
+function checkPaths(o) {
+  return [...new Set(o.records.map(r => r.file))].filter(f => !fs.existsSync(repoPath(f)));
+}
+
+// (b) every `[..](wiki/<slug>.md)` link inside index.md must resolve to a real file. Loud
+// skip, not a silent pass, when index.md itself is missing — same law as the themes[] guard
+// in loadPair() above: a gate that quietly stops checking is worse than no gate.
+function checkLinks() {
+  const rel = process.env.INDEX || 'docs/index.md';
+  if (!fs.existsSync(repoPath(rel))) { console.error(`LOUD-SKIP: links check did not run — no ${rel}`); return { checked: false, bad: [] }; }
+  const text = stripFences(fs.readFileSync(repoPath(rel), 'utf8'));
+  // Old regex required the capture to end `.md)` literally, so `(wiki/x.md#anchor)` never
+  // matched — a broken link went unchecked. And `%20` in a correct link false-positived
+  // against the real (unencoded) path. Fix: strip `#anchor` before the `.md` filter, decode
+  // before the existence check.
+  const links = new Set([...text.matchAll(/\(wiki\/([^)]+)\)/g)]
+    .map(m => decodeURIComponent(m[1].split('#')[0]))
+    .filter(l => l.endsWith('.md'))
+    .map(l => `wiki/${l}`));
+  const bad = [...links].filter(link => !fs.existsSync(repoPath(path.join(path.dirname(rel), link))));
+  return { checked: true, bad };
+}
+
+// (c)/(d) citations. Format `(<file>:<start>-<end>)` or `(<file>:<line>)`, pinned in
+// docs-builder.md step 5. A page may only cite inside its OWN task's source ranges — anything
+// else (wrong file, out-of-range, ambiguous basename) is the exact failure class `plan`'s
+// per-page context isolation exists to prevent, so it is a gate, not a proposal. Uncited
+// sections (d) are the mirror check — flagged, never blocking (see docstring at call site).
+const CITE_RE = /\(([\w./-]+\.\w+):(\d+)(?:-(\d+))?\)/g;
+
+function checkCitations() {
+  const pagesDir = process.env.PAGES || 'docs/wiki';
+  const tasksDir = path.join(ARTIFACTS, 'tasks');
+  if (!fs.existsSync(repoPath(pagesDir)) || !fs.existsSync(tasksDir)) {
+    console.error(`LOUD-SKIP: citations check did not run — missing ${pagesDir} or ${tasksDir}`);
+    return { checked: false, violations: [], uncited: [] };
+  }
+  const violations = [], uncited = [];
+  for (const pageFile of fs.readdirSync(repoPath(pagesDir)).filter(f => f.endsWith('.md'))) {
+    const taskF = path.join(tasksDir, `task-${pageFile.slice(0, -3)}.json`);
+    if (!fs.existsSync(taskF)) { console.error(`WARN: no task file for ${pageFile} — citations not checked`); continue; }
+    const task = parseJSONFile(taskF);
+    const byFile = new Map();
+    for (const sec of task.sections || []) {
+      if (!byFile.has(sec.file)) byFile.set(sec.file, []);
+      byFile.get(sec.file).push({ s: sec.s, e: sec.e });
+    }
+    const text = stripFences(fs.readFileSync(repoPath(path.join(pagesDir, pageFile)), 'utf8'));
+    const cited = [];
+    for (const m of text.matchAll(CITE_RE)) {
+      const raw = m[1], s = +m[2], e = m[3] ? +m[3] : +m[2];
+      const tag = `${raw}:${m[2]}${m[3] ? '-' + m[3] : ''}`;
+      // MEASURED: a reversed range like `(CYBERNETICS.md:97-28)` passed silently — `s >= r.s
+      // && e <= r.e` below can hold even with s > e, since neither half alone catches it.
+      if (s < 1 || e < 1 || s > e) {
+        violations.push({ page: pageFile, cite: tag, reason: 'invalid line range (must be 1-based, start <= end)' });
+        continue;
+      }
+      const bases = [...byFile.keys()].filter(f => path.basename(f) === path.basename(raw));
+      if (!byFile.has(raw) && bases.length > 1) {
+        violations.push({ page: pageFile, cite: tag, reason: `ambiguous basename across this page's sources: ${bases.join(', ')}` });
+        continue;
+      }
+      const file = byFile.has(raw) ? raw : bases[0];
+      if (!file) { violations.push({ page: pageFile, cite: tag, reason: "file not among this page's sources" }); continue; }
+      const ranges = byFile.get(file);
+      if (!ranges.some(r => s >= r.s && e <= r.e)) {
+        violations.push({ page: pageFile, cite: tag, reason: `outside allowed ranges ${ranges.map(r => `${r.s}-${r.e}`).join(', ')}` });
+        continue;
+      }
+      cited.push({ file, s, e });
+    }
+    for (const sec of task.sections || [])
+      if (!cited.some(c => c.file === sec.file && c.s <= sec.e && c.e >= sec.s))
+        uncited.push({ page: pageFile, file: sec.file, h2: sec.h2 });
+  }
+  return { checked: true, violations, uncited };
+}
+
+// `docs/.docs-builder/failures.json` — a LIVE count of current gate failures, keyed
+// `<check>:<target>`, not a graveyard: a key that stops failing is deleted. Never called
+// for uncited sections — that check is propose-only by design, never a failure count.
+function reconcileFailures(ledger, check, targets, detailOf) {
+  const prefix = `${check}:`, now = new Date().toISOString();
+  for (const key of Object.keys(ledger))
+    if (key.startsWith(prefix) && !targets.has(key.slice(prefix.length))) delete ledger[key];
+  for (const t of targets) {
+    const e = ledger[prefix + t] || (ledger[prefix + t] = { count: 0, firstSeen: now });
+    e.count++; e.lastSeen = now; e.lastDetail = detailOf(t);
+  }
+}
+
+// `docs/log.md` is documented (Layout, Mode 3) as append-only — `## [DATE] operation |
+// description` — but nothing wrote it before this.
+function logOp(op, desc) {
+  const f = path.join(REPO, 'docs/log.md');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.appendFileSync(f, `## [${new Date().toISOString().slice(0, 10)}] ${op} | ${desc}\n`);
+}
+
+function validate(outlineF, labelsF) {
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs validate <outline.json> <labels.json>');
+  const [o, l] = loadPair(outlineF, labelsF);
+  const expect = new Map(o.records.map(r => [keyOf(r), r]));
+  const themes = new Set((l.themes || []).map(t => t.name));
+  const seen = new Map();
+  const invented = [], offTheme = [], dupes = [];
+  for (const row of l.labels) {
+    if (!expect.has(row.key)) { invented.push(row.key); continue; }
+    if (seen.has(row.key)) dupes.push(row.key); else seen.set(row.key, row.theme);
+    if (themes.size && !themes.has(row.theme)) offTheme.push(`${row.key} -> ${row.theme}`);
+  }
+  const missing = [...expect.keys()].filter(k => !seen.has(k));
+  const covered = [...seen.keys()].reduce((a, k) => a + expect.get(k).lines, 0);
+  const total = o.records.reduce((a, r) => a + r.lines, 0);
+  const missingFiles = checkPaths(o);
+  const links = checkLinks();
+  const citations = checkCitations();
+  // Uncited sections are FLAG ONLY — deliberately excluded from `pass`, per docs-builder.md.
+  const pass = !invented.length && !offTheme.length && !dupes.length && !missing.length
+    && !missingFiles.length && !links.bad.length && !citations.violations.length;
+  const res = {
+    sections: o.records.length, labels: l.labels.length,
+    invented, offTheme, dupes, missing,
+    linesCovered: covered, linesTotal: total,
+    paths: { missingFiles },
+    links,
+    citations: { checked: citations.checked, violations: citations.violations, uncited: citations.uncited },
+    verdict: pass ? 'PASS' : 'FAIL'
+  };
+  console.log(JSON.stringify({
+    ...res, invented: invented.length, offTheme: offTheme.length,
+    dupes: dupes.length, missing: missing.length, missingFiles: missingFiles.length,
+    badLinks: links.bad.length, citationViolations: citations.violations.length,
+    uncitedSections: citations.uncited.length
+  }, null, 1));
+  if (!pass) {
+    for (const [k, v] of [['invented', invented], ['off-theme', offTheme],
+                          ['duplicate', dupes], ['missing', missing],
+                          ['missing source file', missingFiles], ['bad index link', links.bad],
+                          ['citation violation', citations.violations.map(v => `${v.page} (${v.cite}) — ${v.reason}`)]])
+      if (v.length) console.error(`\n${k} (${v.length}):\n  ` + v.slice(0, 20).join('\n  '));
+  }
+  if (citations.uncited.length)
+    console.error(`\nuncited sections (${citations.uncited.length}, flag only — does not affect verdict):\n  `
+      + citations.uncited.slice(0, 20).map(u => `${u.page}: ${u.file} — ${u.h2}`).join('\n  '));
+  const ledgerF = path.join(ARTIFACTS, 'failures.json');
+  const failLedger = fs.existsSync(ledgerF) ? parseJSONFile(ledgerF) : {};
+  reconcileFailures(failLedger, 'paths', new Set(missingFiles), () => 'missing source file');
+  // `checked: false` = LOUD-SKIPPED, not passed — reconciling against [] then would delete
+  // real prior failures the check never actually re-ran to confirm fixed.
+  if (links.checked) reconcileFailures(failLedger, 'links', new Set(links.bad), () => 'broken index link');
+  if (citations.checked) {
+    const failingPages = new Set(citations.violations.map(v => v.page));
+    reconcileFailures(failLedger, 'citations', failingPages, t => citations.violations
+      .filter(v => v.page === t).map(v => `(${v.cite}) ${v.reason}`).join('; '));
+  }
+  fs.mkdirSync(path.dirname(ledgerF), { recursive: true });
+  fs.writeFileSync(ledgerF, JSON.stringify(failLedger, null, 1));
+  // Recurrence, not severity, decides this — message ONLY, never the verdict or exit code.
+  for (const [key, e] of Object.entries(failLedger))
+    if (e.count >= 3) console.error(`STRUCTURAL (${e.count}x since ${e.firstSeen.slice(0, 10)}): `
+      + `${key} — likely not a one-off. Stop retrying, escalate to a human.`);
+  write(res, 'validate.json');
+  logOp('validate', `${res.verdict} — ${missingFiles.length + links.bad.length + citations.violations.length} gate failure(s)`);
+  process.exit(pass ? 0 : 1);
+}
+
+// ---------------------------------------------------------------- plan (page writer inputs)
+
+// A checkpoint you do not validate is not a checkpoint. MEASURED the hard way: a page
+// writer that died on a 429 left the error string as the page body, and `plan` reported
+// "all pages written — nothing to do" while two themes (2,238 source lines) had no page at
+// all. Existence is not completion — a resumable step must be able to tell a finished
+// artifact from the wreckage of a failed one.
+const MIN_PAGE_LINES = 10;
+function pageStatus(file) {
+  if (!fs.existsSync(file)) return 'TODO';
+  const txt = fs.readFileSync(file, 'utf8');
+  const lines = txt.split('\n');
+  const hasFrontmatter = lines[0].trim() === '---' && lines.slice(1).some(l => l.trim() === '---');
+  return hasFrontmatter && lines.length >= MIN_PAGE_LINES ? 'done' : 'PARTIAL';
+}
+
+function slugOf(t) {
+  return t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'page';
+}
+
+// Two different theme names can slug identically ("A/B testing" and "A-B testing" both give
+// `a-b-testing`), which silently overwrote one theme's task file and pointed two index
+// entries at one page — a whole page of content vanishing with no error. Slugs are assigned
+// once, for all themes together, and disambiguated on collision.
+function slugMap(themes) {
+  const used = new Map(), out = new Map();
+  for (const t of themes) {
+    const base = slugOf(t);
+    const n = (used.get(base) || 0) + 1;
+    used.set(base, n);
+    const slug = n === 1 ? base : `${base}-${n}`;
+    if (n > 1) console.error(`WARN: theme slug collision — "${t}" -> ${slug}`);
+    out.set(t, slug);
+  }
+  return out;
+}
+
+function group(o, l) {
+  const by = new Map(o.records.map(r => [keyOf(r), r]));
+  const g = new Map();
+  for (const row of l.labels) {
+    const r = by.get(row.key); if (!r) continue;
+    if (!g.has(row.theme)) g.set(row.theme, []);
+    g.get(row.theme).push(r);
+  }
+  for (const v of g.values()) v.sort((a, b) => a.file.localeCompare(b.file) || a.s - b.s);
+  return g;
+}
+
+function plan(outlineF, labelsF) {
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs plan <outline.json> <labels.json>');
+  const [o, l] = loadPair(outlineF, labelsF);
+  const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
+  const dir = process.env.OUT || path.join(ARTIFACTS, 'tasks');
+  fs.mkdirSync(dir, { recursive: true });
+  const grouped = [...group(o, l)];
+  const slugs = slugMap(grouped.map(([t]) => t));
+  // Resume is not advice, it is behaviour: a page already written in PAGES is reported
+  // `done` and left out of the cost estimate, so re-running `plan` after a crash relaunches
+  // only what is missing. A cleanup that dies halfway and cannot resume is worse than a
+  // slow one.
+  const pages = process.env.PAGES || 'docs/wiki';
+  const rows = [];
+  for (const [theme, recs] of grouped) {
+    const slug = slugs.get(theme);
+    const task = {
+      theme, slug, gloss: gloss.get(theme) || '',
+      sources: [...new Set(recs.map(r => r.file))],
+      n: recs.length,
+      lines: recs.reduce((a, r) => a + r.lines, 0),
+      chars: recs.reduce((a, r) => a + r.chars, 0),
+      sections: recs.map(r => ({ file: r.file, h2: r.h2, s: r.s, e: r.e, lines: r.lines, sub: r.h3.length }))
+    };
+    fs.writeFileSync(path.join(dir, `task-${slug}.json`), JSON.stringify(task, null, 1));
+    rows.push({ theme: slug, sections: task.n, lines: task.lines,
+                status: pageStatus(path.join(REPO, pages, `${slug}.md`)) });
+  }
+  const todo = rows.filter(r => r.status !== 'done');
+  const partial = rows.filter(r => r.status === 'PARTIAL');
+  if (partial.length)
+    console.error(`WARN: ${partial.length} page(s) exist but are not a finished page `
+      + '(no frontmatter, or too short) — they will be rewritten: '
+      + partial.map(r => r.theme).join(', '));
+  const tot = todo.reduce((a, r) => a + r.lines, 0);
+  console.table(rows);
+  if (todo.length < rows.length)
+    console.log(`resuming: ${rows.length - todo.length} of ${rows.length} pages already in ${pages}/`);
+  if (!todo.length) { console.log('all pages written — nothing to do.'); return; }
+  // Cost law measured over 10 pages, R^2 = 0.96. 42% of the write bill is per-page fixed.
+  const est = todo.length * 0.083 + tot / 1000 * 0.200;
+  console.log(`pages to write: ${todo.length}  lines: ${tot}  est. write cost: $${est.toFixed(2)} (mid tier)`);
+  if (todo.length > 3) console.log('launch page writers 3 at a time; each finished page is a checkpoint — re-run `plan` to resume.');
+}
+
+// ---------------------------------------------------------------- index (coarse, reader-facing)
+
+// MEASURED: row count is the variable that decides whether an index helps or hurts.
+// 16 rows fine, 97 rows won, 364 rows lost. H3 grain is the WORST arm tested — internal only.
+const ROW_CEILING = 100;
+
+function index(outlineF, labelsF) {
+  if (!outlineF || !labelsF) die('usage: docs-builder.cjs index <outline.json> <labels.json>');
+  const [o, l] = loadPair(outlineF, labelsF);
+  const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
+  const g = [...group(o, l)].sort((a, b) => b[1].length - a[1].length);
+  const slugs = slugMap(g.map(([t]) => t));
+  let rows = 0;
+  let s = '# Index\n\n';
+  s += '**Completeness guarantee:** every section of the source appears in exactly one row '
+     + 'below. If it is not listed here, it does not exist — do not sweep other files to '
+     + 'check for stragglers, this table IS the check.\n\n';
+  s += 'To answer a question: read the rows that match, open only those pages, and stop.\n\n';
+  s += '_Generated by `docs-builder.cjs index`. Never hand-edit — it is rebuilt every reconcile._\n\n';
+  for (const [theme, recs] of g) {
+    const slug = slugs.get(theme);
+    s += `## [${theme}](wiki/${slug}.md)\n\n`;
+    if (gloss.get(theme)) s += `${gloss.get(theme)}\n\n`;
+    s += `${recs.length} sections.\n\n`;
+    for (const r of recs) {
+      rows++;
+      const t = r.h2.length > 110 ? r.h2.slice(0, 107) + '...' : r.h2;
+      s += `- ${r.id ? `**${r.id}** — ` : ''}${t}\n`;
+    }
+    s += '\n';
+  }
+  s += `---\n\nTotal: ${rows} rows across ${g.length} pages.\n`;
+  const dest = process.env.OUT || 'index.md';
+  fs.writeFileSync(dest, s);
+  console.log(`wrote ${dest}: ${rows} rows / ${g.length} pages / ${s.length} chars`);
+  if (rows > ROW_CEILING)
+    console.log(`WARNING: ${rows} rows exceeds the ${ROW_CEILING}-row ceiling. MEASURED: a `
+      + '364-row index was the losing arm. Merge themes or index at page grain, not section '
+      + 'grain — and past this point, use `docs-builder.cjs search <outline.json> <query>` to '
+      + 'look sections up directly instead of reading index.md whole.');
+}
+
+// ---------------------------------------------------------------- search (BM25, zero deps)
+
+// The fallback once a corpus outgrows the index.md row ceiling (see ROW_CEILING above): a
+// reader who can't hold the whole index in one read needs ranked results instead. This
+// reuses outline.json (already on disk from `scan` — no second index to build or drift)
+// and scores with plain BM25 over each section's own text. No SQLite, no external search
+// tool: at doc-corpus scale (tens to low hundreds of sections) a linear scan in vanilla JS
+// is sub-millisecond, so a database buys nothing here — see dependency hierarchy in
+// AGENT_RULES.md, vanilla language before stdlib before external.
+const BM25_K1 = 1.5, BM25_B = 0.75;
+
+const tokenize = s => (s.toLowerCase().match(/[a-z0-9]+/g) || []);
+
+// The 300-char `snip` on each record is enough to tell sections apart for theme
+// classification (its designed job) but starves search: it's only the prose BEFORE the
+// first H3, often empty, and never reaches an H3's own body. MEASURED the hard way — a
+// query for words that only appear inside an H3's body (not its title, not the H2's lead-in)
+// ranked the right H2 record near-last, buried under 7 sibling H3 titles. Fix: read the
+// FULL section body straight from source using the s/e line numbers scan() already recorded,
+// one read per file (cached), same repo-relative resolution the rest of the script uses.
+function bm25Rank(records, queryText, n) {
+  const bodyCache = new Map();
+  const bodyOf = r => {
+    if (!bodyCache.has(r.file)) {
+      // A stale outline.json can name a file that has since moved or been deleted (exactly
+      // what validate's `paths` check exists to catch). Skip it with a named warning rather
+      // than dying on a raw ENOENT stack halfway through a search.
+      try { bodyCache.set(r.file, read(r.file).split('\n')); }
+      catch { console.error(`WARN: ${r.file} is gone — skipped (re-run \`scan\`)`); bodyCache.set(r.file, null); }
+    }
+    if (!bodyCache.get(r.file)) return '';
+    return bodyCache.get(r.file).slice(r.s - 1, r.e).join(' ');
+  };
+  const docs = records.map(r => ({ r, tokens: tokenize(bodyOf(r)) }));
+  docs.forEach(d => { d.len = d.tokens.length; });
+  const N = docs.length;
+  const avgdl = docs.reduce((a, d) => a + d.len, 0) / (N || 1);
+  const df = new Map();
+  for (const d of docs) for (const t of new Set(d.tokens)) df.set(t, (df.get(t) || 0) + 1);
+  const qTerms = [...new Set(tokenize(queryText))];
+  // +1 inside the log keeps IDF non-negative for a term that appears in every section —
+  // the textbook Robertson-Sparck-Jones form can go negative there, which would let a
+  // common word actively PENALIZE a match instead of just contributing nothing.
+  const idf = new Map(qTerms.map(t => {
+    const nt = df.get(t) || 0;
+    return [t, Math.log((N - nt + 0.5) / (nt + 0.5) + 1)];
+  }));
+  const scored = docs.map(d => {
+    const tf = new Map();
+    for (const t of d.tokens) tf.set(t, (tf.get(t) || 0) + 1);
+    let score = 0;
+    for (const t of qTerms) {
+      const f = tf.get(t) || 0;
+      if (!f) continue;
+      score += idf.get(t) * (f * (BM25_K1 + 1)) / (f + BM25_K1 * (1 - BM25_B + BM25_B * d.len / avgdl));
+    }
+    return { score, r: d.r };
+  });
+  return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, n);
+}
+
+function search(outlineF, queryWords) {
+  if (!outlineF || !queryWords.length)
+    die('usage: docs-builder.cjs search <outline.json> <query words...>');
+  const o = readArtifactJSON(outlineF);
+  if (!Array.isArray(o.records) || !o.records.length) die('outline.json has no records[]');
+  const query = queryWords.join(' ');
+  const n = Math.trunc(+process.env.N);
+  const hits = bm25Rank(o.records, query, n > 0 ? n : 10);
+  if (!hits.length) { console.log(`no matches for "${query}"`); return; }
+  console.table(hits.map(h => ({
+    score: h.score.toFixed(2), file: h.r.file, lines: `${h.r.s}-${h.r.e}`,
+    h2: h.r.h2.length > 70 ? h.r.h2.slice(0, 67) + '...' : h.r.h2
+  })));
+  console.log(`top ${hits.length} of ${o.records.length} sections for "${query}". `
+    + 'Open the file at the given line range yourself — this ranks, it does not read for you.');
+}
+
+// ---------------------------------------------------------------- archive (a real move)
+
+// The original is NEVER rewritten and NEVER edited — but it does not stay where it was
+// either, or the cleanup leaves the same content in three places (old path, archive, and
+// the synthesised pages). Verified move: hash first, `git mv` so history follows, hash
+// again. archive-cleanup decides later whether it can be pruned; that is a separate,
+// destructive, opt-in invocation.
+const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+
+// Core logic THROWS, never exits — so a caller doing many moves in a loop (apply-reorg)
+// can catch one bad file and keep going. `archive()` below is the CLI-facing wrapper that
+// turns a throw into a `die()` for a single direct invocation.
+function doArchive(src, dest) {
+  const s = path.isAbsolute(src) ? src : path.join(REPO, src);
+  if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
+  const rel = dest || path.join('docs/archive', path.basename(src));
+  const d = path.isAbsolute(rel) ? rel : path.join(REPO, rel);
+  if (fs.existsSync(d)) throw new Error(`refusing to overwrite ${rel}`);
+  const before = sha(s), size = fs.statSync(s).size;
+  fs.mkdirSync(path.dirname(d), { recursive: true });
+  let how = 'git mv';
+  try { execFileSync('git', ['-C', REPO, 'mv', src, rel], { stdio: 'pipe' }); }
+  catch { how = 'copy+unlink'; fs.copyFileSync(s, d); fs.unlinkSync(s); }
+  if (!fs.existsSync(d)) throw new Error('FAIL: destination missing after move');
+  const after = sha(d);
+  if (before !== after) throw new Error(`FAIL: content changed in transit (${before} != ${after})`);
+  if (fs.existsSync(s)) throw new Error(`FAIL: original still present at ${src}`);
+  return { rel, size, sha: before, how };
+}
+
+// A `git mv` moves the file but not the pipeline's memory of it: outline.json and
+// labels.json both embed the OLD path (in `records[].file`, and — since Change 1 made the
+// `<file> :: ` prefix unconditional — inside every `records[].key` / `labels[].key` too), so
+// a `git mv` alone silently invalidates every key the moved file's sections ever had.
+// Rewrite is EXACT-match only (a whole `file` field, or the `<oldPath> :: ` key prefix) —
+// never a substring replace, which could corrupt an unrelated path that merely contains this
+// one as a substring. Missing artifacts are not an error: `archive` is documented as usable
+// standalone, before `scan` has ever run.
+function rewriteArchivedPath(oldPath, newPath) {
+  const oldPrefix = `${oldPath} :: `, newPrefix = `${newPath} :: `;
+  const outlineF = path.join(ARTIFACTS, 'outline.json');
+  if (!fs.existsSync(outlineF)) console.log('outline.json: not present — skipped');
+  else {
+    const o = parseJSONFileOrThrow(outlineF);
+    let files = 0, recFiles = 0, keys = 0;
+    if (Array.isArray(o.files)) o.files = o.files.map(f => f === oldPath ? (files++, newPath) : f);
+    for (const r of (o.records || [])) {
+      if (r.file === oldPath) { r.file = newPath; recFiles++; }
+      if (typeof r.key === 'string' && r.key.startsWith(oldPrefix)) { r.key = newPrefix + r.key.slice(oldPrefix.length); keys++; }
+    }
+    if (!files && !recFiles && !keys) console.log(`outline.json: no references to ${oldPath} — nothing to update`);
+    else {
+      fs.writeFileSync(outlineF, JSON.stringify(o, null, 1));
+      console.log(`outline.json: updated files[] x${files}, records[].file x${recFiles}, records[].key x${keys}`);
+    }
+  }
+  const labelsF = path.join(ARTIFACTS, 'labels.json');
+  if (!fs.existsSync(labelsF)) console.log('labels.json: not present — skipped');
+  else {
+    const l = parseJSONFileOrThrow(labelsF);
+    let keys = 0;
+    for (const row of (l.labels || []))
+      if (typeof row.key === 'string' && row.key.startsWith(oldPrefix)) { row.key = newPrefix + row.key.slice(oldPrefix.length); keys++; }
+    if (!keys) console.log(`labels.json: no references to ${oldPath} — nothing to update`);
+    else {
+      fs.writeFileSync(labelsF, JSON.stringify(l, null, 1));
+      console.log(`labels.json: updated labels[].key x${keys}`);
+    }
+  }
+}
+
+function archive(src, dest) {
+  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
+  // Two try/catches ON PURPOSE: a caller must be able to tell "the move did not happen"
+  // (doArchive threw) from "the move happened, artifact sync did not" (rewriteArchivedPath
+  // threw AFTER git mv). MEASURED: a malformed outline.json used to crash here with a bare
+  // stack trace naming neither the artifact nor the fact the file had already moved.
+  let r;
+  try { r = doArchive(src, dest); }
+  catch (e) { die(e.message); }
+  console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
+  try { rewriteArchivedPath(src, r.rel); }
+  catch (e) {
+    die(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But syncing the pipeline's `
+      + `record of it failed: ${e.message}\nFix that file, then re-run \`scan\` (and redo `
+      + `labels) — do NOT re-run \`archive\` for ${src}, it has already moved.`);
+  }
+  logOp('archive', `${src} -> ${r.rel}`);
+}
+
+// ---------------------------------------------------------------- ledger + due
+
+// git IS the diff engine. The ledger stores only what git cannot: WHEN we last
+// consolidated. Everything else -- new / moved / changed-and-by-how-much / deleted --
+// is derived from `git diff -M`, so it can never drift out of sync with the tree.
+const LEDGER = 'docs/.docs-builder/ledger.json';  // == path.join(ARTIFACTS,'ledger.json')
+const DUE_THRESHOLD = 5;
+
+// One guarded entry point for git. Two things it must never do: dump a Node stack trace at
+// the user, and truncate on a large repo (execFileSync defaults to a 1 MB buffer, which
+// `ls-files` can exceed on a big tree).
+function git(args, what) {
+  try {
+    return execFileSync('git', ['-C', REPO, ...args],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }).trim();
+  } catch (e) {
+    const msg = (e.stderr || '').toString().trim().split('\n')[0] || e.message;
+    die(`git failed while ${what}: ${msg}`);
+  }
+}
+
+function docFiles() {
+  return git(['ls-files', 'docs/'], 'listing tracked docs').split('\n')
+    .filter(f => f.endsWith('.md') && !f.startsWith('docs/.docs-builder/'));
+}
+
+function ledger() {
+  const head = git(['rev-parse', 'HEAD'], 'reading HEAD (is this a git repo?)');
+  const docs = docFiles().map(f => ({
+    path: f,
+    lines: read(f).split('\n').length,
+    sha256: sha(path.join(REPO, f)).slice(0, 16)
+  }));
+  const out = { sha: head, at: new Date().toISOString(),
+                docs: docs.sort((a, b) => a.path.localeCompare(b.path)) };
+  const dest = path.join(REPO, process.env.OUT || LEDGER);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(out, null, 1));
+  console.log(`ledger: ${docs.length} docs / ${docs.reduce((a, d) => a + d.lines, 0)} lines @ ${head.slice(0, 8)}`);
+}
+
+function due() {
+  const f = path.join(REPO, process.env.OUT || LEDGER);
+  if (!fs.existsSync(f)) {
+    console.log('no ledger yet — run `docs-builder.cjs ledger` to start tracking. NOT due.');
+    return;
+  }
+  const L = parseJSONFile(f);
+  const known = new Map(L.docs.map(d => [d.path, d]));
+  // -M turns a delete+add pair into a rename, which is what makes "moved" distinguishable
+  // from "deleted and rewritten". Without it every move looks like a total rewrite.
+  // A rebase, amend or GC can leave the stamped SHA unreachable. That is a re-stamp
+  // situation, not a crash.
+  try {
+    execFileSync('git', ['-C', REPO, 'cat-file', '-e', `${L.sha}^{commit}`], { stdio: 'ignore' });
+  } catch {
+    die(`ledger SHA ${L.sha.slice(0, 8)} is not in this repository (rebased, amended or \n`
+      + 'garbage-collected). Re-stamp with `docs-builder.cjs ledger`.');
+  }
+  const raw = git(['diff', '--numstat', '-M', `${L.sha}..HEAD`, '--', 'docs/'],
+                  'diffing docs against the ledger SHA');
+  const rows = [], accountedFor = new Set();
+  for (const line of raw ? raw.split('\n') : []) {
+    const [add, del, ...pathBits] = line.split('\t');
+    const p = pathBits.join('\t');
+    // Parse the rename form FIRST. git writes it as `docs/{old.md => new.md}`, which does
+    // not end in `.md` — filtering on the raw path silently drops every move.
+    const ren = p.match(/^(.*)\{(.*) => (.*)\}(.*)$/);
+    const was = ren ? `${ren[1]}${ren[2]}${ren[4]}`
+              : p.includes(' => ') ? p.split(' => ')[0] : null;
+    const now = ren ? `${ren[1]}${ren[3]}${ren[4]}`
+              : p.includes(' => ') ? p.split(' => ')[1] : p;
+    if (!now.endsWith('.md') || now.startsWith('docs/.docs-builder/')) continue;
+    if (was) accountedFor.add(was);
+    accountedFor.add(now);
+    const a = add === '-' ? null : +add, d = del === '-' ? null : +del;
+    const prev = known.get(was || now);
+    const gone = !fs.existsSync(path.join(REPO, now));
+    let kind, detail;
+    if (gone) { kind = 'deleted'; detail = prev ? `was ${prev.lines} lines` : ''; }
+    else if (a === null) { kind = 'binary'; detail = ''; }
+    else if (was && !a && !d) { kind = 'moved'; detail = `from ${was}`; }
+    else if (was) { kind = 'moved+changed'; detail = `from ${was}, +${a}/-${d}`; }
+    else if (!prev) { kind = 'new'; detail = `${a} lines`; }
+    else {
+      kind = 'changed';
+      const pct = prev.lines ? Math.round((a + d) / prev.lines * 100) : 0;
+      detail = `+${a}/-${d} of ${prev.lines} lines (~${pct}%)`;
+    }
+    rows.push({ doc: now, kind, detail });
+  }
+  // A doc the ledger knew, gone from the tree, and not explained by any diff row above.
+  for (const g of L.docs)
+    if (!accountedFor.has(g.path) && !fs.existsSync(path.join(REPO, g.path)))
+      rows.push({ doc: g.path, kind: 'deleted', detail: `was ${g.lines} lines` });
+
+  if (!rows.length) { console.log(`docs unchanged since ${L.sha.slice(0, 8)}. NOT due.`); return; }
+  console.table(rows);
+  const n = rows.length;
+  console.log(n >= DUE_THRESHOLD
+    ? `${n} docs changed since ${L.sha.slice(0, 8)} (threshold ${DUE_THRESHOLD}) — RECONCILE IS DUE.`
+    : `${n} doc(s) changed since ${L.sha.slice(0, 8)} (threshold ${DUE_THRESHOLD}). Not due yet.`);
+}
+
+// ---------------------------------------------------------------- lint (declared only)
+
+// Every term here is something a doc SAYS ABOUT ITSELF. Nothing is inferred from
+// similarity. MEASURED: declared 100% precision, inferred 4-25%.
+// `invalidat\w*` was REMOVED after it matched the ordinary heading "Cache Invalidation"
+// 3x in a second repo — 3 false positives to buy 2 true ones. Precision over recall.
+const SUP = /\b(recurred|superseded|supersedes|withdrawn|retracted|refuted|obsolete|replaced by|deprecat\w*|was wrong|turned out to be false)\b/i;
+const ID_ANY = /\b([A-Z]{1,4}\d{1,4})\b/g;
+
+function sentences(t) {
+  return stripFences(t).replace(/\|/g, ' ')
+    .split(/(?<=[.!?])\s+|\n\s*\n/)
+    .map(x => x.replace(/[*_`>#-]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase())
+    .filter(x => x.length >= 80);
+}
+
+function lint(files) {
+  if (!files.length) die('usage: docs-builder.cjs lint <file.md...>');
+  const sections = [];
+  for (const f of files) {
+    const lines = read(f).split('\n');
+    const mask = fenceMask(lines);
+    let cur = null;
+    const close = i => { if (cur) { cur.e = i; cur.body = lines.slice(cur.s, i).join('\n'); } };
+    lines.forEach((ln, i) => {
+      if (mask[i]) return;
+      const m = ln.match(/^(#{1,3})\s+(.*)$/);
+      if (!m) return;
+      close(i);
+      const idm = m[2].match(ID_RE);
+      cur = { file: f, heading: clean(m[2]), id: idm ? idm[1] : null,
+              qid: idm ? f + '#' + idm[1] : null, s: i + 1, e: null, body: '' };
+      sections.push(cur);
+    });
+    close(lines.length);
+  }
+
+  // (1) supersession the doc declares about itself — heading grain is the shippable one
+  const supersession = sections.filter(s => SUP.test(s.heading))
+    .map(s => ({ file: s.file, line: s.s, heading: s.heading.slice(0, 160) }));
+  const supersessionInBody = sections.filter(s => !SUP.test(s.heading) && SUP.test(s.body)).length;
+
+  // (2) UNCITED — MUST be repo-wide. Scoped to the doc corpus it proposes deleting live
+  //     docs (measured: 2 false flags, both cited from a logs file and CHANGELOG.md).
+  //     Called "uncited", not "orphan", on purpose: uncited is a FACT, deletable is a
+  //     JUDGEMENT. bareloop's O2/O3/O4 are genuinely uncited and must NOT be removed —
+  //     they are the middle of a coherent O1-O5 series whose O1 is cited. PROPOSE ONLY.
+  let repoFiles = [], uncited = [];
+  try {
+    repoFiles = execFileSync('git', ['-C', REPO, 'ls-files'], { encoding: 'utf8' })
+      .split('\n').filter(Boolean);
+  } catch { console.error('WARN: git ls-files failed — uncited check DISABLED (loud, not silent)'); }
+  if (repoFiles.length) {
+    const inbound = new Set();
+    const own = new Set(files);
+    for (const f of repoFiles) {
+      if (own.has(f)) continue;
+      let txt; try { txt = read(f); } catch { continue; }
+      for (const m of txt.matchAll(ID_ANY)) inbound.add(m[1]);
+    }
+    const defined = sections.filter(s => s.id);
+    for (const s of defined) {
+      const citedInCorpus = sections.some(o => o !== s && new RegExp(`\\b${s.id}\\b`).test(o.body));
+      if (!citedInCorpus && !inbound.has(s.id))
+        uncited.push({ file: s.file, line: s.s, id: s.id, heading: s.heading.slice(0, 120) });
+    }
+  }
+
+  // (3) redundancy — shared VERBATIM sentences. 1/4 precision: PROPOSE ONLY, never act.
+  const sentMap = {};
+  sections.forEach((s, si) => {
+    for (const sent of new Set(sentences(s.body))) {
+      const h = crypto.createHash('sha1').update(sent).digest('hex').slice(0, 12);
+      (sentMap[h] = sentMap[h] || { text: sent, at: [] }).at.push(si);
+    }
+  });
+  const pairs = {};
+  for (const h of Object.keys(sentMap)) {
+    const at = [...new Set(sentMap[h].at)];
+    if (at.length < 2) continue;
+    for (let i = 0; i < at.length; i++) for (let j = i + 1; j < at.length; j++) {
+      const k = at[i] + '|' + at[j];
+      (pairs[k] = pairs[k] || { n: 0, chars: 0, sample: '' }).n++;
+      pairs[k].chars += sentMap[h].text.length;
+      if (!pairs[k].sample) pairs[k].sample = sentMap[h].text.slice(0, 150);
+    }
+  }
+  const redundant = Object.entries(pairs).map(([k, v]) => {
+    const [i, j] = k.split('|').map(Number);
+    return { sharedSentences: v.n, sharedChars: v.chars, sample: v.sample,
+             a: { f: sections[i].file, l: sections[i].s, h: sections[i].heading.slice(0, 80) },
+             b: { f: sections[j].file, l: sections[j].s, h: sections[j].heading.slice(0, 80) } };
+  }).sort((x, y) => y.sharedChars - x.sharedChars).slice(0, 40);
+
+  const out = {
+    generated: new Date().toISOString(), repo: REPO, files,
+    totals: { sections: sections.length, ids: sections.filter(s => s.id).length,
+              repoFilesScanned: repoFiles.length },
+    supersession, supersessionInBody, uncited, redundant,
+    note: 'Every flag is a PROPOSAL, never an action. Only `supersession` is high enough '
+        + 'precision to act on unreviewed (24/24 across 4 repos). `uncited` and `redundant` '
+        + 'are surfaced for a human. Record confirmation in the file\'s own `verified:` frontmatter.'
+  };
+  write(out, 'lint.json');
+  console.log(JSON.stringify({ ...out.totals, supersession: supersession.length,
+    supersessionInBody, uncited: uncited.length, redundantPairs: redundant.length }, null, 1));
+}
+
+// ---------------------------------------------------------------- discover + apply-reorg
+//
+// Mode 0: full-corpus reorg. v1 (the old skill) did this whole job by handing an agent a
+// file list and a prose rulebook ("KEEP/CONSOLIDATE/ARCHIVE", "when uncertain -> ARCHIVE")
+// and letting it read, judge and `mv` everything itself — the exact shape that measured
+// 27% correct on bookkeeping elsewhere in this pipeline. This does the same JOB with the
+// same discipline as the rest of the file: classification is mechanical and script-run;
+// only genuinely unclear cases are surfaced, never silently decided; nothing moves until
+// a human (or a caller) looks at the plan and asks for `apply-reorg`.
+//
+// NOT rebuilt here: v1's CONSOLIDATE (merge two docs' content into one). That is a content
+// rewrite, not a move — a different, higher-risk operation than anything measured so far.
+// Descoped on purpose, not dropped silently.
+
+// Filename hints alone are WEAK — kept only because v1 used them and they don't false-flag
+// on real data (checked against 40 files across 4 repos). The dated-filename rule from v1
+// ("2024-01-15-x.md is stale") was tested and DROPPED: on a real corpus, dated filenames are
+// how current, un-stale design docs are named (`2026-07-28-p-palette-design.md`), so that
+// signal alone would file live specs into archive/. A dated name proves nothing about
+// staleness on its own.
+const ARCHIVE_FILENAME_RE = /^(REPORT|STATUS|SUMMARY|FIX_|PHASE_|SPRINT_|DRAFT|WIP|OLD|TEMP)[-_]/i;
+const ARCHIVE_PATH_RE = /(^|\/)(archive|old|reports?|phases?)\//i;
+
+// STRONG signal: the doc says about ITSELF, in its own opening, that it is done.
+//
+// MEASURED, not assumed, and case-sensitivity is load-bearing. A case-INsensitive version
+// of this regex was tried first against a real, uncrafted corpus (bareloop's docs/) and
+// false-positived on real files: "Supersedes **nothing**" (negation), "this rung BUILDS
+// three frozen records" (describing an input, not itself), "archived spines" (data the doc
+// references, not the doc). Same failure species as the lint fix in §10 — a word that means
+// one thing in isolation matches unrelated prose. Restricting to the ALL-CAPS form fixes
+// every one of those, because this corpus's own convention (independently, not designed
+// around) SHOUTS a genuine status declaration — "Status: CLOSED", "(FROZEN 2026-07-25,
+// before any number; archival)" — while narrative mentions of the same word stay lowercase
+// or Title Case. Traded away: 2 real misses ("Frozen 2026-07-26" / "job #4 ... (frozen)"),
+// consistent with this project's precision-over-recall law. Neither miss is dangerous —
+// `discover` only classifies, `apply-reorg` requires a human to have looked at the plan.
+const ARCHIVAL_STATUS_RE = /\b(CLOSED|FROZEN|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RETRACTED|REFUTED|DEPRECATED)\b/;
+
+// Never reorged, at ANY depth: the repo's entry-point/contract docs. Moving a README or a
+// CLAUDE.md into archive/ breaks the thing every human and agent reads first. Bare LICENSE /
+// NOTICE have no .md extension and are already excluded by walkMd's extension filter.
+const PROTECTED_NAMES = new Set([
+  'README.md', 'index.md', 'log.md',
+  'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md',
+  'CLAUDE.md', 'AGENTS.md', 'AGENT.md',
+]);
+
+const DEFAULT_OVERSIZED_LINES = 500; // a starting default, UNMEASURED — see docs-builder.md
+
+function classifyDoc(rel, text) {
+  const lines = text.split('\n');
+  const h1 = lines.find(l => l.startsWith('# '));
+  const opening = lines.slice(0, 20).join(' ').slice(0, 2000);
+
+  if (ARCHIVE_PATH_RE.test(rel))
+    return { file: rel, bucket: 'archive', reason: 'path already under archive/old/reports/phases', lines: lines.length };
+  if (ARCHIVAL_STATUS_RE.test(opening))
+    return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, FROZEN, deprecated)', lines: lines.length };
+  if (ARCHIVE_FILENAME_RE.test(path.basename(rel)))
+    return { file: rel, bucket: 'archive', reason: 'filename matches an archive-shaped pattern (weak signal, no content confirmation)', lines: lines.length };
+  if (!h1)
+    return { file: rel, bucket: 'review', reason: 'no H1 — cannot tell what this doc is', lines: lines.length };
+
+  const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
+  if (lines.length > ceiling)
+    return { file: rel, bucket: 'oversized', reason: `${lines.length} lines > ${ceiling}-line ceiling — run the split pipeline (scan/propose/assign/validate/plan/write), then archive the original`, lines: lines.length };
+
+  return { file: rel, bucket: 'product', reason: 'structured (has an H1), current size, no archive signal', lines: lines.length };
+}
+
+function walkMd(dir, base, out) {
+  for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, name.name), rel = path.join(base, name.name);
+    if (name.isDirectory()) {
+      // Idempotent: never reclassify what discover/apply already placed. Any dot-dir is
+      // machine/tool state (.git, .github, .claude, .factory, .opencode, .amp, .docs-builder)
+      // and node_modules is vendored — moving a .md out of those is never wanted.
+      if (name.name.startsWith('.') || name.name === 'node_modules') continue;
+      if (['wiki', 'archive', 'product'].includes(name.name)) continue;
+      walkMd(abs, rel, out);
+    } else if (name.isFile() && name.name.endsWith('.md')) {
+      // Entry-point/contract docs are never subject to reorg, wherever they sit.
+      if (PROTECTED_NAMES.has(name.name)) continue;
+      out.push(rel);
+    }
+  }
+}
+
+function discover(root) {
+  const rootRel = root || 'docs';
+  const rootAbs = path.join(REPO, rootRel);
+  if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
+  const files = [];
+  walkMd(rootAbs, rootRel, files);
+  const rows = files.map(rel => classifyDoc(rel, read(rel)));
+  const byBucket = { product: 0, oversized: 0, archive: 0, review: 0 };
+  for (const r of rows) byBucket[r.bucket]++;
+  write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
+  console.table(rows.map(r => ({ file: r.file, bucket: r.bucket, lines: r.lines })));
+  console.log(JSON.stringify(byBucket, null, 1));
+  console.log(`plan written to docs/.docs-builder/reorg-plan.json — review it, then run `
+    + '`apply-reorg` to move product/ and archive/ candidates. `oversized` files are NOT '
+    + 'auto-split (that spends model budget); run the normal pipeline on each, by hand.');
+  if (byBucket.review)
+    console.log(`WARN: ${byBucket.review} file(s) had no clear signal at all (no H1). `
+      + 'apply-reorg treats these as archive candidates too — check the plan first.');
+}
+
+function applyReorg(planFile) {
+  const f = planFile || path.join(ARTIFACTS, 'reorg-plan.json');
+  if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
+  const plan = parseJSONFile(f);
+  const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0 };
+  const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
+  for (const row of plan.rows) {
+    if (row.bucket === 'oversized') { results.oversizedLeftAlone++; continue; }
+    const destDir = row.bucket === 'product' ? 'docs/product' : 'docs/archive';
+    let base = path.basename(row.file);
+    const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
+    usedNames.set(destDir + '/' + base, n);
+    if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+    try {
+      const r = doArchive(row.file, path.join(destDir, base));
+      console.log(`  ${row.file} -> ${r.rel}`);
+      results.moved++;
+    } catch (e) {
+      console.error(`SKIP ${row.file}: ${e.message}`);
+      results.skipped++;
+    }
+  }
+  console.log(JSON.stringify(results, null, 1));
+  if (results.oversizedLeftAlone)
+    console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `
+      + 'pipeline on each, then `archive` the original.');
+  logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
+    + `${results.oversizedLeftAlone} oversized left in place`);
+}
+
+// ---------------------------------------------------------------- dispatch
+
+// Machine state has one home. Callers can override with OUT, but the default must never
+// scatter JSON into whatever directory the user happened to be standing in.
+const ARTIFACTS = 'docs/.docs-builder';
+function write(obj, fallback) {
+  const dest = process.env.OUT || path.join(ARTIFACTS, fallback);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(obj, null, 1));
+}
+
+const [cmd, ...rest] = process.argv.slice(2);
+switch (cmd) {
+  case 'scan':        scan(rest); break;
+  case 'validate':    validate(rest[0], rest[1]); break;
+  case 'plan':        plan(rest[0], rest[1]); break;
+  case 'index':       index(rest[0], rest[1]); break;
+  case 'search':      search(rest[0], rest.slice(1)); break;
+  case 'archive':     archive(rest[0], rest[1]); break;
+  case 'ledger':      ledger(); break;
+  case 'due':         due(); break;
+  case 'lint':        lint(rest); break;
+  case 'discover':    discover(rest[0]); break;
+  case 'apply-reorg': applyReorg(rest[0]); break;
+  default:
+    die('usage: docs-builder.cjs <scan|validate|plan|index|search|archive|ledger|due|lint|discover|apply-reorg> [args]\n'
+      + '  scan        <file.md...>                 -> outline.json\n'
+      + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
+      + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
+      + '  index       <outline.json> <labels.json> -> index.md\n'
+      + '  search      <outline.json> <query...>     -> ranked sections (BM25, no deps)\n'
+      + '  archive     <src.md> [dest.md]            -> verified MOVE into docs/archive/\n'
+      + '  ledger                                    -> record current state of docs/\n'
+      + '  due                                       -> what changed since the ledger\n'
+      + '  lint        <file.md...>                  -> lint.json\n'
+      + '  discover    [root=docs]                   -> reorg-plan.json (classify, never moves)\n'
+      + '  apply-reorg [plan.json]                    -> executes the plan\n'
+      + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
+      + 'PAGES (default docs/wiki), N (search result count, default 10), '
+      + 'OVERSIZED_LINES (default 500)');
+}
