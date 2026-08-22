@@ -748,6 +748,134 @@ function halfFinishedSplitDetection() {
     !/half-finished/i.test(p2.out));
 }
 
+// ---------------------------------------------------------------- 16-20. move-chokepoint review fixes
+
+/**
+ * reconcile scanned its OWN generated output back into its next run: docs/index.md's
+ * `## [theme](wiki/x.md)` rows became outline records, and docs/log.md's one
+ * `## [DATE] op | desc` H2 per operation grew a fresh unlabelled record every time. Neither
+ * is source material a labels.json could ever cover, so the second reconcile reported a
+ * permanent `missing` FAIL and the record count grew forever. Fixed by excluding INDEX and
+ * docs/log.md from the scan corpus alongside PAGES/archive.
+ */
+function reconcileCorpusStability() {
+  group('16. reconcile — must not scan its own generated output (index.md / log.md)');
+
+  // docs/index.md and docs/log.md are seeded as already-tracked files (as a real repo would
+  // have after one prior reconcile + commit), each containing an H2 of their own — an
+  // `## [theme](wiki/x.md)` index row and an `## [DATE] op | desc` log entry — so a corpus
+  // scan that fails to exclude them has something concrete to wrongly ingest. No labels.json
+  // on purpose: this isolates the corpus-filter fix from the unrelated index/link-check path.
+  const d = repo({
+    'docs/product/A.md': DOC('A'),
+    'docs/index.md': '## [theme](wiki/x.md)\n\nsome row\n',
+    'docs/log.md': '## 2026-01-01 archive | prior op\n\nsome body\n',
+  });
+
+  const counts = [];
+  for (let i = 0; i < 3; i++) {
+    const r = db(d, ['reconcile']);
+    ok(`reconcile run ${i + 1} exits clean`, r.code, 0);
+    counts.push(artifact(d, 'outline.json').records.length);
+  }
+  ok('outline record count identical after run 1 vs run 2', counts[0], counts[1]);
+  ok('outline record count identical after run 2 vs run 3', counts[1], counts[2]);
+  okTrue('docs/index.md is excluded from its own corpus',
+    !artifact(d, 'outline.json').files.includes('docs/index.md'));
+  okTrue('docs/log.md is excluded from its own corpus',
+    !artifact(d, 'outline.json').files.includes('docs/log.md'));
+}
+
+/** PAGES was honoured everywhere else in this file except reconcile's own exclusion filter,
+ *  which hardcoded docs/wiki/ — so a non-default PAGES dir got scanned back in as source. */
+function reconcilePagesHonoured() {
+  group('17. reconcile — PAGES is honoured in the exclusion filter, not hardcoded to docs/wiki');
+
+  const d = repo({ 'docs/product/A.md': DOC('A'), 'docs/pages/synth.md': DOC('Synth') });
+  const r = db(d, ['reconcile'], { PAGES: 'docs/pages' });
+  ok('reconcile exits clean', r.code, 0);
+  okTrue('the real PAGES dir is excluded from the scan corpus',
+    !artifact(d, 'outline.json').files.includes('docs/pages/synth.md'));
+  okTrue('the actual source doc is still scanned',
+    artifact(d, 'outline.json').files.includes('docs/product/A.md'));
+}
+
+/** reconcile drives four steps that each honour OUT for their OWN artifact, but reconcile
+ *  itself read outline.json back from the hardcoded default regardless — so OUT= made
+ *  reconcile write fresh state to one place and validate a stale file from another. Fixed by
+ *  having reconcile loudly ignore OUT for itself (it is not a step). */
+function reconcileOutIgnored() {
+  group('18. reconcile — OUT is a per-step override; reconcile is not a step');
+
+  const d = repo({ 'docs/product/A.md': DOC('A') });
+  const outFile = path.join(os.tmpdir(), `db-reconcile-out-${process.pid}.json`);
+  const r = db(d, ['reconcile'], { OUT: outFile });
+  ok('reconcile exits clean', r.code, 0);
+  okTrue('reconcile WARNs that OUT is ignored', r.out.includes(`ignoring OUT=${outFile}`));
+  okTrue('outline.json still lands at the default artifacts path',
+    exists(d, 'docs/.docs-builder/outline.json'));
+  okTrue('OUT\'s own path was never written to', !fs.existsSync(outFile));
+}
+
+/**
+ * `archive` is documented as usable STANDALONE, and doArchive already falls back to
+ * copy+unlink outside a git repo — but rewriteLinks called gitOrThrow(['ls-files'])
+ * unconditionally, so a fully successful standalone archive printed "the move above
+ * SUCCEEDED ... But rewriting inbound links failed: fatal: not a git repository" and exited
+ * 2, telling the user to hand-fix something that had never broken. Fixed by catching only
+ * "not a git repository" as a SKIP; any other git failure must still surface.
+ */
+function archiveStandaloneFollowup() {
+  group('19. archive — a standalone (non-git) follow-up is a SKIP, never a failure');
+
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'db-archive-nogit-'));
+  fs.mkdirSync(path.join(bare, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(bare, 'docs/A.md'), DOC('A'));
+  const r = db(bare, ['archive', 'docs/A.md']);
+  ok('archive exits 0 outside a git repo', r.code, 0);
+  okTrue('the file actually moved', exists(bare, 'docs/archive/A.md') && !exists(bare, 'docs/A.md'));
+  okTrue('output says nothing is tracked to rewrite',
+    r.out.includes('not a git repository — nothing tracked to rewrite'));
+  okTrue('the run is never told a follow-up FAILED',
+    !r.out.includes('rewriting inbound links failed'));
+
+  // A REAL git failure inside a REAL repo must still surface — the fix narrows the catch to
+  // "not a git repository" only; it must not have turned every git error into a silent skip.
+  const shim = fs.mkdtempSync(path.join(os.tmpdir(), 'db-archive-realfail-'));
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
+  fs.writeFileSync(path.join(shim, 'git'),
+    `#!/bin/sh\nfor a in "$@"; do [ "$a" = "ls-files" ] && { echo "fatal: simulated" >&2; exit 1; }; done\nexec ${realGit} "$@"\n`);
+  fs.chmodSync(path.join(shim, 'git'), 0o755);
+  const d2 = repo({ 'docs/B.md': DOC('B') });
+  const r2 = db(d2, ['archive', 'docs/B.md'], { PATH: `${shim}:${process.env.PATH}` });
+  ok('a real (non-"not a git repository") git failure still exits 2', r2.code, 2);
+  okTrue('the file still moved despite the follow-up failure', exists(d2, 'docs/archive/B.md'));
+
+  // process.exit(2) used to fire BEFORE logOp — the one case a human most needs to find later
+  // (a move that succeeded with a failed follow-up) left no line in docs/log.md at all.
+  const logExists = exists(d2, 'docs/log.md');
+  okTrue('log.md exists despite the exit-2 follow-up failure', logExists);
+  const logContent = logExists ? read(d2, 'docs/log.md') : '';
+  okTrue('log.md records the archive line for the failed follow-up too',
+    /archive \|/.test(logContent));
+  okTrue('log.md records the follow-up failure itself, not just a clean move',
+    /FOLLOW-UP FAILED/.test(logContent));
+}
+
+/** Naming files on a bare archive-cleanup (no --apply) used to be silently ignored — the full
+ *  report printed and the run exited 0, reading exactly like a delete that ran and found
+ *  nothing. Fixed with an explicit NOTE that this run is the report and nothing was deleted. */
+function archiveCleanupNoteWithoutApply() {
+  group('20. archive-cleanup — naming files without --apply is not silently ignored');
+
+  const d = repo({ 'docs/archive/UNCITED.md': DOC('Uncited') });
+  const r = db(d, ['archive-cleanup', 'docs/archive/UNCITED.md']);
+  ok('archive-cleanup (no --apply) still exits clean', r.code, 0);
+  okTrue('a NOTE says nothing was deleted, naming the file count',
+    /NOTE: 1 file\(s\) named without --apply/.test(r.out));
+  okTrue('nothing was deleted', exists(d, 'docs/archive/UNCITED.md'));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -784,7 +912,9 @@ function main() {
   const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, reorgCollision,
     ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints,
-    tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection, packageParity];
+    tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
+    reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
+    archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, packageParity];
 
   for (const g of groups) {
     try { g(); }

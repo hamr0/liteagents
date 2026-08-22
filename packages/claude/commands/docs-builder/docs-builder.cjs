@@ -768,8 +768,20 @@ function rewriteLinks(oldPath, newPath) {
   const re = new RegExp(`(?<![\\w./-])${esc}(?![\\w-]|\\.[A-Za-z0-9])`, 'g');
   // Returns what it did; prints nothing. `archive` and `apply-reorg` format their output
   // differently, and a helper that prints straight to stdout cannot be reused by both.
-  const result = { total: 0, files: [] };
-  for (const f of gitOrThrow(['ls-files'], 'listing tracked files').split('\n')) {
+  const result = { total: 0, files: [], skipped: null };
+  // `archive` is documented as usable STANDALONE, and doArchive already falls back to
+  // copy+unlink outside a git repo — so "there is no git repo here" means there are no
+  // tracked files to rewrite, which is a SKIP, not a failed follow-up. Reporting it as a
+  // failure made a fully successful `archive` exit 2 and tell the user to hand-fix something
+  // that had never broken. A REAL git failure inside a real repo still throws.
+  let tracked;
+  try { tracked = gitOrThrow(['ls-files'], 'listing tracked files'); }
+  catch (e) {
+    if (!/not a git repository/i.test(e.message)) throw e;
+    result.skipped = 'inbound links: not a git repository — nothing tracked to rewrite';
+    return result;
+  }
+  for (const f of tracked.split('\n')) {
     if (!f || !LINK_EXTS.has(path.extname(f))) continue;
     if (LINK_SKIP.test(f) || f.startsWith('docs/.docs-builder/')) continue;
     let text;
@@ -808,6 +820,7 @@ function moveDoc(src, dest) {
   try {
     const l = rewriteLinks(src, r.rel);
     out.links = l.total; out.linkFiles = l.files;
+    if (l.skipped) out.artifactNotes.push(l.skipped);
   } catch (e) { out.failures.push(`rewriting inbound links failed: ${e.message}`); }
   return out;
 }
@@ -825,6 +838,12 @@ function archive(src, dest) {
   console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
   for (const m of r.artifactNotes) console.log(`  ${m}`);
   for (const { file, n } of r.linkFiles) console.log(`  ${file}: ${n} link(s) -> ${r.rel}`);
+  // Logged BEFORE the exit-2 branch below: the move itself SUCCEEDED in both branches, and
+  // docs/log.md is the record of what moved. Logging only on the clean path left the one case
+  // a human most needs to find later — a move whose follow-up failed — absent from the log.
+  logOp('archive', `${src} -> ${r.rel}`
+    + (r.links ? `, ${r.links} link(s) rewritten` : '')
+    + (r.failures.length ? `, FOLLOW-UP FAILED: ${r.failures.join('; ')}` : ''));
   if (r.failures.length) {
     // Exit 2, not 1: 1 means "nothing moved, retry `archive`" and this is the OPPOSITE —
     // the file DID move and re-running `archive` would be wrong, exactly as the message says.
@@ -834,8 +853,6 @@ function archive(src, dest) {
       + `${src}, it has already moved.`);
     process.exit(2);
   }
-  logOp('archive', `${src} -> ${r.rel}`
-    + (r.links ? `, ${r.links} link(s) rewritten` : ''));
 }
 
 // ---------------------------------------------------------------- ledger + due
@@ -1219,10 +1236,30 @@ function applyReorg(planFile) {
 // to remove (model-driven bookkeeping measured 27%; script-driven measured ~100%), so the
 // order is code now. It never writes docs/product/; it owns docs/wiki/.
 function reconcile() {
-  // docs/wiki/ is reconcile's OWN OUTPUT (the synthesised pages), not source material — pulling
-  // it into the scan corpus made validate's `missing` check fail on every wiki heading a
-  // product-only labels.json never covered.
-  const files = docFiles().filter(f => !f.startsWith('docs/archive/') && !f.startsWith('docs/wiki/'));
+  // reconcile drives four steps that each write a DIFFERENT artifact, and every one of them
+  // honours the same `OUT` override — so OUT would point outline.json, validate.json,
+  // index.md and lint.json at one file, while reconcile reads outline.json back from the
+  // DEFAULT path regardless and silently validates a stale one. OUT is a per-step override;
+  // reconcile is not a step.
+  if (process.env.OUT) {
+    console.error(`WARN: ignoring OUT=${process.env.OUT} — reconcile writes four artifacts `
+      + '(outline.json, validate.json, index.md, lint.json) and each goes to its own default path.');
+    delete process.env.OUT;
+  }
+  // Everything reconcile itself GENERATES is excluded from its own scan corpus — pulling any
+  // of it back in makes validate's `missing` check fail on headings a product-only
+  // labels.json can never cover, and re-fails on every subsequent run:
+  //   - PAGES (docs/wiki by default) — the synthesised pages, reconcile's output, not source.
+  //     Read from PAGES, not hardcoded, so a non-default pages dir is excluded too.
+  //   - INDEX (docs/index.md by default) — written by `index` below; its `## [theme](...)`
+  //     rows would become outline records on the next run.
+  //   - docs/log.md — append-only, one `## [DATE] op | desc` H2 per operation, so it grows a
+  //     new unlabelled record (and duplicate-key collisions) every single time reconcile runs.
+  const pages = process.env.PAGES || 'docs/wiki';
+  const pagesPrefix = pages.replace(/\/*$/, '/');
+  const indexF = process.env.INDEX || 'docs/index.md';
+  const files = docFiles().filter(f => !f.startsWith('docs/archive/')
+    && !f.startsWith(pagesPrefix) && f !== indexF && f !== 'docs/log.md');
   if (!files.length) die('no docs to reconcile — docs/ has no tracked .md outside archive/');
   console.log(`reconcile: ${files.length} doc(s)\n`);
   console.log('== scan =='); scan(files);
@@ -1246,7 +1283,7 @@ function reconcile() {
     }
     console.log('\n== index ==');    index(outlineF, labelsF);
     const [o, l] = loadPair(outlineF, labelsF);
-    warnUnarchivedSplits(o, l, process.env.PAGES || 'docs/wiki');
+    warnUnarchivedSplits(o, l, pages);
   } else {
     console.log(`\nLOUD-SKIP: validate + index need ${labelsF}, which only the grouping step`
       + ' can write. Run the split flow on a doc first, or pass labels.json by hand.');
@@ -1314,6 +1351,10 @@ function archiveCleanup(args) {
   });
 
   if (!apply) {
+    // Naming files without --apply used to be silently ignored, which reads exactly like a
+    // delete that ran and found nothing. Say plainly that this run is the report.
+    if (files.length) console.error(`NOTE: ${files.length} file(s) named without --apply — `
+      + 'nothing is deleted. This run is the report; re-run with --apply to delete them.');
     console.table(rows.map(r => ({ file: r.file, referrers: r.referrers,
       candidate: r.referrers === 0 ? 'yes — uncited' : 'no',
       recoverable: r.tracked ? 'git history' : 'NO — untracked' })));

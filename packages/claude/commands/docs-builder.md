@@ -432,9 +432,13 @@ REPO=<repo> node docs-builder/docs-builder.cjs reconcile
 ```
 
 It runs **scan → validate → index → lint** over every tracked `docs/**.md`, excluding
-`docs/archive/` and `docs/wiki/` (wiki pages are reconcile's own OUTPUT, not source material —
-scanning them back in would fail `validate`'s `missing` check against a product-only
-`labels.json`). Never touches `product/`. Owns `wiki/`. validate + index need a theme
+everything reconcile itself GENERATES: `docs/archive/`, the pages dir (`PAGES`, default
+`docs/wiki/`), the index (`INDEX`, default `docs/index.md`) and `docs/log.md`. All four are
+output, not source material — scanning any of them back in fails `validate`'s `missing` check
+against a product-only `labels.json`, and `log.md` (one `## [DATE] op | desc` H2 per
+operation) would grow a fresh unlabelled record on every single run. `OUT` is IGNORED here,
+loudly: reconcile writes four different artifacts and a single `OUT` would point them all at
+one file — set it on an individual subcommand instead. Never touches `product/`. Owns `wiki/`. validate + index need a theme
 assignment, which only the model's grouping step can produce — with no `labels.json`
 present, reconcile **LOUD-SKIPs** those two steps rather than inventing labels or passing
 silently; it always runs scan and lint regardless.

@@ -52,7 +52,7 @@ const testSuites = [
     name: 'docs-builder',
     file: 'docs-builder/docs-builder.test.js',
     description: 'Tests docs-builder.cjs behaviour end-to-end in throwaway git repos',
-    expectedTests: 143
+    expectedTests: 169
   }
 ];
 
