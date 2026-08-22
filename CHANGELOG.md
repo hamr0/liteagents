@@ -15,6 +15,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.16.0] - 2026-08-22
+
+### Added
+- **`/docs-builder` with no argument now asks instead of guessing.** It runs `due` for
+  context, then offers exactly three options via `AskUserQuestion` — **First run** (sort the
+  whole corpus, then split what's too big), **Docs drift** (rebuild index, re-run lint,
+  nothing moves), **Clean archive** (destructive prune). Passing an argument skips the
+  question, so the flow stays scriptable. Same explicit-over-auto-detect call `live-canvas`
+  made: the three modes differ in cost and destructiveness, so a wrong guess is expensive in
+  one direction and irreversible in the other. "First run" carries two stops — one guarding
+  correctness (review the classification before anything is `git mv`'d), one guarding cost
+  (see the oversized list and its price before any split runs).
+- **docs-builder v2** — rebuilt so the *script* does the bookkeeping and the model does only
+  synthesis. New `docs-builder.cjs` with `scan`/`propose`/`assign`/`validate`/`plan`/`write`/
+  `index`/`search`/`archive`/`lint`/`ledger`/`due` subcommands, plus **Mode 0 reorg**
+  (`discover` / `apply-reorg`) that classifies a whole corpus into product / archive /
+  oversized instead of one file at a time.
+- **`/remember` step 7 — docs reconcile check (detect only).** Runs `docs-builder.cjs due`,
+  crash-isolated like the friction step; nudges at >=5 changed docs and never edits a page.
+  Now present in all four packages.
+- **`search`** — BM25 ranking over the doc corpus, with `N` result clamping.
+
+### Changed
+- **docs-builder moved from a Claude skill to a Claude command** — Claude Code is now
+  11 subagents + **8 skills + 10 commands** (was 9 + 9). The other three tools keep 18
+  commands; only the docs-builder entry's description and usage changed.
+- **docs-builder v2 mirrored to droid / opencode / ampcode.** `docs-builder.cjs` hardcodes
+  no tool paths, so it is byte-identical across all four packages; only the command doc's
+  config-file reference differs. (`friction.cjs`, by contrast, does hardcode tool paths and
+  stays per-package.)
+- **Per-tool config filename swept through the non-Claude packages.** `CLAUDE.md` ->
+  `AGENT.md` (ampcode) / `AGENTS.md` (droid, opencode) in the `quality-assurance` agent, the
+  `context-builder` catalog row, the `AGENT_RULES.md` stub section, and `friction.cjs`'s
+  recommendation output. The `docs-builder` never-move list still names all three on purpose
+  — the code protects every variant regardless of which tool is running.
+- Removed the stale v1 `docs-builder/templates.md` from the three non-Claude packages.
+
+### Fixed
+- **Reorg could move files it promised never to move.** The never-move list is now enforced
+  in code (`PROTECTED_NAMES`), matched at **any depth** rather than only at the top of
+  `docs/`: `README.md`, `index.md`, `log.md`, `CHANGELOG.md`, `LICENSE.md`,
+  `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CLAUDE.md`, `AGENTS.md`,
+  `AGENT.md`. Previously a `README.md` one directory down was a move candidate.
+- **Reorg walked into dot-dirs and `node_modules/`.** `walkMd` now skips every dot-dir
+  (`.git/`, `.github/`, `.claude/`, `.factory/`, `.opencode/`, `.amp/`, `.docs-builder/`)
+  and `node_modules/`, matching what the command doc already claimed.
+- **`REPO` vs cwd path split (8 fixes).** `rewriteArchivedPath`, `checkCitations`' tasks dir,
+  `failures.json`, and `applyReorg`'s plan path all resolved against `REPO` while their
+  writers wrote cwd-relative. Running from outside the repo silently no-opped the archive
+  key-sync, LOUD-SKIPped the citations gate (so `validate` returned PASS on bad citations),
+  split the failure ledger across two directories, and made `apply-reorg` die right after a
+  successful `discover`. All now resolve cwd-relative.
+- `logOp` creates `docs/` before appending to `log.md` (was ENOENT, masked only by call order).
+- `bm25Rank` skips and warns on a missing source file instead of dying with a raw ENOENT.
+- `search` clamps `N` to a positive integer (`N=-3` silently dropped the last 3 results).
+- `friction.js` -> `friction.cjs` in all four packages — a `.js` file fails to load via
+  `require()` in any repo whose `package.json` declares `"type": "module"`.
+- Command-doc examples for `validate`, `plan`, and `search` now include `REPO=<repo>`.
+- **`/docs-builder` showed no argument hint.** Its frontmatter had `usage:` but not
+  `argument-hint:` — the key Claude Code actually renders — and no `allowed-tools:`, while
+  every sibling command had both. Added in all four packages, with `AskUserQuestion` in the
+  tool list so the new mode picker can run.
+- **`/docs-builder` did not load on opencode at all.** `opencode.jsonc` registered it as
+  `./command/docs-builder/SKILL.md` — a path that never existed in that package (opencode
+  uses a flat `docs-builder.md`, like every other command). Now points at the real file, with
+  the v2 description.
+- Removed a stale `subagent-spawning` entry from `opencode.jsonc` — the command file was
+  deleted long ago but stayed registered. opencode.jsonc now registers exactly the 18
+  commands and 11 agents that exist on disk.
+- `AGENT_RULES.md` footer pointed at `.claude/memory/AGENT_RULES.md`, a location that no
+  longer exists (the dir was renamed to `remember/`). Now the correct per-tool path in each
+  package. Only affects newly bootstrapped copies — an existing project-local
+  `AGENT_RULES.md` is user-owned and never overwritten.
+
+### Removed
+- **Guardrails section dropped from `AGENT_RULES.md`** (all four packages). It documented a
+  `PreToolUse` hook and pointed at `.claude/hooks/guardrails.py` as "ships in this repo" —
+  the file never shipped here. The section was also Claude-Code-only: droid, opencode, and
+  ampcode have no hook system, so it was unusable guidance in three of four packages. The
+  Always / Ask / Never rules it justified stay, restated as binding prose plus a pointer to
+  mirror them into whatever allow/ask/deny list your tool provides.
+
+### Documentation
+- `subagentic-manual.md` catalog corrected — it claimed Ampcode shipped a `skills/` directory
+  (it does not) and under-counted Droid/OpenCode at 17 commands. All four platforms ship
+  11 subagents; only Claude Code splits capabilities into skills + commands.
+- `package.json` description 17 -> 18 commands (drives the installer banner), root
+  `CLAUDE.md` 20 -> 18.
+
+---
+
 ## [2.15.3] - 2026-08-04
 
 ### Security

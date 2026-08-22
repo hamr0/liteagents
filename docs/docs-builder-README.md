@@ -7,11 +7,17 @@ updated: 2026-08-21
 
 # docs-builder
 
-The `/docs-builder` skill splits a documentation file once it outgrows its row in
-`docs/README.md`, keeps the resulting pages current, and generates an index so they can be
-found. It is a **slash command**, not a skill: `packages/claude/commands/docs-builder.md`
-plus a bundled `commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, eight
-subcommands) — the same shape as `/remember`.
+`/docs-builder` splits a documentation file once it outgrows its row in `docs/README.md`,
+keeps the resulting pages current, and generates an index so they can be found. It is a
+**slash command**, not a skill: `commands/docs-builder.md` plus a bundled
+`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, eleven subcommands) —
+the same shape as `/remember`.
+
+It ships in all four packages. `docs-builder.cjs` hardcodes no tool-specific paths, so it
+is **byte-identical** across `claude`, `droid`, `opencode`, and `ampcode`; only the command
+doc differs, by the one line naming the tool's config file (`CLAUDE.md` / `AGENTS.md` /
+`AGENT.md`). This is a stronger guarantee than `friction.cjs`, which does bake in tool paths
+and therefore has to be maintained as four near-copies.
 
 ---
 
@@ -132,14 +138,45 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 
 ---
 
+## How you invoke it
+
+**Bare `/docs-builder` never guesses.** It runs `due` for context, then asks — three
+options, no recommendation, no fourth:
+
+| Option | What it does | Cost |
+|---|---|---|
+| **First run** | sort every `.md` into product/archive, then split anything too big | spends model budget |
+| **Docs drift** | rebuild the index, re-run lint, report what changed. Nothing moves, nothing splits | cheap — the common case |
+| **Clean archive** | prune `docs/archive/` | **destructive** |
+
+Pass an argument (`reorg`, `reconcile`, `archive-cleanup`, or a file path) and it skips the
+question, so the flow stays scriptable.
+
+Auto-detecting the mode from repo state was considered and rejected — the three differ in
+cost and destructiveness, so a wrong guess is expensive in one direction and irreversible in
+the other. Same call `live-canvas` made.
+
+**"First run" has two stops, and they guard different things.** `discover` prints its table
+and moves nothing; you confirm before `apply-reorg` runs — that stop guards **correctness**
+(a `review`-bucketed file with no H1 is a guess, not a classification). After the moves, the
+oversized list is printed with line counts and an estimated cost and you pick which to
+split — that stop guards **cost** (~$0.39 per 1,000 source lines). Never split N files in
+one shot on a list you haven't seen.
+
+**One asymmetry worth internalising:** `due` measures *drift* (what changed since the last
+ledger stamp) and knows nothing about file size. `discover` measures *size* and knows
+nothing about drift. A doc can be huge and untouched, or tiny and churning — neither
+predicts the other, which is why "Docs drift" will never surface an oversized file and
+"First run" is what you want when docs have simply grown.
+
 ## The four modes and the docs/ layout
 
-| Mode | Does | Destructive |
-|---|---|---|
-| `/docs-builder reorg` | classify a WHOLE corpus into product/wiki-candidate/archive | no (plan reviewed before anything moves) |
-| `/docs-builder` | split ONE oversized doc → pages + index | no (original preserved) |
-| `/docs-builder reconcile` | re-run scan → validate → index → lint, propose fixes | no |
-| `/docs-builder archive-cleanup` | prune | **yes** — separate invocation, default keep, requires clean git tree |
+| Mode | Menu option | Does | Destructive |
+|---|---|---|---|
+| `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (plan reviewed before anything moves) |
+| `/docs-builder <file.md>` | *First run*, step 3 | split ONE oversized doc → pages + index | no (original preserved) |
+| `/docs-builder reconcile` | *Docs drift* | re-run scan → validate → index → lint, propose fixes | no |
+| `/docs-builder archive-cleanup` | *Clean archive* | prune | **yes** — separate invocation, default keep, requires clean git tree |
 
 `reorg` and the single-file split compose rather than compete: `reorg` sorts a whole messy
 `docs/` tree in one pass; anything it tags `oversized` still needs a human to run the split
@@ -160,9 +197,16 @@ docs/
                        validate.json, lint.json, reorg-plan.json, tasks/
 ```
 
-Never moved by any mode: `CLAUDE.md`, `AGENTS.md`, `AGENT.md`, root `README.md`,
-`CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE*`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
-`.github/`, `.claude/`, `node_modules/`, `.git/`.
+**Never moved — enforced in code, not just documented.** This used to be prose only, and
+the code did not match it (see *History*, below). It is now two guards in `docs-builder.cjs`:
+
+- `PROTECTED_NAMES`, matched at **any depth**: `README.md`, `index.md`, `log.md`,
+  `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
+  `CLAUDE.md`, `AGENTS.md`, `AGENT.md`. Bare `LICENSE`/`NOTICE` carry no `.md` extension,
+  so the walker never sees them.
+- `walkMd` skips every dot-dir (`.git/`, `.github/`, `.claude/`, `.factory/`, `.opencode/`,
+  `.amp/`, `.docs-builder/`) and `node_modules/`, plus the dirs reorg itself owns
+  (`product/`, `archive/`, `wiki/`) so a second run is idempotent.
 
 ---
 
@@ -332,17 +376,28 @@ see spec §18.
    "uncited" as "delete this" would propose deleting live, correct docs. The check reports
    the fact and stops there, by design.
 
-6. **Not replicated to droid, opencode, or ampcode yet.** Build order (spec §14) validates
-   `packages/claude/` first; the other three packages, `~/.claude/`, agentic-toolkit not started.
+6. **~~Not replicated to droid, opencode, or ampcode yet.~~ Mostly done.** All four packages
+   ship a byte-identical `docs-builder.cjs`; the stale v1 `templates.md` was removed from the
+   three non-Claude packages, and `/remember`'s step-7 docs check was mirrored too.
+   `~/.claude/` is synced (v1 skill removed — a same-named skill and command would collide).
+   **Still outstanding:** the invocation menu and the `argument-hint` frontmatter fix exist
+   only in `packages/claude/`; agentic-toolkit not started.
 
-7. **Two bugs the build caught that the POC did not** — worth watching for the same class:
+7. **The invocation menu has not been validated by use.** Its frontmatter is verified to
+   match sibling commands and the three options are specified, but nobody has run a bare
+   `/docs-builder` and taken each option end-to-end. Spec, not evidence — and this document
+   is otherwise careful to only claim what was measured.
+
+8. **Two bugs the build caught that the POC did not** — worth watching for the same class:
    - **The key contract.** Full untruncated headings scored against the POC's
      silently-truncated keys produced 55 invented + 55 missing out of 86. Fixed by one
      shared key function, used by both the prompt and the validator, with guaranteed
      uniqueness (not merely assumed).
    - **Path resolution.** Source `.md` paths are repo-relative; pipeline JSON artifacts are
      cwd-relative. Conflating the two made `plan` look for `outline.json` inside the repo
-     being documented, instead of the working directory.
+     being documented, instead of the working directory. Four more instances of the same
+     conflation were found later, in `archive`, `validate`, and `apply-reorg` — see
+     *History*. Any new code touching an artifact path must use the cwd-relative helpers.
 
 ---
 
@@ -368,6 +423,23 @@ revision.
   out-of-scope. What was actually lost was per-call *cost accounting* — subagents don't
   itemize their own token cost. The concurrency cap of 3 was set on this now-corrected
   claim, which is why §F1 calls it unevidenced.
+
+- **"Never move CLAUDE.md, .github/, node_modules/" → the code did not enforce any of it.**
+  The list existed only as prose in the command doc. `walkMd` protected exactly three names
+  (`README.md`, `index.md`, `log.md`) and only at the top level of `docs/`, and it recursed
+  into every directory including dot-dirs. On a fixture with the protected files one level
+  down, the old code put **5 of 6** into the move plan — `.github/`, `node_modules/`,
+  `.claude/`, and a nested `README.md` among them. Now enforced by `PROTECTED_NAMES` plus a
+  dot-dir/`node_modules` skip; the same fixture yields 1 candidate, the one real doc.
+
+- **"Path resolution is fixed" → it was fixed in `plan`, and still broken in four other
+  places.** A `REPO`-vs-cwd review of the whole file found `rewriteArchivedPath`,
+  `checkCitations`' tasks dir, `failures.json`, and `applyReorg`'s plan path all resolving
+  against `REPO` while their writers wrote cwd-relative. Run from outside the repo, the
+  archive key-sync silently no-opped (the exact failure it was added to prevent), the
+  citations gate LOUD-SKIPped so `validate` returned PASS on bad citations, and
+  `apply-reorg` died immediately after a successful `discover`. One conflation, five sites —
+  fixing the site that hurt first did not fix the class.
 
 - **"Supersession lint is 100% precision" → collapsed to 40%, then fixed back to 100%.**
   24/24 on bareloop alone (n=1 repo). Re-run on three unrelated corpora, precision fell to

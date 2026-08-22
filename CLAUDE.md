@@ -1,6 +1,6 @@
 # liteagents
 
-AI development toolkit with 11 specialized agents and 20 commands per tool. Supports Claude, Opencode, Ampcode, and Droid.
+AI development toolkit with 11 specialized agents and 18 commands per tool. Supports Claude, Opencode, Ampcode, and Droid.
 
 ## Documentation
 See `README.md` for usage and `docs/INSTALLER_GUIDE.md` for installation details.

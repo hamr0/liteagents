@@ -31,43 +31,45 @@ Install for your platform:
 
 | Platform | Installation | What's Included |
 |----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 9 skills + 8 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 17 commands (subagent references) |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 9 skills + 8 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 17 commands (subagent references) |
+| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r droid/* ~/.factory/` | 11 subagents + 18 commands |
+| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 18 commands |
+| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 11 subagents + 18 commands |
 
 **Key Difference**:
-- **Claude Code / Ampcode** implement full subagent system with orchestrator
-- **Droid/OpenCode** provide commands only + reference documentation for subagents
+- All four platforms ship the same 11 subagents and the same 18 capabilities
+- **Claude Code** splits them into 8 skills (3 auto-trigger) + 10 commands
+- **Droid / OpenCode / Ampcode** expose all 18 as commands — no auto-triggering
 
 ---
 
 ## What's Included
 
-### Claude Code / Ampcode (Full System)
+### Claude Code (skills + commands)
 
 **11 Subagents** - Expert personas with specialized knowledge
 - 3 Workflow Agents (PRD, Tasks, Implementation)
 - 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
 
-**10 Skills** - Auto-triggering + manual workflow components
+**8 Skills** - Auto-triggering + manual workflow components
 - tdd-flow, test-traps, verify-done (auto-trigger)
-- brainstorming, debug-method, docs-builder, live-canvas, etc.
+- brainstorming, debug-method, live-canvas, skill-creator, trace-back
 
-**9 Commands** - Simple workflow helpers
-- optimize, refactor, remember, diff-review, security, ship, release, stash, test-generate
+**10 Commands** - Workflow helpers
+- docs-builder, optimize, refactor, remember, diff-review, security, ship, release, stash, test-generate
 
 **Orchestration System**
 - Automatic intent matching to 9 workflow patterns
 - Conditional decision points with user approval gates
 - Selective context injection
 
-### Droid/OpenCode (Commands Only)
+### Droid / OpenCode / Ampcode (commands only)
+
+**11 Subagents** - the same personas, referenced from the platform's config file
 
 **18 Commands** - All workflow capabilities in command form
-- Combines skills + commands into unified command set
+- Combines Claude's skills + commands into one unified command set
 - Same functionality, different invocation model (no auto-triggering)
-- Includes reference documentation for subagents
 
 **No Orchestrator** - Direct command invocation only
 
@@ -102,22 +104,22 @@ Install for your platform:
 
 ## Commands Reference
 
-### Claude Code / Ampcode: 18 Total (9 Skills + 9 Commands)
+### Claude Code: 18 Total (8 Skills + 10 Commands)
 
 **Auto-Triggering Skills (3)**
 - `tdd-flow` - Write test first, watch fail, minimal passing code
 - `test-traps` - Prevent mocking anti-patterns and test pollution
 - `verify-done` - Run verification before claiming done
 
-**Manual Skills (6)**
+**Manual Skills (5)**
 - `brainstorming` - Refine rough ideas through collaborative questioning
-- `docs-builder` - Create structured /docs hierarchy
 - `live-canvas` - Design UI variations with click-to-annotate browser feedback. **Claude Code ships a companion MCP channel plugin (`live-canvas-channel`) that enables live mode — each overlay Save streams into the session in real time.** Other tools run in batch mode only. One-time setup required: see `packages/claude/skills/live-canvas/README.md`.
 - `trace-back` - Trace bugs backward through call stack
 - `skill-creator` - Guide for creating new skills
 - `debug-method` - Four-phase debugging framework
 
-**Simple Commands (9)**
+**Commands (10)**
+- `docs-builder` - Reorg a docs corpus, split an oversized doc, keep pages current, index them
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory
@@ -128,12 +130,11 @@ Install for your platform:
 - `stash` - Save session context for compaction recovery or handoffs
 - `test-generate` - Test suite generation
 
-### Droid/OpenCode: 18 Commands
+### Droid / OpenCode / Ampcode: 18 Commands
 
 Same functionality as skills+commands, but:
 - All invoked as commands (no auto-triggering)
 - Unified command set
-- No orchestrator integration
 - `live-canvas` runs in batch mode only (no channel plugin — that's Claude Code specific)
 
 **Command Categories**:
@@ -272,8 +273,8 @@ Subagent workflows require manual coordination.
 ~/.claude/
 ├── CLAUDE.md           # Registry + orchestrator workflows
 ├── agents/             # 11 subagent implementations (*.md)
-├── skills/             # 9 skills (subdirectories with SKILL.md)
-└── commands/           # 8 commands (*.md)
+├── skills/             # 8 skills (subdirectories with SKILL.md)
+└── commands/           # 10 commands (*.md)
 ```
 
 **Features**:
@@ -287,38 +288,36 @@ Subagent workflows require manual coordination.
 ~/.config/amp/
 ├── AGENT.md            # Reference doc (subagents + commands)
 ├── agents/             # 11 subagent implementations (*.md)
-├── skills/             # 9 skills (subdirectories with SKILL.md)
-└── commands/           # 8 commands (*.md)
+└── commands/           # 18 commands (*.md)
 ```
 
 **Features**:
 - Full subagent system with orchestrator
-- Auto-triggering skills
-- Workflow pattern matching
+- All capabilities as commands (no auto-triggering)
 
 ### Droid
 ```
 ~/.factory/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── commands/           # 17 commands (*.md)
+├── droids/             # 11 subagent implementations (*.md)
+└── commands/           # 18 commands (*.md)
 ```
 
 **Features**:
-- Commands only (no subagent implementations)
 - Reference table for subagents
-- Direct command invocation
+- Direct command invocation (no auto-triggering)
 
 ### OpenCode
 ```
 ~/.config/opencode/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-└── command/            # 17 commands (*.md)
+├── agent/              # 11 subagent implementations (*.md)
+└── command/            # 18 commands (*.md)
 ```
 
 **Features**:
-- Commands only (no subagent implementations)
 - Reference table for subagents
-- Direct command invocation
+- Direct command invocation (no auto-triggering)
 
 ---
 

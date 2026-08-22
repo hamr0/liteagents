@@ -62,7 +62,7 @@ digraph QualityAssurance {
 ## Project Discovery
 
 Before any analysis, read (if exists):
-- `CLAUDE.md` - Project instructions, patterns, conventions
+- `AGENTS.md` - Project instructions, patterns, conventions
 - `AGENT.md` / `AGENTS.md` - Agent configurations
 - `README.md` - Project overview
 - Test config files (`jest.config`, `pytest.ini`, etc.)

@@ -135,14 +135,14 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 *Hot Memory Pipeline (2)* — see the [Hot Memory](#hot-memory--project-local-learning-from-your-own-sessions) section above for the full walkthrough:
 - **stash** - Snapshot session context to `.claude/stash/` before compaction, handoff, or ending complex work
-- **remember** - Consolidate stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected via `@MEMORY.md`
+- **remember** - Consolidate stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected via `@.claude/remember/MEMORY.md`
 
 *Design*:
 - **live-canvas** - Design UI variations with click-to-annotate feedback in the browser; ships a companion MCP channel plugin for Claude Code so Saves stream into the session in real time. Other tools use batch mode.
 
 *Workflow & analysis*:
 - **brainstorming** - Structured brainstorming sessions
-- **docs-builder** - Project documentation generation
+- **docs-builder** - Reorg a docs corpus, split an oversized doc, keep pages current, index them
 - **trace-back** - Trace bugs backward through call stack
 - **skill-creator** - Guide for creating new skills
 - **debug-method** - Four-phase debugging framework
@@ -165,6 +165,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 | **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
 | **[remember-README.md](docs/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
+| **[docs-builder-README.md](docs/docs-builder-README.md)** | How `/docs-builder` works — the reorg/split/reconcile modes, what it measurably costs, and the ledger that tracks doc drift |
 
 ---
 

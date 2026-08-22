@@ -28,11 +28,29 @@ at an 8,297-line monolith. The structure did not fail. One file outgrew it.
 
 ## 2. Modes
 
-| Mode | Does | Destructive |
-|---|---|---|
-| `/docs-builder` | first cleanup: big doc -> pages + index | no (original preserved) |
-| `/docs-builder reconcile` | rebuild index, run lint, propose fixes | no |
-| `/docs-builder archive-cleanup` | prune | **yes** — separate invocation, default keep, requires git |
+| Mode | Menu option | Does | Destructive |
+|---|---|---|---|
+| `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (`git mv`, plan reviewed first) |
+| `/docs-builder <file.md>` | *First run*, step 3 | big doc -> pages + index | no (original preserved) |
+| `/docs-builder reconcile` | *Docs drift* | rebuild index, run lint, propose fixes | no |
+| `/docs-builder archive-cleanup` | *Clean archive* | prune | **yes** — separate invocation, default keep, requires git |
+
+**A bare `/docs-builder` never guesses.** It runs `due` for context, then asks with
+`AskUserQuestion` — three options, no recommendation, no fourth:
+
+- **First run** — sort every `.md` into product/archive, then split anything too big.
+- **Docs drift** — rebuild index, re-run lint, report what changed. Nothing moves or splits.
+- **Clean archive** — prune `docs/archive/`. Destructive.
+
+Same reasoning as `live-canvas`'s mode pick: the three differ in cost and destructiveness,
+so a wrong auto-detected guess is expensive one way and irreversible the other.
+
+**"First run" carries two stops, and they guard different things.** After `discover` prints
+its table the user confirms before `apply-reorg` moves anything — that stop guards
+*correctness* (a `review`-bucketed file with no H1 is an outright guess). After the moves,
+the oversized list is printed with line counts and an estimated cost, and the user picks
+which to split — that stop guards *cost* (~$0.39 per 1,000 source lines). Never split N
+files in one shot on a list the user has not seen.
 
 ---
 
@@ -403,11 +421,17 @@ irreversible steps and HITL gates must be a slash command. Catalog counts move
 (now 10 + 8). Both count surfaces updated: `README.md` and
 `tests/installer/multi-tool-testing.test.js` (36/36 pass).
 
-Delete from the current 309-line SKILL.md: Step 3.2's 13-file checklist (contradicts the
-skill's own DON'T list), `references/templates.md`, the Blueprint section, Step 6's
-`test -f` validation, the tier-mapping Quick Reference. Target ~150 lines for 3 modes.
+~~Delete from the current 309-line SKILL.md...~~ **Done.** The Claude skill was retired
+outright rather than trimmed: `skills/docs-builder/` is gone (a same-named skill *and*
+command would collide), and the three non-Claude packages dropped their v1
+`docs-builder/templates.md`.
 
-Catalog counts unchanged (9 skills / 18 commands) — no count sweep needed.
+~~Catalog counts unchanged (9 skills / 18 commands) — no count sweep needed.~~ **Wrong when
+written, and it contradicted the paragraph directly above it.** Moving docs-builder from
+skill to command *does* move Claude's counts: **9 commands / 9 skills -> 10 commands /
+8 skills**. The sweep was needed and was run — `README.md`, `packages/claude/CLAUDE.md`,
+`packages/subagentic-manual.md`, `package.json` (17 -> 18, drives the installer banner),
+root `CLAUDE.md` (20 -> 18), and `tests/installer/multi-tool-testing.test.js`.
 
 ---
 
@@ -426,8 +450,15 @@ Catalog counts unchanged (9 skills / 18 commands) — no count sweep needed.
    pages (1,116 vs 2,251 lines) at the same citation count (294 vs 299) — twice the
    citation density. Both are fully grounded. Which one reads better is untested, and a
    reader test is the only thing that would settle it.
-5. **Replication to droid / opencode / ampcode / `~/.claude/` / agentic-toolkit** not
-   started. Per §14, `packages/claude/` is validated first.
+5. **Replication — partly done.** `docs-builder.cjs` is byte-identical in all four packages
+   and installed to `~/.claude/` (the v1 skill removed, `friction.js` -> `friction.cjs`
+   fixed there too). **Still outstanding:** the `AskUserQuestion` invocation menu and the
+   `argument-hint`/`allowed-tools` frontmatter fix exist only in `packages/claude/` — not
+   yet mirrored to droid / opencode / ampcode. agentic-toolkit not started.
+
+6. **The invocation menu is unvalidated by use.** It is specified and its frontmatter is
+   verified to match sibling commands, but nobody has yet run a bare `/docs-builder` and
+   picked each of the three options end-to-end. Spec, not evidence.
 6. **Spec and build are untracked** — no branch, no commit yet.
 
 ---
