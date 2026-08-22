@@ -123,7 +123,7 @@ guessed. An antigen is a **triad**:
      `class_hints` before anything new is minted.
   Division of labor: **MEMORY.md is the render (read as guidance); the ledger is the
   record (checked, never injected).** Design + the POC evidence that shaped it:
-  `docs/antigen-gate-prd.md`.
+  `docs/product/antigen-gate-prd.md`.
 - Writes `MEMORY.md` (Facts / Episodes / Antigens), injects `@.claude/remember/MEMORY.md`
   into `CLAUDE.md`, and writes the run report to `.claude/remember/report.md`.
 - **Bootstraps `AGENT_RULES.md` once.** If `.claude/remember/AGENT_RULES.md` doesn't exist,
@@ -190,7 +190,7 @@ already runs.
   rejected-phrasing buffer, recurrence-while-hot lifecycle, ESCALATED lane. The prospective
   ON/OFF validation gate was POC'd against real data and **deferred** — signal density is
   ~an order of magnitude too thin (37 correction events across 681 sessions; every antigen
-  class a singleton). Numbers and the un-defer condition: `docs/antigen-gate-prd.md` §9.
+  class a singleton). Numbers and the un-defer condition: `docs/product/antigen-gate-prd.md` §9.
 - **Directory cleanup** — three dirs (`stash/`, `friction/`, `memory/`) consolidated to two
   (`stash/`, `remember/`); friction output moved under `remember/friction/`. `/remember`
   performs a one-time loud migration of legacy layouts (pipeline files only — user-owned

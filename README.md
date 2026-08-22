@@ -162,10 +162,10 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 | Document | Description |
 |----------|-------------|
-| **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
+| **[INSTALLER_GUIDE.md](docs/product/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
-| **[remember-README.md](docs/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
-| **[docs-builder-README.md](docs/docs-builder-README.md)** | How `/docs-builder` works — the reorg/split/reconcile modes, what it measurably costs, and the ledger that tracks doc drift |
+| **[remember-README.md](docs/product/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
+| **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/split/reconcile modes, what it measurably costs, and the ledger that tracks doc drift |
 
 ---
 
@@ -219,4 +219,4 @@ Apache-2.0 © 2026 hamr0 — see [LICENSE](LICENSE).
 
 ---
 
-**Need help?** See the [Installer Guide](docs/INSTALLER_GUIDE.md) or [open an issue](https://github.com/hamr0/liteagents/issues)
+**Need help?** See the [Installer Guide](docs/product/INSTALLER_GUIDE.md) or [open an issue](https://github.com/hamr0/liteagents/issues)

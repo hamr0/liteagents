@@ -263,7 +263,7 @@ function validateDocumentation() {
   info('\nValidating documentation...');
 
   const docs = [
-    'docs/INSTALLER_GUIDE.md'
+    'docs/product/INSTALLER_GUIDE.md'
   ];
 
   docs.forEach(doc => {
