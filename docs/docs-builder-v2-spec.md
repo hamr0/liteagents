@@ -33,7 +33,7 @@ at an 8,297-line monolith. The structure did not fail. One file outgrew it.
 | `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (`git mv`, plan reviewed first) |
 | `/docs-builder <file.md>` | *First run*, step 3 | big doc -> pages + index | no (original preserved) |
 | `/docs-builder reconcile` | *Docs drift* | rebuild index, run lint, propose fixes | no |
-| `/docs-builder archive-cleanup` | *Clean archive* | prune | **yes** — separate invocation, default keep, requires git |
+| `/docs-builder archive-cleanup [--apply <f>...]` | *Clean archive* | report, or delete named files | **yes** on `--apply` — separate invocation, default keep, requires git |
 
 **A bare `/docs-builder` never guesses.** It runs `due` for context, then asks with
 `AskUserQuestion` — three options, no recommendation, no fourth:
@@ -703,3 +703,51 @@ history survives the move once committed.
   loss, not a false-archive risk), but that is inferred from the design, not independently
   confirmed on a second, differently-styled real corpus.
 - Not yet run on a repo this session doesn't already have full visibility into.
+
+---
+
+## 20. Mode 2 — reconcile (real subcommand, not model-followed prose)
+
+§2's table always listed `reconcile` as a mode, but for a while it existed only as prose
+telling the model to run scan, validate, index and lint in order by hand — the exact
+model-does-bookkeeping shape this rebuild exists to remove elsewhere (27% correct, §6).
+Built as a real subcommand instead:
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs reconcile
+```
+
+It runs **scan -> validate -> index -> lint** over every tracked `docs/**.md`, excluding
+`docs/archive/`. Never touches `product/`; owns `wiki/`. validate and index both need a
+theme assignment, and only the model's grouping step (§6) can produce one — `reconcile`
+never calls a model itself, so with no `labels.json` present it **LOUD-SKIPs** those two
+steps and says exactly why, rather than inventing labels or passing silently. scan and lint
+always run regardless, since neither needs a theme.
+
+## 21. Mode 3 — archive-cleanup (the only destructive command)
+
+§2's table originally specified this mode as "moves to `docs/archive/`, never deletes" —
+**that was wrong, and self-contradictory on inspection**: `archive-cleanup` is the command
+that cleans OUT `docs/archive/` itself, so "never deletes" described a prune command that
+could never prune anything. There is no version of this mode that both cleans the archive
+and never deletes from it. The spec was wrong; what replaced it is a delete gated on
+explicit human confirmation, not a non-destructive move:
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs archive-cleanup                  # report only
+REPO=<repo> node docs-builder/docs-builder.cjs archive-cleanup --apply <f>...   # delete named files
+```
+
+Bare invocation only **reports** candidates: every `.md` under `docs/archive/`, tracked or
+not, cross-referenced against every tracked file that could cite it, flagged uncited or
+not. Nothing is removed. Uncited is a fact, not a verdict — bareloop's own `O2`-`O4` are
+genuinely uncited and must stay, the middle of a coherent series, so this command will
+never bulk-prune and has no `--all`. `--apply` deletes exactly the files named on the
+command line, and only after a human has confirmed which ones — the model MUST obtain that
+confirmation before calling `--apply`; this is a requirement on the caller, not a courtesy.
+
+It refuses to run on a dirty git tree, so the delete never gets entangled with other
+uncommitted work. Tracked files go via `git rm` — gone from the tree, recoverable from history
+until the next commit. Untracked files have no history to fall back to, so they're unlinked
+directly; the output flags each one **NOT recoverable**, rather than treating the two cases
+as one operation. Appends one line to `docs/log.md`, same as every other mutating command.

@@ -176,13 +176,16 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 | `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (plan reviewed before anything moves) |
 | `/docs-builder <file.md>` | *First run*, step 3 | split ONE oversized doc → pages + index | no (original preserved) |
 | `/docs-builder reconcile` | *Docs drift* | re-run scan → validate → index → lint, propose fixes | no |
-| `/docs-builder archive-cleanup` | *Clean archive* | prune | **yes** — separate invocation, default keep, requires clean git tree |
+| `/docs-builder archive-cleanup [--apply <f>...]` | *Clean archive* | report, or delete named files | **yes** on `--apply` — separate invocation, default keep, requires clean git tree |
 
 `reorg` and the single-file split compose rather than compete: `reorg` sorts a whole messy
 `docs/` tree in one pass; anything it tags `oversized` still needs a human to run the split
 flow on it individually, since that step spends real model money. `reconcile` never touches
-`docs/product/`; it owns `docs/wiki/`. `archive-cleanup` moves files to `docs/archive/`,
-never deletes, and appends one line to `docs/log.md`.
+`docs/product/`; it owns `docs/wiki/`. `archive-cleanup` is the one destructive command: a
+bare run only reports uncited candidates under `docs/archive/`; `--apply <f>...` deletes
+exactly the files named, after the user has confirmed them — tracked files via `git rm`
+(recoverable from history), untracked files unlinked directly (NOT recoverable, flagged per
+file). It appends one line to `docs/log.md`.
 
 ```
 docs/

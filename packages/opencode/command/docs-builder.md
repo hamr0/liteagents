@@ -80,7 +80,14 @@ against `product/`; owns `wiki/`. This is the common, cheap case. `due` only rep
 changed, new, moved, deleted docs since the last ledger stamp. It knows nothing about file
 size; that is `discover`'s job, under **First run**.
 
-**Clean archive** — Mode 3. Destructive, opt-in, default keep, moves rather than deletes.
+**Clean archive** — Mode 3. Destructive, opt-in, default keep. Run bare `archive-cleanup`
+first, always, and show the user its candidate table before anything else. Then ask with
+`AskUserQuestion`, naming the specific files — call out any untracked one as NOT recoverable
+right in the question, since that's the fact the user is choosing against. A prior general
+instruction ("clean up the archive", "yes go ahead") is NOT confirmation for particular
+files; confirmation is per-run and comes only after the report. Never infer approval from an
+adjacent yes that answered something else. Pass `--apply` only the files the answer actually
+named or approved — an ambiguous answer means that file is not deleted.
 
 ---
 
@@ -91,7 +98,7 @@ size; that is `discover`'s job, under **First run**.
 | `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (moves are `git mv`, plan reviewed first) |
 | `/docs-builder <file>` | *First run*, step 3 | split ONE oversized doc → pages + index | no (original preserved) |
 | `/docs-builder reconcile` | *Docs drift* | rebuild index, run lint, propose fixes | no |
-| `/docs-builder archive-cleanup` | *Clean archive* | prune | **yes** — separate invocation, default keep, requires git |
+| `/docs-builder archive-cleanup [--apply <f>...]` | *Clean archive* | report, or delete named files | **yes** on `--apply` — separate invocation, default keep, requires git |
 
 `reorg` and the single-file split solve different problems and compose: `reorg` sorts an
 entire messy `docs/` tree into the three-bucket structure below in one pass; anything it
@@ -383,12 +390,17 @@ file/line range; it does not read the section for you.
 
 ## Mode 2 — reconcile
 
-Re-run **scan → validate → index → lint**. Never touches `product/`. Owns `wiki/`.
+A real subcommand, not a rulebook the model follows:
 
 ```bash
-REPO=<repo> OUT=docs/.docs-builder/lint.json \
-  node docs-builder/docs-builder.cjs lint $(git ls-files 'docs/*.md')
+REPO=<repo> node docs-builder/docs-builder.cjs reconcile
 ```
+
+It runs **scan → validate → index → lint** over every tracked `docs/**.md`, excluding
+`docs/archive/`. Never touches `product/`. Owns `wiki/`. validate + index need a theme
+assignment, which only the model's grouping step can produce — with no `labels.json`
+present, reconcile **LOUD-SKIPs** those two steps rather than inventing labels or passing
+silently; it always runs scan and lint regardless.
 
 | check | precision | how to treat it |
 |---|---|---|
@@ -449,8 +461,31 @@ ledger, `/remember` only reads it.
 
 ## Mode 3 — archive-cleanup
 
-Separate invocation, **destructive**. Requires a clean git tree. Default is keep. Move to
-`docs/archive/`, never delete. Append one line to `docs/log.md`.
+The only destructive command in the pipeline.
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs archive-cleanup                  # report only
+REPO=<repo> node docs-builder/docs-builder.cjs archive-cleanup --apply <f>...   # delete named files
+```
+
+Bare invocation only **reports** uncited candidates under `docs/archive/` — nothing is
+removed. `--apply` deletes exactly the files named on the command line; there is no `--all`
+and no age heuristic.
+
+**The model MUST get the user's explicit confirmation of which files to delete before
+calling `--apply` — and it must ALWAYS confirm, with no exception.** The mechanism is
+`AskUserQuestion`: run bare `archive-cleanup` first, show the user the candidate table it
+prints, then ask a question that names the specific files and flags any untracked candidate
+as NOT recoverable — the user is choosing with that fact in front of them. A prior general
+instruction to "clean up the archive" or "delete the old docs" is NOT confirmation for any
+particular file: the user has not seen the candidate list yet and cannot have consented to
+names they haven't seen. Never infer approval from an adjacent yes that answered a different
+question. Only the files the user's answer explicitly names or approves may be passed to
+`--apply`; if the answer is ambiguous about a file, that file is not deleted.
+
+It refuses to run on a dirty git tree. Tracked files are removed with `git rm` (recoverable
+from history until the next commit); untracked files are unlinked directly and are **NOT
+recoverable** — the output flags that per file. Append one line to `docs/log.md`.
 
 ---
 
