@@ -876,6 +876,79 @@ function archiveCleanupNoteWithoutApply() {
   okTrue('nothing was deleted', exists(d, 'docs/archive/UNCITED.md'));
 }
 
+/** `index` used to write a `[theme](wiki/<slug>.md)` link for EVERY theme in labels.json,
+ *  whether or not that page had actually been written — so a fresh reconcile (scan -> validate
+ *  -> index -> lint) on a repo whose pages hadn't been written yet produced an index.md full
+ *  of dead links, and the NEXT validate FAILed on links the tool itself manufactured. Fixed:
+ *  a theme with no page on disk still gets a row (completeness guarantee), but as plain text
+ *  with a pending marker, never a hyperlink to a file that isn't there. */
+function indexPendingUnwrittenPages() {
+  group('21. index — an unwritten page is listed, never linked');
+
+  const d = repo({ 'docs/A.md': `# A\n\nintro\n\n## One\n\nx\n\n## Two\n\ny\n` });
+  db(d, ['scan', 'docs/A.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'alpha', gloss: '' }, { name: 'beta', gloss: '' }],
+    labels: [{ key: o.records[0].key, theme: 'alpha' },
+             { key: o.records[1].key, theme: 'beta' }] }) });
+  // Only beta's page is actually written.
+  write(d, { 'docs/wiki/beta.md': '---\ntitle: Beta\n---\n\nwritten content here.\n' });
+
+  const idx = db(d, ['index', 'docs/.docs-builder/outline.json',
+    'docs/.docs-builder/labels.json'], { OUT: 'docs/index.md' });
+  ok('index exits clean', idx.code, 0);
+  okTrue('index reports how many themes are pending',
+    /1 of 2 theme\(s\) have no page yet/.test(idx.out));
+  okTrue('index points to `plan` for which pages are pending', /plan/.test(idx.out));
+
+  const md = read(d, 'docs/index.md');
+  okTrue('the unwritten theme is present but NOT a resolvable wiki link',
+    /## alpha/.test(md) && !/\[alpha\]\(wiki\/alpha\.md\)/.test(md));
+  okTrue('the unwritten row carries a visible pending marker', /alpha.*pending/i.test(md));
+  okTrue('the written theme still gets a normal link', /\[beta\]\(wiki\/beta\.md\)/.test(md));
+  okTrue('the trailer distinguishes pending from written',
+    /Total: \d+ rows across 2 pages \(1 pending\)/.test(md));
+
+  const val = db(d, ['validate', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  okTrue('validate no longer reports a bad link for the unwritten page',
+    /"badLinks": 0/.test(val.out));
+  okTrue('validate\'s links.bad is empty', /"bad": \[\]/.test(val.out));
+
+  // PAGES= must be honoured by BOTH the existence check AND the emitted link text, not a
+  // hardcoded docs/wiki. Regression: index's existence check honoured PAGES but the link text
+  // it wrote stayed hardcoded to `wiki/<slug>.md`, so with PAGES=docs/pages the emitted link
+  // pointed at a file that was never there — validate then FAILed on a link `index` itself
+  // wrote, for a page that genuinely existed under the real (custom) PAGES dir.
+  const d2 = repo({ 'docs/A.md': `# A\n\nintro\n\n## One\n\nx\n` });
+  db(d2, ['scan', 'docs/A.md']);
+  const o2 = artifact(d2, 'outline.json');
+  write(d2, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'gamma', gloss: '' }],
+    labels: [{ key: o2.records[0].key, theme: 'gamma' }] }) });
+  write(d2, { 'docs/custom-pages/gamma.md': '---\ntitle: Gamma\n---\n\nwritten.\n' });
+  const idx2 = db(d2, ['index', 'docs/.docs-builder/outline.json',
+    'docs/.docs-builder/labels.json'], { OUT: 'docs/index.md', PAGES: 'docs/custom-pages' });
+  ok('index (custom PAGES) exits clean', idx2.code, 0);
+  const md2 = read(d2, 'docs/index.md');
+  okTrue('PAGES= is honoured: no pending marker when the custom-dir page exists',
+    !/pending/i.test(md2));
+  okTrue('PAGES= is honoured: the emitted link is NOT the hardcoded wiki/ path',
+    !/\[gamma\]\(wiki\/gamma\.md\)/.test(md2));
+  // The link is read from inside index.md, so it must resolve relative to index.md's own
+  // directory (docs/), not the repo root — assert on the actual filesystem target, not on one
+  // hardcoded string, so this doesn't just trade one hardcoded expectation for another.
+  const linkMatch = md2.match(/## \[gamma\]\(([^)]+)\)/);
+  okTrue('PAGES= is honoured: a link was emitted at all for the written page', !!linkMatch);
+  if (linkMatch) okTrue('PAGES= is honoured: that link resolves to the real page on disk',
+    fs.existsSync(path.join(d2, 'docs', linkMatch[1])));
+
+  const val2 = db(d2, ['validate', 'docs/.docs-builder/outline.json',
+    'docs/.docs-builder/labels.json'], { PAGES: 'docs/custom-pages' });
+  okTrue('validate reports zero bad links with a custom PAGES dir',
+    /"badLinks": 0/.test(val2.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -914,7 +987,8 @@ function main() {
     ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints,
     tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
     reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
-    archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, packageParity];
+    archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
+    packageParity];
 
   for (const g of groups) {
     try { g(); }

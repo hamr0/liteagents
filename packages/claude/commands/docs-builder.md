@@ -330,7 +330,10 @@ reported but never block** — flagged for a human, not a failure. **Do not proc
 — re-run the failing chunk.
 
 The `links` check reads `INDEX` (default `docs/index.md`) rather than a hardcoded path — set it
-if the index lives somewhere else in this repo.
+if the index lives somewhere else in this repo. It resolves links against `PAGES` too (same
+var `index`/`plan`/`checkCitations` use), computed relative to `INDEX`'s own directory —
+so it only checks links actually pointing into the pages dir, and stays correct when `PAGES`
+points somewhere other than the default `docs/wiki`.
 
 ### 4. Plan (script)
 
@@ -409,6 +412,13 @@ The index carries a completeness guarantee, but it is only regenerated when `rec
 rather than inventing labels, and `index.md` is left exactly as it was, however stale. **A stale
 index that promises completeness is worse than no index** — if `docs/` has drifted since the
 last labels.json, re-run the split flow (or hand-write labels.json) before trusting `index.md`.
+
+**A theme with no page yet is still a row, never a dead link.** Completeness means every
+theme appears in `index.md`, but a link to a `wiki/*.md` file that doesn't exist yet is what
+`validate`'s `links` check fails on. So an unwritten page's row is plain text with a visible
+`_(pending — page not yet written)_` marker instead of a `[..](wiki/..)` link, and the trailer
+("Total: N rows across M pages (P pending)") and console output both say how many are pending
+— run `plan` to see which.
 
 **Past the ceiling:** if `index` warns the corpus is over 100 rows, don't read `index.md`
 whole — look sections up directly instead:
