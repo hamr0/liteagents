@@ -14,13 +14,19 @@
 //   ledger                                         -> record the current state of docs/
 //   due                                            -> what changed since the ledger, and how much
 //   lint     <file.md...>                          -> lint.json      (declared-only checks)
-//   discover [root]                                -> reorg-plan.json (classify, NEVER moves)
-//   apply-reorg [plan.json]                        -> executes the moves, then re-scans the
-//                                                       WHOLE corpus (product/ + archive/) into
+//   discover [root]                                -> reorg-plan.json (enriches + PROPOSES a
+//                                                       bucket per row via `suggested`; NEVER
+//                                                       moves, NEVER decides `bucket`)
+//   apply-reorg [plan.json]                        -> executes an ALREADY-CLASSIFIED plan
+//                                                       (refuses if any row's `bucket` is
+//                                                       empty), then re-scans the WHOLE corpus
+//                                                       (product/ + logs/ + archive/) into
 //                                                       outline.json — search's only database
-//   reorg                                          -> discover + apply-reorg + lint, plus
-//                                                       `due`'s drift summary if a ledger stamp
-//                                                       exists — the single front door
+//   reorg                                          -> discover, STOPS for the classification
+//                                                       interview if any `bucket` is unfilled,
+//                                                       else apply-reorg + lint, plus `due`'s
+//                                                       drift summary if a ledger stamp exists
+//                                                       — the single front door
 //   cleanup  <file.md>                             -> ONE named file: cost estimate, scan, a
 //                                                       heading-SHAPE report (cleanup-shape.json)
 //                                                       -- then STOPS, awaiting the interview.
@@ -32,7 +38,7 @@
 //                                                       model, outside this script) -> once all
 //                                                       pages exist, archive + rebuild index
 //
-// Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
+// Env: REPO (default cwd), OUT (output path), INDEX (default docs/wiki-index.md, validate's
 // link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
 // docs/.docs-builder/tasks, validate's citations reader-side match for plan's OUT), N
 // (search count, default 10), OVERSIZED_LINES (default 500, discover's oversized ceiling).
@@ -232,21 +238,24 @@ function checkPaths(o) {
 }
 
 // `index` (writer) and `checkLinks` (reader) must agree on exactly where PAGES sits relative
-// to INDEX's own directory — that link is read from inside index.md, so it has to be relative
-// to index.md, not to the repo root. Hardcoding 'wiki' in either end breaks the moment PAGES
-// points somewhere else; one function, called from both ends, so they can't drift apart again.
-// With both left at their defaults (INDEX=docs/index.md, PAGES=docs/wiki) this still resolves
-// to exactly 'wiki' — the normal case is unchanged.
+// to INDEX's own directory — that link is read from inside the themed index, so it has to be
+// relative to THAT file, not to the repo root. Hardcoding 'wiki' in either end breaks the
+// moment PAGES points somewhere else; one function, called from both ends, so they can't
+// drift apart again. With both left at their defaults (INDEX=docs/wiki-index.md,
+// PAGES=docs/wiki) this still resolves to exactly 'wiki' — the normal case is unchanged.
 function pagesLinkPrefix(indexRel) {
   const pagesDir = process.env.PAGES || 'docs/wiki';
   return path.relative(path.dirname(repoPath(indexRel)), repoPath(pagesDir)).split(path.sep).join('/');
 }
 
-// (b) every markdown link inside index.md that points into the pages dir must resolve to a
-// real file. Loud skip, not a silent pass, when index.md itself is missing — same law as the
-// themes[] guard in loadPair() above: a gate that quietly stops checking is worse than no gate.
+// (b) every markdown link inside the themed index that points into the pages dir must
+// resolve to a real file. Loud skip, not a silent pass, when that file is missing — same law
+// as the themes[] guard in loadPair() above: a gate that quietly stops checking is worse than
+// no gate. Reads `docs/wiki-index.md` by default (index()'s own default OUT — see its
+// comment), NOT docs/index.md: that file is index-flat's whole-corpus map, a different
+// artifact this validate gate has no business judging link-by-link.
 function checkLinks() {
-  const rel = process.env.INDEX || 'docs/index.md';
+  const rel = process.env.INDEX || 'docs/wiki-index.md';
   if (!fs.existsSync(repoPath(rel))) { console.error(`LOUD-SKIP: links check did not run — no ${rel}`); return { checked: false, bad: [] }; }
   const text = stripFences(fs.readFileSync(repoPath(rel), 'utf8'));
   const prefix = pagesLinkPrefix(rel);
@@ -637,14 +646,25 @@ function index(outlineF, labelsF) {
   // relative to where OUT is actually landing, not to the repo root. Getting the existence
   // check right (pagesDir above) while leaving this hardcoded 'wiki' was the same bug half-
   // fixed: PAGES honoured for "does the page exist" but not for "what does the link say".
-  const outRel = process.env.OUT || 'docs/index.md';
+  //
+  // v3 fix: this used to default to docs/index.md — the SAME file index-flat/apply-reorg
+  // write, and the LAST writer wins. Real defect, found on bareloop: apply-reorg wrote the
+  // 37-row whole-corpus map, then a PRD split's `index` overwrote it with only that split's
+  // 7 wiki pages — 30 of 37 files silently vanished from a file that still claimed
+  // completeness. docs/index.md is now index-flat's alone to write (see indexFlat's own
+  // comment). This themed, per-split view gets its own file, `docs/wiki-index.md` — a
+  // sibling of docs/index.md (same directory, so pagesLinkPrefix's relative-to-PAGES math
+  // below is unchanged), never the corpus map.
+  const outRel = process.env.OUT || 'docs/wiki-index.md';
   const linkPrefix = pagesLinkPrefix(outRel);
   let rows = 0, pending = 0;
-  let s = '# Index\n\n';
-  s += '**Completeness guarantee:** every section of the source appears in exactly one row '
-     + 'below. If it is not listed here, it does not exist — do not sweep other files to '
-     + 'check for stragglers, this table IS the check.\n\n';
-  s += 'To answer a question: read the rows that match, open only those pages, and stop.\n\n';
+  let s = '# Themed Index\n\n';
+  s += '**Scope:** this is the THEMED VIEW of one split\'s sections only — every section of '
+     + 'the source(s) that split covers appears in exactly one row below. It is not the '
+     + 'corpus map; for "does this file exist anywhere in docs/", read `docs/index.md` '
+     + '(written by `index-flat`/`apply-reorg`) instead.\n\n';
+  s += 'To answer a question about THIS split: read the rows that match, open only those '
+     + 'pages, and stop.\n\n';
   s += '_Generated by `docs-builder.cjs index`. Never hand-edit — it is rebuilt every reorg._\n\n';
   for (const [theme, recs] of g) {
     const slug = slugs.get(theme);
@@ -670,13 +690,12 @@ function index(outlineF, labelsF) {
      + (pending ? ` (${pending} pending)` : '') + '.\n';
   // Same default STRING as checkLinks()'s `INDEX` default above, resolved the same
   // REPO-relative way (repoPath) — not cwd-relative like the other pipeline JSON artifacts
-  // (see the cwd-vs-repo comment on `read`/`repoPath` near the top of the file). index.md is
-  // a DELIVERABLE that lives in the target repo's docs/ tree (Layout, docs-builder.md), not
-  // throwaway pipeline state, so it must land where validate's link check will actually look
-  // for it. MEASURED the disagreement: with no env vars set — exactly how `reconcile` calls
-  // this — the old cwd-relative `'index.md'` default and checkLinks' `docs/index.md` default
-  // never pointed at the same file, so the link gate could only ever LOUD-SKIP or check a
-  // stale file from an unrelated earlier run.
+  // (see the cwd-vs-repo comment on `read`/`repoPath` near the top of the file). This themed
+  // view is a DELIVERABLE that lives in the target repo's docs/ tree, not throwaway pipeline
+  // state, so it must land where validate's link check will actually look for it. MEASURED
+  // the disagreement this guarded against originally: with no env vars set the old
+  // cwd-relative `'index.md'` default and checkLinks' `docs/index.md` default never pointed
+  // at the same file, so the link gate could only ever LOUD-SKIP or check a stale file.
   const dest = repoPath(outRel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, s);
@@ -693,11 +712,17 @@ function index(outlineF, labelsF) {
 
 // ---------------------------------------------------------------- index-flat (no labels)
 
-// v3: ONE index for the WHOLE corpus, two sections — `## Product` and `## Archive`. `search`
-// reads outline.json, never index.md, so index.md is purely a human/agent map; a second index
-// file (an earlier draft's separate docs/archive/index.md) would only be a second thing that
-// can drift out of step with the first. Same OUT/INDEX default (docs/index.md) as `index`, so
-// it lands where validate's link check and a later real `index` both expect it.
+// v3: ONE index for the WHOLE corpus, three sections — `## Product`, `## Logs`, `## Archive`.
+// `search` reads outline.json, never index.md, so index.md is purely a human/agent map.
+//
+// docs/index.md is THIS function's file, and only this function's: `index-flat` (called
+// directly, and from `apply-reorg`/`cleanup-apply`) is the sole writer of the default OUT
+// path. A real defect on bareloop is why that line is load-bearing, not decoration: the
+// themed `index` subcommand used to share this same default, so a PRD split's themed index
+// (7 rows) silently overwrote the whole-corpus map (37 rows) the moment it ran after a reorg
+// — 30 files vanished from a file that still claimed completeness. `index` now defaults to a
+// different file entirely (docs/wiki-index.md, see its own comment) specifically so the two
+// can never collide again.
 //
 // `## Product` covers three things, using the SAME partition scanWholeCorpus() already
 // established (wholeCorpusFiles()) — not a fourth enumeration of the corpus:
@@ -732,9 +757,11 @@ function renderSection(title, rows) {
 
 function indexFlat() {
   const archiveRel = 'docs/archive/';
-  const corpus = wholeCorpusFiles(); // product/, archive/, and anything left in place
-  const productFiles = corpus.filter(f => !f.startsWith(archiveRel));
+  const logsRel = 'docs/logs/';
+  const corpus = wholeCorpusFiles(); // product/, logs/, archive/, and anything left in place
   const archiveFiles = corpus.filter(f => f.startsWith(archiveRel));
+  const logsFiles = corpus.filter(f => f.startsWith(logsRel));
+  const productFiles = corpus.filter(f => !f.startsWith(archiveRel) && !f.startsWith(logsRel));
 
   const pagesRel = process.env.PAGES || 'docs/wiki';
   const pagesAbs = repoPath(pagesRel);
@@ -743,7 +770,7 @@ function indexFlat() {
         .map(f => path.join(pagesRel, f).split(path.sep).join('/'))
     : [];
 
-  if (!productFiles.length && !archiveFiles.length && !pageFiles.length) {
+  if (!productFiles.length && !logsFiles.length && !archiveFiles.length && !pageFiles.length) {
     console.log('nothing to index — run `discover` + `apply-reorg` first.');
     return;
   }
@@ -752,28 +779,30 @@ function indexFlat() {
   const dest = repoPath(outRel);
   const productRows = [...productFiles, ...pageFiles].sort()
     .map(f => ({ file: f, row: indexRow(f, dest) }));
+  const logsRows = logsFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
   const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
 
   let s = '# Index\n\n';
   s += '**Completeness guarantee:** every file under `docs/product/`, every page under '
-     + `\`${pagesRel}/\` (if any), every doc left in place after a reorg, and every file `
-     + 'under `docs/archive/` appears in exactly one row below.\n\n';
+     + `\`${pagesRel}/\` (if any), every doc left in place after a reorg, every file under `
+     + '`docs/logs/`, and every file under `docs/archive/` appears in exactly one row below.\n\n';
   s += '_Generated by `docs-builder.cjs index-flat` — no `labels.json` was available, so this '
      + 'is a flat, one-row-per-file map (no theme grouping, no model call). Run the split '
      + 'pipeline and `index` for a themed index once one exists. Never hand-edit — rebuilt '
      + 'every run._\n\n';
   s += renderSection('Product', productRows);
+  s += renderSection('Logs', logsRows);
   s += renderSection('Archive', archiveRows);
-  const total = productRows.length + archiveRows.length;
+  const total = productRows.length + logsRows.length + archiveRows.length;
   s += `---\n\nTotal: ${total} row(s) — ${productRows.length} product, `
-     + `${archiveRows.length} archive.\n`;
+     + `${logsRows.length} logs, ${archiveRows.length} archive.\n`;
 
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, s);
   console.log(`wrote ${dest}: ${total} rows (${productRows.length} product, `
-    + `${archiveRows.length} archive)`);
+    + `${logsRows.length} logs, ${archiveRows.length} archive)`);
   logOp('index-flat', `${total} row(s) (${productRows.length} product, `
-    + `${archiveRows.length} archive)`);
+    + `${logsRows.length} logs, ${archiveRows.length} archive)`);
 
   // Console-only tripwire. Nothing in this run prunes archive/ automatically — pruning is
   // `git rm`, the user's own call (see the ARCHIVE_WARN_ROWS comment above). This never
@@ -1374,6 +1403,15 @@ const ARCHIVE_PATH_RE = /(^|\/)(archive|old|reports?|phases?)\//i;
 // make, so the word is gone with no replacement heuristic — precision over recall.
 const ARCHIVAL_STATUS_RE = /\b(CLOSED|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RETRACTED|REFUTED|DEPRECATED)\b/;
 
+// v3 reorg (docs-builder-v3-spec.md, "four buckets"): a fourth mechanical prior, `logs`.
+// Measured on bareloop's real product/ (27 files): 11 were experiment records (8 *-PREREG,
+// 2 *-LEARNINGS, others) sitting alongside 14 actual specs/designs — 41% of the bucket was
+// run history, not product. Same discipline as ARCHIVE_FILENAME_RE: case-sensitive, so a
+// SHOUTED token in the filename is a real author signal and lowercase prose elsewhere is
+// not. Unanchored (word-boundary, not prefix) — real filenames carry the token as a suffix
+// (`REUSE-PREPROBE-PREREG.md`), not always a prefix.
+const LOGS_FILENAME_RE = /\b(PREREG|LEARNINGS|REPORT|RESULTS|POSTMORTEM|RETRO)\b/;
+
 // Never reorged, at ANY depth: the repo's entry-point/contract docs. Moving a README or a
 // CLAUDE.md into archive/ breaks the thing every human and agent reads first. Bare LICENSE /
 // NOTICE have no .md extension and are already excluded by walkMd's extension filter.
@@ -1399,28 +1437,44 @@ function isIncludeStub(lines) {
   return nonBlank.every(l => INCLUDE_DIRECTIVE_RE.test(l) || MD_LINK_LINE_RE.test(l));
 }
 
+// v3 reorg (docs-builder-v3-spec.md, "four buckets, and the model does the sorting"): this
+// no longer JUDGES — it ENRICHES and PROPOSES. `bucket` is gone from this function's output;
+// callers get `suggested`+`reason` (a prior the interview shows the model, never an
+// authority) plus `h1`/`snip` (reusing headings()/snippet()/fenceMask(), the same shared
+// parsers scan() already uses — no second extraction path) and `oversized` as a plain
+// boolean. Size used to BE a bucket (`oversized`), which left a file in a third state the
+// layout had no home for — LAYERS.md (958 lines) sat unsorted in 01-product/ for no reason
+// but its size. Oversized is now orthogonal to sorting: a product doc that's too big is
+// still a product doc.
 function classifyDoc(rel, text) {
   const lines = text.split('\n');
-  const h1 = lines.find(l => l.startsWith('# '));
+  const mask = fenceMask(lines);
+  const { h1 } = headings(lines, mask);
+  const snip = snippet(lines, mask, 0, lines.length, 200);
   const opening = lines.slice(0, 20).join(' ').slice(0, 2000);
+  const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
+  const oversized = lines.length > ceiling;
+  const row = (suggested, reason) =>
+    ({ file: rel, h1, snip, lines: lines.length, oversized, suggested, reason });
 
   if (ARCHIVE_PATH_RE.test(rel))
-    return { file: rel, bucket: 'archive', reason: 'path already under archive/old/reports/phases', lines: lines.length };
+    return row('archive', 'path already under archive/old/reports/phases');
   if (ARCHIVAL_STATUS_RE.test(opening))
-    return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, ARCHIVED, deprecated)', lines: lines.length };
+    return row('archive', 'doc declares its own status in the opening (e.g. CLOSED, ARCHIVED, deprecated)');
   if (ARCHIVE_FILENAME_RE.test(path.basename(rel)))
-    return { file: rel, bucket: 'archive', reason: 'filename matches an archive-shaped pattern (weak signal, no content confirmation)', lines: lines.length };
+    return row('archive', 'filename matches an archive-shaped pattern (weak signal, no content confirmation)');
+  if (LOGS_FILENAME_RE.test(path.basename(rel)))
+    return row('logs', 'filename matches an experiment-record pattern (PREREG/LEARNINGS/REPORT/RESULTS/POSTMORTEM/RETRO) — weak signal, no content confirmation');
   if (!h1) {
     if (isIncludeStub(lines))
-      return { file: rel, bucket: 'product', reason: 'include stub', lines: lines.length };
-    return { file: rel, bucket: 'review', reason: 'no H1 — cannot tell what this doc is', lines: lines.length };
+      return row('product', 'include stub');
+    // v3: `review` is gone as a bucket. A no-H1 file with no strong signal is not special —
+    // it's just a row with an empty h1 the interview classifies like any other, same as
+    // every row. The old special-casing defaulted this straight to archive in apply-reorg;
+    // that default is gone with it — nothing moves until the interview says so.
+    return row('product', 'no H1 — no strong signal, model decides');
   }
-
-  const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
-  if (lines.length > ceiling)
-    return { file: rel, bucket: 'oversized', reason: `${lines.length} lines > ${ceiling}-line ceiling — run the split pipeline (scan/propose/assign/validate/plan/write), then archive the original`, lines: lines.length };
-
-  return { file: rel, bucket: 'product', reason: 'structured (has an H1), current size, no archive signal', lines: lines.length };
+  return row('product', 'structured (has an H1), no archive/logs signal');
 }
 
 function walkMd(dir, base, out) {
@@ -1431,7 +1485,7 @@ function walkMd(dir, base, out) {
       // machine/tool state (.git, .github, .claude, .factory, .opencode, .amp, .docs-builder)
       // and node_modules is vendored — moving a .md out of those is never wanted.
       if (name.name.startsWith('.') || name.name === 'node_modules') continue;
-      if (['wiki', 'archive', 'product'].includes(name.name)) continue;
+      if (['wiki', 'archive', 'product', 'logs'].includes(name.name)) continue;
       walkMd(abs, rel, out);
     } else if (name.isFile() && name.name.endsWith('.md')) {
       // Entry-point/contract docs are never subject to reorg, wherever they sit.
@@ -1441,29 +1495,55 @@ function walkMd(dir, base, out) {
   }
 }
 
+// v3: `discover` no longer classifies — it enriches and PROPOSES, then stops. Each row gets
+// `suggested`+`reason` (classifyDoc's mechanical prior) and an empty `bucket` for the
+// classification interview (docs-builder.md) to fill: feed the model this whole plan table
+// in one call, get a bucket+reason per row, show the user the result via AskUserQuestion,
+// only then run `apply-reorg`. Nothing here moves a file — same guarantee as before, now
+// enforced by apply-reorg refusing an empty bucket rather than by this function's caution.
+//
+// Re-running discover MUST NOT re-litigate a decision the interview already made — `reorg`
+// (the composed front door) calls discover() every time it runs, and its own contract is
+// "STOP if any bucket is empty, else apply". If discover blanked `bucket` on every call,
+// that second half could never be reached: the interview fills the plan, then the very next
+// `reorg` invocation would discover() its way right back to all-empty. So an existing plan's
+// already-classified rows carry their `bucket` forward for any file discover still sees —
+// discover's job is keeping the plan CURRENT (fresh suggested/h1/snip/lines), not re-asking a
+// question that's already been answered. Only a file discover has never classified before
+// (new, or reappeared after a manual revert) starts unclassified, same as day one.
 function discover(root) {
   const rootRel = root || 'docs';
   const rootAbs = path.join(REPO, rootRel);
   if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
   const files = [];
   walkMd(rootAbs, rootRel, files);
-  const rows = files.map(rel => classifyDoc(rel, read(rel)));
-  const byBucket = { product: 0, oversized: 0, archive: 0, review: 0 };
-  for (const r of rows) byBucket[r.bucket]++;
-  write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
-  console.table(rows.map(r => ({ file: r.file, bucket: r.bucket, lines: r.lines })));
-  console.log(JSON.stringify(byBucket, null, 1));
-  console.log(`plan written to docs/.docs-builder/reorg-plan.json — review it, then run `
-    + '`apply-reorg` to move product/ and archive/ candidates.');
-  const oversizedRows = rows.filter(r => r.bucket === 'oversized');
-  if (oversizedRows.length) {
-    console.log(`\n${oversizedRows.length} oversized file(s) — never auto-split (that spends `
-      + 'model budget); run `cleanup <file>` on each, by hand, one at a time:');
-    for (const r of oversizedRows) console.log(`  cleanup ${r.file}  (${r.lines} lines)`);
+  const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
+  const prevBuckets = new Map();
+  if (fs.existsSync(planFile)) {
+    try {
+      const prev = parseJSONFileOrThrow(planFile);
+      for (const row of (prev.rows || [])) if (row.bucket) prevBuckets.set(row.file, row.bucket);
+    } catch (e) {
+      console.error(`WARN: could not read the existing plan to preserve prior classifications `
+        + `(${e.message}) — every row starts unclassified this run.`);
+    }
   }
-  if (byBucket.review)
-    console.log(`WARN: ${byBucket.review} file(s) had no clear signal at all (no H1). `
-      + 'apply-reorg treats these as archive candidates too — check the plan first.');
+  const rows = files.map(rel =>
+    ({ ...classifyDoc(rel, read(rel)), bucket: prevBuckets.get(rel) || '' }));
+  const bySuggested = { product: 0, logs: 0, archive: 0 };
+  for (const r of rows) bySuggested[r.suggested]++;
+  const oversizedCount = rows.filter(r => r.oversized).length;
+  write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
+  console.table(rows.map(r => ({ file: r.file, h1: r.h1, suggested: r.suggested, oversized: r.oversized, lines: r.lines })));
+  console.log(JSON.stringify({ ...bySuggested, oversized: oversizedCount }, null, 1));
+  console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
+    + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
+    + '(docs-builder.md): feed the model the plan, get bucket+reason per row, get the user\'s '
+    + 'approval, then run `apply-reorg` — it refuses to run while any `bucket` is empty.');
+  if (oversizedCount)
+    console.log(`\n${oversizedCount} file(s) are oversized — they still get sorted into a `
+      + 'bucket like everything else; splitting stays separate and opt-in (`cleanup <file>` '
+      + 'after they\'ve moved).');
 }
 
 // MEASURED, real (bareloop, 37 docs): outline.json — the database `search` reads — held
@@ -1495,14 +1575,18 @@ function discover(root) {
 // discover would classify, at its final location" — product/, archive/, and anything left
 // in place elsewhere (e.g. an oversized doc apply-reorg deliberately didn't move). Do not
 // add a second, independent enumeration of the corpus — this is the one.
+// v3: `logs/` joins `product/` and `archive/` as a fourth explicit call, same reasoning —
+// walkMd's root walk skips it by literal name, so this adds back exactly what that skip left out.
 function wholeCorpusFiles() {
   const files = [];
   const docsRoot = path.join(REPO, 'docs');
   if (fs.existsSync(docsRoot)) walkMd(docsRoot, 'docs', files);
   const productDir = path.join(REPO, 'docs/product');
   const archiveDir = path.join(REPO, 'docs/archive');
+  const logsDir = path.join(REPO, 'docs/logs');
   if (fs.existsSync(productDir)) walkMd(productDir, 'docs/product', files);
   if (fs.existsSync(archiveDir)) walkMd(archiveDir, 'docs/archive', files);
+  if (fs.existsSync(logsDir)) walkMd(logsDir, 'docs/logs', files);
   // Defensive, same exclusion reconcile() already applies: a non-default PAGES dir nested
   // under product/ or archive/ (not caught by walkMd's bare 'wiki' name check) still must not
   // round-trip generated pages back into the outline.
@@ -1521,17 +1605,67 @@ function scanWholeCorpus() {
   return corpus.length;
 }
 
+const REORG_DEST = { product: 'docs/product', logs: 'docs/logs', archive: 'docs/archive' };
+const VALID_BUCKETS = new Set(Object.keys(REORG_DEST));
+// bucket values a PRE-v3 reorg-plan.json could hold — neither exists any more ('oversized'
+// was a bucket, now a boolean; 'review' is gone outright, see classifyDoc). Distinguishing
+// this from "the interview just hasn't run yet" (bucket === '') earns a different message:
+// re-running discover fixes a stale plan; filling `bucket` fixes a fresh one.
+const STALE_BUCKETS = new Set(['oversized', 'review']);
+
+// Depth-first empty-dir sweep, scoped to directories a file actually moved OUT of this run.
+// `dirs` are absolute paths; `rootAbs` is never itself a candidate (walking stops there) so
+// the reorg root (docs/ by default) can never be removed even if every file under it moved.
+// Sorting by path-segment count (not string length) before removing is what makes "nested
+// empties collapse" correct: a child directory is always tested — and, if empty, removed —
+// before its parent gets its turn, so a parent that only became empty because its last child
+// dir was just removed still gets caught in the same pass.
+function collectEmptyDirs(rootAbs, dirs) {
+  const candidates = new Set();
+  for (const d of dirs) {
+    let cur = d;
+    while (cur.startsWith(rootAbs + path.sep)) { candidates.add(cur); cur = path.dirname(cur); }
+  }
+  const ordered = [...candidates].sort((a, b) =>
+    b.split(path.sep).length - a.split(path.sep).length);
+  const removed = [];
+  for (const dir of ordered) {
+    if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
+      fs.rmdirSync(dir);
+      removed.push(dir);
+    }
+  }
+  return removed;
+}
+
+// v3 reorg (docs-builder-v3-spec.md, "four buckets"): the interview, not this function, does
+// the classifying — this only executes an ALREADY-approved plan. It refuses outright if any
+// row's `bucket` isn't one of the three real buckets: an empty bucket means the interview
+// hasn't happened, and a stale 'oversized'/'review' bucket means the plan predates this
+// version's schema. Oversized rows are no longer skipped — they move like everything else
+// (size decides splittable, not sorted) and come back as split candidates at their NEW path.
 function applyReorg(planFile) {
   const f = planFile || path.join(ARTIFACTS, 'reorg-plan.json');
   if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
   const plan = parseJSONFile(f);
-  const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0,
-                    artifactsSynced: 0, linksRewritten: 0, syncFailed: 0 };
+  const unclassified = plan.rows.filter(r => !VALID_BUCKETS.has(r.bucket));
+  if (unclassified.length) {
+    const stale = plan.rows.some(r => STALE_BUCKETS.has(r.bucket));
+    die(`refusing to apply: the classification interview has not happened `
+      + `(${unclassified.length} of ${plan.rows.length} row(s) have no valid \`bucket\`).`
+      + (stale
+        ? ` This plan predates v3's four-bucket schema ('oversized'/'review' no longer `
+          + 'exist as buckets) — re-run `discover` to regenerate it, then classify.'
+        : ' Run the classification interview (docs-builder.md): fill every row\'s `bucket` '
+          + '(product/logs/archive), get the user\'s approval, then re-run.'));
+  }
+  const results = { moved: 0, skipped: 0, artifactsSynced: 0, linksRewritten: 0,
+                    syncFailed: 0, dirsRemoved: 0 };
   const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
-  const oversizedRows = [];
+  const splitCandidates = []; // oversized rows, at their NEW path — ordered logs-last below
+  const sourceDirs = [];
   for (const row of plan.rows) {
-    if (row.bucket === 'oversized') { results.oversizedLeftAlone++; oversizedRows.push(row); continue; }
-    const destDir = row.bucket === 'product' ? 'docs/product' : 'docs/archive';
+    const destDir = REORG_DEST[row.bucket];
     let base = path.basename(row.file);
     const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
     usedNames.set(destDir + '/' + base, n);
@@ -1551,29 +1685,43 @@ function applyReorg(planFile) {
     results.moved++;
     results.artifactsSynced += r.artifacts;
     results.linksRewritten += r.links;
+    sourceDirs.push(path.dirname(path.join(REPO, row.file)));
+    if (row.oversized) splitCandidates.push({ file: r.rel, bucket: row.bucket, lines: row.lines });
     for (const { file, n } of r.linkFiles) console.log(`    ${file}: ${n} link(s) -> ${r.rel}`);
     for (const f of r.failures) {
       console.error(`  WARN ${row.file} MOVED, but ${f}`);
       results.syncFailed++;
     }
   }
+  // Only directories the moves THIS RUN emptied are candidates — never a dir this run never
+  // touched, even if it happens to be empty already (that's not ours to remove).
+  const rootAbs = path.join(REPO, plan.root || 'docs');
+  const removedDirs = sourceDirs.length ? collectEmptyDirs(rootAbs, sourceDirs) : [];
+  results.dirsRemoved = removedDirs.length;
+  for (const dir of removedDirs)
+    console.log(`  removed empty dir: ${path.relative(REPO, dir).split(path.sep).join('/')}`);
   // Runs regardless of whether anything moved THIS run — apply-reorg is also the thing that
-  // (re)builds outline.json for a corpus that already sat in docs/product/docs/archive from a
-  // previous run, e.g. after a manual git mv or a re-run with nothing left to do.
+  // (re)builds outline.json for a corpus that already sat in docs/product/docs/archive/docs/logs
+  // from a previous run, e.g. after a manual git mv or a re-run with nothing left to do.
   scanWholeCorpus();
   console.log(JSON.stringify(results, null, 1));
-  if (results.oversizedLeftAlone) {
-    console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — splitting is `
-      + 'opt-in and per-file. Run `cleanup <file>` on each, by hand, one at a time:');
-    for (const r of oversizedRows) console.log(`  cleanup ${r.file}  (${r.lines} lines)`);
+  if (splitCandidates.length) {
+    // Ranked, logs last (spec §5): a prereg is a legitimate split target but rarely the best
+    // NEXT one. Array.prototype.sort is stable in Node, so this only reorders logs to the
+    // tail — it does not reshuffle the rest of the list.
+    splitCandidates.sort((a, b) => (a.bucket === 'logs') - (b.bucket === 'logs'));
+    console.log(`\n${splitCandidates.length} oversized doc(s) — never auto-split (that spends `
+      + 'model budget); run `cleanup <file>` on each, by hand, one at a time:');
+    for (const r of splitCandidates) console.log(`  cleanup ${r.file}  (${r.lines} lines)`);
   }
   // v3: apply-reorg writes docs/index.md itself — a reorg-only corpus ends up indexed
-  // without a second command. Runs unconditionally (even with oversized docs left in place —
-  // those still get an in-place row under ## Product; only splitting is opt-in, not indexing).
+  // without a second command. Runs unconditionally — oversized docs are sorted like anything
+  // else now, so this was never conditional on them.
   indexFlat();
   logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
-    + `${results.oversizedLeftAlone} oversized left in place, `
-    + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s)`);
+    + `${splitCandidates.length} oversized split candidate(s), `
+    + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s), `
+    + `${results.dirsRemoved} empty dir(s) removed`);
 }
 
 // ---------------------------------------------------------------- reorg (single front door)
@@ -1614,6 +1762,24 @@ function reorg() {
   }
   console.log('== discover ==');
   discover();
+  // v3: classification is the model's job, behind an approval gate (docs-builder-v3-spec.md
+  // §4). `reorg` must not silently proceed past a plan the interview hasn't touched yet —
+  // that would be the exact failure the gate exists to prevent, just moved one layer up.
+  // applyReorg() would refuse anyway, but refusing HERE means `reorg` stops with instructions
+  // instead of a die()'d stack-shaped error from a step the user didn't know was next.
+  const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
+  const plan = parseJSONFile(planFile);
+  const unclassified = plan.rows.filter(r => !VALID_BUCKETS.has(r.bucket));
+  if (unclassified.length) {
+    console.log(`\n${unclassified.length} of ${plan.rows.length} row(s) still need `
+      + `classification — the interview hasn't happened yet. Run it (docs-builder.md): feed `
+      + `the model ${planFile}, get bucket+reason `
+      + 'per row, get the user\'s approval, write the approved buckets back into the plan, '
+      + 'then re-run `reorg` (or `apply-reorg` directly).');
+    logOp('reorg', `discover only — ${unclassified.length} of ${plan.rows.length} row(s) `
+      + 'await the classification interview');
+    return;
+  }
   console.log('\n== apply-reorg ==');
   applyReorg();
   const corpus = wholeCorpusFiles();
@@ -1762,7 +1928,12 @@ function cleanupApply(file, outlineF, labelsF) {
   }
   console.log('\nall pages written — archiving the original and rebuilding the index.');
   archive(file);
+  // Two indexes, two writers, on purpose (see index()'s own comment on the bug this fixes):
+  // the themed per-split view (docs/wiki-index.md) AND the whole-corpus map (docs/index.md).
+  // Archiving just moved a file and the new pages just appeared under PAGES — both are corpus
+  // changes docs/index.md must reflect, so indexFlat() runs every time, not just after reorg.
   index(outlineF, labelsF);
+  indexFlat();
 }
 
 // ---------------------------------------------------------------- dispatch
@@ -1806,13 +1977,13 @@ switch (cmd) {
       + '  ledger                                    -> record current state of docs/\n'
       + '  due                                       -> what changed since the ledger\n'
       + '  lint        <file.md...>                  -> lint.json\n'
-      + '  discover    [root=docs]                   -> reorg-plan.json (classify, never moves)\n'
-      + '  apply-reorg [plan.json]                    -> executes the plan\n'
+      + '  discover    [root=docs]                   -> reorg-plan.json (proposes `suggested`, never moves, never sets `bucket`)\n'
+      + '  apply-reorg [plan.json]                    -> executes the plan; refuses if any row\'s `bucket` is empty\n'
       + '  reorg                                     -> discover+apply-reorg+lint, plus `due`\'s '
       + 'drift summary if a ledger stamp exists (the single front door)\n'
       + '  cleanup     <file.md>                     -> ONE named file: cost estimate, then scan\n'
       + '                                                 (the ONLY entry point to the split pipeline)\n'
-      + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
+      + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/wiki-index.md), '
       + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
       + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');
 }

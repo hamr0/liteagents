@@ -81,6 +81,18 @@ const artifact = (dir, name) =>
 const read = (dir, rel) => fs.readFileSync(path.join(dir, rel), 'utf8');
 const exists = (dir, rel) => fs.existsSync(path.join(dir, rel));
 
+/** v3: `discover` only PROPOSES (`suggested`); a human/model classification interview fills
+ *  `bucket` before `apply-reorg` will run at all. Tests that only care about the MOVE
+ *  mechanics (not the interview itself) stand in for that interview by copying each row's
+ *  `suggested` straight into `bucket` — same as a reviewer rubber-stamping every proposal. */
+function fillBucketsFromSuggested(dir, planRel = 'docs/.docs-builder/reorg-plan.json') {
+  const p = path.join(dir, planRel);
+  const plan = JSON.parse(fs.readFileSync(p, 'utf8'));
+  for (const row of plan.rows) row.bucket = row.suggested;
+  fs.writeFileSync(p, JSON.stringify(plan, null, 1));
+  return plan;
+}
+
 const DOC = (h1, h2 = 'Section One', body = 'words words words') =>
   `# ${h1}\n\nintro line\n\n## ${h2}\n\n${body}\n`;
 
@@ -273,6 +285,7 @@ function moveViaApplyReorg() {
   const d = repo(MOVE_FIXTURE());
   db(d, ['scan', 'docs/GUIDE.md']);
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
 
   ok('apply-reorg exits clean', r.code, 0);
@@ -294,6 +307,7 @@ function moveFailureIsolation() {
   const d = repo({ 'docs/A.md': DOC('A'), 'docs/B.md': DOC('B'),
     'README.md': 'see docs/A.md and docs/B.md\n' });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg'], { PATH: `${shim}:${process.env.PATH}` });
 
   // die() calls process.exit, which no try/catch can intercept. Before the throwing-core
@@ -309,7 +323,7 @@ function moveFailureIsolation() {
 // ---------------------------------------------------------------- 7. discover / protected
 
 function discoverBuckets() {
-  group('7. discover — classification and the never-move list');
+  group('7. discover — proposal (`suggested`), enrichment, and the never-move list');
 
   const d = repo({
     'docs/CLEAN.md': DOC('Clean'),
@@ -319,6 +333,10 @@ function discoverBuckets() {
     // from the archive status words after 10/12 false archives on bareloop's real corpus.
     'docs/FROZEN.md': '# Frozen\n\n**Status: FROZEN** — build follows this record.\n\n## S\n\nx\n',
     'docs/REPORT_old.md': DOC('Report'),
+    // (b) filename-shape logs signal — a real-world miss (REUSE-PREPROBE-PREREG.md, bareloop)
+    // carries the token as a SUFFIX, not a prefix, so this fixture does too.
+    'docs/EXPERIMENT-PREREG.md': DOC('Experiment Prereg'),
+    'docs/RUN-1-LEARNINGS.md': DOC('Run 1 Learnings'),
     'docs/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
     // Protected at depth — the never-move list is enforced in code, not just documented.
     'docs/README.md': DOC('Readme'),
@@ -330,40 +348,76 @@ function discoverBuckets() {
     // A live mkdocs snippet-include pointer (uv's docs/reference/contributing.md, real-world
     // miss) — no H1, but its only content is an include directive, not an unknown doc.
     'docs/reference/contributing.md': '--8<-- "CONTRIBUTING.md"\n',
-    // Negative control: no H1, but genuine unclassifiable prose — must stay `review`.
+    // v3: `review` is gone. No H1, no strong signal — still a real row, still `suggested`
+    // product (the model decides at the interview, nothing special-cases this any more).
     'docs/reference/mystery.md': 'just some prose with no heading and no include directive.\n',
   });
   const r = db(d, ['discover']);
   ok('discover exits clean', r.code, 0);
   const rows = JSON.parse(fs.readFileSync(
     path.join(d, 'docs/.docs-builder/reorg-plan.json'), 'utf8')).rows;
-  const bucket = f => (rows.find(x => x.file === f) || {}).bucket || 'ABSENT';
+  const row = f => rows.find(x => x.file === f) || {};
+  const suggested = f => row(f).suggested || 'ABSENT';
 
-  ok('a clean current doc is product', bucket('docs/CLEAN.md'), 'product');
-  ok('a SHOUTED status word is archive', bucket('docs/CLOSED.md'), 'archive');
+  ok('a clean current doc is suggested product', suggested('docs/CLEAN.md'), 'product');
+  ok('a SHOUTED status word is suggested archive', suggested('docs/CLOSED.md'), 'archive');
   // Case-sensitivity is deliberate: lowercase "closed"/"supersedes" in prose false-positived
   // three ways on a real corpus, so only the ALL-CAPS self-declaration counts.
-  ok('lowercase status prose is NOT archived', bucket('docs/lower.md'), 'product');
-  ok('FROZEN (locked-and-live, not retired) is NOT archived', bucket('docs/FROZEN.md'), 'product');
-  ok('an archive-shaped filename is archive', bucket('docs/REPORT_old.md'), 'archive');
-  ok('an over-ceiling doc is oversized', bucket('docs/BIG.md'), 'oversized');
-  ok('a no-H1 mkdocs include stub is product, not review',
-    bucket('docs/reference/contributing.md'), 'product');
-  ok('a no-H1 file with real unclassifiable prose stays review',
-    bucket('docs/reference/mystery.md'), 'review');
+  ok('lowercase status prose is NOT suggested archive', suggested('docs/lower.md'), 'product');
+  ok('FROZEN (locked-and-live, not retired) is NOT suggested archive', suggested('docs/FROZEN.md'), 'product');
+  ok('an archive-shaped filename is suggested archive', suggested('docs/REPORT_old.md'), 'archive');
+  // (b) PREREG/LEARNINGS filename shape suggests logs — new in v3.
+  ok('a *-PREREG filename is suggested logs', suggested('docs/EXPERIMENT-PREREG.md'), 'logs');
+  ok('a *-LEARNINGS filename is suggested logs', suggested('docs/RUN-1-LEARNINGS.md'), 'logs');
+  ok('a no-H1 mkdocs include stub is suggested product',
+    suggested('docs/reference/contributing.md'), 'product');
+  ok('a no-H1 file with real unclassifiable prose is still suggested product (no more `review`)',
+    suggested('docs/reference/mystery.md'), 'product');
 
-  ok('README.md is never listed', bucket('docs/README.md'), 'ABSENT');
-  ok('CLAUDE.md is never listed, at any depth', bucket('docs/deep/CLAUDE.md'), 'ABSENT');
-  ok('CHANGELOG.md is never listed, at any depth', bucket('docs/deep/CHANGELOG.md'), 'ABSENT');
-  ok('node_modules/ is never walked', bucket('docs/node_modules/pkg/DOC.md'), 'ABSENT');
-  ok('dot-dirs are never walked', bucket('docs/.hidden/SECRET.md'), 'ABSENT');
+  // (a) oversized is a boolean now, not a bucket — orthogonal to `suggested`.
+  ok('an over-ceiling doc is suggested product, same as any other structured doc',
+    suggested('docs/BIG.md'), 'product');
+  ok('an over-ceiling doc is flagged oversized', row('docs/BIG.md').oversized, true);
+  ok('a normal-size doc is NOT flagged oversized', row('docs/CLEAN.md').oversized, false);
 
+  // discover enriches every row with h1 + snip, reusing headings()/snippet() — no second
+  // extraction path.
+  ok('h1 is captured', row('docs/CLEAN.md').h1, 'Clean');
+  okTrue('snip is captured and non-empty', !!row('docs/CLEAN.md').snip);
+
+  // (a) `bucket` is left for the interview — never pre-filled by discover.
+  okTrue('every row\'s bucket starts empty, awaiting the interview',
+    rows.every(x => x.bucket === ''));
+
+  ok('README.md is never listed', suggested('docs/README.md'), 'ABSENT');
+  ok('CLAUDE.md is never listed, at any depth', suggested('docs/deep/CLAUDE.md'), 'ABSENT');
+  ok('CHANGELOG.md is never listed, at any depth', suggested('docs/deep/CHANGELOG.md'), 'ABSENT');
+  ok('node_modules/ is never walked', suggested('docs/node_modules/pkg/DOC.md'), 'ABSENT');
+  ok('dot-dirs are never walked', suggested('docs/.hidden/SECRET.md'), 'ABSENT');
+
+  // (c) apply-reorg refuses while any bucket is empty — the interview message, not a crash.
+  const refused = db(d, ['apply-reorg']);
+  ok('apply-reorg refuses with an unclassified plan', refused.code, 1);
+  okTrue('the refusal names the classification interview',
+    /classification interview has not happened/.test(refused.out));
+  okTrue('protected files stayed put (nothing ran at all)',
+    exists(d, 'docs/README.md') && exists(d, 'docs/deep/CLAUDE.md'));
+  okTrue('the oversized doc was not moved either — refusal blocks EVERYTHING',
+    exists(d, 'docs/BIG.md'));
+  okTrue('(g) negative control: refusal writes no index.md at all', !exists(d, 'docs/index.md'));
+
+  fillBucketsFromSuggested(d);
   const applied = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean once classified', applied.code, 0);
   okTrue('protected files stayed put after apply-reorg',
     exists(d, 'docs/README.md') && exists(d, 'docs/deep/CLAUDE.md'));
-  okTrue('an oversized doc is never auto-split or moved', exists(d, 'docs/BIG.md'));
-  // v3: apply-reorg always writes the index itself (no more hint-only path) — even with an
-  // oversized doc left in place, since that doc still gets an in-place row under ## Product.
+  // (d) oversized files now MOVE like everything else — size decides splittable, not sorted.
+  okTrue('the oversized doc moved into its bucket, not left in place',
+    !exists(d, 'docs/BIG.md') && exists(d, 'docs/product/BIG.md'));
+  okTrue('the split-candidate list names the oversized doc at its NEW path',
+    /cleanup docs\/product\/BIG\.md/.test(applied.out));
+  okTrue('the logs-suggested docs moved into docs/logs/',
+    exists(d, 'docs/logs/EXPERIMENT-PREREG.md') && exists(d, 'docs/logs/RUN-1-LEARNINGS.md'));
   okTrue('the oversized-in-place doc still ends up indexed under ## Product',
     read(d, 'docs/index.md').includes('[Big]'));
 }
@@ -379,6 +433,7 @@ function reorgCollision() {
     'docs/TAKEN.md': DOC('Taken'),
   });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
 
   okTrue('same-basename collision is disambiguated, both survive',
@@ -490,24 +545,36 @@ function search() {
 // ---------------------------------------------------------------- 11. reorg
 
 /**
- * v3 folds `reconcile` and `due` into one front door: `reorg` runs discover -> apply-reorg
- * (which already scans the WHOLE corpus and writes docs/index.md itself) -> lint, in one
- * invocation — "first run" and "since last time" are the same job with different starting
- * state. `due` stays individually runnable and unchanged (see reorgDueUnaffected below); reorg
- * only calls it in-process, additively, when a ledger stamp already exists.
+ * v3 folds `reconcile` and `due` into one front door: `reorg` runs discover, STOPS for the
+ * classification interview if any row's `bucket` is still empty (true on every first run —
+ * discover never fills it), else apply-reorg (which already scans the WHOLE corpus and writes
+ * docs/index.md itself) -> lint. `due` stays individually runnable and unchanged (see
+ * reorgDueUnaffected below); reorg only calls it in-process, additively, when a ledger stamp
+ * already exists.
  */
 function reorgCmd() {
-  group('11. reorg — the single front door (discover + apply-reorg + lint [+ due])');
+  group('11. reorg — the single front door (discover [+ interview gate] + apply-reorg + lint [+ due])');
 
-  // (b) a fresh corpus, no ledger stamp: one invocation does discover + apply-reorg + lint,
-  // and ends with both a moved corpus AND an index.md on disk.
+  // (b) a fresh corpus, no ledger stamp: FIRST invocation only discovers and stops — the
+  // interview hasn't happened. It must not silently proceed past an unclassified plan.
   const d = repo({
     'docs/CLEAN.md': DOC('Clean'),
     'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
   });
+  const r1 = db(d, ['reorg']);
+  ok('first reorg (unclassified) exits clean', r1.code, 0);
+  okTrue('it discovers', /== discover ==/.test(r1.out));
+  okTrue('it stops for the classification interview', /classification interview/.test(r1.out));
+  okTrue('it does NOT apply', !/== apply-reorg ==/.test(r1.out));
+  okTrue('it does NOT lint', !/== lint ==/.test(r1.out));
+  okTrue('nothing moved yet', exists(d, 'docs/CLEAN.md') && exists(d, 'docs/CLOSED.md'));
+  okTrue('no index.md yet', !exists(d, 'docs/index.md'));
+
+  // Fill the plan (stand-in for the interview) — SECOND invocation completes the job.
+  fillBucketsFromSuggested(d);
   const r = db(d, ['reorg']);
-  ok('reorg exits clean', r.code, 0);
-  okTrue('it discovers', /== discover ==/.test(r.out));
+  ok('reorg exits clean once classified', r.code, 0);
+  okTrue('it discovers again', /== discover ==/.test(r.out));
   okTrue('it applies the reorg', /== apply-reorg ==/.test(r.out));
   okTrue('it lints', /== lint ==/.test(r.out));
   okTrue('the corpus actually moved (product/)', exists(d, 'docs/product/CLEAN.md'));
@@ -518,12 +585,15 @@ function reorgCmd() {
   okTrue('no ledger yet -> no drift summary is fabricated',
     !/== due/.test(r.out));
 
-  // (c) a corpus WITH a ledger stamp: reorg additionally reports the due-style drift summary.
+  // (c) a corpus WITH a ledger stamp: reorg additionally reports the due-style drift summary,
+  // once classified.
   const d2 = repo({ 'docs/CLEAN.md': DOC('Clean') });
   db(d2, ['ledger']);
   write(d2, { 'docs/NEW.md': DOC('New') });
   git(d2, ['add', '-A']);
   git(d2, ['commit', '-qm', 'add NEW']);
+  db(d2, ['reorg']); // discover only, stops
+  fillBucketsFromSuggested(d2);
   const r2 = db(d2, ['reorg']);
   ok('reorg with a ledger stamp still exits clean', r2.code, 0);
   okTrue('it additionally reports the drift summary', /== due/.test(r2.out));
@@ -538,13 +608,18 @@ function reorgOutIgnored() {
 
   const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
   const outFile = path.join(os.tmpdir(), `db-reorg-out-${process.pid}.json`);
-  const r = db(d, ['reorg'], { OUT: outFile });
-  ok('reorg exits clean', r.code, 0);
-  okTrue('reorg WARNs that OUT is ignored', r.out.includes(`ignoring OUT=${outFile}`));
+  const r1 = db(d, ['reorg'], { OUT: outFile });
+  ok('first reorg (unclassified) exits clean', r1.code, 0);
+  okTrue('reorg WARNs that OUT is ignored', r1.out.includes(`ignoring OUT=${outFile}`));
   okTrue('reorg-plan.json still lands at the default artifacts path',
     exists(d, 'docs/.docs-builder/reorg-plan.json'));
-  okTrue('docs/index.md still lands at the default path', exists(d, 'docs/index.md'));
   okTrue('OUT\'s own path was never written to', !fs.existsSync(outFile));
+
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['reorg'], { OUT: outFile });
+  ok('reorg exits clean once classified', r.code, 0);
+  okTrue('docs/index.md still lands at the default path', exists(d, 'docs/index.md'));
+  okTrue('OUT\'s own path was still never written to', !fs.existsSync(outFile));
 }
 
 /** Repeated `reorg` runs must be stable: docs/index.md and docs/log.md are the pipeline's OWN
@@ -560,6 +635,12 @@ function reorgCorpusStability() {
     'docs/index.md': '## [theme](wiki/x.md)\n\nsome row\n',
     'docs/log.md': '## 2026-01-01 archive | prior op\n\nsome body\n',
   });
+
+  // First run only discovers (the interview gate) — classify once, then every subsequent
+  // run has nothing left to classify (everything already moved into product/archive, which
+  // discover's walk never descends into), so the stability loop proceeds unattended.
+  db(d, ['reorg']);
+  fillBucketsFromSuggested(d);
 
   const counts = [];
   for (let i = 0; i < 3; i++) {
@@ -823,14 +904,16 @@ function indexPendingUnwrittenPages() {
   // Only beta's page is actually written.
   write(d, { 'docs/wiki/beta.md': '---\ntitle: Beta\n---\n\nwritten content here.\n' });
 
+  // No OUT override: `index`'s themed view now defaults to docs/wiki-index.md, a sibling of
+  // (never the same file as) docs/index.md — the whole-corpus map only index-flat writes.
   const idx = db(d, ['index', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json'], { OUT: 'docs/index.md' });
+    'docs/.docs-builder/labels.json']);
   ok('index exits clean', idx.code, 0);
   okTrue('index reports how many themes are pending',
     /1 of 2 theme\(s\) have no page yet/.test(idx.out));
   okTrue('index points to `plan` for which pages are pending', /plan/.test(idx.out));
 
-  const md = read(d, 'docs/index.md');
+  const md = read(d, 'docs/wiki-index.md');
   okTrue('the unwritten theme is present but NOT a resolvable wiki link',
     /## alpha/.test(md) && !/\[alpha\]\(wiki\/alpha\.md\)/.test(md));
   okTrue('the unwritten row carries a visible pending marker', /alpha.*pending/i.test(md));
@@ -856,16 +939,17 @@ function indexPendingUnwrittenPages() {
     labels: [{ key: o2.records[0].key, theme: 'gamma' }] }) });
   write(d2, { 'docs/custom-pages/gamma.md': '---\ntitle: Gamma\n---\n\nwritten.\n' });
   const idx2 = db(d2, ['index', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json'], { OUT: 'docs/index.md', PAGES: 'docs/custom-pages' });
+    'docs/.docs-builder/labels.json'], { PAGES: 'docs/custom-pages' });
   ok('index (custom PAGES) exits clean', idx2.code, 0);
-  const md2 = read(d2, 'docs/index.md');
+  const md2 = read(d2, 'docs/wiki-index.md');
   okTrue('PAGES= is honoured: no pending marker when the custom-dir page exists',
     !/pending/i.test(md2));
   okTrue('PAGES= is honoured: the emitted link is NOT the hardcoded wiki/ path',
     !/\[gamma\]\(wiki\/gamma\.md\)/.test(md2));
-  // The link is read from inside index.md, so it must resolve relative to index.md's own
-  // directory (docs/), not the repo root — assert on the actual filesystem target, not on one
-  // hardcoded string, so this doesn't just trade one hardcoded expectation for another.
+  // The link is read from inside the themed index, so it must resolve relative to that
+  // file's own directory (docs/), not the repo root — assert on the actual filesystem
+  // target, not on one hardcoded string, so this doesn't just trade one hardcoded
+  // expectation for another.
   const linkMatch = md2.match(/## \[gamma\]\(([^)]+)\)/);
   okTrue('PAGES= is honoured: a link was emitted at all for the written page', !!linkMatch);
   if (linkMatch) okTrue('PAGES= is honoured: that link resolves to the real page on disk',
@@ -992,6 +1076,7 @@ function applyReorgAutoIndexes() {
     'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
   });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   okTrue('no index.md before apply-reorg', !exists(d, 'docs/index.md'));
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
@@ -1109,6 +1194,7 @@ function applyReorgScansWholeCorpus() {
     'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## Sprockets\n\nsprocket tooling\n',
   });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
 
@@ -1142,6 +1228,7 @@ function applyReorgScanRespectsPages() {
     'docs/product/custom-pages/SPLIT.md': DOC('Split page — already-written output, not source'),
   });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg'], { PAGES: 'docs/product/custom-pages' });
   ok('apply-reorg exits clean', r.code, 0);
 
@@ -1157,12 +1244,15 @@ function applyReorgScanRespectsPages() {
  * deliberately leaves `oversized` files exactly where discover found them (splitting spends
  * model budget and must never fire unprompted), so on bareloop's real corpus the 12 biggest,
  * most-cited docs (PRD.md, FINDINGS.md, LAYERS.md — all oversized, all left in place under
- * their original subdirs) still had zero outline records after apply-reorg. scan must cover
- * the whole corpus at wherever each file FINALLY lives: product/, archive/, or its original
- * pre-move path for anything left oversized.
+ * their original subdirs) still had zero outline records after apply-reorg. Fixed at the
+ * root, v3 (docs-builder-v3-spec.md, "four buckets"): oversized files are no longer left in
+ * place at all — size decides splittable, not sorted, so an oversized doc moves into its
+ * bucket like everything else and scan (which runs on wherever each file FINALLY lives)
+ * simply covers it there, same as any other moved file. Pinned here so the old miss can't
+ * come back if "leave oversized in place" is ever reintroduced.
  */
 function applyReorgScansOversizedInPlace() {
-  group('24c. apply-reorg\'s scan reaches oversized files left in place (12-of-37, still not fixed)');
+  group('24c. apply-reorg\'s scan reaches oversized files at their NEW (moved) path');
 
   const d = repo({
     'docs/00-context/BIG.md': `# Big\n\n## Widgets\n\nwidget assembly instructions\n\n${'line\n'.repeat(600)}`,
@@ -1170,21 +1260,27 @@ function applyReorgScansOversizedInPlace() {
     'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
   });
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
-  okTrue('the oversized doc was left at its original path, not moved',
-    exists(d, 'docs/00-context/BIG.md'));
+  okTrue('the oversized doc was NOT left at its original path', !exists(d, 'docs/00-context/BIG.md'));
+  okTrue('the oversized doc moved into its (product) bucket', exists(d, 'docs/product/BIG.md'));
 
   const files = new Set(artifact(d, 'outline.json').records.map(x => x.file));
   okTrue('outline.json has a record for the product-bound file', files.has('docs/product/CLEAN.md'));
   okTrue('outline.json has a record for the archive-bound file', files.has('docs/archive/CLOSED.md'));
-  okTrue('outline.json has a record for the oversized file at its ORIGINAL path',
-    files.has('docs/00-context/BIG.md'));
+  okTrue('outline.json has a record for the oversized file at its NEW path',
+    files.has('docs/product/BIG.md'));
+  okTrue('outline.json has NO record at the oversized file\'s OLD path',
+    !files.has('docs/00-context/BIG.md'));
 
   const s = db(d, ['search', 'docs/.docs-builder/outline.json', 'widget']);
   ok('search exits clean', s.code, 0);
-  okTrue('search finds a hit in the oversized file at its original in-place path',
-    /docs\/00-context\/BIG\.md/.test(s.out));
+  okTrue('search finds a hit in the oversized file at its NEW (moved) path',
+    /docs\/product\/BIG\.md/.test(s.out));
+
+  // (f) the emptied source dir (docs/00-context/) is removed once genuinely empty.
+  okTrue('the emptied source dir was removed', !exists(d, 'docs/00-context'));
 }
 
 // ---------------------------------------------------------------- 25-26. cleanup (v3 step 3)
@@ -1242,27 +1338,43 @@ function cleanupCmd() {
 }
 
 /**
- * (d) `reorg`'s oversized follow-up must name `cleanup <file>` per file, with a line count,
- * not a generic "run the split pipeline" description.
+ * (d) `apply-reorg`'s oversized follow-up must name `cleanup <file>` per file, with a line
+ * count, AT THE FILE'S NEW (moved) PATH — not the pre-move one, since v3 moves oversized docs
+ * like everything else — and logs-bucket split candidates must sort LAST (spec §5).
  * (e) Negative control: `apply-reorg` over a corpus holding an oversized file must never
  * create anything under the pages dir — proof `reorg` itself cannot split.
  */
 function applyReorgNamesCleanup() {
-  group('26. apply-reorg — oversized follow-up names `cleanup <path>` (and never splits)');
+  group('26. apply-reorg — oversized follow-up names `cleanup <NEW path>`, logs last (and never splits)');
 
   const d = repo({
     'docs/00-context/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
+    // A second oversized file, filename-shaped for logs — must sort AFTER the product one in
+    // the split-candidate list even though it's discovered first (alphabetically/by-walk).
+    'docs/AAA-PREREG.md': `# Aaa Prereg\n\n## S\n\n${'line\n'.repeat(600)}`,
     'docs/CLEAN.md': DOC('Clean'),
   });
+  const bigLines = fs.readFileSync(path.join(d, 'docs/00-context/BIG.md'), 'utf8').split('\n').length;
+  const preregLines = fs.readFileSync(path.join(d, 'docs/AAA-PREREG.md'), 'utf8').split('\n').length;
   db(d, ['discover']);
+  fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
 
-  const bigLines = fs.readFileSync(path.join(d, 'docs/00-context/BIG.md'), 'utf8').split('\n').length;
-  okTrue('the follow-up names `cleanup docs/00-context/BIG.md`',
-    r.out.includes('cleanup docs/00-context/BIG.md'));
+  okTrue('the oversized doc moved (product bucket)', exists(d, 'docs/product/BIG.md'));
+  okTrue('the oversized logs-shaped doc moved (logs bucket)', exists(d, 'docs/logs/AAA-PREREG.md'));
+  okTrue('the follow-up names `cleanup docs/product/BIG.md` — the NEW path, not the old one',
+    r.out.includes('cleanup docs/product/BIG.md'));
+  okTrue('the old pre-move path is never named', !r.out.includes('cleanup docs/00-context/BIG.md'));
   okTrue('the follow-up includes the oversized file\'s line count',
-    new RegExp(`cleanup docs/00-context/BIG\\.md[^\\n]*${bigLines} lines`).test(r.out));
+    new RegExp(`cleanup docs/product/BIG\\.md[^\\n]*${bigLines} lines`).test(r.out));
+  okTrue('the logs candidate is named at its new path too',
+    new RegExp(`cleanup docs/logs/AAA-PREREG\\.md[^\\n]*${preregLines} lines`).test(r.out));
+
+  // Ordering: the logs-bucket candidate must come AFTER the product-bucket one in the list.
+  const bigIdx = r.out.indexOf('cleanup docs/product/BIG.md');
+  const preregIdx = r.out.indexOf('cleanup docs/logs/AAA-PREREG.md');
+  okTrue('logs-bucket split candidates sort LAST', bigIdx !== -1 && preregIdx !== -1 && bigIdx < preregIdx);
 
   // (e) negative control — reorg never splits, proven, not just documented.
   okTrue('apply-reorg never creates a pages dir (reorg cannot split)', !exists(d, 'docs/wiki'));
@@ -1432,6 +1544,146 @@ function cleanupApplyFullCycle() {
   okTrue('index.md was rebuilt', exists(d, 'docs/index.md'));
 }
 
+// ---------------------------------------------------------------- 31-33. v3 four-bucket extras
+
+/** (e) logs/ is a real bucket, not just a filename hint: a logs-shaped file actually lands
+ *  under docs/logs/, shows up in outline.json (search's database) and docs/index.md's own
+ *  ## Logs section, and a second discover+apply-reorg cycle over the same corpus is a no-op —
+ *  nothing moves twice, nothing duplicates. */
+function logsIdempotentAndIndexed() {
+  group('31. logs bucket — lands in docs/logs/, indexed, idempotent on a second run');
+
+  const d = repo({
+    'docs/EXPERIMENT-PREREG.md': DOC('Experiment Prereg'),
+    'docs/CLEAN.md': DOC('Clean'),
+  });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the logs-shaped file landed under docs/logs/', exists(d, 'docs/logs/EXPERIMENT-PREREG.md'));
+
+  const files = new Set(artifact(d, 'outline.json').records.map(x => x.file));
+  okTrue('outline.json has a record for the logs file (search\'s database)',
+    files.has('docs/logs/EXPERIMENT-PREREG.md'));
+
+  const md = read(d, 'docs/index.md');
+  okTrue('index.md has a ## Logs section', /## Logs/.test(md));
+  const logsSection = (md.split(/^## /m).find(s => s.startsWith('Logs')) || '');
+  okTrue('the logs file is listed under ## Logs', logsSection.includes('[Experiment Prereg]'));
+  okTrue('the logs file is NOT also listed under ## Product',
+    !(md.split(/^## /m).find(s => s.startsWith('Product')) || '').includes('[Experiment Prereg]'));
+
+  // Idempotence: re-run discover (walkMd skips docs/logs/ by name, same as product/archive)
+  // + apply-reorg over what's left — nothing left to classify, nothing left to move.
+  db(d, ['discover']);
+  const plan = JSON.parse(fs.readFileSync(path.join(d, 'docs/.docs-builder/reorg-plan.json'), 'utf8'));
+  ok('a second discover finds nothing left to classify', plan.rows.length, 0);
+  const r2 = db(d, ['apply-reorg']);
+  ok('a second apply-reorg exits clean', r2.code, 0);
+  okTrue('a second apply-reorg moves nothing', /"moved": 0/.test(r2.out));
+  okTrue('a second apply-reorg skips nothing', /"skipped": 0/.test(r2.out));
+  okTrue('the logs file still exists exactly once, unchanged',
+    exists(d, 'docs/logs/EXPERIMENT-PREREG.md') && !exists(d, 'docs/logs/EXPERIMENT-PREREG-2.md'));
+}
+
+/** (f) emptied source directories are removed, depth-first so nested empties collapse — but
+ *  a directory that still holds ANYTHING (even a file reorg never touches) survives.
+ *  (g) negative control: while apply-reorg refuses (unclassified plan), nothing moves and
+ *  no directory is removed — the sweep only ever runs on a completed, successful apply. */
+function emptyDirCleanup() {
+  group('32. apply-reorg — nested empty source dirs removed; a leftover file blocks removal');
+
+  const d = repo({
+    'docs/a/b/c/DEEP.md': DOC('Deep'),
+    // Non-.md leftover in a SIBLING subdir of the same ancestor — walkMd never touches it
+    // (extension filter), so docs/a/ must survive even though docs/a/b/c/ does not.
+    'docs/a/other/keep.txt': 'never touched by reorg\n',
+  });
+  db(d, ['discover']);
+
+  // (g) negative control, refusal path: nothing moves, nothing is removed.
+  const refused = db(d, ['apply-reorg']);
+  ok('apply-reorg refuses (unclassified plan)', refused.code, 1);
+  okTrue('(g) the nested dir survives a refused apply-reorg', exists(d, 'docs/a/b/c/DEEP.md'));
+  okTrue('(g) the leftover-holding dir survives too', exists(d, 'docs/a/other/keep.txt'));
+
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean once classified', r.code, 0);
+  okTrue('the file moved into product/', exists(d, 'docs/product/DEEP.md'));
+  // (f) nested collapse: docs/a/b/c/ AND docs/a/b/ are both now empty and both removed.
+  okTrue('the deepest emptied dir was removed', !exists(d, 'docs/a/b/c'));
+  okTrue('its now-empty parent was ALSO removed (nested collapse)', !exists(d, 'docs/a/b'));
+  // (f) docs/a/ itself still holds docs/a/other/keep.txt — must survive.
+  okTrue('a dir with a leftover file is NOT removed', exists(d, 'docs/a'));
+  okTrue('the leftover file itself is untouched', exists(d, 'docs/a/other/keep.txt'));
+  okTrue('apply-reorg reports how many dirs it removed', /"dirsRemoved": 2/.test(r.out));
+}
+
+/**
+ * The scope addition found live on bareloop: two writers targeted docs/index.md and the last
+ * one won. apply-reorg wrote the 37-row whole-corpus map, then a PRD split's themed `index`
+ * subcommand overwrote it with only that split's 7 wiki pages — 30 of 37 files silently
+ * vanished from a file that still claimed completeness. Fixed by giving `index` its own file
+ * (docs/wiki-index.md) and having cleanup-apply rebuild index-flat's whole-corpus map as its
+ * own final step. (h) proves docs/index.md survives a full cleanup cycle with its other
+ * corpus entries intact; (i) proves the themed view's own links still resolve.
+ */
+function cleanupPreservesWholeCorpusIndex() {
+  group('33. cleanup-apply must not clobber the whole-corpus index (bareloop regression)');
+
+  const original = '# Big\n\n## One\n\nalpha alpha alpha\n\n## Two\n\nbeta beta beta\n';
+  const d = repo({
+    'docs/BIG.md': original,
+    'docs/OTHER.md': DOC('Other'),
+    'docs/A-PREREG.md': DOC('A Prereg'),
+  });
+  // Reorg first — a product file and a logs file land under their buckets, both indexed.
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  db(d, ['apply-reorg']);
+  okTrue('setup: the product file is indexed', read(d, 'docs/index.md').includes('[Other]'));
+  okTrue('setup: the logs file is indexed', read(d, 'docs/index.md').includes('[A Prereg]'));
+
+  // Now run the split pipeline on the (now-moved) oversized product doc end to end.
+  const bigPath = 'docs/product/BIG.md';
+  db(d, ['cleanup', bigPath]);
+  const o = artifact(d, 'outline.json');
+  const bigRecords = o.records.filter(r => r.file === bigPath);
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: 'g', core: true }, { name: 'Other', gloss: 'g2' }],
+    labels: [{ key: bigRecords[0].key, theme: 'Main' }, { key: bigRecords[1].key, theme: 'Other' }] }) });
+  db(d, ['cleanup-apply', bigPath, 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+
+  const page = title => `---\ntype: reference\ntitle: ${title}\n---\n\n# ${title}\n\n`
+    + 'body line\n'.repeat(10);
+  write(d, { 'docs/wiki/BIG.md': page('Big'), 'docs/wiki/other.md': page('Other') });
+  const second = db(d, ['cleanup-apply', bigPath,
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('final cleanup-apply exits clean', second.code, 0);
+  okTrue('the split archived the original', exists(d, 'docs/archive/BIG.md'));
+
+  // (h) the regression: docs/index.md must still list EVERY corpus file, not only the
+  // split's own wiki pages.
+  const md = read(d, 'docs/index.md');
+  okTrue('(h) the pre-existing product file is STILL indexed after the split', md.includes('[Other]'));
+  okTrue('(h) the pre-existing logs file is STILL indexed after the split', md.includes('[A Prereg]'));
+  okTrue('(h) the split\'s own wiki pages are indexed too', /\[Big\]/.test(md) || /wiki\/BIG\.md/.test(md));
+  okTrue('(h) the archived original is indexed under ## Archive',
+    (md.split(/^## /m).find(s => s.startsWith('Archive')) || '').includes('BIG'));
+
+  // (i) the themed per-split view is a SEPARATE file, and its own links resolve.
+  okTrue('(i) the themed view lives at its own file, not docs/index.md', exists(d, 'docs/wiki-index.md'));
+  const wmd = read(d, 'docs/wiki-index.md');
+  const links = [...wmd.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
+  okTrue('(i) the themed view has at least one link', links.length > 0);
+  let dead = 0;
+  for (const link of links)
+    if (!fs.existsSync(path.join(d, 'docs', link))) dead++;
+  ok('(i) every link in the themed view resolves', dead, 0);
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1476,6 +1728,7 @@ function main() {
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
     cleanupCmd, applyReorgNamesCleanup,
     cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
+    logsIdempotentAndIndexed, emptyDirCleanup, cleanupPreservesWholeCorpusIndex,
     packageParity];
 
   for (const g of groups) {
