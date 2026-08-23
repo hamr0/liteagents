@@ -88,7 +88,11 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
    - **Facts section**: call the mid-tier model with existing facts + newly extracted facts
      - Rules: new updates replace old, contradictions keep new version, duplicates dropped
      - Keep facts atomic, one line each
-   - **Episodes section**: append new episode entries (append-only, timestamped, no dedup)
+   - **Episodes section**: append new episode entries (timestamped, no dedup), then keep
+     only the **10 most recent** in `MEMORY.md`. Move every older entry — unchanged, in
+     chronological order — to `.claude/remember/EPISODES.md` (create it with the header
+     `# Episode Archive` if absent; append, never rewrite). Nothing is ever deleted: the
+     archive is cold storage and is not loaded into context.
    - **Antigens section**: only update from friction output (step 4)
    - Write merged result to `.claude/remember/MEMORY.md` in the format under step 6.
 
@@ -267,7 +271,7 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
    - Facts count (total, new)
-   - Episodes count (total, new)
+   - Episodes count (new, kept hot in MEMORY.md, archived to EPISODES.md)
    - Antigens count by confidence tier, with how many newly promoted to hot
    - Ledger lines — one per non-observing entry: id, short rule, status, recurrences since
      adoption. Highlight rephrased (RECURRED) and ESCALATED entries; escalations need a
@@ -284,6 +288,7 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
 - Stash files: `.claude/stash/*.md`
 - Memory file: `.claude/remember/MEMORY.md` (single source of truth, referenced as `@.claude/remember/MEMORY.md`)
 - Rules template: `.claude/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced as `@.claude/remember/AGENT_RULES.md`)
+- Episode archive: `.claude/remember/EPISODES.md` (episodes older than the 10 most recent — cold storage, never loaded into context)
 - Antigen ledger: `.claude/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.claude/remember/report.md` (latest step-7 report, overwritten each run)
 - Processed manifest: `.claude/remember/.processed`

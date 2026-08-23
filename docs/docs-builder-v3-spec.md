@@ -150,57 +150,45 @@ Verified 2026-08-23 that `due` itself still runs clean after the v2 fix commits 
 no ledger stamped: `no ledger yet — run \`docs-builder.cjs ledger\` to start tracking. NOT due.`,
 exit 0). The break is the nudge text, not the mechanism.
 
-## `cleanup` keeps the core — the requirement that changes the operation
+## `cleanup` — settled 2026-08-23
 
-**The core document is never lost and never renamed.** Stated by the user 2026-08-23 as a hard
-requirement, and it contradicts what `cleanup` does today.
+Three open questions on this operation are closed. The answers are the user's.
 
-Today the split pipeline archives the original: `docs/01-product/PRD.md` becomes
-`docs/archive/PRD.md`, and synthesized pages stand in its place. The requirement is the
-opposite. `PRD.md` stays `PRD.md`, at its own path, holding its own core. What leaves is the
-drift that accreted onto it.
+### The original always goes to archive
 
-### Why this is the right operation for this corpus
+`docs/01-product/PRD.md` moves to `docs/archive/PRD.md` — `git mv`, byte-identical, history
+intact, never edited, never deleted. This is unchanged from v2 and is the safety floor: whatever
+the split produces, the document it came from is still there in full.
 
-Splitting balanced themes is the wrong shape for a document that is one spec plus an
-append-only log. Measured on bareloop's `PRD.md` (5,680 lines, 86 H2 sections):
+An earlier draft of this section said the core file must never be archived and must stay at its
+original path. That is superseded. It also implied `cleanup` would rewrite a source document in
+place, which raised a real safety problem — every existing operation in this pipeline only
+reads, moves, or writes new files. The settled answer removes that problem entirely rather than
+solving it.
 
-```
-sections §1-§11, the actual PRD:   11 sections,   193 lines   (3%)
-sections "Addendum v1.xx":         75 sections, 5,476 lines  (97%)
-```
+### Everything cleanup produces is a new file
 
-The PRD is 193 lines. The other 97% is a changelog that grew onto the end of it. The v2 flow
-split this into 8 theme-balanced pages, which scatters an 11-section spec across pages that are
-overwhelmingly addenda, then archives the spec itself. That is the opposite of what the document
-needs.
+The core is written out as a **new file carrying the name**, alongside the themed pages for the
+rest. Nothing is edited in place. So the pipeline keeps its existing property — read, move, or
+write new — and `cleanup` needs no new safety story, because it introduces no new class of
+write.
 
-### Shape
+"Keep the core" therefore means: the core survives as its own document under its own name, and
+the original that produced it survives in `archive/`. Two copies of the thing that matters, one
+of them untouched.
 
-```
-cleanup <file.md>
-  1. read            scan -> sections, line ranges
-  2. separate        core vs accretion
-  3. core STAYS      same path, same name, never moved, never archived
-  4. accretion       themed into pages, placed, and the original span removed from the core file
-  5. reindex         docs/index.md rebuilt
-```
+### The proposal comes from a read, and the verdict comes from the user
 
-Step 3 is the invariant. If the separation cannot be made confidently, `cleanup` does nothing
-and says so — it never falls back to archiving the core.
+The cheapest tier reads the document and proposes what it is:
 
-### Separation is decided by interview, not by a heuristic
+- weighted to the **opening**, where a document states its intent and what it is for;
+- but reading the rest too, so it can name the other themes actually present.
 
-An earlier draft of this section proposed a structural rule — "a long tail of same-shaped, dated
-sections at the end of a file is accretion". Dropped before it was built. It would have guessed,
-on n=1, at the one question that decides everything downstream.
+It answers in the shape: **"this document is mainly X; other themes present: Y, Z."**
 
-The user's framing is the right one: **read the document, then ask.** A person looking at
-bareloop's `PRD.md` asks "what is this actually for — a product spec? planning? findings?" and
-the answer changes what the core is. The tool cannot know that, and it should not pretend to.
-
-So `cleanup` opens with an interview. The script measures the shape; the model reads and forms
-the question; the user answers; the answer decides the split.
+The script supplies the exact shape — section count, line distribution — so the numbers under
+the proposal are measured, not estimated. bareloop's `PRD.md`, for instance: 11 spec sections
+holding 193 lines, 75 `Addendum v1.xx` sections holding 5,476.
 
 ```
 cleanup docs/01-product/PRD.md
@@ -209,27 +197,22 @@ cleanup docs/01-product/PRD.md
     §1-§11 (spec sections)      11 sections,   193 lines   (3%)
     "Addendum v1.xx"            75 sections, 5,476 lines  (97%)
 
-  What is this document mainly for?
-  1. A product spec — the §-sections are the doc, the addenda are a changelog
-  2. A decision log — the addenda ARE the content, §1-§11 are a preamble
-  3. Both, equally
+  This document is mainly: a product spec.
+  Other themes present: a dated decision log; evidence and findings.
+
+  Is that right, and are those the themes you want split out?
 ```
 
-The shape numbers are script-produced and exact. The reading of that shape is the model's. The
-verdict is the user's. This is the same division of labour the rest of the pipeline uses, and
-the same explicit-choice-over-auto-detect rule `live-canvas` settled on.
+**`cleanup` does nothing until the user answers.** Not the archive move, not a page, not a
+model call beyond the proposing read. The goal of the interview is not to classify the document
+— it is to make sure the proposed themes are correct before any budget is spent on them.
 
-If the user cannot answer, or the answer is ambiguous, `cleanup` does nothing. It never falls
-back to archiving the core.
-
-### Still unresolved
-
-- Where does the separated material go — `archive/`, `wiki/` pages, or a `log`-shaped sibling?
-- Is the core file rewritten in place? That would be the first operation in this pipeline that
-  edits a source document; every existing one only reads, moves, or writes new files. It needs a
-  safety and reversibility story before it is built.
-- The interview must not become a second auto-detect wearing a costume: the model proposes the
-  question and the candidate readings, never the verdict.
+This keeps the division of labour the rest of the pipeline uses and rule 2 requires: the script
+measures, the model proposes, the user decides. It is also the same explicit-choice-over-auto-
+detect rule `live-canvas` settled on. The failure mode to guard against is the interview
+degenerating into auto-detect wearing a costume — a proposal the user is expected to wave
+through. The proposal must be answerable with a correction, and a correction must change what
+gets built.
 
 ## Open
 
