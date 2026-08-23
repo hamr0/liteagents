@@ -644,7 +644,7 @@ type: reference        # the only required field
 title: ...
 status: draft | stable | deprecated
 sources: [...]
-verified: {by: "human:hamr", at: 2026-08-21}
+verified: {by: "human:<name>", at: 2026-08-21}
 stale_after: 2026-12-01   # ONLY when asked and answered. never inferred.
 ```
 
