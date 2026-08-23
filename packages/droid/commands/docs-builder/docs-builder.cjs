@@ -18,6 +18,11 @@
 //   apply-reorg [plan.json]                        -> executes the moves, then re-scans the
 //                                                       WHOLE corpus (product/ + archive/) into
 //                                                       outline.json — search's only database
+//   reorg                                          -> discover + apply-reorg + lint, plus
+//                                                       `due`'s drift summary if a ledger stamp
+//                                                       exists — the single front door
+//   cleanup  <file.md>                             -> ONE named file: cost estimate, then scan
+//                                                       (the ONLY entry point to the split pipeline)
 //
 // Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
 // link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
@@ -656,9 +661,10 @@ function index(outlineF, labelsF) {
 //     must never fire unprompted (see docs-builder-v3-spec.md, "The three rules").
 // `## Archive` is one row per file under docs/archive/.
 //
-// Nothing in the automated pipeline prunes archive/ — only a human-invoked, opt-in
-// `archive-cleanup --apply` does — so left alone it only grows. ARCHIVE_WARN_ROWS below is a
-// console-only tripwire, never a prune, never a collapse, never a delete.
+// Nothing in this pipeline prunes archive/ — the one command that used to (it was the only
+// destructive one in the whole tool) was removed outright; pruning is just `git rm`, the
+// user's own call — so left alone it only grows. ARCHIVE_WARN_ROWS below is a console-only
+// tripwire, never a prune, never a collapse, never a delete.
 const ARCHIVE_WARN_ROWS = 100; // stated default, not measured — see docs-builder-v3-spec.md
 
 function indexRow(rel, dest) {
@@ -723,8 +729,8 @@ function indexFlat() {
     + `${archiveRows.length} archive)`);
 
   // Console-only tripwire. Nothing in this run prunes archive/ automatically — pruning is
-  // `archive-cleanup --apply`, opt-in and human-invoked. This never prunes, never collapses
-  // the section, never deletes; it only warns.
+  // `git rm`, the user's own call (see the ARCHIVE_WARN_ROWS comment above). This never
+  // prunes, never collapses the section, never deletes; it only warns.
   if (archiveRows.length > ARCHIVE_WARN_ROWS)
     console.log(`WARN: archive/ is ${archiveRows.length} rows and growing — nothing prunes it `
       + `automatically.\n      Review ${outRel} ## Archive and \`git rm\` what you no longer `
@@ -814,8 +820,9 @@ function search(outlineF, queryWords) {
 // The original is NEVER rewritten and NEVER edited — but it does not stay where it was
 // either, or the cleanup leaves the same content in three places (old path, archive, and
 // the synthesised pages). Verified move: hash first, `git mv` so history follows, hash
-// again. archive-cleanup decides later whether it can be pruned; that is a separate,
-// destructive, opt-in invocation.
+// again. Whether it can later be pruned is the user's own call — `git rm` — not this
+// pipeline's; the command that used to do that was removed outright (see the ARCHIVE_WARN_ROWS
+// comment in indexFlat() above).
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
 // Core logic THROWS, never exits — so a caller doing many moves in a loop (apply-reorg)
@@ -1522,188 +1529,52 @@ function applyReorg(planFile) {
     + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s)`);
 }
 
-// ---------------------------------------------------------------- reconcile + prune
+// ---------------------------------------------------------------- reorg (single front door)
 
-// `reconcile` was specified as a MODE but never existed as a subcommand — it lived as prose
-// telling the model to run four commands in order. That is the v1 shape this rebuild exists
-// to remove (model-driven bookkeeping measured 27%; script-driven measured ~100%), so the
-// order is code now. It never writes docs/product/; it owns docs/wiki/.
-function reconcile() {
-  // reconcile drives four steps that each write a DIFFERENT artifact, and every one of them
-  // honours the same `OUT` override — so OUT would point outline.json, validate.json,
-  // index.md and lint.json at one file, while reconcile reads outline.json back from the
-  // DEFAULT path regardless and silently validates a stale one. OUT is a per-step override;
-  // reconcile is not a step.
+// v3: `reorg` folds the old `reconcile` and `due` into one front door. "First run" (nothing
+// under product/archive yet) and "since last time" (a ledger stamp already exists) are the
+// same job with different starting state — two commands only made users guess which to run.
+// `due` stays individually runnable, unchanged: `/remember` step 7 shells out to it directly
+// and its output/exit code/threshold must not move. `reorg` calls that SAME due() in-process,
+// only when a ledger stamp exists, so its drift summary is additive, never a rewrite of it.
+//
+// What reconcile did that has no home here, and why that's not a loss: reconcile's
+// validate+index steps needed labels.json (a model-produced theme assignment), which only the
+// split pipeline (`cleanup`) ever creates. `reorg` never splits (rule 1) and never calls a
+// model by default, so it never has labels.json to validate against — that capability didn't
+// move, it stayed exactly where it already lived: the standalone `validate`/`index` commands,
+// unchanged, still runnable by hand once labels.json exists.
+function reorg() {
+  // discover/apply-reorg/lint/due each write a DIFFERENT artifact, and every one of them
+  // honours the same `OUT` override — same trap reconcile's own OUT guard existed to catch.
   if (process.env.OUT) {
-    console.error(`WARN: ignoring OUT=${process.env.OUT} — reconcile writes four artifacts `
-      + '(outline.json, validate.json, index.md, lint.json) and each goes to its own default path.');
+    console.error(`WARN: ignoring OUT=${process.env.OUT} — reorg writes several artifacts `
+      + '(reorg-plan.json, outline.json, index.md, lint.json) and each goes to its own default path.');
     delete process.env.OUT;
   }
-  // Everything reconcile itself GENERATES is excluded from its own scan corpus — pulling any
-  // of it back in makes validate's `missing` check fail on headings a product-only
-  // labels.json can never cover, and re-fails on every subsequent run:
-  //   - PAGES (docs/wiki by default) — the synthesised pages, reconcile's output, not source.
-  //     Read from PAGES, not hardcoded, so a non-default pages dir is excluded too.
-  //   - INDEX (docs/index.md by default) — written by `index` below; its `## [theme](...)`
-  //     rows would become outline records on the next run.
-  //   - docs/log.md — append-only, one `## [DATE] op | desc` H2 per operation, so it grows a
-  //     new unlabelled record (and duplicate-key collisions) every single time reconcile runs.
-  const pages = process.env.PAGES || 'docs/wiki';
-  const pagesPrefix = pages.replace(/\/*$/, '/');
-  const indexF = process.env.INDEX || 'docs/index.md';
-  const files = docFiles().filter(f => !f.startsWith('docs/archive/')
-    && !f.startsWith(pagesPrefix) && f !== indexF && f !== 'docs/log.md');
-  if (!files.length) die('no docs to reconcile — docs/ has no tracked .md outside archive/');
-  console.log(`reconcile: ${files.length} doc(s)\n`);
-  console.log('== scan =='); scan(files);
-  const outlineF = path.join(ARTIFACTS, 'outline.json');
-  const labelsF = path.join(ARTIFACTS, 'labels.json');
-  // validate/index need a theme assignment, which only a model can produce. Reconcile is the
-  // CHEAP path and never calls a model, so with no labels.json it says so and skips — loudly,
-  // never silently, and never by inventing labels of its own.
-  let validateFailed = false;
-  if (fs.existsSync(labelsF)) {
-    console.log('\n== validate ==');
-    const res = doValidate(outlineF, labelsF);
-    // A FAIL must NOT abort reconcile: reconcile is the cheap, read-only-ish path, and lint is
-    // the part most likely to be useful when validate is unhappy. So it's reported loudly here
-    // and reconcile still runs index + lint, then exits non-zero at the very end. The standalone
-    // `validate` subcommand keeps its own hard-gate behaviour unchanged (see validate() above).
-    if (res.verdict !== 'PASS') {
-      validateFailed = true;
-      console.error(`\nreconcile: validate FAILED — continuing to index + lint anyway `
-        + '(a FAIL does not abort reconcile); exiting non-zero once everything below has run.');
-    }
-    console.log('\n== index ==');    index(outlineF, labelsF);
-    const [o, l] = loadPair(outlineF, labelsF);
-    warnUnarchivedSplits(o, l, pages);
-  } else {
-    console.log(`\nLOUD-SKIP: validate + index need ${labelsF}, which only the grouping step`
-      + ' can write. Run the split flow on a doc first, or pass labels.json by hand.');
+  // due() reads git HEAD and the CURRENT working tree — `apply-reorg`'s `git mv` runs
+  // uncommitted, so calling due() AFTER apply-reorg would see this run's own in-flight moves
+  // and misreport them as deletions (the moved file no longer exists at its pre-move path,
+  // and due() has no way to tell "moved by this very run" from "actually gone"). due() runs
+  // FIRST, against whatever the tree looked like coming in, so its drift summary reflects
+  // real external changes since the stamp, not reorg's own not-yet-committed side effects.
+  const ledgerF = path.join(REPO, process.env.OUT || LEDGER);
+  const hadLedger = fs.existsSync(ledgerF);
+  if (hadLedger) {
+    console.log('== due (drift since the last ledger stamp) ==');
+    due();
+    console.log('');
   }
-  console.log('\n== lint =='); lint(files);
-  logOp('reconcile', `${files.length} doc(s) scanned` + (validateFailed ? ', validate FAILED' : ''));
-  if (validateFailed) process.exit(1);
-}
-
-// `archive-cleanup` DELETES files from docs/archive/. It is the only destructive command in
-// the pipeline, so the gate is the user's explicit confirmation, obtained BEFORE this runs:
-// bare `archive-cleanup` only reports, and `--apply` deletes exactly the files it is handed
-// by name. There is deliberately no `--all` and no age heuristic — nothing here decides on
-// the user's behalf what is worth keeping.
-//
-// A tracked file goes via `git rm`, so it is gone from the tree but recoverable from history.
-// An UNTRACKED file has no history to recover from: it is unlinked and gone for good, and
-// that is called out per file rather than quietly treated as the same operation.
-//
-// It will not choose FOR you. A file is only ever a CANDIDATE, because this pipeline already
-// settled that uncited is a fact and deletable is a judgement (bareloop's O2-O4 are genuinely
-// uncited and must stay — they are the middle of a coherent series). So: no bulk prune, no
-// --all, no age heuristic. Bare `archive-cleanup` reports; pruning requires naming each file.
-function archiveCleanup(args) {
-  const files = args.filter(a => a !== '--apply');
-  const apply = args.includes('--apply');
-  const tracked = new Set(docFiles().filter(f => f.startsWith('docs/archive/')));
-  // Can't reuse walkMd here: it deliberately skips any directory named `archive` (reorg's
-  // idempotency guard), so it would never descend into docs/archive/ at all. This is a plain
-  // recursive listing of every .md under docs/archive/, tracked or not — archive-cleanup is
-  // the one place that must see untracked files too, since those are the ones with no git
-  // history to fall back on.
-  const archiveDir = path.join(REPO, 'docs/archive');
-  const untracked = [];
-  (function walk(dir, base) {
-    if (!fs.existsSync(dir)) return;
-    for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, name.name), rel = base ? `${base}/${name.name}` : name.name;
-      if (name.isDirectory()) walk(abs, rel);
-      else if (name.isFile() && name.name.endsWith('.md')) untracked.push(`docs/archive/${rel}`);
-    }
-  })(archiveDir, '');
-  const archived = [...new Set([...tracked, ...untracked])].sort();
-  if (!archived.length) { console.log('docs/archive/ is empty — nothing to clean up.'); return; }
-
-  // Referrer scan mirrors rewriteLinks: same file types, same exclusions. A doc's own text
-  // never counts as a reference to itself.
-  // archiveCleanup is a top-level CLI command, so a git failure here is guarded the same way
-  // as everywhere else in this file: caught and die()'d cleanly, never left to throw past this
-  // function and dump a raw Node stack trace.
-  let scanned;
-  try {
-    scanned = gitOrThrow(['ls-files'], 'listing tracked files').split('\n')
-      .filter(f => f && LINK_EXTS.has(path.extname(f)) && !LINK_SKIP.test(f)
-                   && !f.startsWith('docs/.docs-builder/'));
-  } catch (e) { die(e.message); }
-  const rows = archived.map(a => {
-    const esc = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`(?<![\\w./-])${esc}(?![\\w-]|\\.[A-Za-z0-9])`);
-    const by = scanned.filter(f => {
-      if (f === a) return false;
-      try { return re.test(fs.readFileSync(repoPath(f), 'utf8')); } catch { return false; }
-    });
-    return { file: a, referrers: by.length, by, tracked: tracked.has(a) };
-  });
-
-  if (!apply) {
-    // Naming files without --apply used to be silently ignored, which reads exactly like a
-    // delete that ran and found nothing. Say plainly that this run is the report.
-    if (files.length) console.error(`NOTE: ${files.length} file(s) named without --apply — `
-      + 'nothing is deleted. This run is the report; re-run with --apply to delete them.');
-    console.table(rows.map(r => ({ file: r.file, referrers: r.referrers,
-      candidate: r.referrers === 0 ? 'yes — uncited' : 'no',
-      recoverable: r.tracked ? 'git history' : 'NO — untracked' })));
-    const cand = rows.filter(r => !r.referrers);
-    console.log(`\n${archived.length} archived, ${cand.length} uncited.`);
-    console.log('UNCITED IS NOT DELETABLE BY ITSELF. An uncited doc can be the middle of a'
-      + ' coherent series and must stay. Nothing has been removed. Confirm with the user'
-      + ' which of these to delete before going further.');
-    if (cand.length) console.log('\nTo delete, name the confirmed files explicitly:\n  '
-      + `docs-builder.cjs archive-cleanup --apply ${cand[0].file}`);
-    return;
-  }
-
-  if (!files.length) die('archive-cleanup --apply needs one or more files to delete, by name. '
-    + 'Run it bare first to see candidates, and confirm with the user before deleting. '
-    + 'There is no --all, on purpose.');
-  // Destructive and irreversible-looking to the user, so it refuses to run on top of work
-  // that is not committed: `git checkout` has to be able to bring the file back. An untracked
-  // ARCHIVE CANDIDATE named on this very --apply is the one exception: it has no history to
-  // protect either way, and it will always show as `??` in porcelain, so treating it as
-  // "dirty" would make the untracked-delete path this function documents above permanently
-  // unreachable. The exception is scoped tight on purpose: `?? path` only excuses a line when
-  // `path` is (a) named on this --apply AND (b) a real, untracked row under docs/archive/ —
-  // an arbitrary untracked path (e.g. unrelated scratch file) named alongside a real candidate
-  // must NOT be able to buy the whole run an exemption from the clean-tree gate.
-  //
-  // Two known misses, both fail-safe (they block instead of wrongly excusing), left as-is:
-  //   - porcelain quotes a path containing spaces/non-ASCII (`?? "docs/archive/a b.md"`), so
-  //     `l.slice(3)` won't match the plain name and the run refuses rather than proceeds.
-  //   - an untracked file inside an untracked DIRECTORY shows as one directory line with a
-  //     trailing slash (`?? docs/archive/sub/`), not a per-file line, so it can never match
-  //     and can never be deleted via this exception either.
-  const deletable = new Set(rows.filter(r => files.includes(r.file) && !r.tracked)
-    .map(r => r.file));
-  let dirty;
-  try {
-    dirty = gitOrThrow(['status', '--porcelain'], 'checking the tree is clean').split('\n')
-      .filter(l => !(l.startsWith('?? ') && deletable.has(l.slice(3)))).join('\n');
-  } catch (e) { die(e.message); }
-  if (dirty) die('archive-cleanup needs a clean git tree — commit or stash first, so a '
-    + 'pruned file can be restored with `git checkout`.\n' + dirty);
-  let deleted = 0, unrecoverable = 0;
-  for (const f of files) {
-    const row = rows.find(r => r.file === f);
-    if (!row) { console.error(`SKIP ${f}: not a file under docs/archive/`); continue; }
-    if (row.referrers) { console.error(`SKIP ${f}: still referenced by ${row.by.join(', ')}`); continue; }
-    try {
-      if (row.tracked) { gitOrThrow(['rm', '-q', f], `deleting ${f}`); console.log(`  deleted ${f}`); }
-      else { fs.unlinkSync(repoPath(f)); unrecoverable++; console.log(`  deleted ${f}  (UNTRACKED — no history, gone for good)`); }
-      deleted++;
-    } catch (e) { console.error(`SKIP ${f}: ${e.message}`); }
-  }
-  console.log(`\ndeleted ${deleted} of ${files.length}.`
-    + (deleted - unrecoverable ? ' Tracked ones are recoverable with `git checkout HEAD -- <path>` until you commit.' : '')
-    + (unrecoverable ? ` ${unrecoverable} were untracked and are NOT recoverable.` : ''));
-  if (deleted) logOp('archive-cleanup', `deleted ${deleted}: ${files.slice(0, 5).join(', ')}`);
+  console.log('== discover ==');
+  discover();
+  console.log('\n== apply-reorg ==');
+  applyReorg();
+  const corpus = wholeCorpusFiles();
+  console.log('\n== lint ==');
+  if (corpus.length) lint(corpus);
+  else console.log('LOUD-SKIP: lint did not run — the corpus is empty');
+  logOp('reorg', `discover+apply-reorg+lint over ${corpus.length} doc(s)`
+    + (hadLedger ? ', due reported' : ', no ledger stamp yet'));
 }
 
 // ---------------------------------------------------------------- cleanup (Mode 1 entry point)
@@ -1762,12 +1633,11 @@ switch (cmd) {
   case 'lint':        lint(rest); break;
   case 'discover':    discover(rest[0]); break;
   case 'apply-reorg': applyReorg(rest[0]); break;
-  case 'reconcile':   reconcile(); break;
-  case 'archive-cleanup': archiveCleanup(rest); break;
+  case 'reorg':       reorg(); break;
   case 'cleanup':     cleanup(rest); break;
   default:
     die('usage: docs-builder.cjs <scan|validate|plan|index|index-flat|search|archive|ledger|due|lint|'
-      + 'discover|apply-reorg|reconcile|archive-cleanup|cleanup> [args]\n'
+      + 'discover|apply-reorg|reorg|cleanup> [args]\n'
       + '  scan        <file.md...>                 -> outline.json\n'
       + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
       + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
@@ -1780,8 +1650,8 @@ switch (cmd) {
       + '  lint        <file.md...>                  -> lint.json\n'
       + '  discover    [root=docs]                   -> reorg-plan.json (classify, never moves)\n'
       + '  apply-reorg [plan.json]                    -> executes the plan\n'
-      + '  reconcile                                 -> scan+validate+index+lint over docs/\n'
-      + '  archive-cleanup [--apply <f>...]          -> report, or prune NAMED archived files\n'
+      + '  reorg                                     -> discover+apply-reorg+lint, plus `due`\'s '
+      + 'drift summary if a ledger stamp exists (the single front door)\n'
       + '  cleanup     <file.md>                     -> ONE named file: cost estimate, then scan\n'
       + '                                                 (the ONLY entry point to the split pipeline)\n'
       + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '

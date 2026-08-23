@@ -424,6 +424,48 @@ function ledgerAndDue() {
   okTrue('due nudges at the threshold', /RECONCILE IS DUE|reconcile/i.test(out));
 }
 
+/**
+ * v3 explicitly keeps `due` working standalone with its output UNCHANGED — `/remember` step 7
+ * shells out to it directly and step 5 (updating that call site) has not landed yet, so this
+ * pins the exact three messages `due` can print, plus the standing claim that deletions alone
+ * (not just edits) advance the count `rows.length` uses for the threshold check.
+ */
+function dueOutputContract() {
+  group('9b. due — standalone output contract (no ledger / below / at threshold)');
+
+  // No ledger yet.
+  const fresh = repo({ 'docs/A.md': DOC('A') });
+  const noLedger = db(fresh, ['due']);
+  ok('no-ledger run exits clean', noLedger.code, 0);
+  okTrue('no-ledger message is pinned exactly',
+    noLedger.out.includes('no ledger yet — run `docs-builder.cjs ledger` to start tracking. NOT due.'));
+
+  // (e) deletions alone advance the due count — 5 deleted archive docs => DUE, at the exact
+  // DUE_THRESHOLD=5 boundary, with nothing edited or added.
+  const files = {};
+  for (let i = 0; i < 6; i++) files[`docs/archive/F${i}.md`] = DOC(`F${i}`);
+  const d = repo(files);
+  db(d, ['ledger']);
+
+  // Below threshold: delete 3 of 6, nothing else changed.
+  for (let i = 0; i < 3; i++) git(d, ['rm', '-q', `docs/archive/F${i}.md`]);
+  git(d, ['commit', '-qm', 'delete 3']);
+  const below = db(d, ['due']);
+  ok('below-threshold run exits clean', below.code, 0);
+  okTrue('below-threshold message is pinned exactly (3 deletions, threshold 5)',
+    /^3 doc\(s\) changed since \w+ \(threshold 5\)\. Not due yet\.$/m.test(below.out));
+  okTrue('all 3 deletions are classified as `deleted`, not silently dropped',
+    (below.out.match(/deleted/g) || []).length >= 3);
+
+  // At threshold: delete 2 more (5 of 6 total) — no edits, no adds, deletions alone reach it.
+  for (let i = 3; i < 5; i++) git(d, ['rm', '-q', `docs/archive/F${i}.md`]);
+  git(d, ['commit', '-qm', 'delete 2 more']);
+  const atThreshold = db(d, ['due']);
+  ok('at-threshold run exits clean', atThreshold.code, 0);
+  okTrue('at-threshold message is pinned exactly (5 deletions, threshold 5) — RECONCILE IS DUE',
+    /^5 docs changed since \w+ \(threshold 5\) — RECONCILE IS DUE\.$/m.test(atThreshold.out));
+}
+
 // ---------------------------------------------------------------- 10. search
 
 /** An entire subcommand with zero coverage until now. */
@@ -445,144 +487,129 @@ function search() {
     gone.code === 0 && !/at Object\.<anonymous>/.test(gone.out));
 }
 
-// ---------------------------------------------------------------- 11. reconcile
+// ---------------------------------------------------------------- 11. reorg
 
-function reconcileMode() {
-  group('11. reconcile — a subcommand, not a prose rulebook');
+/**
+ * v3 folds `reconcile` and `due` into one front door: `reorg` runs discover -> apply-reorg
+ * (which already scans the WHOLE corpus and writes docs/index.md itself) -> lint, in one
+ * invocation — "first run" and "since last time" are the same job with different starting
+ * state. `due` stays individually runnable and unchanged (see reorgDueUnaffected below); reorg
+ * only calls it in-process, additively, when a ledger stamp already exists.
+ */
+function reorgCmd() {
+  group('11. reorg — the single front door (discover + apply-reorg + lint [+ due])');
 
-  const d = repo({ 'docs/product/ONE.md': DOC('One'), 'docs/archive/OLD.md': DOC('Old') });
-  const r = db(d, ['reconcile']);
-  ok('reconcile exits clean', r.code, 0);
-  okTrue('it scans', /== scan ==/.test(r.out));
+  // (b) a fresh corpus, no ledger stamp: one invocation does discover + apply-reorg + lint,
+  // and ends with both a moved corpus AND an index.md on disk.
+  const d = repo({
+    'docs/CLEAN.md': DOC('Clean'),
+    'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
+  });
+  const r = db(d, ['reorg']);
+  ok('reorg exits clean', r.code, 0);
+  okTrue('it discovers', /== discover ==/.test(r.out));
+  okTrue('it applies the reorg', /== apply-reorg ==/.test(r.out));
   okTrue('it lints', /== lint ==/.test(r.out));
-  // validate + index need a theme assignment only a model can write. With none present it
-  // must say so out loud rather than invent labels or quietly pass.
-  okTrue('missing labels.json is a LOUD-SKIP, never a silent pass',
-    /LOUD-SKIP/.test(r.out));
-  okTrue('archived docs are excluded from the corpus',
-    !artifact(d, 'outline.json').files.some(f => f.startsWith('docs/archive/')));
-  okTrue('log.md records the reconcile', /reconcile \|/.test(read(d, 'docs/log.md')));
+  okTrue('the corpus actually moved (product/)', exists(d, 'docs/product/CLEAN.md'));
+  okTrue('the corpus actually moved (archive/)', exists(d, 'docs/archive/CLOSED.md'));
+  okTrue('docs/index.md was written in the same invocation', exists(d, 'docs/index.md'));
+  okTrue('lint.json was written', exists(d, 'docs/.docs-builder/lint.json'));
+  okTrue('log.md records the reorg', /reorg \|/.test(read(d, 'docs/log.md')));
+  okTrue('no ledger yet -> no drift summary is fabricated',
+    !/== due/.test(r.out));
+
+  // (c) a corpus WITH a ledger stamp: reorg additionally reports the due-style drift summary.
+  const d2 = repo({ 'docs/CLEAN.md': DOC('Clean') });
+  db(d2, ['ledger']);
+  write(d2, { 'docs/NEW.md': DOC('New') });
+  git(d2, ['add', '-A']);
+  git(d2, ['commit', '-qm', 'add NEW']);
+  const r2 = db(d2, ['reorg']);
+  ok('reorg with a ledger stamp still exits clean', r2.code, 0);
+  okTrue('it additionally reports the drift summary', /== due/.test(r2.out));
+  okTrue('the drift summary classifies the real change', /\bnew\b/.test(r2.out));
 }
 
-// ---------------------------------------------------------------- 12. archive-cleanup
+/** reorg composes discover+apply-reorg+lint+due, each of which honours OUT for its OWN
+ *  artifact — same OUT-clobbering trap the old `reconcile` guard existed to catch, now on
+ *  reorg's own composition. */
+function reorgOutIgnored() {
+  group('18. reorg — OUT is a per-step override; reorg is not a step');
 
-function archiveCleanup() {
-  group('12. archive-cleanup — destructive, default keep');
+  const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+  const outFile = path.join(os.tmpdir(), `db-reorg-out-${process.pid}.json`);
+  const r = db(d, ['reorg'], { OUT: outFile });
+  ok('reorg exits clean', r.code, 0);
+  okTrue('reorg WARNs that OUT is ignored', r.out.includes(`ignoring OUT=${outFile}`));
+  okTrue('reorg-plan.json still lands at the default artifacts path',
+    exists(d, 'docs/.docs-builder/reorg-plan.json'));
+  okTrue('docs/index.md still lands at the default path', exists(d, 'docs/index.md'));
+  okTrue('OUT\'s own path was never written to', !fs.existsSync(outFile));
+}
 
-  const base = () => ({
-    'docs/product/LIVE.md': `# Live\n\n## S\n\nsee [old](docs/archive/CITED.md)\n`,
-    'docs/archive/CITED.md': DOC('Cited'),
-    'docs/archive/UNCITED.md': DOC('Uncited'),
+/** Repeated `reorg` runs must be stable: docs/index.md and docs/log.md are the pipeline's OWN
+ *  generated output, and discover's PROTECTED_NAMES already keeps them out of the corpus it
+ *  classifies — but that has to hold up across MULTIPLE reorg runs, not just the first one,
+ *  or the outline grows a phantom record every time reorg is re-run (the exact defect the old
+ *  `reconcile` shipped once, fixed here at the front door that replaces it). */
+function reorgCorpusStability() {
+  group('16. reorg — repeated runs must not scan their own generated output');
+
+  const d = repo({
+    'docs/CLEAN.md': DOC('Clean'),
+    'docs/index.md': '## [theme](wiki/x.md)\n\nsome row\n',
+    'docs/log.md': '## 2026-01-01 archive | prior op\n\nsome body\n',
   });
 
-  const d = repo(base());
-  const report = db(d, ['archive-cleanup']);
-  ok('bare run exits clean', report.code, 0);
-  okTrue('it reports the uncited candidate', /UNCITED\.md/.test(report.out));
-  okTrue('it says plainly that uncited is not deletable',
-    /UNCITED IS NOT DELETABLE/.test(report.out));
-  okTrue('a bare run removes NOTHING',
-    exists(d, 'docs/archive/CITED.md') && exists(d, 'docs/archive/UNCITED.md'));
+  const counts = [];
+  for (let i = 0; i < 3; i++) {
+    const r = db(d, ['reorg']);
+    ok(`reorg run ${i + 1} exits clean`, r.code, 0);
+    counts.push(artifact(d, 'outline.json').records.length);
+  }
+  ok('outline record count identical after run 1 vs run 2', counts[0], counts[1]);
+  ok('outline record count identical after run 2 vs run 3', counts[1], counts[2]);
+  okTrue('docs/index.md is excluded from its own corpus',
+    !artifact(d, 'outline.json').files.includes('docs/index.md'));
+  okTrue('docs/log.md is excluded from its own corpus',
+    !artifact(d, 'outline.json').files.includes('docs/log.md'));
+}
 
-  ok('--apply with no files is refused (there is no --all)',
-    db(d, ['archive-cleanup', '--apply']).code, 1);
+// ---------------------------------------------------------------- 12. archive-cleanup is gone
 
-  const cited = db(d, ['archive-cleanup', '--apply', 'docs/archive/CITED.md']);
-  okTrue('a still-referenced file is refused (SKIP)', /SKIP/.test(cited.out));
-  okTrue('the referenced file survives', exists(d, 'docs/archive/CITED.md'));
+/**
+ * `archive-cleanup` was removed outright — the only destructive command in the pipeline, and
+ * pruning is just `git rm`, the user's own call (docs-builder-v3-spec.md, "Cut"). Pinned two
+ * ways: invoking it fails like any other unknown subcommand, and the string itself is gone
+ * from the script, so it cannot be reintroduced by accident (e.g. a stray dispatch case that
+ * forgot to also drop the help text).
+ */
+function archiveCleanupRemoved() {
+  group('12. archive-cleanup — removed entirely');
 
-  const dirty = repo(base());
-  write(dirty, { 'uncommitted.txt': 'dirt\n' });
-  ok('a dirty tree is refused',
-    db(dirty, ['archive-cleanup', '--apply', 'docs/archive/UNCITED.md']).code, 1);
-  okTrue('nothing pruned from a dirty tree', exists(dirty, 'docs/archive/UNCITED.md'));
+  const d = repo({ 'docs/archive/OLD.md': DOC('Old') });
+  const r = db(d, ['archive-cleanup']);
+  ok('archive-cleanup is an unknown subcommand now', r.code, 1);
+  okTrue('the failure is the ordinary usage error, not a crash',
+    /usage: docs-builder\.cjs/.test(r.out));
+  okTrue('nothing under docs/archive/ was touched', exists(d, 'docs/archive/OLD.md'));
 
-  // Tracked uncited file: --apply deletes it from the working tree via `git rm`, which is
-  // "destructive" and "never deletes forever" at once — gone from the tree, still in history.
-  const clean = repo(base());
-  const done = db(clean, ['archive-cleanup', '--apply', 'docs/archive/UNCITED.md']);
-  ok('a tracked uncited file on a clean tree is deleted', done.code, 0);
-  okTrue('it is gone from the working tree', !exists(clean, 'docs/archive/UNCITED.md'));
-  okTrue('it is still recoverable from git history',
-    git(clean, ['cat-file', '-t', 'HEAD:docs/archive/UNCITED.md']) === 'blob');
-  okTrue('log.md records the delete', /archive-cleanup \|/.test(read(clean, 'docs/log.md')));
-
-  // Untracked archived file: never committed, so there is no history to fall back to. The
-  // command must still see it (walkMd skips any dir literally named `archive`, so this can't
-  // reuse that helper), delete it, and say plainly that it is not recoverable.
-  const untr = repo(base());
-  write(untr, { 'docs/archive/STRAY.md': DOC('Stray') });
-  const reportUntr = db(untr, ['archive-cleanup']);
-  okTrue('an untracked archived file is reported too', /STRAY\.md/.test(reportUntr.out));
-  const doneUntr = db(untr, ['archive-cleanup', '--apply', 'docs/archive/STRAY.md']);
-  ok('an untracked uncited file on a clean tree is deleted', doneUntr.code, 0);
-  okTrue('it is gone from the working tree', !exists(untr, 'docs/archive/STRAY.md'));
-  okTrue('output flags it as NOT recoverable',
-    /UNTRACKED.*no history|NOT recoverable/.test(doneUntr.out));
-
-  // The dirty-tree gate must not be bypassable by naming an arbitrary untracked path on the
-  // command line. Naming `unrelated-scratch.txt` alongside a real, legitimately-deletable
-  // tracked candidate must NOT excuse that file's `??` porcelain line and let the run proceed
-  // — the whole point of the gate is that ANY uncommitted state blocks the only destructive
-  // command in the pipeline, not just state unrelated to what's named.
-  const bypass = repo(base());
-  write(bypass, { 'unrelated-scratch.txt': 'scratch\n' });
-  const bypassRun = db(bypass, ['archive-cleanup', '--apply',
-    'docs/archive/UNCITED.md', 'unrelated-scratch.txt']);
-  ok('an unrelated untracked file named on --apply still counts as dirty', bypassRun.code, 1);
-  okTrue('the real candidate is NOT deleted just because an unrelated path was also named',
-    exists(bypass, 'docs/archive/UNCITED.md'));
+  const src = fs.readFileSync(DB, 'utf8');
+  okTrue('the string "archive-cleanup" does not appear anywhere in the script',
+    !src.includes('archive-cleanup'));
 }
 
 // ---------------------------------------------------------------- 14. chokepoint fixes
 
 /**
- * Four functions used to do work AND call `process.exit` (directly or via `die()`), which is
- * fatal once another in-process caller invokes them: `process.exit` cannot be caught by a
- * `try/catch`. `validate` killed `reconcile` mid-sequence — on PASS as well as FAIL — so
- * `index`, `lint` and reconcile's own log line silently never ran. This group pins the fix:
- * a throwing/returning core (`doValidate`) plus a thin CLI wrapper (`validate`), the same
- * split this file already used for `doArchive`/`archive` and `gitOrThrow`/`git`.
+ * Two functions used to do work AND call `process.exit` (directly or via `die()`), which is
+ * fatal once an in-process caller invokes them: `process.exit` cannot be caught by a
+ * `try/catch`. This group pins the fix: a throwing/returning core (`doValidate`) plus a thin
+ * CLI wrapper (`validate`), the same split this file already used for `doArchive`/`archive`
+ * and `gitOrThrow`/`git`.
  */
-function reconcileChokepoints() {
-  group('14. reconcile / validate / archive — the exit-mid-pipeline chokepoint');
-
-  // reconcile WITH labels.json present must run index + lint, not stop dead inside validate.
-  const d = repo({ 'docs/product/A.md': DOC('A') });
-  db(d, ['scan', 'docs/product/A.md']);
-  const key = artifact(d, 'outline.json').records[0].key;
-  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
-    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
-  const r = db(d, ['reconcile']);
-  ok('reconcile with labels.json exits clean on PASS', r.code, 0);
-  // docs/index.md, not cwd-relative index.md — must match checkLinks()'s own `INDEX` default,
-  // or the file `index` writes and the file `validate`'s link check reads are never the same
-  // file (MEASURED: with no env vars set, exactly how `reconcile` calls this, they used to
-  // disagree — validate could only ever LOUD-SKIP or check a stale index from an earlier run).
-  okTrue('index.md gets written to docs/index.md (where validate\'s link check looks)',
-    exists(d, 'docs/index.md'));
-  okTrue('index.md is NOT written to the cwd root instead', !exists(d, 'index.md'));
-  okTrue('lint.json gets written', exists(d, 'docs/.docs-builder/lint.json'));
-  okTrue('log.md records BOTH the validate line and the reconcile line',
-    /validate \|/.test(read(d, 'docs/log.md')) && /reconcile \|/.test(read(d, 'docs/log.md')));
-
-  // A FAILING validate must NOT abort reconcile: lint still runs, and reconcile still exits
-  // non-zero at the very end (decision: reconcile reports the FAIL loudly and keeps going).
-  const d2 = repo({ 'docs/product/B.md': DOC('B') });
-  db(d2, ['scan', 'docs/product/B.md']);
-  write(d2, { 'docs/.docs-builder/labels.json': JSON.stringify({
-    themes: [{ name: 't', gloss: 'g' }],
-    labels: [{ key: 'docs/product/B.md :: Not A Real Heading', theme: 't' }] }) });
-  const r2 = db(d2, ['reconcile']);
-  ok('reconcile still exits non-zero when validate FAILs', r2.code, 1);
-  okTrue('lint still ran despite the FAIL', /== lint ==/.test(r2.out));
-  okTrue('lint.json still gets written on a FAIL', exists(d2, 'docs/.docs-builder/lint.json'));
-
-  // reconcile's OUTPUT (docs/wiki/) must not be pulled back into its own scan corpus.
-  const d3 = repo({ 'docs/product/C.md': DOC('C'), 'docs/wiki/synth.md': DOC('Synth') });
-  db(d3, ['reconcile']);
-  okTrue('docs/wiki/ pages are excluded from the reconcile corpus',
-    !artifact(d3, 'outline.json').files.some(f => f.startsWith('docs/wiki/')));
+function validateArchiveChokepoints() {
+  group('14. validate / archive — the exit-mid-pipeline chokepoint');
 
   // archive: exit 2 (not 1) when the move succeeded but a follow-up failed — 1 means "nothing
   // moved, retry"; re-running `archive` after a successful move would be actively wrong.
@@ -686,55 +713,13 @@ function tasksDirChokepoint() {
 }
 
 /**
- * `archiveCleanup` had two unwrapped `gitOrThrow` calls — a git failure inside either one
- * dumped a raw Node stack trace instead of the guarded one-line message every other git
- * failure in this file produces. Both are exercised via a PATH shim that fails one specific
- * git subcommand while passing everything else through to the real binary.
- */
-// Matches on the LAST arg only — `docFiles()` already guards its own `ls-files docs/` call
-// (via `git()`, the die-based wrapper), so a shim that fails on ANY `ls-files` arg trips
-// that call first and never reaches the unwrapped one this test targets. The two calls
-// under test end their arg list differently (`ls-files` bare vs. `status --porcelain`),
-// so matching the last arg isolates each one precisely.
-function shimGitLastArgIs(dir, value) {
-  const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
-  fs.writeFileSync(path.join(dir, 'git'),
-    `#!/bin/sh\nlast=""\nfor a in "$@"; do last="$a"; done\n`
-    + `[ "$last" = "${value}" ] && { echo "fatal: simulated" >&2; exit 1; }\nexec ${realGit} "$@"\n`);
-  fs.chmodSync(path.join(dir, 'git'), 0o755);
-  return { PATH: `${dir}:${process.env.PATH}` };
-}
-
-function archiveCleanupGitGuard() {
-  group('15b. archive-cleanup guards BOTH its gitOrThrow calls, never a raw stack trace');
-
-  // 1: the referrer-scan `ls-files` call (bare invocation, no --apply).
-  const shim1 = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim-lsfiles-'));
-  const d1 = repo({ 'docs/archive/OLD.md': DOC('Old') });
-  const r1 = db(d1, ['archive-cleanup'], shimGitLastArgIs(shim1, 'ls-files'));
-  okTrue('a git failure during the referrer scan is a guarded message, not a stack trace',
-    /git failed while/.test(r1.out) && !/at Object\.<anonymous>/.test(r1.out));
-  ok('archive-cleanup exits non-zero on that guarded failure', r1.code, 1);
-
-  // 2: the dirty-tree `status --porcelain` call (--apply path).
-  const shim2 = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim-status-'));
-  const d2 = repo({ 'docs/archive/OLD.md': DOC('Old') });
-  const r2 = db(d2, ['archive-cleanup', '--apply', 'docs/archive/OLD.md'],
-    shimGitLastArgIs(shim2, '--porcelain'));
-  okTrue('a git failure during the clean-tree check is a guarded message, not a stack trace',
-    /git failed while/.test(r2.out) && !/at Object\.<anonymous>/.test(r2.out));
-  ok('archive-cleanup exits non-zero on that guarded failure', r2.code, 1);
-  okTrue('nothing was deleted when the guard itself failed', exists(d2, 'docs/archive/OLD.md'));
-}
-
-/**
  * Mode 1 (split one oversized doc) ends with the model writing wiki pages and a human
  * running `archive` on the original — six script calls plus two model steps, hand-sequenced.
  * If the model finishes the pages but `archive` never runs, the source doc and its derived
  * pages both exist — "duplication, not cleanup" per the doc's own words — and nothing said
  * so. Detection is derived entirely from existing artifacts (outline.json + labels.json +
  * the same slug/pageStatus logic `plan` already uses to report "done"), never a new state
- * file: it is a WARNING surfaced by `plan` and `reconcile`, and never changes their exit code.
+ * file: it is a WARNING surfaced by `plan`, and never changes its exit code.
  */
 function halfFinishedSplitDetection() {
   group('15c. a half-finished split (pages written, archive never run) is flagged');
@@ -756,10 +741,6 @@ function halfFinishedSplitDetection() {
     /docs\/A\.md/.test(p.out) && /archive/.test(p.out));
   ok('the warning does not change plan\'s exit code', p.code, 0);
 
-  const r = db(d, ['reconcile']);
-  okTrue('reconcile surfaces the same warning',
-    /docs\/A\.md/.test(r.out) && /archive/.test(r.out));
-
   // Once `archive` actually runs, the warning must go away — it is derived from current
   // artifact state, not a stateful flag that could go stale.
   db(d, ['archive', 'docs/A.md']);
@@ -769,73 +750,14 @@ function halfFinishedSplitDetection() {
 }
 
 // ---------------------------------------------------------------- 16-20. move-chokepoint review fixes
-
-/**
- * reconcile scanned its OWN generated output back into its next run: docs/index.md's
- * `## [theme](wiki/x.md)` rows became outline records, and docs/log.md's one
- * `## [DATE] op | desc` H2 per operation grew a fresh unlabelled record every time. Neither
- * is source material a labels.json could ever cover, so the second reconcile reported a
- * permanent `missing` FAIL and the record count grew forever. Fixed by excluding INDEX and
- * docs/log.md from the scan corpus alongside PAGES/archive.
- */
-function reconcileCorpusStability() {
-  group('16. reconcile — must not scan its own generated output (index.md / log.md)');
-
-  // docs/index.md and docs/log.md are seeded as already-tracked files (as a real repo would
-  // have after one prior reconcile + commit), each containing an H2 of their own — an
-  // `## [theme](wiki/x.md)` index row and an `## [DATE] op | desc` log entry — so a corpus
-  // scan that fails to exclude them has something concrete to wrongly ingest. No labels.json
-  // on purpose: this isolates the corpus-filter fix from the unrelated index/link-check path.
-  const d = repo({
-    'docs/product/A.md': DOC('A'),
-    'docs/index.md': '## [theme](wiki/x.md)\n\nsome row\n',
-    'docs/log.md': '## 2026-01-01 archive | prior op\n\nsome body\n',
-  });
-
-  const counts = [];
-  for (let i = 0; i < 3; i++) {
-    const r = db(d, ['reconcile']);
-    ok(`reconcile run ${i + 1} exits clean`, r.code, 0);
-    counts.push(artifact(d, 'outline.json').records.length);
-  }
-  ok('outline record count identical after run 1 vs run 2', counts[0], counts[1]);
-  ok('outline record count identical after run 2 vs run 3', counts[1], counts[2]);
-  okTrue('docs/index.md is excluded from its own corpus',
-    !artifact(d, 'outline.json').files.includes('docs/index.md'));
-  okTrue('docs/log.md is excluded from its own corpus',
-    !artifact(d, 'outline.json').files.includes('docs/log.md'));
-}
-
-/** PAGES was honoured everywhere else in this file except reconcile's own exclusion filter,
- *  which hardcoded docs/wiki/ — so a non-default PAGES dir got scanned back in as source. */
-function reconcilePagesHonoured() {
-  group('17. reconcile — PAGES is honoured in the exclusion filter, not hardcoded to docs/wiki');
-
-  const d = repo({ 'docs/product/A.md': DOC('A'), 'docs/pages/synth.md': DOC('Synth') });
-  const r = db(d, ['reconcile'], { PAGES: 'docs/pages' });
-  ok('reconcile exits clean', r.code, 0);
-  okTrue('the real PAGES dir is excluded from the scan corpus',
-    !artifact(d, 'outline.json').files.includes('docs/pages/synth.md'));
-  okTrue('the actual source doc is still scanned',
-    artifact(d, 'outline.json').files.includes('docs/product/A.md'));
-}
-
-/** reconcile drives four steps that each honour OUT for their OWN artifact, but reconcile
- *  itself read outline.json back from the hardcoded default regardless — so OUT= made
- *  reconcile write fresh state to one place and validate a stale file from another. Fixed by
- *  having reconcile loudly ignore OUT for itself (it is not a step). */
-function reconcileOutIgnored() {
-  group('18. reconcile — OUT is a per-step override; reconcile is not a step');
-
-  const d = repo({ 'docs/product/A.md': DOC('A') });
-  const outFile = path.join(os.tmpdir(), `db-reconcile-out-${process.pid}.json`);
-  const r = db(d, ['reconcile'], { OUT: outFile });
-  ok('reconcile exits clean', r.code, 0);
-  okTrue('reconcile WARNs that OUT is ignored', r.out.includes(`ignoring OUT=${outFile}`));
-  okTrue('outline.json still lands at the default artifacts path',
-    exists(d, 'docs/.docs-builder/outline.json'));
-  okTrue('OUT\'s own path was never written to', !fs.existsSync(outFile));
-}
+//
+// (Groups 16 and 18, formerly reconcile's own corpus-stability and OUT-ignore tests, moved
+// above to reorgCorpusStability/reorgOutIgnored — reorg has the same OUT-clobbering trap and
+// the same self-scan risk reconcile did, so both got a same-numbered replacement rather than a
+// silent drop. Group 17 (reconcile's PAGES-honouring in its own exclusion filter) is NOT
+// replaced here: reorg has no exclusion filter of its own to test — its corpus comes entirely
+// from wholeCorpusFiles(), which already honours PAGES and is already covered by
+// applyReorgScanRespectsPages (24b) below, since reorg calls that same apply-reorg in-process.)
 
 /**
  * `archive` is documented as usable STANDALONE, and doArchive already falls back to
@@ -880,20 +802,6 @@ function archiveStandaloneFollowup() {
     /archive \|/.test(logContent));
   okTrue('log.md records the follow-up failure itself, not just a clean move',
     /FOLLOW-UP FAILED/.test(logContent));
-}
-
-/** Naming files on a bare archive-cleanup (no --apply) used to be silently ignored — the full
- *  report printed and the run exited 0, reading exactly like a delete that ran and found
- *  nothing. Fixed with an explicit NOTE that this run is the report and nothing was deleted. */
-function archiveCleanupNoteWithoutApply() {
-  group('20. archive-cleanup — naming files without --apply is not silently ignored');
-
-  const d = repo({ 'docs/archive/UNCITED.md': DOC('Uncited') });
-  const r = db(d, ['archive-cleanup', 'docs/archive/UNCITED.md']);
-  ok('archive-cleanup (no --apply) still exits clean', r.code, 0);
-  okTrue('a NOTE says nothing was deleted, naming the file count',
-    /NOTE: 1 file\(s\) named without --apply/.test(r.out));
-  okTrue('nothing was deleted', exists(d, 'docs/archive/UNCITED.md'));
 }
 
 /** `index` used to write a `[theme](wiki/<slug>.md)` link for EVERY theme in labels.json,
@@ -1227,7 +1135,7 @@ function applyReorgScansWholeCorpus() {
 }
 
 function applyReorgScanRespectsPages() {
-  group('24b. apply-reorg\'s scan honours PAGES, same as reconcile does');
+  group('24b. apply-reorg\'s scan honours PAGES (also reorg\'s corpus, which composes this)');
 
   const d = repo({
     'docs/CLEAN.md': DOC('Clean'),
@@ -1395,10 +1303,10 @@ function main() {
 
   const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, reorgCollision,
-    ledgerAndDue, search, reconcileMode, archiveCleanup, reconcileChokepoints,
-    tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
-    reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
-    archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
+    ledgerAndDue, dueOutputContract, search, reorgCmd, archiveCleanupRemoved, validateArchiveChokepoints,
+    tasksDirChokepoint, halfFinishedSplitDetection,
+    reorgCorpusStability, reorgOutIgnored,
+    archiveStandaloneFollowup, indexPendingUnwrittenPages,
     indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
     relativeInboundLinks, relativeLinksBothMove,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
