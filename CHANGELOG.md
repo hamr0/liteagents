@@ -15,6 +15,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.17.0] - 2026-08-23
+
+### Changed
+- **`/remember` now compresses hot memory instead of accumulating it.** `MEMORY.md` is loaded
+  into every session, so its size is the cost that matters — and both Facts and Episodes were
+  append-only, so it only ever grew. Four changes, all in the command spec (no script):
+  - **Facts are rewritten every run, not appended to.** The merge step returns the whole
+    section rewritten — new replaces old, near-duplicates fold into one line, and anything
+    that can be shorter is made shorter. A fact is now **one line, ≤160 chars, stating a rule
+    that changes future behaviour**: current truth only, no version history, no `supersedes`,
+    no narrative. Events belong in episodes. Nothing is pruned on age — an old rule that still
+    holds must never be dropped for being old; the bar sits at *entrance*, not on a timer.
+  - **Episodes keep the 10 most recent; older ones are folded, then deleted.** An aging
+    episode's *lesson* is handed to the fact rewrite, then the narrative is removed. No
+    archive file: git holds the history, and a file that is never loaded is not memory.
+  - **Stashes are batched, ≤5 per agent, using as few agents as possible.** One agent reading
+    several sessions sees a lesson recur and writes it once; one agent per stash writes it
+    once per stash and leaves the merge to catch the duplicates. Fewer agents, better
+    extraction, less to dedup downstream.
+  - **A mechanical length check runs in the report** — a one-line `awk` naming every fact over
+    the cap. It reports; it never fails the run and never hand-edits. Counting is a script's
+    job, compression is the model's: on this project model-driven bookkeeping measured **27%**
+    reliable against **~100%** for the same work done mechanically.
+
+  Measured on this toolkit's own bareloop corpus: `MEMORY.md` **168 KB → 48 KB** — 348 facts
+  averaging 254 chars became 249 averaging ~130, and 73 episodes became 10. Roughly **30k
+  tokens off every session** in that project. Antigens and the 10 retained episodes came
+  through byte-identical.
+
+  Mirrored across all four packages; `docs/product/remember-README.md` updated to match.
+
 ## [2.16.0] - 2026-08-22
 
 ### Added

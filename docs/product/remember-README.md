@@ -105,6 +105,20 @@ guessed. An antigen is a **triad**:
   `.claude/remember/friction/` so the antigen data below is always fresh. If no sessions root
   resolves it says so out loud and consolidates stashes only — never silently skips.
 - Reads `.claude/stash/*.md` → **Facts** + **Episodes** (via sonnet, skipping already-processed stashes).
+  Stashes are handed out in **batches of up to 5 per agent, using as few agents as possible** —
+  one agent reading several sessions sees a lesson recur and writes it once, where one agent
+  per stash writes it once per stash and leaves the merge to catch the duplicates.
+- **Facts are rewritten and compressed on every run, never appended to.** The merge step gets
+  the existing facts + the new ones + the lessons of any episodes aging out, and returns the
+  **whole section rewritten**: new replaces old, near-duplicates fold into one line, and every
+  fact that can be shorter is made shorter. The output is normally *shorter* than the input.
+  A fact is **one line, ≤160 chars, stating a rule that changes future behaviour** — current
+  truth only, no version history, no `supersedes`, no narrative. Events are episodes, not facts.
+- **Episodes: keep the 10 most recent; older ones are folded, then deleted.** An aging episode's
+  *lesson* is handed to the fact rewrite; the narrative is removed. There is no episode archive —
+  git already holds the history, and an archive that is never loaded is not memory.
+- **A mechanical length check runs at the end** — a one-line `awk` over the written file that
+  names every fact over the cap. It reports, it never fails the run and never edits by hand.
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
   2. **Semantic-merge** — sonnet groups same-complaint-different-words quotes friction left split.
@@ -142,6 +156,18 @@ memory with noise (on a 253-session corpus, **15 false high-confidence preferenc
 built from exit-codes and `/stash` false positives — including the `/stash` help text
 mistaken for user feedback). The redesign inverts that into a two-barrier funnel:
 
+**Bound facts at the write bar, not by pruning.** Hot memory is loaded into every session, so
+size matters far more there than at consolidation time. Two rules do the bounding, and both sit
+at *entrance*: a fact must be a one-line rule (≤160 chars), and every run rewrites the whole
+section rather than appending to it. Nothing is pruned on age — non-recurrence is ambiguous
+(stale vs still-working), so an old rule that still holds must never be dropped for being old.
+
+**Compression is synthesis, not bookkeeping.** Rewriting 300 facts into 200 shorter ones is a
+judgement job, which is why it is a model step. Anything mechanical — the episode cap, the
+length check — is a counted operation with no model in the loop. This split is deliberate: on
+this project, model-driven bookkeeping measured **27%** reliable against **~100%** for the same
+work done by a script.
+
 **Guard the signal** → **require reinforcement** before anything becomes a hot antigen:
 
 `observed reaction → agent-directed → corroborated-in-context → recurring → LLM-confirmed → (5+ sessions) hot`
@@ -178,7 +204,15 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-07-10)
+## 4. Status (as of 2026-08-23)
+
+- **Facts are compressed, not accumulated (2026-08-23).** `/remember` now rewrites the whole
+  Facts section every run under a one-line/≤160-char bar, keeps the 10 most recent episodes and
+  folds-then-deletes the rest, batches stashes ≤5 per agent, and runs a mechanical length check
+  in its report. Measured on this toolkit's own bareloop corpus: `MEMORY.md` **168 KB → 48 KB**
+  (348 facts averaging 254 chars → 249 averaging ~130; 73 episodes → 10), which is roughly
+  **30k tokens off every session in that project**. Antigens and the 10 hot episodes came
+  through byte-identical.
 
 - **`AGENT_RULES.md` bootstrap shipped.** A standards-guide template ships bundled next to
   `friction.cjs` in all four packages; `/remember` copies it into `.claude/remember/` on
