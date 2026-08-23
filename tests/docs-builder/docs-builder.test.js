@@ -324,6 +324,11 @@ function discoverBuckets() {
     // Must never be walked into at all.
     'docs/node_modules/pkg/DOC.md': DOC('Vendor'),
     'docs/.hidden/SECRET.md': DOC('Secret'),
+    // A live mkdocs snippet-include pointer (uv's docs/reference/contributing.md, real-world
+    // miss) — no H1, but its only content is an include directive, not an unknown doc.
+    'docs/reference/contributing.md': '--8<-- "CONTRIBUTING.md"\n',
+    // Negative control: no H1, but genuine unclassifiable prose — must stay `review`.
+    'docs/reference/mystery.md': 'just some prose with no heading and no include directive.\n',
   });
   const r = db(d, ['discover']);
   ok('discover exits clean', r.code, 0);
@@ -338,6 +343,10 @@ function discoverBuckets() {
   ok('lowercase status prose is NOT archived', bucket('docs/lower.md'), 'product');
   ok('an archive-shaped filename is archive', bucket('docs/REPORT_old.md'), 'archive');
   ok('an over-ceiling doc is oversized', bucket('docs/BIG.md'), 'oversized');
+  ok('a no-H1 mkdocs include stub is product, not review',
+    bucket('docs/reference/contributing.md'), 'product');
+  ok('a no-H1 file with real unclassifiable prose stays review',
+    bucket('docs/reference/mystery.md'), 'review');
 
   ok('README.md is never listed', bucket('docs/README.md'), 'ABSENT');
   ok('CLAUDE.md is never listed, at any depth', bucket('docs/deep/CLAUDE.md'), 'ABSENT');

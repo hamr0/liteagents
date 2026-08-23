@@ -1165,6 +1165,20 @@ const PROTECTED_NAMES = new Set([
 
 const DEFAULT_OVERSIZED_LINES = 500; // a starting default, UNMEASURED — see docs-builder.md
 
+// A no-H1 file is not always an unknown doc: uv's real `docs/reference/contributing.md` is
+// two lines — `--8<-- "CONTRIBUTING.md"` (an mkdocs snippet include) — a live pointer, not
+// prose. Narrow on purpose, same precision-over-recall law as the rest of this classifier:
+// only a file whose ENTIRE non-blank content is 1-3 lines, and every one of those lines is
+// itself an include directive or a markdown link, counts. Anything else with no H1 — real
+// unclassifiable prose — still falls through to `review`.
+const INCLUDE_DIRECTIVE_RE = /^(-{2,}8<-{2,}|\{%\s*include\b|\{\{.*\}\}|<!--\s*include\b)/i;
+const MD_LINK_LINE_RE = /^\[[^\]]*\]\([^)]+\)$/;
+function isIncludeStub(lines) {
+  const nonBlank = lines.map(l => l.trim()).filter(Boolean);
+  if (!nonBlank.length || nonBlank.length > 3) return false;
+  return nonBlank.every(l => INCLUDE_DIRECTIVE_RE.test(l) || MD_LINK_LINE_RE.test(l));
+}
+
 function classifyDoc(rel, text) {
   const lines = text.split('\n');
   const h1 = lines.find(l => l.startsWith('# '));
@@ -1176,8 +1190,11 @@ function classifyDoc(rel, text) {
     return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, FROZEN, deprecated)', lines: lines.length };
   if (ARCHIVE_FILENAME_RE.test(path.basename(rel)))
     return { file: rel, bucket: 'archive', reason: 'filename matches an archive-shaped pattern (weak signal, no content confirmation)', lines: lines.length };
-  if (!h1)
+  if (!h1) {
+    if (isIncludeStub(lines))
+      return { file: rel, bucket: 'product', reason: 'include stub', lines: lines.length };
     return { file: rel, bucket: 'review', reason: 'no H1 — cannot tell what this doc is', lines: lines.length };
+  }
 
   const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
   if (lines.length > ceiling)

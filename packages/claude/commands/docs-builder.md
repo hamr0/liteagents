@@ -175,7 +175,8 @@ Recursively finds every `*.md` under the root (skipping `wiki/`, `archive/`, `pr
 | `archive` | path already under `archive/old/reports/phases`, **or** the doc's own opening declares a SHOUTED status word (`CLOSED`, `FROZEN`, `DEPRECATED`, `SUPERSEDED`, `WITHDRAWN`, `RETRACTED`, `REFUTED`, `ARCHIVAL`, `ARCHIVED`), **or** the filename matches an archive-shaped prefix (`REPORT`, `STATUS`, `SUMMARY`, `FIX_`, `PHASE_`, `SPRINT_`, `DRAFT`, `WIP`, `OLD`, `TEMP` followed by `-` or `_`) | see below |
 | `oversized` | over the line ceiling (`OVERSIZED_LINES`, default 500 — an UNMEASURED starting point) and no archive signal | needs the split flow, per file |
 | `product` | has an H1, current size, no archive signal | default when nothing else applies |
-| `review` | no H1 at all — cannot tell what the doc even is | shown separately; `apply-reorg` treats it as an archive candidate |
+| `product` | no H1, but an **include stub** — its whole non-blank content (≤3 lines) is nothing but include directives (mkdocs `--8<--`, `{% include %}`, `{{ .. }}`, `<!-- include -->`) and/or markdown links | a live pointer, not an unknown doc — real-world miss: uv's `docs/reference/contributing.md` |
+| `review` | no H1 at all, and not an include stub — cannot tell what the doc even is | shown separately; `apply-reorg` treats it as an archive candidate |
 
 **Why the status check requires SHOUTED caps, case-sensitively.** Tried case-insensitive
 first, against a real, uncrafted corpus (not a fixture built to pass). It false-positived
