@@ -445,6 +445,15 @@ function extractSignals(sessionFile) {
 
       // User messages (GOLD)
       if (typeof content === 'string') {
+        // Harness-injected notifications ride in as user-role turns but are
+        // machine text, not user text — skip signal detection entirely so a
+        // notification's boilerplate prose can't be mistaken for a curse or
+        // correction aimed at the agent.
+        const trimmedContent = content.trim();
+        if (trimmedContent.startsWith('<task-notification>') || trimmedContent.startsWith('[SYSTEM NOTIFICATION')) {
+          continue;
+        }
+
         if (content.toLowerCase().includes('/stash')) {
           signals.push({
             ts,
@@ -1810,6 +1819,8 @@ function extractUserMessage(event) {
   if (trimmed.startsWith('<command-name>')) return '';
   if (trimmed.startsWith('<system-reminder>')) return '';
   if (trimmed.startsWith('<local-command-stdout>')) return '';
+  if (trimmed.startsWith('<task-notification>')) return '';
+  if (trimmed.startsWith('[SYSTEM NOTIFICATION')) return '';
 
   return text.slice(0, 500);
 }
