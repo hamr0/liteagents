@@ -189,23 +189,47 @@ cleanup <file.md>
 Step 3 is the invariant. If the separation cannot be made confidently, `cleanup` does nothing
 and says so — it never falls back to archiving the core.
 
-### The open problem: what counts as accretion
+### Separation is decided by interview, not by a heuristic
 
-The tool currently knows only sections and line counts; it has no notion of "this is the doc"
-versus "this grew onto the doc". A rule is needed, and per rule 2 it should be structural rather
-than semantic — a model may propose, only a rule may move.
+An earlier draft of this section proposed a structural rule — "a long tail of same-shaped, dated
+sections at the end of a file is accretion". Dropped before it was built. It would have guessed,
+on n=1, at the one question that decides everything downstream.
 
-The candidate this corpus suggests: **a long tail of same-shaped, dated sections at the end of a
-file is accretion.** bareloop's 75 `Addendum v1.xx — YYYY-MM-DD` sections are exactly that shape,
-contiguous, and terminal. This is a hypothesis from n=1 and must be tested against `PRD.md` and
-at least one differently-shaped file before it is built.
+The user's framing is the right one: **read the document, then ask.** A person looking at
+bareloop's `PRD.md` asks "what is this actually for — a product spec? planning? findings?" and
+the answer changes what the core is. The tool cannot know that, and it should not pretend to.
 
-Unresolved and deliberately not guessed at yet:
-- Does the accretion move to `archive/`, to `wiki/` pages, or to a `log`-shaped sibling file?
-- Is the core file rewritten in place (it would be the first operation in the pipeline that
-  edits a source document — every existing one only reads, moves, or writes new files), and if
-  so what makes that safe and reversible?
-- What is the confidence bar below which `cleanup` refuses rather than guesses?
+So `cleanup` opens with an interview. The script measures the shape; the model reads and forms
+the question; the user answers; the answer decides the split.
+
+```
+cleanup docs/01-product/PRD.md
+
+  5,680 lines. 86 sections.
+    §1-§11 (spec sections)      11 sections,   193 lines   (3%)
+    "Addendum v1.xx"            75 sections, 5,476 lines  (97%)
+
+  What is this document mainly for?
+  1. A product spec — the §-sections are the doc, the addenda are a changelog
+  2. A decision log — the addenda ARE the content, §1-§11 are a preamble
+  3. Both, equally
+```
+
+The shape numbers are script-produced and exact. The reading of that shape is the model's. The
+verdict is the user's. This is the same division of labour the rest of the pipeline uses, and
+the same explicit-choice-over-auto-detect rule `live-canvas` settled on.
+
+If the user cannot answer, or the answer is ambiguous, `cleanup` does nothing. It never falls
+back to archiving the core.
+
+### Still unresolved
+
+- Where does the separated material go — `archive/`, `wiki/` pages, or a `log`-shaped sibling?
+- Is the core file rewritten in place? That would be the first operation in this pipeline that
+  edits a source document; every existing one only reads, moves, or writes new files. It needs a
+  safety and reversibility story before it is built.
+- The interview must not become a second auto-detect wearing a costume: the model proposes the
+  question and the candidate readings, never the verdict.
 
 ## Open
 
