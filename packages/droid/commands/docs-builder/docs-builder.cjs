@@ -15,7 +15,9 @@
 //   due                                            -> what changed since the ledger, and how much
 //   lint     <file.md...>                          -> lint.json      (declared-only checks)
 //   discover [root]                                -> reorg-plan.json (classify, NEVER moves)
-//   apply-reorg [plan.json]                        -> executes the plan's product/archive moves
+//   apply-reorg [plan.json]                        -> executes the moves, then re-scans the
+//                                                       WHOLE corpus (product/ + archive/) into
+//                                                       outline.json — search's only database
 //
 // Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
 // link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
@@ -1358,6 +1360,53 @@ function discover(root) {
       + 'apply-reorg treats these as archive candidates too — check the plan first.');
 }
 
+// MEASURED, real (bareloop, 37 docs): outline.json — the database `search` reads — held
+// records for only 12 files, because `scan` had only ever run over whatever a caller happened
+// to hand it (the files bound for a split). All 24 docs/product/ files had ZERO records, so
+// `search` was structurally blind to every one of them — not a ranking problem, a coverage
+// problem: a file with no records at all cannot rank.
+//
+// Fix, round 1: `apply-reorg` runs `scan` itself, once, over the WHOLE corpus, right after the
+// move — not before (moving changes paths, not content, so a pre-move scan would just be
+// redone) and not partially (scanning only the split-bound files IS the bug). Round 1 walked
+// only docs/product/ and docs/archive/ (the dirs apply-reorg moves files INTO) and that was
+// still incomplete: apply-reorg deliberately leaves `oversized` docs exactly where discover
+// found them — splitting spends model budget and must never fire unprompted — so on bareloop's
+// real corpus the 12 biggest, most-cited docs (PRD.md, FINDINGS.md, LAYERS.md, all oversized,
+// all left in place under their original subdirs) still had zero outline records. "12 of 37
+// searchable" narrowed to "24 of 37 searchable" — same bug, smaller miss.
+//
+// Fix, round 2: reuse discover's own walk. walkMd(docsRoot, 'docs', files) covers every file
+// discover would have classified, WHEREVER it now lives — including an oversized doc still
+// sitting at its pre-move path — because walkMd's per-child skip only fires on a directory
+// literally named 'wiki'/'archive'/'product', so this call never descends into docs/product/
+// or docs/archive/ (no duplicates) while still reaching every other subdir (the in-place
+// oversized files). The two explicit calls below then add back exactly what that root walk
+// skipped: the contents of docs/product/ and docs/archive/ themselves. Together the three
+// calls are a complete, non-overlapping partition of "every doc discover would classify, at
+// its final location" — not a fourth, independent enumeration.
+function scanWholeCorpus() {
+  const files = [];
+  const docsRoot = path.join(REPO, 'docs');
+  if (fs.existsSync(docsRoot)) walkMd(docsRoot, 'docs', files);
+  const productDir = path.join(REPO, 'docs/product');
+  const archiveDir = path.join(REPO, 'docs/archive');
+  if (fs.existsSync(productDir)) walkMd(productDir, 'docs/product', files);
+  if (fs.existsSync(archiveDir)) walkMd(archiveDir, 'docs/archive', files);
+  // Defensive, same exclusion reconcile() already applies: a non-default PAGES dir nested
+  // under product/ or archive/ (not caught by walkMd's bare 'wiki' name check) still must not
+  // round-trip generated pages back into the outline.
+  const pagesPrefix = (process.env.PAGES || 'docs/wiki').replace(/\/*$/, '/');
+  const corpus = files.filter(f => !f.startsWith(pagesPrefix)).sort();
+  if (!corpus.length) {
+    console.log('\nscan: the docs/ corpus is empty — nothing to scan.');
+    return 0;
+  }
+  console.log(`\n== scan (whole corpus: ${corpus.length} file(s)) ==`);
+  scan(corpus);
+  return corpus.length;
+}
+
 function applyReorg(planFile) {
   const f = planFile || path.join(ARTIFACTS, 'reorg-plan.json');
   if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
@@ -1393,6 +1442,10 @@ function applyReorg(planFile) {
       results.syncFailed++;
     }
   }
+  // Runs regardless of whether anything moved THIS run — apply-reorg is also the thing that
+  // (re)builds outline.json for a corpus that already sat in docs/product/docs/archive from a
+  // previous run, e.g. after a manual git mv or a re-run with nothing left to do.
+  scanWholeCorpus();
   console.log(JSON.stringify(results, null, 1));
   if (results.oversizedLeftAlone)
     console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `

@@ -227,6 +227,15 @@ node docs-builder/docs-builder.cjs apply-reorg      # defaults to the plan above
 - A basename collision (two files, same name, different original folders) is
   disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
   destination** is skipped, logged, and does not stop the rest of the run.
+- **After every move, `apply-reorg` re-scans the whole corpus** — `docs/product/` and
+  `docs/archive/` both — straight into `outline.json`, the database `search` reads. Not a
+  hint, not opt-in: it runs every time, even when nothing moved this run (e.g. re-running on
+  a corpus already sorted from a previous pass). Measured bug this closes: on a real 37-doc
+  corpus, `outline.json` used to hold records for only the 12 files a split had happened to
+  touch — all 24 `docs/product/` files had zero records, so `search` was structurally blind to
+  them. Runs after the move, not before (moving changes paths, not content, so a pre-move scan
+  would just be redone), and reuses the same `scan` used everywhere else in this pipeline — no
+  second scanner, no second outline format.
 
 **After each move it repairs the paths that move just broke** — the whole point of doing this
 in a script. Both movers (`apply-reorg` and `archive`) go through ONE function, `moveDoc`, so
@@ -448,6 +457,13 @@ REPO=<repo> node docs-builder/docs-builder.cjs search docs/.docs-builder/outline
 BM25 over each section's real text (no deps, no separate index to build — it reads
 `outline.json` and the source files `scan` already produced). Ranks and points at a
 file/line range; it does not read the section for you. Result count is `N` (default 10).
+
+`search` can only rank what has a record — a file `outline.json` never scanned scores nothing
+and cannot be found, no matter how well its title matches the query. `apply-reorg` (step 3
+above) covers this for you: it re-scans the whole corpus, `docs/product/` and `docs/archive/`
+both, every time it runs, so `search` sees every doc that has gone through the reorg, not only
+whichever ones a split happened to touch. A doc that never went through `apply-reorg` (still
+sitting loose under `docs/`, e.g. `oversized`) still needs a manual `scan` to be searchable.
 
 ### 8. Index-flat (script) — the fallback for a corpus that never got split
 

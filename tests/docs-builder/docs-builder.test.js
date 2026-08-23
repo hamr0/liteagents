@@ -1092,6 +1092,102 @@ function relativeLinksBothMove() {
     a.includes('[to B](B.md)'));
 }
 
+// ---------------------------------------------------------------- 24. apply-reorg's own scan
+
+/**
+ * The 12-of-37 bug, pinned. Real-corpus measurement: outline.json (the database `search`
+ * reads) held records for only the 12 files that had ever been handed to `scan` by hand — on
+ * bareloop, that meant all 24 docs/product/ files had ZERO records, so `search` was
+ * structurally blind to them. Not a ranking bug: a file with no records at all cannot rank.
+ * The fix is `apply-reorg` running one full-corpus `scan` itself, after the move, over BOTH
+ * docs/product/ and docs/archive/ — not only whatever a caller happened to scan already.
+ */
+function applyReorgScansWholeCorpus() {
+  group('24. apply-reorg — one full-corpus scan after the move (12-of-37 regression)');
+
+  const d = repo({
+    'docs/CLEAN.md': DOC('Clean', 'Widgets', 'widget assembly instructions'),
+    'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## Sprockets\n\nsprocket tooling\n',
+  });
+  db(d, ['discover']);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const o = artifact(d, 'outline.json');
+  const files = new Set(o.records.map(x => x.file));
+
+  // (a) the regression test: both buckets must have records, not just whichever file used to
+  // be the one a split happened to touch.
+  okTrue('outline.json has a record for the product-bound file', files.has('docs/product/CLEAN.md'));
+  okTrue('outline.json has a record for the archive-bound file', files.has('docs/archive/CLOSED.md'));
+
+  // (b) generated output must never round-trip back into its own database.
+  okTrue('the pages dir never ends up in outline.json',
+    ![...files].some(f => f.startsWith('docs/wiki/')));
+  okTrue('index.md / log.md / .docs-builder never end up in outline.json',
+    ![...files].some(f => f === 'docs/index.md' || f === 'docs/log.md'
+      || f.startsWith('docs/.docs-builder/')));
+
+  // (c) end-to-end proof the blindness is gone: search now returns a hit from a product/ file.
+  const s = db(d, ['search', 'docs/.docs-builder/outline.json', 'widget']);
+  ok('search exits clean', s.code, 0);
+  okTrue('search finds a hit in a product/ file after apply-reorg',
+    /docs\/product\/CLEAN\.md/.test(s.out));
+}
+
+function applyReorgScanRespectsPages() {
+  group('24b. apply-reorg\'s scan honours PAGES, same as reconcile does');
+
+  const d = repo({
+    'docs/CLEAN.md': DOC('Clean'),
+    'docs/product/custom-pages/SPLIT.md': DOC('Split page — already-written output, not source'),
+  });
+  db(d, ['discover']);
+  const r = db(d, ['apply-reorg'], { PAGES: 'docs/product/custom-pages' });
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const files = new Set(artifact(d, 'outline.json').records.map(x => x.file));
+  okTrue('a non-default PAGES dir nested under product/ is excluded from the outline',
+    ![...files].some(f => f.startsWith('docs/product/custom-pages/')));
+  okTrue('the rest of product/ is still scanned', files.has('docs/product/CLEAN.md'));
+}
+
+/**
+ * The 12-of-37 bug, narrowed but not fixed: after the 24. fix, scanWholeCorpus() only walked
+ * docs/product/ and docs/archive/ — the two dirs apply-reorg moves files INTO. But apply-reorg
+ * deliberately leaves `oversized` files exactly where discover found them (splitting spends
+ * model budget and must never fire unprompted), so on bareloop's real corpus the 12 biggest,
+ * most-cited docs (PRD.md, FINDINGS.md, LAYERS.md — all oversized, all left in place under
+ * their original subdirs) still had zero outline records after apply-reorg. scan must cover
+ * the whole corpus at wherever each file FINALLY lives: product/, archive/, or its original
+ * pre-move path for anything left oversized.
+ */
+function applyReorgScansOversizedInPlace() {
+  group('24c. apply-reorg\'s scan reaches oversized files left in place (12-of-37, still not fixed)');
+
+  const d = repo({
+    'docs/00-context/BIG.md': `# Big\n\n## Widgets\n\nwidget assembly instructions\n\n${'line\n'.repeat(600)}`,
+    'docs/CLEAN.md': DOC('Clean'),
+    'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
+  });
+  db(d, ['discover']);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the oversized doc was left at its original path, not moved',
+    exists(d, 'docs/00-context/BIG.md'));
+
+  const files = new Set(artifact(d, 'outline.json').records.map(x => x.file));
+  okTrue('outline.json has a record for the product-bound file', files.has('docs/product/CLEAN.md'));
+  okTrue('outline.json has a record for the archive-bound file', files.has('docs/archive/CLOSED.md'));
+  okTrue('outline.json has a record for the oversized file at its ORIGINAL path',
+    files.has('docs/00-context/BIG.md'));
+
+  const s = db(d, ['search', 'docs/.docs-builder/outline.json', 'widget']);
+  ok('search exits clean', s.code, 0);
+  okTrue('search finds a hit in the oversized file at its original in-place path',
+    /docs\/00-context\/BIG\.md/.test(s.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1131,7 +1227,9 @@ function main() {
     tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
     reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
     archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
-    indexFlatCmd, relativeInboundLinks, relativeLinksBothMove, packageParity];
+    indexFlatCmd, relativeInboundLinks, relativeLinksBothMove,
+    applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
+    packageParity];
 
   for (const g of groups) {
     try { g(); }
