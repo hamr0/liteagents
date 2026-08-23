@@ -849,6 +849,49 @@ function rewriteArchivedPath(oldPath, newPath) {
 // pipeline's own JSON (rewriteArchivedPath owns those).
 const LINK_EXTS = new Set(['.md', '.js', '.cjs', '.mjs', '.json', '.yml', '.yaml']);
 const LINK_SKIP = /(^|\/)(CHANGELOG\.md|log\.md)$/;
+
+// A real corpus (astral-sh/uv) cross-links its docs with RELATIVE paths — `../concepts/x.md`,
+// `./tools.md`, `guides/install.md` — never the repo-rooted form the exact-path match above
+// looks for. A move that only fixes repo-rooted links leaves every one of those dead. Scope
+// is deliberately narrow: only inside actual markdown link syntax (`](target)` or a
+// reference-style `]: target` definition), never bare prose — "tools.md" on its own is too
+// ambiguous to touch safely. Not fence-aware, on purpose: the exact-path matcher above never
+// was either, and a link inside a fenced block still gets rewritten the same way.
+const INLINE_LINK_RE = /\]\(([^()\s]+)\)/g;
+const REF_LINK_RE = /^(\s{0,3}\[[^\]]+\]:[ \t]*)(\S+)/gm;
+const isRelativeTarget = t => !/^([a-z][a-z0-9+.-]*:)|^[#/]/i.test(t);
+const splitFragment = t => { const i = t.indexOf('#'); return i === -1 ? [t, ''] : [t.slice(0, i), t.slice(i)]; };
+
+// Rewrites every RELATIVE markdown link target in `text` via `transform(pathPart)`, which
+// returns the new repo-relative path-part (forward-slash, no fragment) or null/unchanged to
+// leave the link alone. `./` is kept on the new target only if the ORIGINAL had it —
+// path.relative() never produces one on its own, so blindly adding it back would put a
+// prefix on links that never had one.
+function rewriteRelativeLinks(text, transform) {
+  let n = 0;
+  const build = (pathPart, frag) => {
+    const next = transform(pathPart);
+    if (next == null || next === pathPart) return null;
+    n++;
+    return (pathPart.startsWith('./') && !next.startsWith('.') ? './' + next : next) + frag;
+  };
+  let out = text.replace(INLINE_LINK_RE, (full, target) => {
+    if (!isRelativeTarget(target)) return full;
+    const [pathPart, frag] = splitFragment(target);
+    if (!pathPart) return full;
+    const rewritten = build(pathPart, frag);
+    return rewritten == null ? full : `](${rewritten})`;
+  });
+  out = out.replace(REF_LINK_RE, (full, prefix, target) => {
+    if (!isRelativeTarget(target)) return full;
+    const [pathPart, frag] = splitFragment(target);
+    if (!pathPart) return full;
+    const rewritten = build(pathPart, frag);
+    return rewritten == null ? full : `${prefix}${rewritten}`;
+  });
+  return { text: out, n };
+}
+
 function rewriteLinks(oldPath, newPath) {
   const esc = oldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // Exact-path match. The lookbehind stops `xdocs/A.md` and `./docs/A.md` counting as this
@@ -876,7 +919,29 @@ function rewriteLinks(oldPath, newPath) {
     let text;
     try { text = fs.readFileSync(repoPath(f), 'utf8'); } catch { continue; }
     let n = 0;
-    const out = text.replace(re, () => (n++, newPath));
+    let out = text.replace(re, () => (n++, newPath));
+    if (path.extname(f) === '.md') {
+      let rel;
+      if (f === newPath) {
+        // This is the file that JUST moved. Its OWN relative links were authored to resolve
+        // from its OLD directory — re-express each one from its NEW directory so it still
+        // resolves to the exact same target, whether or not that target ever moves too. This
+        // is what makes ordering irrelevant when a link's source AND its target both move in
+        // the same apply-reorg run: whichever moves first, this keeps ITS outbound link
+        // correct as of ITS OWN move, so the other file's move (whenever it happens) finds a
+        // link that already resolves correctly against this file's current directory.
+        const oldDir = path.posix.dirname(oldPath), newDir = path.posix.dirname(newPath);
+        rel = rewriteRelativeLinks(out, pathPart =>
+          path.posix.relative(newDir, path.posix.normalize(path.posix.join(oldDir, pathPart))));
+      } else {
+        const dir = path.posix.dirname(f);
+        rel = rewriteRelativeLinks(out, pathPart => {
+          const resolved = path.posix.normalize(path.posix.join(dir, pathPart));
+          return resolved === oldPath ? path.posix.relative(dir, newPath) : null;
+        });
+      }
+      out = rel.text; n += rel.n;
+    }
     if (!n) continue;
     fs.writeFileSync(repoPath(f), out);
     result.files.push({ file: f, n });

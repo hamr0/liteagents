@@ -234,8 +234,17 @@ reported as a file that needs re-moving. Two follow-ups:
    function `archive` calls; `apply-reorg` used to bypass it, which silently invalidated
    every key of every file it moved. Both now reach it through `moveDoc`.
 2. **Inbound links** — every git-tracked `.md`/`.js`/`.cjs`/`.mjs`/`.json`/`.yml` file that
-   points at the old path is rewritten to the new one. Reported per file, counted in the
-   summary, and recorded in `log.md`.
+   points at the old path (repo-rooted, e.g. `docs/GUIDE.md`) is rewritten to the new one.
+   In `.md` files specifically, a RELATIVE link is also caught: inside actual markdown link
+   syntax only (`[text](../concepts/x.md)` or a reference-style `[label]: ./tools.md`), never
+   bare prose, the target is resolved against the SCANNING file's own directory, and — if it
+   points at the file that just moved — rewritten to the correct relative path to its new
+   location, with `#fragment` preserved and a `./` prefix kept only if the original had one.
+   This is what fixes real corpora (e.g. astral-sh/uv) that cross-link with `../x.md`-style
+   paths instead of repo-rooted ones. The file that just moved also gets its OWN relative
+   links re-based from its new directory, so a link whose SOURCE and TARGET both move in the
+   same `apply-reorg` run still resolves regardless of which one moves first. Reported per
+   file, counted in the summary, and recorded in `log.md`.
 
 **Why rewriting is safe here when the dangling-reference *lint* was cut outright.** That lint
 had to **infer** whether `P95` was a reference (1/27 precision). This infers nothing:

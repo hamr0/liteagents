@@ -1000,6 +1000,94 @@ function indexFlatCmd() {
   okTrue('missing product dir gives a clear message', /nothing to index/.test(r3.out));
 }
 
+// ---------------------------------------------------------------- 23. relative inbound links
+
+/**
+ * uv's real docs cross-link with RELATIVE paths (`../concepts/projects.md`, `./tools.md`,
+ * `guides/install.md`) — the old repo-rooted exact-path match never saw these, so a real
+ * apply-reorg run on a uv clone moved 61 files and reported `linksRewritten: 0`. This pins
+ * the fix: for every git-tracked .md file, a link inside `](...)` or a reference-style
+ * `]: ...` target is ALSO matched by resolving it relative to the SCANNING file's own
+ * directory. Fence-awareness is explicitly NOT part of the fix (documented, not a gap): the
+ * existing exact-path matcher was never fence-aware either, and this keeps that trade-off.
+ */
+function relativeInboundLinks() {
+  group('23. relative inbound links — the uv-shaped gap (moveDoc via archive)');
+
+  const d = repo({
+    'docs/sub/A.md': DOC('A'),
+    'docs/other/A.md': DOC('Decoy'), // same basename, different dir — must survive untouched
+    'docs/notes/NOTE.md': [
+      '# Note', '',
+      'dotdot form: [rel](../sub/A.md)',
+      'fragment form: [frag](../sub/A.md#Section-One)',
+      'decoy (different file, same basename): [decoy](../other/A.md)', '',
+      '```',
+      'fenced form: [fenced](../sub/A.md)',
+      '```', '',
+    ].join('\n'),
+    'docs/LINKS.md': [
+      '# Links', '',
+      'dot-slash form: [dotslash](./sub/A.md)',
+      'bare form: [bare](sub/A.md)', '',
+      '[ref-style]: sub/A.md', '',
+    ].join('\n'),
+  });
+  const r = db(d, ['archive', 'docs/sub/A.md']); // -> docs/archive/A.md
+  ok('archive exits clean', r.code, 0);
+
+  const note = read(d, 'docs/notes/NOTE.md');
+  okTrue('../x.md style link rewritten to the new relative path',
+    note.includes('[rel](../archive/A.md)'));
+  okTrue('#fragment preserved on a rewritten relative link',
+    note.includes('[frag](../archive/A.md#Section-One)'));
+  okTrue('a link to a DIFFERENT file with the same basename is left alone',
+    note.includes('[decoy](../other/A.md)'));
+  okTrue('a relative link inside a fenced code block is still rewritten (documented, not fence-aware)',
+    note.includes('[fenced](../archive/A.md)'));
+
+  const links = read(d, 'docs/LINKS.md');
+  okTrue('./ prefix is kept when the original link had one',
+    links.includes('[dotslash](./archive/A.md)'));
+  okTrue('no ./ prefix is added when the original link lacked one',
+    links.includes('[bare](archive/A.md)'));
+  okTrue('reference-style `]: target` link is also rewritten',
+    links.includes('[ref-style]: archive/A.md'));
+
+  okTrue('the decoy file itself is untouched', read(d, 'docs/other/A.md') === DOC('Decoy'));
+}
+
+/**
+ * The scanner runs PER-MOVE, not as one final batch — so when file A links to file B and
+ * BOTH move in the same apply-reorg run, whichever moves first must still end up correct.
+ * The plan order below is forced (A before B): the harder direction, since A's own outbound
+ * link must survive A's OWN move before B has moved too.
+ */
+function relativeLinksBothMove() {
+  group('23b. relative links — scanning file AND target both move in the same run');
+
+  const d = repo({
+    'docs/pair/A.md': [
+      '# A', '', 'intro line', '',
+      '[to B](../pair2/B.md)', '',
+      '## Section One', '', 'words words words', '',
+    ].join('\n'),
+    'docs/pair2/B.md': DOC('B'),
+  });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/pair/A.md', bucket: 'product' },
+    { file: 'docs/pair2/B.md', bucket: 'product' },
+  ] }) });
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('A moved into docs/product/', exists(d, 'docs/product/A.md'));
+  okTrue('B moved into docs/product/', exists(d, 'docs/product/B.md'));
+
+  const a = read(d, 'docs/product/A.md');
+  okTrue('the link from A to B still resolves after BOTH moved in the same run',
+    a.includes('[to B](B.md)'));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1039,7 +1127,7 @@ function main() {
     tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
     reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
     archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
-    indexFlatCmd, packageParity];
+    indexFlatCmd, relativeInboundLinks, relativeLinksBothMove, packageParity];
 
   for (const g of groups) {
     try { g(); }
