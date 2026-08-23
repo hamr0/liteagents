@@ -222,8 +222,9 @@ node docs-builder/docs-builder.cjs apply-reorg      # defaults to the plan above
 - `oversized` → **left in place.** Printed as a follow-up list — run Mode 1 below on each,
   by hand. Auto-splitting N unknown files in one shot would spend real model money with no
   confirmation; the pipeline never does that unprompted.
-- If nothing moved was oversized (`moved > 0 && oversized == 0`), `apply-reorg` prints a
-  one-line hint to run `index-flat` — see below. Never run automatically; it's a hint only.
+- **After the scan, `apply-reorg` writes `docs/index.md` itself** — it calls `index-flat`
+  (see below) automatically, so a reorg-only corpus ends up indexed without a second command.
+  Runs every time, even with oversized docs left in place (they still get an in-place row).
 - A basename collision (two files, same name, different original folders) is
   disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
   destination** is skipped, logged, and does not stop the rest of the run.
@@ -465,22 +466,33 @@ both, every time it runs, so `search` sees every doc that has gone through the r
 whichever ones a split happened to touch. A doc that never went through `apply-reorg` (still
 sitting loose under `docs/`, e.g. `oversized`) still needs a manual `scan` to be searchable.
 
-### 8. Index-flat (script) — the fallback for a corpus that never got split
+### 8. Index-flat (script) — the whole-corpus map, no split needed
 
 `index` above needs `labels.json`, which only the model's theme-propose step (2a) writes. A
 corpus that only ever went through `discover` + `apply-reorg` — nothing oversized, nothing
-split — never gets one, so nothing ever indexes `docs/product/`, and `reconcile` LOUD-SKIPs
-both `validate` and `index` for the same reason.
+split — never gets one, so `reconcile` LOUD-SKIPs both `validate` and `index` for the same
+reason. `index-flat` is the fallback, and `apply-reorg` (step 3 above) already calls it for
+you — this is only for re-running it by hand (e.g. after `git rm`-ing some archived docs).
 
 ```bash
 REPO=<repo> node docs-builder/docs-builder.cjs index-flat
 ```
 
-One row per **file** under `docs/product/` (H1 title, line count, a link) — no theme
-grouping, no `labels.json`, no model call. Same `OUT`/default destination as `index`
-(`docs/index.md`), so it lands where `validate`'s link check looks. Prints the row count and
-records a `log.md` line. Not wired to run automatically — `apply-reorg` only hints at it
-(see above); run it by hand, and re-run the real `index` once a `labels.json` exists.
+Writes **one** `docs/index.md` covering the whole corpus, in two sections: `## Product` (one
+row per file under `docs/product/`, plus any pages under `PAGES` — default `docs/wiki/` — if
+they exist, plus any doc still sitting in place elsewhere, e.g. an oversized file `apply-reorg`
+deliberately left untouched) and `## Archive` (one row per file under `docs/archive/`). Each
+row is an H1 title, a line count, and a link. No theme grouping, no `labels.json`, no model
+call. Same `OUT`/default destination as `index` (`docs/index.md`) — there is only ever one
+index file; `search` reads `outline.json`, never `index.md`, so a second index would only add
+drift. Prints the row counts and records a `log.md` line. Re-run the real `index` once a
+`labels.json` exists, for a themed index instead.
+
+**Archive growth flag.** Every `index-flat` run counts the `## Archive` rows and prints a
+console-only `WARN` once the count crosses `ARCHIVE_WARN_ROWS` (default 100, a stated default,
+not a measured one). It only ever warns — never prunes, never collapses the section, never
+deletes. Review `docs/index.md`'s `## Archive` section and `git rm` what you no longer need
+(or run `archive-cleanup`, below, for the review-and-confirm flow).
 
 ---
 

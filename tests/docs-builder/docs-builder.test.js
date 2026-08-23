@@ -362,8 +362,10 @@ function discoverBuckets() {
   okTrue('protected files stayed put after apply-reorg',
     exists(d, 'docs/README.md') && exists(d, 'docs/deep/CLAUDE.md'));
   okTrue('an oversized doc is never auto-split or moved', exists(d, 'docs/BIG.md'));
-  okTrue('apply-reorg does NOT hint at index-flat while a doc is still oversized',
-    !/index-flat/.test(applied.out));
+  // v3: apply-reorg always writes the index itself (no more hint-only path) — even with an
+  // oversized doc left in place, since that doc still gets an in-place row under ## Product.
+  okTrue('the oversized-in-place doc still ends up indexed under ## Product',
+    read(d, 'docs/index.md').includes('[Big]'));
 }
 
 function reorgCollision() {
@@ -385,8 +387,9 @@ function reorgCollision() {
   ok('the pre-existing file was not overwritten',
     read(d, 'docs/product/TAKEN.md'), 'pre-existing, must not be overwritten\n');
   okTrue('unrelated files still moved', exists(d, 'docs/product/OK.md'));
-  okTrue('apply-reorg hints at index-flat when nothing is oversized',
-    /index-flat/.test(r.out));
+  // v3: apply-reorg no longer just hints at index-flat — it runs it itself.
+  okTrue('apply-reorg writes docs/index.md itself when nothing is oversized',
+    exists(d, 'docs/index.md'));
 }
 
 // ---------------------------------------------------------------- 9. ledger / due
@@ -966,42 +969,130 @@ function indexPendingUnwrittenPages() {
     /"badLinks": 0/.test(val2.out));
 }
 
-/** `index` only ever runs off labels.json, which only the model's theme step produces — so a
- *  reorg-only corpus (apply-reorg moved everything into docs/product/, nothing oversized) never
- *  gets an index at all, and `reconcile` LOUD-SKIPs both validate and index for the same reason.
- *  `index-flat` is the fallback: one row per FILE under docs/product/, no labels, no model. */
+/** v3: `index-flat` covers the WHOLE corpus, not just docs/product/ — one `docs/index.md`,
+ *  sectioned `## Product` (product/ + PAGES pages + anything left in place, e.g. an oversized
+ *  doc apply-reorg deliberately didn't move) and `## Archive` (archive/). `search` reads
+ *  outline.json, never index.md, so this is the one map — no second index file. */
 function indexFlatCmd() {
-  group('22. index-flat — a flat, one-row-per-file fallback index, no labels needed');
+  group('22. index-flat — one whole-corpus, sectioned index, no labels needed');
 
   const d = repo({
     'docs/product/A.md': DOC('A'),
     'docs/product/B.md': DOC('B'),
     'docs/product/nested/C.md': DOC('C'),
+    'docs/archive/D.md': DOC('D'),
+    'docs/wiki/E.md': DOC('E'),
+    // An oversized doc apply-reorg deliberately leaves at its original, in-place path.
+    'docs/00-context/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
   });
   const r = db(d, ['index-flat'], { OUT: 'docs/index.md' });
   ok('index-flat exits clean', r.code, 0);
-  okTrue('it reports the row count', /wrote .*: 3 rows/.test(r.out));
 
   const md = read(d, 'docs/index.md');
-  for (const title of ['A', 'B', 'C']) {
+  okTrue('index.md has a ## Product section', /## Product/.test(md));
+  okTrue('index.md has a ## Archive section', /## Archive/.test(md));
+
+  const sections = md.split(/^## /m);
+  const productSection = sections.find(s => s.startsWith('Product')) || '';
+  const archiveSection = sections.find(s => s.startsWith('Archive')) || '';
+
+  for (const title of ['A', 'B', 'C', 'E', 'Big']) {
+    okTrue(`${title} appears under ## Product`, productSection.includes(`[${title}]`));
+  }
+  okTrue('the oversized in-place doc is indexed at its ORIGINAL path, not moved',
+    /\[Big\]\(00-context\/BIG\.md\)/.test(productSection));
+  okTrue('D appears under ## Archive', archiveSection.includes('[D]'));
+  okTrue('D does NOT also appear under ## Product', !productSection.includes('[D]'));
+
+  for (const title of ['A', 'B', 'C', 'D', 'E']) {
     const m = md.match(new RegExp(`\\[${title}\\]\\(([^)]+)\\)`));
     okTrue(`row for ${title} has a link`, !!m);
     if (m) okTrue(`row for ${title}'s link resolves on disk`,
       fs.existsSync(path.join(d, 'docs', m[1])));
   }
 
-  // Empty docs/product/ — no non-.md file inside it counts as a doc to index.
-  const empty = repo({ 'docs/product/.keep': '' });
+  // Nothing at all — no product/, no archive/, no stray docs.
+  const empty = repo({ 'README.md': 'nothing docs-shaped here\n' });
   const r2 = db(empty, ['index-flat'], { OUT: 'docs/index.md' });
-  ok('empty product dir exits clean', r2.code, 0);
-  okTrue('empty product dir gives a clear message', /empty — nothing to index/.test(r2.out));
-  okTrue('no index.md is written for an empty product dir', !exists(empty, 'docs/index.md'));
+  ok('empty corpus exits clean', r2.code, 0);
+  okTrue('empty corpus gives a clear message', /nothing to index/.test(r2.out));
+  okTrue('no index.md is written for an empty corpus', !exists(empty, 'docs/index.md'));
+}
 
-  // No docs/product/ at all — nothing has been reorged yet.
-  const missing = repo({ 'docs/A.md': DOC('A') });
-  const r3 = db(missing, ['index-flat'], { OUT: 'docs/index.md' });
-  ok('a repo with no product dir at all exits clean', r3.code, 0);
-  okTrue('missing product dir gives a clear message', /nothing to index/.test(r3.out));
+/** Regression test that matters most: every link index-flat writes must resolve to a real
+ *  file on disk, for every section, walked and stat'd — not spot-checked. */
+function indexFlatLinksResolve() {
+  group('22b. index-flat — every link resolves (walked and stat\'d, not spot-checked)');
+
+  const d = repo({
+    'docs/product/A.md': DOC('A'),
+    'docs/product/nested/deep/B.md': DOC('B'),
+    'docs/archive/C.md': DOC('C'),
+    'docs/archive/old/D.md': DOC('D'),
+    'docs/wiki/E.md': DOC('E'),
+    'docs/00-context/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
+  });
+  const r = db(d, ['index-flat'], { OUT: 'docs/sub/index.md' });
+  ok('index-flat exits clean', r.code, 0);
+
+  const md = read(d, 'docs/sub/index.md');
+  const links = [...md.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
+  okTrue('at least one link was found', links.length >= 6);
+  let deadLinks = 0;
+  for (const link of links) {
+    const target = path.join(d, 'docs/sub', link);
+    if (!fs.existsSync(target)) { deadLinks++; console.log(`    dead link: ${link}`); }
+  }
+  ok('zero dead links across every row', deadLinks, 0);
+}
+
+/** Archive growth flag: WARN above the threshold, silent below it — console only, and in
+ *  both cases nothing is deleted or altered. */
+function indexArchiveWarnFlag() {
+  group('22c. index-flat — archive growth WARN, never prunes');
+
+  const below = {};
+  for (let i = 0; i < 5; i++) below[`docs/archive/F${i}.md`] = DOC(`F${i}`);
+  const dBelow = repo(below);
+  const rBelow = db(dBelow, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('below-threshold run exits clean', rBelow.code, 0);
+  okTrue('no WARN below the threshold', !/WARN: archive\//.test(rBelow.out));
+  ok('all 5 archive files still on disk',
+    fs.readdirSync(path.join(dBelow, 'docs/archive')).length, 5);
+
+  const above = {};
+  for (let i = 0; i < 101; i++) above[`docs/archive/F${i}.md`] = DOC(`F${i}`);
+  const dAbove = repo(above);
+  const rAbove = db(dAbove, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('above-threshold run exits clean', rAbove.code, 0);
+  okTrue('WARN fires above the threshold', /WARN: archive\/ is 101 rows and growing/.test(rAbove.out));
+  okTrue('WARN never claims to prune', !/prun(e|ing|ed)\b.*archive/i.test(rAbove.out.replace(/nothing prunes it automatically\.?/g, '')));
+  ok('all 101 archive files still on disk',
+    fs.readdirSync(path.join(dAbove, 'docs/archive')).length, 101);
+  const archiveSection = (read(dAbove, 'docs/index.md').split(/^## /m).find(s => s.startsWith('Archive')) || '');
+  ok('the ## Archive section itself still lists all 101 rows, uncollapsed',
+    (archiveSection.match(/^- \[/gm) || []).length, 101);
+}
+
+/** `apply-reorg` calls index-flat itself right after its whole-corpus scan, so a reorg-only
+ *  corpus ends up with a docs/index.md without a second command ever being run. */
+function applyReorgAutoIndexes() {
+  group('22d. apply-reorg — writes docs/index.md itself, no second command');
+
+  const d = repo({
+    'docs/CLEAN.md': DOC('Clean'),
+    'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
+  });
+  db(d, ['discover']);
+  okTrue('no index.md before apply-reorg', !exists(d, 'docs/index.md'));
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('apply-reorg wrote docs/index.md on its own', exists(d, 'docs/index.md'));
+  okTrue('apply-reorg reports the index row counts', /wrote .*docs\/index\.md.*rows/.test(r.out));
+
+  const md = read(d, 'docs/index.md');
+  okTrue('CLEAN.md indexed under ## Product', md.includes('[Clean]'));
+  okTrue('CLOSED.md indexed under ## Archive', md.includes('[Closed]'));
 }
 
 // ---------------------------------------------------------------- 23. relative inbound links
@@ -1227,7 +1318,8 @@ function main() {
     tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
     reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
     archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
-    indexFlatCmd, relativeInboundLinks, relativeLinksBothMove,
+    indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
+    relativeInboundLinks, relativeLinksBothMove,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
     packageParity];
 

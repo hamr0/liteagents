@@ -637,51 +637,94 @@ function index(outlineF, labelsF) {
 
 // ---------------------------------------------------------------- index-flat (no labels)
 
-// `index` can only ever run off labels.json, and only the model's theme-propose step writes
-// one. A corpus that only ever went through `discover` + `apply-reorg` — nothing oversized,
-// nothing split — has no labels.json and never will, so nothing indexes docs/product/, and
-// `reconcile` LOUD-SKIPs both validate and index for the same reason. This is that corpus's
-// fallback: one row per FILE under docs/product/, no theme grouping, no model call. Same
-// OUT/INDEX default (docs/index.md) as `index`, so it lands where validate's link check and
-// a later real `index` both expect it.
+// v3: ONE index for the WHOLE corpus, two sections — `## Product` and `## Archive`. `search`
+// reads outline.json, never index.md, so index.md is purely a human/agent map; a second index
+// file (an earlier draft's separate docs/archive/index.md) would only be a second thing that
+// can drift out of step with the first. Same OUT/INDEX default (docs/index.md) as `index`, so
+// it lands where validate's link check and a later real `index` both expect it.
+//
+// `## Product` covers three things, using the SAME partition scanWholeCorpus() already
+// established (wholeCorpusFiles()) — not a fourth enumeration of the corpus:
+//   - every file under docs/product/
+//   - every page under PAGES (docs/wiki by default), if any exist
+//   - every doc still sitting in place elsewhere in the corpus — e.g. an oversized file
+//     apply-reorg deliberately left untouched, since splitting spends real model budget and
+//     must never fire unprompted (see docs-builder-v3-spec.md, "The three rules").
+// `## Archive` is one row per file under docs/archive/.
+//
+// Nothing in the automated pipeline prunes archive/ — only a human-invoked, opt-in
+// `archive-cleanup --apply` does — so left alone it only grows. ARCHIVE_WARN_ROWS below is a
+// console-only tripwire, never a prune, never a collapse, never a delete.
+const ARCHIVE_WARN_ROWS = 100; // stated default, not measured — see docs-builder-v3-spec.md
+
+function indexRow(rel, dest) {
+  const text = read(rel);
+  const h1 = (text.split('\n').find(l => l.startsWith('# ')) || '').slice(2).trim();
+  const lines = text.split('\n').length;
+  // Read from INSIDE index.md, so the link must resolve relative to index.md's own
+  // directory, not the repo root — same convention as `index`'s pagesLinkPrefix.
+  const relLink = path.relative(path.dirname(dest), repoPath(rel)).split(path.sep).join('/');
+  return `- [${h1 || path.basename(rel)}](${relLink}) — ${lines} lines\n`;
+}
+
+function renderSection(title, rows) {
+  let s = `## ${title}\n\n`;
+  s += rows.length ? rows.map(r => r.row).join('') : '_(none)_\n';
+  return s + '\n';
+}
+
 function indexFlat() {
-  const productRel = 'docs/product';
-  const productAbs = repoPath(productRel);
-  if (!fs.existsSync(productAbs)) {
-    console.log(`no ${productRel}/ — nothing to index. Run \`discover\` + \`apply-reorg\` first.`);
+  const archiveRel = 'docs/archive/';
+  const corpus = wholeCorpusFiles(); // product/, archive/, and anything left in place
+  const productFiles = corpus.filter(f => !f.startsWith(archiveRel));
+  const archiveFiles = corpus.filter(f => f.startsWith(archiveRel));
+
+  const pagesRel = process.env.PAGES || 'docs/wiki';
+  const pagesAbs = repoPath(pagesRel);
+  const pageFiles = fs.existsSync(pagesAbs)
+    ? fs.readdirSync(pagesAbs).filter(f => f.endsWith('.md'))
+        .map(f => path.join(pagesRel, f).split(path.sep).join('/'))
+    : [];
+
+  if (!productFiles.length && !archiveFiles.length && !pageFiles.length) {
+    console.log('nothing to index — run `discover` + `apply-reorg` first.');
     return;
   }
-  const files = [];
-  walkMd(productAbs, productRel, files);
-  if (!files.length) {
-    console.log(`${productRel}/ is empty — nothing to index.`);
-    return;
-  }
-  files.sort();
+
   const outRel = process.env.OUT || 'docs/index.md';
   const dest = repoPath(outRel);
-  // Same relative-link convention as `index`'s pagesLinkPrefix: the link is read from INSIDE
-  // index.md, so it must resolve relative to index.md's own directory, not the repo root.
-  const linkPrefix = path.relative(path.dirname(dest), productAbs).split(path.sep).join('/');
+  const productRows = [...productFiles, ...pageFiles].sort()
+    .map(f => ({ file: f, row: indexRow(f, dest) }));
+  const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
+
   let s = '# Index\n\n';
-  s += '**Completeness guarantee:** every file under `docs/product/` appears in exactly one '
-     + 'row below.\n\n';
+  s += '**Completeness guarantee:** every file under `docs/product/`, every page under '
+     + `\`${pagesRel}/\` (if any), every doc left in place after a reorg, and every file `
+     + 'under `docs/archive/` appears in exactly one row below.\n\n';
   s += '_Generated by `docs-builder.cjs index-flat` — no `labels.json` was available, so this '
-     + 'is a flat, one-row-per-file fallback (no theme grouping, no model call). Run the split '
+     + 'is a flat, one-row-per-file map (no theme grouping, no model call). Run the split '
      + 'pipeline and `index` for a themed index once one exists. Never hand-edit — rebuilt '
      + 'every run._\n\n';
-  for (const f of files) {
-    const text = read(f);
-    const h1 = (text.split('\n').find(l => l.startsWith('# ')) || '').slice(2).trim();
-    const lines = text.split('\n').length;
-    const relLink = `${linkPrefix}/${path.relative(productRel, f).split(path.sep).join('/')}`;
-    s += `- [${h1 || path.basename(f)}](${relLink}) — ${lines} lines\n`;
-  }
-  s += `\n---\n\nTotal: ${files.length} row(s) across ${productRel}/.\n`;
+  s += renderSection('Product', productRows);
+  s += renderSection('Archive', archiveRows);
+  const total = productRows.length + archiveRows.length;
+  s += `---\n\nTotal: ${total} row(s) — ${productRows.length} product, `
+     + `${archiveRows.length} archive.\n`;
+
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, s);
-  console.log(`wrote ${dest}: ${files.length} rows`);
-  logOp('index-flat', `${files.length} row(s) from ${productRel}/`);
+  console.log(`wrote ${dest}: ${total} rows (${productRows.length} product, `
+    + `${archiveRows.length} archive)`);
+  logOp('index-flat', `${total} row(s) (${productRows.length} product, `
+    + `${archiveRows.length} archive)`);
+
+  // Console-only tripwire. Nothing in this run prunes archive/ automatically — pruning is
+  // `archive-cleanup --apply`, opt-in and human-invoked. This never prunes, never collapses
+  // the section, never deletes; it only warns.
+  if (archiveRows.length > ARCHIVE_WARN_ROWS)
+    console.log(`WARN: archive/ is ${archiveRows.length} rows and growing — nothing prunes it `
+      + `automatically.\n      Review ${outRel} ## Archive and \`git rm\` what you no longer `
+      + 'need.');
 }
 
 // ---------------------------------------------------------------- search (BM25, zero deps)
@@ -1385,7 +1428,11 @@ function discover(root) {
 // skipped: the contents of docs/product/ and docs/archive/ themselves. Together the three
 // calls are a complete, non-overlapping partition of "every doc discover would classify, at
 // its final location" — not a fourth, independent enumeration.
-function scanWholeCorpus() {
+// Shared by `scan` (via scanWholeCorpus) and `index-flat`: the one partition of "every doc
+// discover would classify, at its final location" — product/, archive/, and anything left
+// in place elsewhere (e.g. an oversized doc apply-reorg deliberately didn't move). Do not
+// add a second, independent enumeration of the corpus — this is the one.
+function wholeCorpusFiles() {
   const files = [];
   const docsRoot = path.join(REPO, 'docs');
   if (fs.existsSync(docsRoot)) walkMd(docsRoot, 'docs', files);
@@ -1397,7 +1444,11 @@ function scanWholeCorpus() {
   // under product/ or archive/ (not caught by walkMd's bare 'wiki' name check) still must not
   // round-trip generated pages back into the outline.
   const pagesPrefix = (process.env.PAGES || 'docs/wiki').replace(/\/*$/, '/');
-  const corpus = files.filter(f => !f.startsWith(pagesPrefix)).sort();
+  return files.filter(f => !f.startsWith(pagesPrefix)).sort();
+}
+
+function scanWholeCorpus() {
+  const corpus = wholeCorpusFiles();
   if (!corpus.length) {
     console.log('\nscan: the docs/ corpus is empty — nothing to scan.');
     return 0;
@@ -1450,12 +1501,10 @@ function applyReorg(planFile) {
   if (results.oversizedLeftAlone)
     console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `
       + 'pipeline on each, then `archive` the original.');
-  // Nothing was left oversized, so nothing needs the split pipeline — but nothing indexes
-  // docs/product/ either, since that only ever happens via `index`, which needs a labels.json
-  // only the split flow's theme step produces. `index-flat` is the no-model fallback.
-  else if (results.moved > 0)
-    console.log('No oversized docs — run `index-flat` to build a flat docs/index.md now '
-      + '(one row per file, no split/labels needed).');
+  // v3: apply-reorg writes docs/index.md itself — a reorg-only corpus ends up indexed
+  // without a second command. Runs unconditionally (even with oversized docs left in place —
+  // those still get an in-place row under ## Product; only splitting is opt-in, not indexing).
+  indexFlat();
   logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
     + `${results.oversizedLeftAlone} oversized left in place, `
     + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s)`);
