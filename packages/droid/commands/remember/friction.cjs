@@ -104,15 +104,6 @@ function parseJsonl(raw, source) {
   return records;
 }
 
-function parseISODate(s) {
-  if (!s) return null;
-  try {
-    return new Date(s.replace('Z', '+00:00'));
-  } catch {
-    return null;
-  }
-}
-
 function formatDuration(minutes) {
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
@@ -254,7 +245,7 @@ function looksLikeTerminalPaste(text) {
 function extractSignals(sessionFile) {
   const signals = [];
   let llmClaimedSuccess = false;
-  const toolHistory = [];
+  const toolHistoryCounts = new Map();
   const metadata = {};
 
   const raw = fs.readFileSync(sessionFile, 'utf-8');
@@ -521,12 +512,8 @@ function extractSignals(sessionFile) {
           if (block.type === 'tool_use') {
             const toolName = block.name;
             const sig = JSON.stringify([toolName, JSON.stringify(block.input || {})]);
-            toolHistory.push(sig);
-
-            let count = 0;
-            for (const h of toolHistory) {
-              if (h === sig) count++;
-            }
+            toolHistoryCounts.set(sig, (toolHistoryCounts.get(sig) || 0) + 1);
+            const count = toolHistoryCounts.get(sig);
             if (count >= 3) {
               signals.push({
                 ts,
@@ -940,7 +927,7 @@ function aggregateSessions(analyses, config) {
   const totalObjective = ((aggregateBySource.tool || {}).total_friction || 0) +
                           ((aggregateBySource.user || {}).total_friction || 0);
   const totalLlm = (aggregateBySource.llm || {}).total_friction || 1;
-  const snr = totalLlm !== 0 ? Math.abs(totalObjective / totalLlm) : 0;
+  const snr = Math.abs(totalObjective / totalLlm);
 
   // Verdict
   const thresholds = config.thresholds;
@@ -975,8 +962,7 @@ function aggregateSessions(analyses, config) {
   for (const [source, data] of Object.entries(aggregateBySource)) {
     const sessionsCount = data.sessions_with_signals;
     // Sort top_signals by count descending (like Python's Counter.most_common)
-    const sortedSignals = Object.entries(data.top_signals)
-      .sort((a, b) => b[1] - a[1]);
+    const sortedSignals = sortedEntries(data.top_signals);
     const topSignals = {};
     for (const [k, v] of sortedSignals) topSignals[k] = v;
 
@@ -1114,52 +1100,6 @@ function aggregateSessions(analyses, config) {
     common_sequences: commonSequences,
     verdict: { status, reasons, recommended_actions: actions },
   };
-}
-
-// =============================================================================
-// FRICTION ANALYZE - print helpers
-// =============================================================================
-
-function printBox(title, lines, width) {
-  width = width || 60;
-  const hr = '\u2500'.repeat(width - 2);
-  console.log(`\u250C${hr}\u2510`);
-  console.log(`\u2502 ${title.toUpperCase().padEnd(width - 4)} \u2502`);
-  console.log(`\u251C${hr}\u2524`);
-  for (let line of lines) {
-    if (line.length > width - 4) line = line.slice(0, width - 7) + '...';
-    console.log(`\u2502 ${line.padEnd(width - 4)} \u2502`);
-  }
-  console.log(`\u2514${hr}\u2518`);
-}
-
-function printTable(headers, rows, colWidths) {
-  if (!colWidths) {
-    colWidths = headers.map((h, i) => {
-      let max = String(h).length;
-      for (const row of rows) {
-        const len = String(row[i]).length;
-        if (len > max) max = len;
-      }
-      return max + 2;
-    });
-  }
-
-  const topBorder = '\u250C' + colWidths.map(w => '\u2500'.repeat(w)).join('\u252C') + '\u2510';
-  const headerLine = '\u2502' + headers.map((h, i) => ` ${String(h).padEnd(colWidths[i] - 2)} `).join('\u2502') + '\u2502';
-  const sep = '\u251C' + colWidths.map(w => '\u2500'.repeat(w)).join('\u253C') + '\u2524';
-
-  console.log(topBorder);
-  console.log(headerLine);
-  console.log(sep);
-
-  for (const row of rows) {
-    const rowLine = '\u2502' + row.map((v, i) => ` ${String(v).padEnd(colWidths[i] - 2)} `).join('\u2502') + '\u2502';
-    console.log(rowLine);
-  }
-
-  const bottomBorder = '\u2514' + colWidths.map(w => '\u2500'.repeat(w)).join('\u2534') + '\u2518';
-  console.log(bottomBorder);
 }
 
 // =============================================================================
@@ -1712,9 +1652,13 @@ function findSessionFile(sessionsDir, sessionId) {
 // ANTIGEN EXTRACT - extract helpers
 // =============================================================================
 
-function extractContextWindow(sessionFile, anchorTs, windowSize) {
-  windowSize = windowSize || 5;
-
+/**
+ * Read and parse a session file once into its user/assistant turns.
+ * Callers that need multiple context windows from the same session (one per
+ * anchor signal) should build this once and reuse it, instead of re-reading
+ * and re-parsing the whole file per anchor.
+ */
+function buildTurns(sessionFile) {
   const raw = fs.readFileSync(sessionFile, 'utf-8');
   const events = parseJsonl(raw, sessionFile);
 
@@ -1725,6 +1669,11 @@ function extractContextWindow(sessionFile, anchorTs, windowSize) {
       turns.push({ ts, type: event.type, event });
     }
   }
+  return turns;
+}
+
+function extractContextWindow(turns, anchorTs, windowSize) {
+  windowSize = windowSize || 5;
 
   // Find anchor position
   let anchorIdx = null;
@@ -1884,12 +1833,17 @@ function analyzeBadSession(sessionFile, analysis, signals) {
   const anchors = signals.filter(s => s.session === sessionId && anchorSignals.includes(s.signal));
 
   const candidates = [];
+  if (anchors.length === 0) return candidates;
+
+  // Parse the session file once and reuse it for every anchor's context
+  // window, instead of re-reading and re-parsing the whole file per anchor.
+  const turns = buildTurns(sessionFile);
 
   for (const anchor of anchors) {
     const anchorTs = anchor.ts || '';
     const anchorSignal = anchor.signal || 'unknown';
 
-    const window = extractContextWindow(sessionFile, anchorTs, 5);
+    const window = extractContextWindow(turns, anchorTs, 5);
     if (window.length === 0) continue;
 
     const allFiles = new Set();
