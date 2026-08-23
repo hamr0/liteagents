@@ -469,6 +469,11 @@ function slugMap(themes) {
   return out;
 }
 
+// Cost law measured over 10 pages, R^2 = 0.96. 42% of the write bill is per-page fixed. One
+// function so `plan` (real page count, from labels.json) and `cleanup` (a 1-page floor,
+// printed before any grouping has happened) can never disagree on the formula itself.
+function writeCostEstimate(pages, lines) { return pages * 0.083 + lines / 1000 * 0.200; }
+
 function group(o, l) {
   const by = new Map(o.records.map(r => [keyOf(r), r]));
   const g = new Map();
@@ -554,8 +559,7 @@ function plan(outlineF, labelsF) {
   if (todo.length < rows.length)
     console.log(`resuming: ${rows.length - todo.length} of ${rows.length} pages already in ${pages}/`);
   if (!todo.length) { console.log('all pages written — nothing to do.'); return; }
-  // Cost law measured over 10 pages, R^2 = 0.96. 42% of the write bill is per-page fixed.
-  const est = todo.length * 0.083 + tot / 1000 * 0.200;
+  const est = writeCostEstimate(todo.length, tot);
   console.log(`pages to write: ${todo.length}  lines: ${tot}  est. write cost: $${est.toFixed(2)} (mid tier)`);
   if (todo.length > 3) console.log('launch page writers 3 at a time; each finished page is a checkpoint — re-run `plan` to resume.');
 }
@@ -1396,8 +1400,13 @@ function discover(root) {
   console.table(rows.map(r => ({ file: r.file, bucket: r.bucket, lines: r.lines })));
   console.log(JSON.stringify(byBucket, null, 1));
   console.log(`plan written to docs/.docs-builder/reorg-plan.json — review it, then run `
-    + '`apply-reorg` to move product/ and archive/ candidates. `oversized` files are NOT '
-    + 'auto-split (that spends model budget); run the normal pipeline on each, by hand.');
+    + '`apply-reorg` to move product/ and archive/ candidates.');
+  const oversizedRows = rows.filter(r => r.bucket === 'oversized');
+  if (oversizedRows.length) {
+    console.log(`\n${oversizedRows.length} oversized file(s) — never auto-split (that spends `
+      + 'model budget); run `cleanup <file>` on each, by hand, one at a time:');
+    for (const r of oversizedRows) console.log(`  cleanup ${r.file}  (${r.lines} lines)`);
+  }
   if (byBucket.review)
     console.log(`WARN: ${byBucket.review} file(s) had no clear signal at all (no H1). `
       + 'apply-reorg treats these as archive candidates too — check the plan first.');
@@ -1465,8 +1474,9 @@ function applyReorg(planFile) {
   const results = { moved: 0, skipped: 0, oversizedLeftAlone: 0,
                     artifactsSynced: 0, linksRewritten: 0, syncFailed: 0 };
   const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
+  const oversizedRows = [];
   for (const row of plan.rows) {
-    if (row.bucket === 'oversized') { results.oversizedLeftAlone++; continue; }
+    if (row.bucket === 'oversized') { results.oversizedLeftAlone++; oversizedRows.push(row); continue; }
     const destDir = row.bucket === 'product' ? 'docs/product' : 'docs/archive';
     let base = path.basename(row.file);
     const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
@@ -1498,9 +1508,11 @@ function applyReorg(planFile) {
   // previous run, e.g. after a manual git mv or a re-run with nothing left to do.
   scanWholeCorpus();
   console.log(JSON.stringify(results, null, 1));
-  if (results.oversizedLeftAlone)
-    console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — run the split `
-      + 'pipeline on each, then `archive` the original.');
+  if (results.oversizedLeftAlone) {
+    console.log(`${results.oversizedLeftAlone} oversized doc(s) left in place — splitting is `
+      + 'opt-in and per-file. Run `cleanup <file>` on each, by hand, one at a time:');
+    for (const r of oversizedRows) console.log(`  cleanup ${r.file}  (${r.lines} lines)`);
+  }
   // v3: apply-reorg writes docs/index.md itself — a reorg-only corpus ends up indexed
   // without a second command. Runs unconditionally (even with oversized docs left in place —
   // those still get an in-place row under ## Product; only splitting is opt-in, not indexing).
@@ -1694,6 +1706,37 @@ function archiveCleanup(args) {
   if (deleted) logOp('archive-cleanup', `deleted ${deleted}: ${files.slice(0, 5).join(', ')}`);
 }
 
+// ---------------------------------------------------------------- cleanup (Mode 1 entry point)
+
+// v3 rule 1: `reorg` never splits. `cleanup` is the ONLY door into the split pipeline (scan
+// -> the model's grouping steps, driven by docs-builder.md's Mode 1, never by this script ->
+// plan -> pages -> archive -> index). One file, named by hand, cost printed before anything
+// runs. Reuses plan()'s own cost law (writeCostEstimate) instead of inventing a second
+// formula — the real page count is unknown until the model groups sections, so this prices
+// the 1-page floor and says so plainly; `plan` reports the precise figure once labels.json
+// exists.
+function cleanup(files) {
+  if (!files.length) die('usage: docs-builder.cjs cleanup <file.md>');
+  if (files.length > 1)
+    die(`cleanup takes exactly ONE file, not ${files.length} (${files.join(', ')}) — `
+      + 'splitting spends real model budget, so it only ever runs on a single file you '
+      + 'named. Run it once per file.');
+  const [file] = files;
+  if (path.extname(file) !== '.md') die(`cleanup: ${file} is not a .md file`);
+  if (PROTECTED_NAMES.has(path.basename(file)))
+    die(`cleanup: ${file} is a protected entry-point doc (README/CLAUDE.md/etc.) and is `
+      + 'never split');
+  if (!fs.existsSync(repoPath(file))) die(`cleanup: no such file: ${file}`);
+  const lines = read(file).split('\n').length;
+  const est = writeCostEstimate(1, lines);
+  console.log(`${file}: ${lines} lines`);
+  console.log(`est. write cost: $${est.toFixed(2)} (mid tier, floor assuming 1 page — the `
+    + "real page count depends on the model's grouping step; `plan` reports the precise "
+    + 'figure once labels.json exists)');
+  console.log('\n== scan ==');
+  scan([file]);
+}
+
 // ---------------------------------------------------------------- dispatch
 
 // Machine state has one home. Callers can override with OUT, but the default must never
@@ -1721,9 +1764,10 @@ switch (cmd) {
   case 'apply-reorg': applyReorg(rest[0]); break;
   case 'reconcile':   reconcile(); break;
   case 'archive-cleanup': archiveCleanup(rest); break;
+  case 'cleanup':     cleanup(rest); break;
   default:
     die('usage: docs-builder.cjs <scan|validate|plan|index|index-flat|search|archive|ledger|due|lint|'
-      + 'discover|apply-reorg|reconcile|archive-cleanup> [args]\n'
+      + 'discover|apply-reorg|reconcile|archive-cleanup|cleanup> [args]\n'
       + '  scan        <file.md...>                 -> outline.json\n'
       + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
       + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
@@ -1738,6 +1782,8 @@ switch (cmd) {
       + '  apply-reorg [plan.json]                    -> executes the plan\n'
       + '  reconcile                                 -> scan+validate+index+lint over docs/\n'
       + '  archive-cleanup [--apply <f>...]          -> report, or prune NAMED archived files\n'
+      + '  cleanup     <file.md>                     -> ONE named file: cost estimate, then scan\n'
+      + '                                                 (the ONLY entry point to the split pipeline)\n'
       + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
       + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
       + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');

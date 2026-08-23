@@ -150,6 +150,63 @@ Verified 2026-08-23 that `due` itself still runs clean after the v2 fix commits 
 no ledger stamped: `no ledger yet — run \`docs-builder.cjs ledger\` to start tracking. NOT due.`,
 exit 0). The break is the nudge text, not the mechanism.
 
+## `cleanup` keeps the core — the requirement that changes the operation
+
+**The core document is never lost and never renamed.** Stated by the user 2026-08-23 as a hard
+requirement, and it contradicts what `cleanup` does today.
+
+Today the split pipeline archives the original: `docs/01-product/PRD.md` becomes
+`docs/archive/PRD.md`, and synthesized pages stand in its place. The requirement is the
+opposite. `PRD.md` stays `PRD.md`, at its own path, holding its own core. What leaves is the
+drift that accreted onto it.
+
+### Why this is the right operation for this corpus
+
+Splitting balanced themes is the wrong shape for a document that is one spec plus an
+append-only log. Measured on bareloop's `PRD.md` (5,680 lines, 86 H2 sections):
+
+```
+sections §1-§11, the actual PRD:   11 sections,   193 lines   (3%)
+sections "Addendum v1.xx":         75 sections, 5,476 lines  (97%)
+```
+
+The PRD is 193 lines. The other 97% is a changelog that grew onto the end of it. The v2 flow
+split this into 8 theme-balanced pages, which scatters an 11-section spec across pages that are
+overwhelmingly addenda, then archives the spec itself. That is the opposite of what the document
+needs.
+
+### Shape
+
+```
+cleanup <file.md>
+  1. read            scan -> sections, line ranges
+  2. separate        core vs accretion
+  3. core STAYS      same path, same name, never moved, never archived
+  4. accretion       themed into pages, placed, and the original span removed from the core file
+  5. reindex         docs/index.md rebuilt
+```
+
+Step 3 is the invariant. If the separation cannot be made confidently, `cleanup` does nothing
+and says so — it never falls back to archiving the core.
+
+### The open problem: what counts as accretion
+
+The tool currently knows only sections and line counts; it has no notion of "this is the doc"
+versus "this grew onto the doc". A rule is needed, and per rule 2 it should be structural rather
+than semantic — a model may propose, only a rule may move.
+
+The candidate this corpus suggests: **a long tail of same-shaped, dated sections at the end of a
+file is accretion.** bareloop's 75 `Addendum v1.xx — YYYY-MM-DD` sections are exactly that shape,
+contiguous, and terminal. This is a hypothesis from n=1 and must be tested against `PRD.md` and
+at least one differently-shaped file before it is built.
+
+Unresolved and deliberately not guessed at yet:
+- Does the accretion move to `archive/`, to `wiki/` pages, or to a `log`-shaped sibling file?
+- Is the core file rewritten in place (it would be the first operation in the pipeline that
+  edits a source document — every existing one only reads, moves, or writes new files), and if
+  so what makes that safe and reversible?
+- What is the confidence bar below which `cleanup` refuses rather than guesses?
+
 ## Open
 
 1. **Unmeasured: do the 65 synthesized pages actually beat `search` over the originals?**

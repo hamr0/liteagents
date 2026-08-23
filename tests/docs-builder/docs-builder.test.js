@@ -1279,6 +1279,87 @@ function applyReorgScansOversizedInPlace() {
     /docs\/00-context\/BIG\.md/.test(s.out));
 }
 
+// ---------------------------------------------------------------- 25-26. cleanup (v3 step 3)
+
+/**
+ * v3 rule 1: `reorg` never splits. `cleanup <file.md>` is now the ONLY entry point to the
+ * split pipeline — one file, named by hand, refused on anything else, cost printed before
+ * any expensive work (page-writing) happens.
+ */
+function cleanupCmd() {
+  group('25. cleanup — the opt-in, per-file split entry point');
+
+  const d = repo({
+    'docs/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
+    'docs/SMALL.md': DOC('Small'),
+  });
+
+  // (a) exactly one file, never more — splitting spends real model budget per invocation.
+  const two = db(d, ['cleanup', 'docs/BIG.md', 'docs/SMALL.md']);
+  ok('cleanup refuses two files', two.code, 1);
+  okTrue('cleanup names both files in the refusal',
+    /docs\/BIG\.md/.test(two.out) && /docs\/SMALL\.md/.test(two.out));
+
+  // (b) a missing file.
+  const missing = db(d, ['cleanup', 'docs/NOPE.md']);
+  ok('cleanup refuses a missing file', missing.code, 1);
+  okTrue('missing-file message is clear', /no such file/i.test(missing.out));
+
+  // (b) a non-.md file.
+  write(d, { 'docs/notmd.txt': 'hi\n' });
+  const notmd = db(d, ['cleanup', 'docs/notmd.txt']);
+  ok('cleanup refuses a non-.md file', notmd.code, 1);
+  okTrue('non-.md message is clear', /not a \.md file/i.test(notmd.out));
+
+  // (b) a protected name.
+  write(d, { 'docs/README.md': DOC('Readme') });
+  const protectedRun = db(d, ['cleanup', 'docs/README.md']);
+  ok('cleanup refuses a protected file', protectedRun.code, 1);
+  okTrue('protected-file message is clear', /protected/i.test(protectedRun.out));
+
+  // (c) a valid oversized file: cost estimate + line count, BEFORE any page-writing work.
+  const bigLines = fs.readFileSync(path.join(d, 'docs/BIG.md'), 'utf8').split('\n').length;
+  const clean = db(d, ['cleanup', 'docs/BIG.md']);
+  ok('cleanup on a valid file exits clean', clean.code, 0);
+  okTrue('cleanup prints the file\'s real line count',
+    new RegExp(`${bigLines} lines`).test(clean.out));
+  okTrue('cleanup prints an estimated cost', /est\. write cost: \$\d/.test(clean.out));
+  okTrue('cleanup never writes any wiki page itself (page-writing is a model step, not this script)',
+    !exists(d, 'docs/wiki'));
+  const costIdx = clean.out.indexOf('est. write cost');
+  const scanIdx = clean.out.indexOf('== scan ==');
+  okTrue('the cost estimate prints BEFORE the scan step runs',
+    costIdx !== -1 && scanIdx !== -1 && costIdx < scanIdx);
+  okTrue('cleanup ran scan for the named file', exists(d, 'docs/.docs-builder/outline.json'));
+}
+
+/**
+ * (d) `reorg`'s oversized follow-up must name `cleanup <file>` per file, with a line count,
+ * not a generic "run the split pipeline" description.
+ * (e) Negative control: `apply-reorg` over a corpus holding an oversized file must never
+ * create anything under the pages dir — proof `reorg` itself cannot split.
+ */
+function applyReorgNamesCleanup() {
+  group('26. apply-reorg — oversized follow-up names `cleanup <path>` (and never splits)');
+
+  const d = repo({
+    'docs/00-context/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
+    'docs/CLEAN.md': DOC('Clean'),
+  });
+  db(d, ['discover']);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const bigLines = fs.readFileSync(path.join(d, 'docs/00-context/BIG.md'), 'utf8').split('\n').length;
+  okTrue('the follow-up names `cleanup docs/00-context/BIG.md`',
+    r.out.includes('cleanup docs/00-context/BIG.md'));
+  okTrue('the follow-up includes the oversized file\'s line count',
+    new RegExp(`cleanup docs/00-context/BIG\\.md[^\\n]*${bigLines} lines`).test(r.out));
+
+  // (e) negative control — reorg never splits, proven, not just documented.
+  okTrue('apply-reorg never creates a pages dir (reorg cannot split)', !exists(d, 'docs/wiki'));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1321,6 +1402,7 @@ function main() {
     indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
     relativeInboundLinks, relativeLinksBothMove,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
+    cleanupCmd, applyReorgNamesCleanup,
     packageParity];
 
   for (const g of groups) {

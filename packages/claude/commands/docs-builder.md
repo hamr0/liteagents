@@ -1,8 +1,8 @@
 ---
 name: docs-builder
 description: Reorg a docs corpus, split an oversized doc, keep pages current, index them
-usage: /docs-builder [reorg | reconcile | archive-cleanup | <file.md>]
-argument-hint: [reorg | reconcile | archive-cleanup | <file.md> — empty asks first run / drift / archive]
+usage: /docs-builder [reorg | reconcile | archive-cleanup | cleanup <file.md>]
+argument-hint: [reorg | reconcile | archive-cleanup | cleanup <file.md> — empty asks first run / drift / archive]
 allowed-tools: Read, Write, Edit, Grep, Glob, Task, AskUserQuestion, Bash(node:*), Bash(git:*), Bash(rg:*)
 ---
 
@@ -36,7 +36,7 @@ carry over, the absolute prices do not.
 
 ## Invocation
 
-**With an argument** (`reorg`, `reconcile`, `archive-cleanup`, or a file path) — run that
+**With an argument** (`reorg`, `reconcile`, `archive-cleanup`, or `cleanup <file>`) — run that
 mode directly, no question asked.
 
 **Bare `/docs-builder`, no argument — ALWAYS ask, never auto-detect.** Run `due` first and
@@ -66,9 +66,11 @@ and a wrong guess is expensive in one direction and irreversible in the other.
    `apply-reorg`. Moves are `git mv`, so they are reversible — but a file landing in the
    wrong bucket is still worth catching before it happens, and anything bucketed `review`
    (no H1) is an outright guess.
-2. `apply-reorg` moves product/archive. **Oversized docs are left where they are.**
-3. Print the oversized list with line counts and the estimated split cost, then **ask which
-   to split** (any, all, none). Only then run Mode 1 on each chosen file.
+2. `apply-reorg` moves product/archive. **Oversized docs are left where they are** — it
+   prints each one as `cleanup <file>  (N lines)`. Show that list, then **ask which to
+   split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
+   `cleanup` itself prints the estimated split cost for that one file before it does
+   anything else.
 
 The two stops are deliberate and different. Step 1 guards *correctness* — is this file
 really archive? Step 3 guards *cost* — splitting is ~$0.39 per 1,000 source lines, and the
@@ -96,14 +98,17 @@ named or approved — an ambiguous answer means that file is not deleted.
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
 | `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (moves are `git mv`, plan reviewed first) |
-| `/docs-builder <file>` | *First run*, step 3 | split ONE oversized doc → pages + index | no (original preserved) |
+| `/docs-builder cleanup <file>` | *First run*, step 3 | split ONE named oversized doc → pages + index | no (original preserved) |
 | `/docs-builder reconcile` | *Docs drift* | rebuild index, run lint, propose fixes | no |
 | `/docs-builder archive-cleanup [--apply <f>...]` | *Clean archive* | report, or delete named files | **yes** on `--apply` — separate invocation, default keep, requires git |
 
-`reorg` and the single-file split solve different problems and compose: `reorg` sorts an
-entire messy `docs/` tree into the three-bucket structure below in one pass; anything it
-tags `oversized` still needs a human to run the split flow on it individually (below),
-because that step spends real model budget and should never fire without a look first.
+`reorg` and `cleanup` solve different problems and compose: `reorg` sorts an entire messy
+`docs/` tree into the three-bucket structure below in one pass and **never splits anything
+itself**; anything it tags `oversized` still needs a human to run `cleanup <file>`
+individually (below), one named file per invocation, because that step spends real model
+budget and should never fire without a look first. `cleanup` is the ONLY entry point to the
+split pipeline — it refuses more than one file at a time, refuses a missing/non-`.md`/
+protected file, and prints its cost estimate before doing anything else.
 
 ## Layout
 
@@ -219,9 +224,11 @@ node docs-builder/docs-builder.cjs apply-reorg      # defaults to the plan above
 
 - `product` → verified `git mv` to `docs/product/<basename>`
 - `archive` and `review` → verified `git mv` to `docs/archive/<basename>`
-- `oversized` → **left in place.** Printed as a follow-up list — run Mode 1 below on each,
-  by hand. Auto-splitting N unknown files in one shot would spend real model money with no
-  confirmation; the pipeline never does that unprompted.
+- `oversized` → **left in place.** Printed as a follow-up list, one `cleanup <file>  (N
+  lines)` line per file — run `cleanup` (Mode 1, below) on each, by hand, one file at a
+  time. Auto-splitting N unknown files in one shot would spend real model money with no
+  confirmation; the pipeline never does that unprompted, and `cleanup` itself refuses to
+  run on more than one file.
 - **After the scan, `apply-reorg` writes `docs/index.md` itself** — it calls `index-flat`
   (see below) automatically, so a reorg-only corpus ends up indexed without a second command.
   Runs every time, even with oversized docs left in place (they still get an in-place row).
@@ -287,7 +294,24 @@ rewrite is printed per file so it is visible, never silent.
 
 ## Mode 1 — cleanup
 
-### 1. Scan (script)
+**`cleanup <file.md>` is the ONLY entry point to the split pipeline.** It takes exactly one
+named file — never zero, never more than one — and refuses cleanly (exit non-zero) if the
+file doesn't exist, isn't a `.md`, or is one of the protected entry-point docs (README,
+CLAUDE.md, etc.). Before anything else runs, it prints the file's line count and an
+estimated write cost (the same cost law `plan` uses in step 4 below, priced as a 1-page
+floor since the real page count isn't known until the model groups sections in step 2):
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs cleanup docs/BIG.md
+```
+
+That single invocation also runs step 1 (scan) below for you. The remaining steps —
+proposing/assigning themes, validating, planning, writing pages, archiving the original, and
+indexing — are unchanged and still hand-sequenced from here, driven by this file, not by the
+script: splitting spends real model budget, so nothing past the cost estimate above runs
+without a human choosing to continue.
+
+### 1. Scan (script) — run automatically by `cleanup`, shown here for what it produces
 
 ```bash
 REPO=<repo> OUT=docs/.docs-builder/outline.json \
