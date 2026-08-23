@@ -214,6 +214,74 @@ degenerating into auto-detect wearing a costume — a proposal the user is expec
 through. The proposal must be answerable with a correction, and a correction must change what
 gets built.
 
+## reorg, revised 2026-08-23 — four buckets, and the model does the sorting
+
+Run on bareloop's real corpus, `reorg` left 11 of 37 files unsorted and put 11 experiment
+records in with 14 specs. Four changes, all the user's calls.
+
+### 1. Oversized files get sorted too
+
+`apply-reorg` leaves an oversized doc where it is. That was meant to stop a split firing
+unprompted — but it also leaves the file unsorted, in a third state the layout has no home for.
+`LAYERS.md` (958 lines) is obviously product and sat in `01-product/` only because it is big.
+
+Size decides whether a file is *splittable*, not whether it is *sorted*. Oversized files move to
+their bucket like everything else, and are then listed as split candidates from their new path.
+`cleanup` takes a path; it does not care which one.
+
+### 2. Emptied source directories are removed
+
+Once nothing is left behind, the old tree (`00-context/`, `01-product/`, …) is empty and should
+go. Only a directory the reorg itself emptied, and only when genuinely empty — no stray files,
+no dotfiles. Never a directory that still holds anything.
+
+### 3. Four buckets: `logs/` joins the layout
+
+Measured on bareloop's `product/` after a reorg: 27 files, of which **11 are experiment records**
+(8 `*-PREREG`, 2 `*-LEARNINGS`, and others) against 14 designs and specs. A pre-registration is
+not a spec, and 41% of the bucket being run records makes the bucket useless for finding specs.
+
+| bucket | holds |
+|---|---|
+| `product/` | specs, designs, plans — the default |
+| `logs/` | pre-registrations, results, learnings, reports — historical, still relevant |
+| `wiki/` | synthesized pages, written by `cleanup` |
+| `archive/` | self-declared dead |
+
+`logs/` is history that still matters, distinct from `archive/`, which is history that is done.
+
+### 4. Classification is the model's job, behind an approval gate
+
+This reverses rule 2's "only a rule may move", and the reversal is deliberate.
+
+The FROZEN incident — 10 live specs archived on a keyword — is usually read as proof that a model
+must not classify. That is the wrong lesson. FROZEN was a *mechanical rule*, and it did damage
+precisely because it moved without asking. The failure was the silent move, not the judgement.
+
+Sorting is the whole job of `reorg`. Keeping it deliberately dumb to avoid mistakes only means it
+sorts badly and the user re-sorts by hand, which is the work the tool exists to do.
+
+So: **the model classifies every file into one of the four buckets, and nothing moves until the
+user approves the plan.** A cheap-tier read produces the proposal with a one-line reason per file;
+the script prints it as a table; the user accepts, corrects, or rejects. A correction changes what
+gets built.
+
+The approval gate, not the classifier's mechanism, is the safety property — and it is strictly
+stronger than what shipped this morning, where a regex moved files with no gate at all.
+
+Filename shape remains useful as a *prior* the model is shown (`PREREG`/`LEARNINGS`/`REPORT` read
+as log-shaped; `-design`/`-spec`/`-build`/`-plan` as product-shaped; a SHOUTED self-declared status
+as archive), but it is an input to the proposal, not an authority over it.
+
+### 5. Split suggestions are ranked, and logs sort last
+
+Any oversized doc under `docs/` is offered for splitting, `logs/` included — no bucket is exempt,
+because an exemption is a guess about intent the user cannot override.
+
+But the suggestion list is **ordered**, with `logs/` entries at the tail. A prereg is a record of
+one experiment, meant to be read whole; it is a legitimate split target but rarely the best next
+one. Ordering expresses that without forbidding anything.
+
 ## Open
 
 1. **Unmeasured: do the 65 synthesized pages actually beat `search` over the originals?**
