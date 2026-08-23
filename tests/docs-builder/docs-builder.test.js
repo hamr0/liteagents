@@ -354,10 +354,12 @@ function discoverBuckets() {
   ok('node_modules/ is never walked', bucket('docs/node_modules/pkg/DOC.md'), 'ABSENT');
   ok('dot-dirs are never walked', bucket('docs/.hidden/SECRET.md'), 'ABSENT');
 
-  db(d, ['apply-reorg']);
+  const applied = db(d, ['apply-reorg']);
   okTrue('protected files stayed put after apply-reorg',
     exists(d, 'docs/README.md') && exists(d, 'docs/deep/CLAUDE.md'));
   okTrue('an oversized doc is never auto-split or moved', exists(d, 'docs/BIG.md'));
+  okTrue('apply-reorg does NOT hint at index-flat while a doc is still oversized',
+    !/index-flat/.test(applied.out));
 }
 
 function reorgCollision() {
@@ -379,6 +381,8 @@ function reorgCollision() {
   ok('the pre-existing file was not overwritten',
     read(d, 'docs/product/TAKEN.md'), 'pre-existing, must not be overwritten\n');
   okTrue('unrelated files still moved', exists(d, 'docs/product/OK.md'));
+  okTrue('apply-reorg hints at index-flat when nothing is oversized',
+    /index-flat/.test(r.out));
 }
 
 // ---------------------------------------------------------------- 9. ledger / due
@@ -958,6 +962,44 @@ function indexPendingUnwrittenPages() {
     /"badLinks": 0/.test(val2.out));
 }
 
+/** `index` only ever runs off labels.json, which only the model's theme step produces — so a
+ *  reorg-only corpus (apply-reorg moved everything into docs/product/, nothing oversized) never
+ *  gets an index at all, and `reconcile` LOUD-SKIPs both validate and index for the same reason.
+ *  `index-flat` is the fallback: one row per FILE under docs/product/, no labels, no model. */
+function indexFlatCmd() {
+  group('22. index-flat — a flat, one-row-per-file fallback index, no labels needed');
+
+  const d = repo({
+    'docs/product/A.md': DOC('A'),
+    'docs/product/B.md': DOC('B'),
+    'docs/product/nested/C.md': DOC('C'),
+  });
+  const r = db(d, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('index-flat exits clean', r.code, 0);
+  okTrue('it reports the row count', /wrote .*: 3 rows/.test(r.out));
+
+  const md = read(d, 'docs/index.md');
+  for (const title of ['A', 'B', 'C']) {
+    const m = md.match(new RegExp(`\\[${title}\\]\\(([^)]+)\\)`));
+    okTrue(`row for ${title} has a link`, !!m);
+    if (m) okTrue(`row for ${title}'s link resolves on disk`,
+      fs.existsSync(path.join(d, 'docs', m[1])));
+  }
+
+  // Empty docs/product/ — no non-.md file inside it counts as a doc to index.
+  const empty = repo({ 'docs/product/.keep': '' });
+  const r2 = db(empty, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('empty product dir exits clean', r2.code, 0);
+  okTrue('empty product dir gives a clear message', /empty — nothing to index/.test(r2.out));
+  okTrue('no index.md is written for an empty product dir', !exists(empty, 'docs/index.md'));
+
+  // No docs/product/ at all — nothing has been reorged yet.
+  const missing = repo({ 'docs/A.md': DOC('A') });
+  const r3 = db(missing, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('a repo with no product dir at all exits clean', r3.code, 0);
+  okTrue('missing product dir gives a clear message', /nothing to index/.test(r3.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -997,7 +1039,7 @@ function main() {
     tasksDirChokepoint, archiveCleanupGitGuard, halfFinishedSplitDetection,
     reconcileCorpusStability, reconcilePagesHonoured, reconcileOutIgnored,
     archiveStandaloneFollowup, archiveCleanupNoteWithoutApply, indexPendingUnwrittenPages,
-    packageParity];
+    indexFlatCmd, packageParity];
 
   for (const g of groups) {
     try { g(); }
