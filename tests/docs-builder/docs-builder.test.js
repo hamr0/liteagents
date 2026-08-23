@@ -421,7 +421,7 @@ function ledgerAndDue() {
   // The git rename form `docs/{a.md => b.md}` does not end in .md; an endsWith filter once
   // dropped every move from this report.
   okTrue('due did not lose renames to an endsWith filter', /A2\.md|=>/.test(out));
-  okTrue('due nudges at the threshold', /RECONCILE IS DUE|reconcile/i.test(out));
+  okTrue('due nudges at the threshold', /REORG IS DUE|reorg/i.test(out));
 }
 
 /**
@@ -462,8 +462,8 @@ function dueOutputContract() {
   git(d, ['commit', '-qm', 'delete 2 more']);
   const atThreshold = db(d, ['due']);
   ok('at-threshold run exits clean', atThreshold.code, 0);
-  okTrue('at-threshold message is pinned exactly (5 deletions, threshold 5) — RECONCILE IS DUE',
-    /^5 docs changed since \w+ \(threshold 5\) — RECONCILE IS DUE\.$/m.test(atThreshold.out));
+  okTrue('at-threshold message is pinned exactly (5 deletions, threshold 5) — REORG IS DUE',
+    /^5 docs changed since \w+ \(threshold 5\) — REORG IS DUE\.$/m.test(atThreshold.out));
 }
 
 // ---------------------------------------------------------------- 10. search

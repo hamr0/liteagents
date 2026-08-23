@@ -39,7 +39,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 
 | ID | Description | Usage |
 |---|---|---|
-| docs-builder | Reorg a docs corpus, split an oversized doc, keep pages current, index them | /docs-builder [reorg \| reconcile \| archive-cleanup \| <file.md>] |
+| docs-builder | Reorg a docs corpus, split an oversized doc, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |

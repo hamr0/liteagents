@@ -10,7 +10,7 @@ updated: 2026-08-21
 `/docs-builder` splits a documentation file once it outgrows its row in `docs/README.md`,
 keeps the resulting pages current, and generates an index so they can be found. It is a
 **slash command**, not a skill: `commands/docs-builder.md` plus a bundled
-`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, eleven subcommands) —
+`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fourteen subcommands) —
 the same shape as `/remember`.
 
 It ships in all four packages. `docs-builder.cjs` hardcodes no tool-specific paths, so it
@@ -123,8 +123,10 @@ to overwrite.
 REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
 ```
 
-**7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Regenerated
-every reconcile so it cannot drift.
+**7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Run by hand
+once `labels.json` exists — `reorg`/`apply-reorg` cover the whole-corpus case automatically
+via `index-flat` instead (see Mode 2 below), so a stale themed index is never mistaken for
+a current one.
 
 ```bash
 OUT=docs/index.md node docs-builder.cjs index outline.json labels.json
@@ -140,21 +142,20 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 
 ## How you invoke it
 
-**Bare `/docs-builder` never guesses.** It runs `due` for context, then asks — three
-options, no recommendation, no fourth:
+**Bare `/docs-builder` never guesses.** It runs `due` for context, then asks — two
+options, no recommendation, no third:
 
 | Option | What it does | Cost |
 |---|---|---|
 | **First run** | sort every `.md` into product/archive, then split anything too big | spends model budget |
 | **Docs drift** | rebuild the index, re-run lint, report what changed. Nothing moves, nothing splits | cheap — the common case |
-| **Clean archive** | prune `docs/archive/` | **destructive** |
 
-Pass an argument (`reorg`, `reconcile`, `archive-cleanup`, or a file path) and it skips the
-question, so the flow stays scriptable.
+Pass an argument (`reorg` or `cleanup <file.md>`) and it skips the question, so the flow
+stays scriptable.
 
-Auto-detecting the mode from repo state was considered and rejected — the three differ in
-cost and destructiveness, so a wrong guess is expensive in one direction and irreversible in
-the other. Same call `live-canvas` made.
+Auto-detecting the mode from repo state was considered and rejected — the two differ in
+cost, so a wrong guess on the more expensive one is expensive to unwind. Same call
+`live-canvas` made.
 
 **"First run" has two stops, and they guard different things.** `discover` prints its table
 and moves nothing; you confirm before `apply-reorg` runs — that stop guards **correctness**
@@ -169,41 +170,46 @@ nothing about drift. A doc can be huge and untouched, or tiny and churning — n
 predicts the other, which is why "Docs drift" will never surface an oversized file and
 "First run" is what you want when docs have simply grown.
 
-## The four modes and the docs/ layout
+## The three modes and the docs/ layout
 
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
-| `/docs-builder reorg` | *First run*, step 1 | classify a WHOLE corpus into product/archive | no (plan reviewed before anything moves) |
-| `/docs-builder <file.md>` | *First run*, step 3 | split ONE oversized doc → pages + index | no (original preserved) |
-| `/docs-builder reconcile` | *Docs drift* | re-run scan → validate → index → lint, propose fixes | no |
-| `/docs-builder archive-cleanup [--apply <f>...]` | *Clean archive* | report, or delete named files | **yes** on `--apply` — separate invocation, default keep, requires clean git tree |
+| `/docs-builder reorg` (discover, confirm, then apply-reorg) | *First run*, steps 1-2 | classify a WHOLE corpus into product/archive | no (moves are `git mv`, plan reviewed first) |
+| `/docs-builder cleanup <file.md>` | *First run*, step 3 | split ONE named oversized doc → pages + index | no (original preserved) |
+| `/docs-builder reorg` (bare `docs-builder.cjs reorg`, no stop) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → apply-reorg → lint, whole corpus | no |
 
-`reorg` and the single-file split compose rather than compete: `reorg` sorts a whole messy
-`docs/` tree in one pass; anything it tags `oversized` still needs a human to run the split
-flow on it individually, since that step spends real model money. `reconcile` scans every
-tracked `docs/**.md` **excluding both `docs/archive/` and `docs/wiki/`** (wiki pages are
-reconcile's own output, not source material — scanning them back in would fail `validate`'s
-`missing` check against a product-only `labels.json`); it never touches `docs/product/`, it
-owns `docs/wiki/`. **A validate FAIL does not abort reconcile** — it is reported loudly,
-`index` and `lint` still run, and reconcile exits non-zero only at the very end; the
-standalone `validate` subcommand is unaffected and stays a hard gate that exits 1 on FAIL
-immediately. `archive-cleanup` is the one destructive command: a bare run only reports
-uncited candidates under `docs/archive/`; `--apply <f>...` deletes exactly the files named,
-after the user has confirmed them — tracked files via `git rm` (recoverable from history),
-untracked files unlinked directly (NOT recoverable, flagged per file). It appends one line
-to `docs/log.md`.
+`reorg` and `cleanup` solve different problems and compose: `reorg` sorts a whole messy
+`docs/` tree into product/archive in one pass and **never splits anything itself**; anything
+it tags `oversized` still needs a human to run `cleanup <file>` on it individually, since
+that step spends real model money and should never fire without a look first. `cleanup` is
+the ONLY entry point to the split pipeline — it refuses more than one file at a time, refuses
+a missing/non-`.md`/protected file, and prints its cost estimate before doing anything else.
+
+v3 folded the old `reconcile` and `due` commands into `reorg`: "first run" (nothing sorted
+yet) and "since last time" (a ledger stamp already exists) turned out to be the same job with
+different starting state. What `reconcile`'s `validate`/`index` steps did has no home in
+`reorg`, and that is not a loss — those two need a theme assignment (`labels.json`) that only
+the model's grouping step produces, and `reorg` never calls a model by default and never
+splits anything. That capability didn't move; it stayed exactly where it already lived — the
+standalone `validate` and themed `index` subcommands, unchanged, still runnable by hand once
+a `labels.json` exists. The old `archive-cleanup` command (pruning `docs/archive/`) was
+removed outright, not renamed — pruning `docs/archive/` is now the user's own call via
+`git rm`; nothing in the pipeline does it automatically. `index-flat`'s archive-row count
+grows a console-only `WARN` past `ARCHIVE_WARN_ROWS` (default 100) as the only remaining
+nudge.
 
 ```
 docs/
   README.md          entry point, referenced from CLAUDE.md
   index.md            GENERATED by script. never hand-edited.
   log.md               append-only:  ## [DATE] operation | description
-  product/            specs. reconcile READS, never writes.
-  wiki/                synthesised pages. reconcile OWNS these.
-  archive/             what got cleaned up: originals, moved via `git mv`. Pruning is a
-                       separate, opt-in, destructive invocation.
+  product/            specs. `apply-reorg` MOVES files here (`git mv`); content is never
+                       rewritten.
+  wiki/                synthesised pages, written by Mode 1 (`cleanup`)'s page writers.
+  archive/             what got cleaned up: originals, moved via `git mv`. Pruning is the
+                       user's own call (`git rm`) — nothing here does it automatically.
   .docs-builder/       machine-only state: ledger.json, outline.json, labels.json,
-                       validate.json, lint.json, reorg-plan.json, tasks/
+                       reorg-plan.json, validate.json, failures.json, lint.json, tasks/
 ```
 
 **Never moved — enforced in code, not just documented.** This used to be prose only, and
@@ -325,8 +331,8 @@ separately — is this a **new** doc, a **moved** one, or an **edited** one, and
 | `changed` | `+added/-deleted of N lines (~X%)` |
 | `deleted` | was in the ledger, gone from the tree |
 
-Reconcile is **due at 5 changed docs** — the same threshold and the same
-derived-not-counted shape `/stash` uses. `due` only prints; it never reconciles for you.
+A reorg is **due at 5 changed docs** — the same threshold and the same
+derived-not-counted shape `/stash` uses. `due` only prints; it never runs `reorg` for you.
 
 **Why not borrow OKF's ledger:** OKF contributes the frontmatter conventions (`verified`,
 `sources`, `status`, `stale_after`) and those are already adopted. For change detection
@@ -336,7 +342,8 @@ bookkeeping system is just a second thing that can be wrong.
 **Wired:** `/remember` runs `due` at the end of its own run (step 7), detect-only and
 crash-isolated so it can never block a memory write. It stays silent in a repo with no
 `docs/`, says so loudly if `docs/` exists but the check could not run, and otherwise prints
-one line when a reconcile is due. It never reconciles for you.
+one line when a reorg is due. `/remember` never consolidates — `/docs-builder` owns the
+ledger, `/remember` only reads it.
 
 ---
 
@@ -393,7 +400,7 @@ see spec §18.
    only in `packages/claude/`; agentic-toolkit not started.
 
 7. **The invocation menu has not been validated by use.** Its frontmatter is verified to
-   match sibling commands and the three options are specified, but nobody has run a bare
+   match sibling commands and the two options are specified, but nobody has run a bare
    `/docs-builder` and taken each option end-to-end. Spec, not evidence — and this document
    is otherwise careful to only claim what was measured.
 

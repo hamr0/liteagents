@@ -165,7 +165,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 | **[INSTALLER_GUIDE.md](docs/product/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
 | **[remember-README.md](docs/product/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
-| **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/split/reconcile modes, what it measurably costs, and the ledger that tracks doc drift |
+| **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/cleanup modes, what it measurably costs, and the ledger that tracks doc drift |
 
 ---
 
