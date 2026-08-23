@@ -4,7 +4,7 @@
  *
  * Usage:
  *     node friction.cjs <sessions-directory>
- *     node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *     node friction.cjs ~/.claude/projects/<encoded-project-dir>/
  *
  * Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
  * package.json declares "type": "module", a `.js` file loads as an ES module and every
@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // =============================================================================
 // EMBEDDED CONFIG (from friction_config.json)
@@ -148,11 +149,14 @@ function deriveSessionName(sessionFile, metadata) {
 
   let project;
   if (parent.startsWith('-')) {
+    // Detected at runtime — never hardcode a username or a personal folder.
+    // Claude Code encodes a project dir by replacing path separators with '-',
+    // so the current user's home encodes the same way (/home/ana -> -home-ana).
+    const homeEnc = os.homedir().replace(/[\\/]/g, '-');
     const prefixes = [
-      '-home-hamr-PycharmProjects-',
-      '-home-hamr-Documents-PycharmProjects-',
-      '-home-hamr-',
+      homeEnc + '-',
       '-home-',
+      '-Users-',
       '-',
     ];
     let found = false;
@@ -1948,7 +1952,10 @@ function clusterCandidates(allCandidates) {
   // Ubiquitous path/file tokens that carry no topical meaning — if we cluster on
   // these we re-create OLD's over-merge (everything touches README/package.json).
   const PATH_STOP = new Set([
-    'home', 'hamr', 'documents', 'pycharmprojects', 'projects', 'claude', 'stash',
+    // the current user's login name is a path token everywhere and carries no
+    // topical meaning — detected at runtime, never hardcoded
+    (os.userInfo().username || '').toLowerCase(),
+    'home', 'users', 'documents', 'pycharmprojects', 'projects', 'claude', 'stash',
     'memory', 'commands', 'command', 'skills', 'skill', 'src', 'lib', 'app', 'dist',
     'build', 'node_modules', 'public', 'assets', 'utils', 'util', 'config', 'scripts',
     'readme', 'package', 'index', 'main', 'test', 'tests', 'spec', 'lock',
@@ -2315,7 +2322,7 @@ Friction analysis pipeline - analyze sessions and extract antigens.
 
 Usage:
     node friction.cjs <sessions-directory>
-    node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+    node friction.cjs ~/.claude/projects/<encoded-project-dir>/
 
 Outputs (all in .factory/remember/friction/):
     friction_analysis.json   - Per-session analysis
