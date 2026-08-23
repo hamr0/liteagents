@@ -4,7 +4,7 @@
  *
  * Usage:
  *     node friction.cjs <sessions-directory>
- *     node friction.cjs ~/.claude/projects/<encoded-project-dir>/
+ *     node friction.cjs ~/.config/amp/projects/<encoded-project-dir>/
  *
  * Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
  * package.json declares "type": "module", a `.js` file loads as an ES module and every
@@ -2322,7 +2322,7 @@ Friction analysis pipeline - analyze sessions and extract antigens.
 
 Usage:
     node friction.cjs <sessions-directory>
-    node friction.cjs ~/.claude/projects/<encoded-project-dir>/
+    node friction.cjs ~/.config/amp/projects/<encoded-project-dir>/
 
 Outputs (all in .amp/remember/friction/):
     friction_analysis.json   - Per-session analysis
