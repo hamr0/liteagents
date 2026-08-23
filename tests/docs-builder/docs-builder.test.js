@@ -315,6 +315,9 @@ function discoverBuckets() {
     'docs/CLEAN.md': DOC('Clean'),
     'docs/CLOSED.md': '# Closed\n\n**Status: CLOSED** — superseded.\n\n## S\n\nx\n',
     'docs/lower.md': '# Lower\n\nthis doc supersedes nothing and is closed in spirit\n\n## S\n\nx\n',
+    // FROZEN means locked-and-current in this corpus's convention, not retired — dropped
+    // from the archive status words after 10/12 false archives on bareloop's real corpus.
+    'docs/FROZEN.md': '# Frozen\n\n**Status: FROZEN** — build follows this record.\n\n## S\n\nx\n',
     'docs/REPORT_old.md': DOC('Report'),
     'docs/BIG.md': `# Big\n\n## S\n\n${'line\n'.repeat(600)}`,
     // Protected at depth — the never-move list is enforced in code, not just documented.
@@ -341,6 +344,7 @@ function discoverBuckets() {
   // Case-sensitivity is deliberate: lowercase "closed"/"supersedes" in prose false-positived
   // three ways on a real corpus, so only the ALL-CAPS self-declaration counts.
   ok('lowercase status prose is NOT archived', bucket('docs/lower.md'), 'product');
+  ok('FROZEN (locked-and-live, not retired) is NOT archived', bucket('docs/FROZEN.md'), 'product');
   ok('an archive-shaped filename is archive', bucket('docs/REPORT_old.md'), 'archive');
   ok('an over-ceiling doc is oversized', bucket('docs/BIG.md'), 'oversized');
   ok('a no-H1 mkdocs include stub is product, not review',

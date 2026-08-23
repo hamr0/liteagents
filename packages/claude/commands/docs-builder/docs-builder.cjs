@@ -1262,12 +1262,14 @@ const ARCHIVE_PATH_RE = /(^|\/)(archive|old|reports?|phases?)\//i;
 // references, not the doc). Same failure species as the lint fix in §10 — a word that means
 // one thing in isolation matches unrelated prose. Restricting to the ALL-CAPS form fixes
 // every one of those, because this corpus's own convention (independently, not designed
-// around) SHOUTS a genuine status declaration — "Status: CLOSED", "(FROZEN 2026-07-25,
-// before any number; archival)" — while narrative mentions of the same word stay lowercase
-// or Title Case. Traded away: 2 real misses ("Frozen 2026-07-26" / "job #4 ... (frozen)"),
-// consistent with this project's precision-over-recall law. Neither miss is dangerous —
-// `discover` only classifies, `apply-reorg` requires a human to have looked at the plan.
-const ARCHIVAL_STATUS_RE = /\b(CLOSED|FROZEN|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RETRACTED|REFUTED|DEPRECATED)\b/;
+// around) SHOUTS a genuine status declaration — "Status: CLOSED", "(ARCHIVAL 2026-07-25,
+// before any number)" — while narrative mentions of the same word stay lowercase or Title
+// Case. FROZEN was in this list once and got dropped 2026-08-23: on bareloop's real corpus
+// (37 files) it caused ~10 of 12 archive calls to be false positives — in that corpus's own
+// convention FROZEN means "locked, do not edit, still current" (a live spec or
+// pre-registration), not "retired". That's the one failure this design promised never to
+// make, so the word is gone with no replacement heuristic — precision over recall.
+const ARCHIVAL_STATUS_RE = /\b(CLOSED|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RETRACTED|REFUTED|DEPRECATED)\b/;
 
 // Never reorged, at ANY depth: the repo's entry-point/contract docs. Moving a README or a
 // CLAUDE.md into archive/ breaks the thing every human and agent reads first. Bare LICENSE /
@@ -1302,7 +1304,7 @@ function classifyDoc(rel, text) {
   if (ARCHIVE_PATH_RE.test(rel))
     return { file: rel, bucket: 'archive', reason: 'path already under archive/old/reports/phases', lines: lines.length };
   if (ARCHIVAL_STATUS_RE.test(opening))
-    return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, FROZEN, deprecated)', lines: lines.length };
+    return { file: rel, bucket: 'archive', reason: 'doc declares its own status in the opening (e.g. CLOSED, ARCHIVED, deprecated)', lines: lines.length };
   if (ARCHIVE_FILENAME_RE.test(path.basename(rel)))
     return { file: rel, bucket: 'archive', reason: 'filename matches an archive-shaped pattern (weak signal, no content confirmation)', lines: lines.length };
   if (!h1) {

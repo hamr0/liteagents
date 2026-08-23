@@ -172,7 +172,7 @@ Recursively finds every `*.md` under the root (skipping `wiki/`, `archive/`, `pr
 
 | bucket | rule | precision |
 |---|---|---|
-| `archive` | path already under `archive/old/reports/phases`, **or** the doc's own opening declares a SHOUTED status word (`CLOSED`, `FROZEN`, `DEPRECATED`, `SUPERSEDED`, `WITHDRAWN`, `RETRACTED`, `REFUTED`, `ARCHIVAL`, `ARCHIVED`), **or** the filename matches an archive-shaped prefix (`REPORT`, `STATUS`, `SUMMARY`, `FIX_`, `PHASE_`, `SPRINT_`, `DRAFT`, `WIP`, `OLD`, `TEMP` followed by `-` or `_`) | see below |
+| `archive` | path already under `archive/old/reports/phases`, **or** the doc's own opening declares a SHOUTED status word (`CLOSED`, `DEPRECATED`, `SUPERSEDED`, `WITHDRAWN`, `RETRACTED`, `REFUTED`, `ARCHIVAL`, `ARCHIVED`), **or** the filename matches an archive-shaped prefix (`REPORT`, `STATUS`, `SUMMARY`, `FIX_`, `PHASE_`, `SPRINT_`, `DRAFT`, `WIP`, `OLD`, `TEMP` followed by `-` or `_`) | see below |
 | `oversized` | over the line ceiling (`OVERSIZED_LINES`, default 500 — an UNMEASURED starting point) and no archive signal | needs the split flow, per file |
 | `product` | has an H1, current size, no archive signal | default when nothing else applies |
 | `product` | no H1, but an **include stub** — its whole non-blank content (≤3 lines) is nothing but include directives (mkdocs `--8<--`, `{% include %}`, `{{ .. }}`, `<!-- include -->`) and/or markdown links | a live pointer, not an unknown doc — real-world miss: uv's `docs/reference/contributing.md` |
@@ -186,8 +186,14 @@ spines"` (data the doc references, not the doc). Same failure species as the lin
 above — a word that means one thing in isolation matches unrelated prose. Restricting to
 the ALL-CAPS form fixed every one of those, because this corpus's own writing convention
 (observed, not designed around) SHOUTS a genuine self-declaration — `**Status: CLOSED**`,
-`(FROZEN 2026-07-25, before any number; archival)` — while narrative mentions of the same
-word stay lowercase or Title Case. Traded away: 2 real misses (`"Frozen 2026-07-26"`,
+`(ARCHIVAL 2026-07-25, before any number)` — while narrative mentions of the same word stay
+lowercase or Title Case. `FROZEN` was in this list too, until 2026-08-23: measured against
+bareloop's real docs corpus (37 files), 10 of its 12 `archive` calls were false positives,
+all from `FROZEN` — e.g. `2026-08-01-layer-3-reuse-design.md` says "design FROZEN... build
+follows this record" and `TYPES-PREREG.md` says "FROZEN before any model token is spent" —
+in that corpus's own convention FROZEN means "locked, do not edit, still current," not
+"retired." That's the one failure this design promises never to make, so the word was
+dropped with no replacement heuristic. Traded away: 2 real misses (`"Frozen 2026-07-26"`,
 `"job #4 ... (frozen)"`) — consistent with precision-over-recall. Neither miss is
 dangerous: a miss just lands the doc in `product`, one bucket short of ideal, not
 mis-archived.
