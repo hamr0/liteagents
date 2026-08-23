@@ -260,7 +260,7 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
    - If DUE, end with one line and nothing more:
      ```
-     docs: 7 changed since 991f72d3 — run /docs-builder reconcile
+     docs: 7 changed since 991f72d3 — run /docs-builder reorg
      ```
 
 8. **Report to user** — print it AND write the same content to `.amp/remember/report.md`
