@@ -1268,6 +1268,170 @@ function applyReorgNamesCleanup() {
   okTrue('apply-reorg never creates a pages dir (reorg cannot split)', !exists(d, 'docs/wiki'));
 }
 
+// ---------------------------------------------------------------- 27. cleanup shape report
+
+/**
+ * settled 2026-08-23 (docs-builder-v3-spec.md, "cleanup"): `cleanup` MEASURES the heading
+ * shape mechanically (no semantics) and STOPS for the interview — no page, no move, no
+ * further model call. Real worked example from the spec: bareloop's PRD.md has 75 `Addendum
+ * v1.NN — <date>` headings and 11 `§N ...` headings; this fixture is a small version of the
+ * same two shapes, plus a singleton that must NOT get its own group (negative control: if the
+ * grouping rule over-grouped everything into one bucket, or never grouped anything at all,
+ * these counts would not come out 5 / 3 / 1).
+ */
+function cleanupShape() {
+  group('27. cleanup — mechanical heading-shape report');
+
+  const body = () => 'line of padding body text\n'.repeat(4);
+  let doc = '# PRD\n\nintro\n\n';
+  for (let i = 1; i <= 3; i++) doc += `## §${i} Section ${i}\n\n${body()}\n`;
+  for (let i = 1; i <= 5; i++) doc += `## Addendum v1.0${i} — 2026-01-0${i}: Note ${i}\n\n${body()}\n`;
+  doc += `## Overview\n\n${body()}\n`;
+  const d = repo({ 'docs/PRD.md': doc });
+
+  const r = db(d, ['cleanup', 'docs/PRD.md']);
+  ok('cleanup exits clean at the stop point', r.code, 0);
+  okTrue('cleanup prints it is awaiting the interview', /awaiting the interview/.test(r.out));
+  okTrue('cleanup never writes a wiki page', !exists(d, 'docs/wiki'));
+  okTrue('cleanup never archives anything', exists(d, 'docs/PRD.md') && !exists(d, 'docs/archive'));
+  okTrue('cleanup never writes a labels.json (that is the model\'s job, after the interview)',
+    !exists(d, 'docs/.docs-builder/labels.json'));
+  okTrue('cleanup writes cleanup-shape.json', exists(d, 'docs/.docs-builder/cleanup-shape.json'));
+
+  const shape = artifact(d, 'cleanup-shape.json');
+  ok('shape accounts for every section', shape.totalSections, 9);
+  ok('group line totals sum to the document total', shape.groups.reduce((a, g) => a + g.lines, 0), shape.totalLines);
+
+  const addendum = shape.groups.find(g => g.sections === 5);
+  const section = shape.groups.find(g => g.sections === 3);
+  const other = shape.groups.find(g => g.key === 'other');
+  okTrue('the 5 "Addendum v1.NN" headings form ONE group', !!addendum);
+  okTrue('the 3 "§N ..." headings form ONE group', !!section);
+  okTrue('the lone "Overview" heading folds into "other", not its own group',
+    !!other && other.sections === 1);
+  ok('exactly three groups — no over-grouping, no under-grouping', shape.groups.length, 3);
+}
+
+// ---------------------------------------------------------------- 28. core-theme naming
+
+/**
+ * settled 2026-08-23: a `core: true` theme's page carries the ORIGINAL file's basename, not a
+ * slugified theme name — and at most one theme may claim it.
+ */
+function corePlanNaming() {
+  group('28. plan — a core:true theme names its page after the ORIGINAL basename');
+
+  const d = repo({ 'docs/BIG.md': `# Big\n\n## One\n\nx\n\n## Two\n\ny\n` });
+  db(d, ['scan', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main Subject', gloss: 'g', core: true }, { name: 'Other', gloss: 'g2' }],
+    labels: [{ key: o.records[0].key, theme: 'Main Subject' },
+             { key: o.records[1].key, theme: 'Other' }] }) });
+
+  const p = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json'],
+    { OUT: 'docs/.docs-builder/tasks' });
+  ok('plan exits clean', p.code, 0);
+  okTrue('the core theme\'s task file is named after the ORIGINAL basename',
+    exists(d, 'docs/.docs-builder/tasks/task-BIG.json'));
+  okTrue('the core theme does NOT also get a slugified-name task file',
+    !exists(d, 'docs/.docs-builder/tasks/task-main-subject.json'));
+
+  // Negative control this test can actually fail on: two core:true themes must be rejected.
+  write(d, { 'docs/.docs-builder/labels-bad.json': JSON.stringify({
+    themes: [{ name: 'A', gloss: '', core: true }, { name: 'B', gloss: '', core: true }],
+    labels: [{ key: o.records[0].key, theme: 'A' }, { key: o.records[1].key, theme: 'B' }] }) });
+  const bad = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels-bad.json']);
+  ok('plan rejects two core:true themes', bad.code, 1);
+  okTrue('the rejection names both offending themes', /A/.test(bad.out) && /B/.test(bad.out));
+
+  // Existing labels.json shape (no theme marked core) must keep working unchanged — plan is
+  // used by callers (including other tests in this file) that never set a core theme at all.
+  const d2 = repo({ 'docs/A.md': DOC('A') });
+  db(d2, ['scan', 'docs/A.md']);
+  const o2 = artifact(d2, 'outline.json');
+  write(d2, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key: o2.records[0].key, theme: 't' }] }) });
+  const noCoreAtAll = db(d2, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('plan still works fine with no core theme at all', noCoreAtAll.code, 0);
+}
+
+// ---------------------------------------------------------------- 29-30. cleanup-apply
+
+/**
+ * `cleanup-apply` is the post-approval half. It must refuse outright — before doing anything —
+ * when the interview clearly has not happened: no labels.json, or a labels.json with no
+ * core:true theme.
+ */
+function cleanupApplyGate() {
+  group('29. cleanup-apply — refuses until the interview has happened');
+
+  const d = repo({ 'docs/BIG.md': `# Big\n\n## One\n\nx\n\n## Two\n\ny\n` });
+  db(d, ['scan', 'docs/BIG.md']);
+
+  const noLabels = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('cleanup-apply refuses when labels.json is absent', noLabels.code, 1);
+  okTrue('the refusal says the interview has not happened (missing labels.json)',
+    /interview has not happened/.test(noLabels.out));
+
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: '' }, { name: 'Other', gloss: '' }], // no core:true anywhere
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Other' }] }) });
+  const noCore = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('cleanup-apply refuses when no theme is core:true', noCore.code, 1);
+  okTrue('the refusal says the interview has not happened (no core theme)',
+    /interview has not happened/.test(noCore.out));
+  okTrue('cleanup-apply never archives on refusal', exists(d, 'docs/BIG.md') && !exists(d, 'docs/archive'));
+}
+
+/**
+ * Full cycle, and the negative control the task explicitly called for: nothing in the
+ * cleanup path may ever WRITE to the source file — it is only ever read, then git-mv'd once,
+ * byte-identical, at the very end.
+ */
+function cleanupApplyFullCycle() {
+  group('30. cleanup-apply — resumable, archives only once pages are done, never rewrites the source');
+
+  const original = '# Big\n\n## One\n\nalpha alpha alpha\n\n## Two\n\nbeta beta beta\n';
+  const d = repo({ 'docs/BIG.md': original });
+  db(d, ['cleanup', 'docs/BIG.md']); // the measure step
+  const before = fs.readFileSync(path.join(d, 'docs/BIG.md'));
+
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: 'g', core: true }, { name: 'Other', gloss: 'g2' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Other' }] }) });
+
+  // First call: no pages written yet -> must refuse to archive, and must NOT touch the source.
+  const first = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('first cleanup-apply exits clean', first.code, 0);
+  okTrue('first call reports pages still to write', /still to write/.test(first.out));
+  okTrue('nothing archived yet', exists(d, 'docs/BIG.md') && !exists(d, 'docs/archive'));
+  okTrue('the source is byte-identical to before cleanup-apply ran (negative control: never rewritten)',
+    fs.readFileSync(path.join(d, 'docs/BIG.md')).equals(before));
+
+  // Stand in for the model's page-writing step — core page under the ORIGINAL basename, the
+  // other theme under its ordinary slug.
+  const page = title => `---\ntype: reference\ntitle: ${title}\n---\n\n# ${title}\n\n`
+    + 'body line\n'.repeat(10);
+  write(d, { 'docs/wiki/BIG.md': page('Big'), 'docs/wiki/other.md': page('Other') });
+
+  const second = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('second cleanup-apply exits clean', second.code, 0);
+  okTrue('second call archives and rebuilds the index', /archiving the original/.test(second.out));
+  okTrue('the original path is gone', !exists(d, 'docs/BIG.md'));
+  okTrue('the archive holds the file at its basename', exists(d, 'docs/archive/BIG.md'));
+  okTrue('the archived copy is byte-identical to the original — moved, never rewritten',
+    fs.readFileSync(path.join(d, 'docs/archive/BIG.md')).equals(before));
+  okTrue('index.md was rebuilt', exists(d, 'docs/index.md'));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1311,6 +1475,7 @@ function main() {
     relativeInboundLinks, relativeLinksBothMove,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
     cleanupCmd, applyReorgNamesCleanup,
+    cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
     packageParity];
 
   for (const g of groups) {

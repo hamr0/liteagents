@@ -21,8 +21,16 @@
 //   reorg                                          -> discover + apply-reorg + lint, plus
 //                                                       `due`'s drift summary if a ledger stamp
 //                                                       exists — the single front door
-//   cleanup  <file.md>                             -> ONE named file: cost estimate, then scan
+//   cleanup  <file.md>                             -> ONE named file: cost estimate, scan, a
+//                                                       heading-SHAPE report (cleanup-shape.json)
+//                                                       -- then STOPS, awaiting the interview.
 //                                                       (the ONLY entry point to the split pipeline)
+//   cleanup-apply <file.md> <outline.json> <labels.json>
+//                                                   -> post-approval half: refuses unless
+//                                                       labels.json has one core:true theme,
+//                                                       else plan -> (pages, written by the
+//                                                       model, outside this script) -> once all
+//                                                       pages exist, archive + rebuild index
 //
 // Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's
 // link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
@@ -479,6 +487,40 @@ function slugMap(themes) {
 // printed before any grouping has happened) can never disagree on the formula itself.
 function writeCostEstimate(pages, lines) { return pages * 0.083 + lines / 1000 * 0.200; }
 
+// settled 2026-08-23 (docs-builder-v3-spec.md, "cleanup" — "Everything cleanup produces is
+// a new file"): the core theme's page carries the ORIGINAL file's basename, not a slugified
+// theme name. Exactly one theme may claim it — two would mean two pages both wanting to own
+// the source's identity. Zero is fine: most callers of `plan` (tests, and any labels.json
+// hand-written without a split in mind) never set one at all.
+function coreThemeName(themes) {
+  const cores = (themes || []).filter(t => t.core === true);
+  if (cores.length > 1)
+    die(`labels.json marks ${cores.length} themes core:true (${cores.map(t => t.name).join(', ')}) `
+      + '— exactly one theme may be core (docs-builder-v3-spec.md, "cleanup").');
+  return cores[0] ? cores[0].name : null;
+}
+
+// Shared by `plan` and `index` so the page `plan` writes and the link `index` prints can
+// never name the core theme two different ways. Every other theme keeps the existing
+// collision-safe slugOf() behaviour (slugMap); only the core theme, if any, is overridden to
+// the source file's own basename.
+function buildThemeSlugs(names, l, o) {
+  const coreName = coreThemeName(l.themes);
+  const slugs = slugMap(names.filter(n => n !== coreName));
+  if (coreName) {
+    const bases = [...new Set(o.records.map(r => r.file))].map(f => path.basename(f));
+    if (new Set(bases).size !== 1)
+      die('a core theme requires an outline scanned from exactly one source file, but this '
+        + `outline covers ${new Set(bases).size} (${[...new Set(bases)].join(', ')}) — core `
+        + "naming only makes sense for cleanup's one-file split.");
+    const coreSlug = bases[0].replace(/\.md$/, '');
+    if ([...slugs.values()].includes(coreSlug))
+      console.error(`WARN: core page name "${coreSlug}" collides with another theme's slug`);
+    slugs.set(coreName, coreSlug);
+  }
+  return slugs;
+}
+
 function group(o, l) {
   const by = new Map(o.records.map(r => [keyOf(r), r]));
   const g = new Map();
@@ -498,9 +540,8 @@ function group(o, l) {
 // assignment, and the same slug/pageStatus logic `plan` already uses to report a page
 // "done") — no new state file, because the finished page already IS the checkpoint. Flag
 // only, never a gate: callers print this as a WARNING and never change their exit code on it.
-function unarchivedSplits(o, l, pages) {
+function unarchivedSplits(o, l, pages, slugs) {
   const g = [...group(o, l)];
-  const slugs = slugMap(g.map(([t]) => t));
   const bySrc = new Map();
   for (const [theme, recs] of g) {
     const slug = slugs.get(theme);
@@ -517,8 +558,8 @@ function unarchivedSplits(o, l, pages) {
   return flagged;
 }
 
-function warnUnarchivedSplits(o, l, pages) {
-  for (const w of unarchivedSplits(o, l, pages))
+function warnUnarchivedSplits(o, l, pages, slugs) {
+  for (const w of unarchivedSplits(o, l, pages, slugs))
     console.error(`WARN: half-finished split — ${w.file} has finished page(s) `
       + `(${w.pages.join(', ')}) in ${pages}/, but the source is still at ${w.file}. `
       + `Run \`archive ${w.file}\` to finish the split.`);
@@ -531,7 +572,7 @@ function plan(outlineF, labelsF) {
   const dir = process.env.OUT || tasksDirDefault();
   fs.mkdirSync(dir, { recursive: true });
   const grouped = [...group(o, l)];
-  const slugs = slugMap(grouped.map(([t]) => t));
+  const slugs = buildThemeSlugs(grouped.map(([t]) => t), l, o);
   // Resume is not advice, it is behaviour: a page already written in PAGES is reported
   // `done` and left out of the cost estimate, so re-running `plan` after a crash relaunches
   // only what is missing. A cleanup that dies halfway and cannot resume is worse than a
@@ -558,15 +599,18 @@ function plan(outlineF, labelsF) {
     console.error(`WARN: ${partial.length} page(s) exist but are not a finished page `
       + '(no frontmatter, or too short) — they will be rewritten: '
       + partial.map(r => r.theme).join(', '));
-  warnUnarchivedSplits(o, l, pages);
+  warnUnarchivedSplits(o, l, pages, slugs);
   const tot = todo.reduce((a, r) => a + r.lines, 0);
   console.table(rows);
   if (todo.length < rows.length)
     console.log(`resuming: ${rows.length - todo.length} of ${rows.length} pages already in ${pages}/`);
-  if (!todo.length) { console.log('all pages written — nothing to do.'); return; }
+  // Returned, not just printed: `cleanup-apply` (below) needs `todo` to know whether it may
+  // move on to archive+index, or must stop and wait for the model to write more pages.
+  if (!todo.length) { console.log('all pages written — nothing to do.'); return { rows, todo, pages }; }
   const est = writeCostEstimate(todo.length, tot);
   console.log(`pages to write: ${todo.length}  lines: ${tot}  est. write cost: $${est.toFixed(2)} (mid tier)`);
   if (todo.length > 3) console.log('launch page writers 3 at a time; each finished page is a checkpoint — re-run `plan` to resume.');
+  return { rows, todo, pages };
 }
 
 // ---------------------------------------------------------------- index (coarse, reader-facing)
@@ -580,7 +624,10 @@ function index(outlineF, labelsF) {
   const [o, l] = loadPair(outlineF, labelsF);
   const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
   const g = [...group(o, l)].sort((a, b) => b[1].length - a[1].length);
-  const slugs = slugMap(g.map(([t]) => t));
+  // Core-aware, same as `plan` — otherwise the core theme's link would point at a slugified
+  // theme name no file ever gets written to, while the real page sits at the source's own
+  // basename.
+  const slugs = buildThemeSlugs(g.map(([t]) => t), l, o);
   // Same PAGES var and default the rest of the file uses (plan, checkCitations) — a theme
   // only gets a hyperlink once its page is actually on disk there. Hardcoding 'docs/wiki'
   // here was the exact bug fixed one commit ago; don't reintroduce it.
@@ -1579,13 +1626,66 @@ function reorg() {
 
 // ---------------------------------------------------------------- cleanup (Mode 1 entry point)
 
-// v3 rule 1: `reorg` never splits. `cleanup` is the ONLY door into the split pipeline (scan
-// -> the model's grouping steps, driven by docs-builder.md's Mode 1, never by this script ->
-// plan -> pages -> archive -> index). One file, named by hand, cost printed before anything
-// runs. Reuses plan()'s own cost law (writeCostEstimate) instead of inventing a second
-// formula — the real page count is unknown until the model groups sections, so this prices
-// the 1-page floor and says so plainly; `plan` reports the precise figure once labels.json
-// exists.
+// Mechanical heading-shape grouper for the interview's proposal. NO semantics — the script
+// must never guess what a document "is about"; it only measures. Rule: walk a heading's
+// tokens left to right; the group KEY is every token up to and including the first one that
+// contains a digit, with digit runs replaced by "#" (so "Addendum v1.01" and "Addendum
+// v1.42" fall in the same group, and "§1 Scope"/"§2 Goals" both key to "§#"). A heading with
+// no digit at all keys on its own full (unchanged) text — verbatim duplicates still group,
+// anything else stays a singleton until the group-size cutoff below folds it into "other".
+// Verified against bareloop's real docs/01-product/PRD.md: 75 `Addendum v1.NN — <date>`
+// headings and 11 `§N ...` headings resolve to exactly two groups — see the bareloop run
+// pasted in the PR description.
+function shapeKey(text) {
+  const tokens = clean(text).split(' ').filter(Boolean);
+  const key = [];
+  for (const tok of tokens) {
+    key.push(tok.replace(/\d+/g, '#'));
+    if (/\d/.test(tok)) break;
+  }
+  return key.join(' ') || '(untitled)';
+}
+
+// A "group" of 1 shares no pattern with anything else — it is folded into one "other" bucket
+// instead of printed as its own row, so the report stays a SHAPE summary, not a heading dump.
+const SHAPE_MIN_GROUP = 2;
+
+function buildShape(file, records) {
+  const totalLines = records.reduce((a, r) => a + r.lines, 0);
+  const byKey = new Map();
+  for (const r of records) {
+    const k = shapeKey(r.h2);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  }
+  const groups = [], other = [];
+  for (const [k, recs] of byKey) {
+    if (recs.length >= SHAPE_MIN_GROUP)
+      groups.push({ key: k, sections: recs.length, lines: recs.reduce((a, r) => a + r.lines, 0) });
+    else other.push(...recs);
+  }
+  if (other.length)
+    groups.push({ key: 'other', sections: other.length, lines: other.reduce((a, r) => a + r.lines, 0) });
+  groups.sort((a, b) => b.lines - a.lines);
+  for (const g of groups) g.pct = totalLines ? Math.round(g.lines / totalLines * 1000) / 10 : 0;
+  return { file, totalLines, totalSections: records.length, groups };
+}
+
+function printShape(shape) {
+  console.log(`\n${shape.totalLines} lines. ${shape.totalSections} sections.`);
+  for (const g of shape.groups) {
+    const label = g.key === 'other' ? 'other' : g.key.replace(/#/g, 'N');
+    console.log(`    ${label}`.padEnd(32) + `${g.sections} sections, ${g.lines} lines  (${g.pct}%)`);
+  }
+}
+
+// v3 rule 1: `reorg` never splits. `cleanup` is the ONLY door into the split pipeline, and it
+// is now a MEASURE step only: cost estimate, scan, a mechanical heading-shape report — then
+// it STOPS. Settled 2026-08-23 (docs-builder-v3-spec.md, "cleanup"): the proposal (what this
+// document is mainly about, what other themes it holds) comes from a model's cheap-tier read,
+// driven by docs-builder.md, never guessed here; the verdict comes from the user via
+// AskUserQuestion. Nothing past this function runs — no page, no archive move, no further
+// model call — until that interview is answered. `cleanup-apply` (below) is the door back in.
 function cleanup(files) {
   if (!files.length) die('usage: docs-builder.cjs cleanup <file.md>');
   if (files.length > 1)
@@ -1606,6 +1706,63 @@ function cleanup(files) {
     + 'figure once labels.json exists)');
   console.log('\n== scan ==');
   scan([file]);
+
+  // Same dest scan() itself just wrote to (write()'s own OUT-or-default), so this always
+  // reads back exactly the outline scan produced, whether OUT was overridden or not.
+  const outlineDest = process.env.OUT || path.join(ARTIFACTS, 'outline.json');
+  const o = readArtifactJSON(outlineDest);
+  const shape = buildShape(file, o.records);
+  const shapeDest = path.join(ARTIFACTS, 'cleanup-shape.json');
+  fs.mkdirSync(path.dirname(shapeDest), { recursive: true });
+  fs.writeFileSync(shapeDest, JSON.stringify(shape, null, 1));
+  console.log('\n== shape ==');
+  printShape(shape);
+  console.log(`\nwrote ${shapeDest}`);
+  console.log('\nawaiting the interview — cleanup stops here. Not the archive move, not a '
+    + 'page, not a model call beyond the scan above. Read the shape, propose what this '
+    + 'document is mainly about and what other themes it holds, and ask the user via '
+    + 'AskUserQuestion before anything else runs (docs-builder.md, Mode 1, step 1b). Once the '
+    + 'themes are confirmed, propose+assign (step 2a/2b) writes labels.json with exactly one '
+    + 'theme marked core:true, then run:\n'
+    + `  docs-builder.cjs cleanup-apply ${file} ${outlineDest} ${path.join(ARTIFACTS, 'labels.json')}`);
+}
+
+// ---------------------------------------------------------------- cleanup-apply (post-approval)
+
+// The interview settles the themes; this is the first script step allowed to run after it.
+// A new subcommand rather than a `cleanup --apply` flag: this file has no flag parser
+// anywhere (every subcommand is positional, on purpose — see the dispatch table below), and
+// a one-off flag here would be a new parsing convention for one caller. It is also a
+// SEPARATE command from `plan`/`archive`/`index` rather than a wrapper that always chains
+// all three: a human/model page-writing step sits between `plan` and `archive` that this
+// script cannot run, so `cleanup-apply` is deliberately re-runnable — call it once and it
+// reports pages still to write (same resumability `plan` already has); call it again once
+// every page exists and THAT run archives the original and rebuilds the index. It refuses
+// outright, before doing anything, if the interview clearly has not happened: no labels.json,
+// or a labels.json with no theme marked core:true.
+function cleanupApply(file, outlineF, labelsF) {
+  if (!file || !outlineF || !labelsF)
+    die('usage: docs-builder.cjs cleanup-apply <file.md> <outline.json> <labels.json>');
+  if (!fs.existsSync(labelsF))
+    die(`cleanup-apply: no labels.json at ${labelsF} — the interview has not happened yet. `
+      + 'Run `cleanup <file>`, answer the interview it prints, then have the model '
+      + 'propose+assign themes (labels.json, with exactly one theme marked core:true) before '
+      + 'calling cleanup-apply.');
+  const l = parseJSONFile(labelsF);
+  if (!coreThemeName(l.themes))
+    die('cleanup-apply: labels.json has no theme marked core:true — the interview has not '
+      + "happened yet. Mark exactly one theme core:true (the document's main subject, from "
+      + 'the interview\'s answer), then re-run cleanup-apply.');
+  const { todo } = plan(outlineF, labelsF);
+  if (todo.length) {
+    console.log(`\n${todo.length} page(s) still to write — write them (mid tier, one agent `
+      + 'per page, docs-builder.md step 5), then re-run `cleanup-apply` to archive the '
+      + 'original and rebuild the index.');
+    return;
+  }
+  console.log('\nall pages written — archiving the original and rebuilding the index.');
+  archive(file);
+  index(outlineF, labelsF);
 }
 
 // ---------------------------------------------------------------- dispatch
@@ -1634,7 +1791,8 @@ switch (cmd) {
   case 'discover':    discover(rest[0]); break;
   case 'apply-reorg': applyReorg(rest[0]); break;
   case 'reorg':       reorg(); break;
-  case 'cleanup':     cleanup(rest); break;
+  case 'cleanup':       cleanup(rest); break;
+  case 'cleanup-apply': cleanupApply(rest[0], rest[1], rest[2]); break;
   default:
     die('usage: docs-builder.cjs <scan|validate|plan|index|index-flat|search|archive|ledger|due|lint|'
       + 'discover|apply-reorg|reorg|cleanup> [args]\n'

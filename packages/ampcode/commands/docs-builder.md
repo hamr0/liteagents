@@ -67,8 +67,8 @@ plan vs. a cheap drift check), and a wrong guess on the first one is expensive t
 2. `apply-reorg` moves product/archive. **Oversized docs are left where they are** — it
    prints each one as `cleanup <file>  (N lines)`. Show that list, then **ask which to
    split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
-   `cleanup` itself prints the estimated split cost for that one file before it does
-   anything else.
+   `cleanup` itself prints the estimated split cost for that one file, then a mechanical
+   shape report, then stops for its own interview (Mode 1, step 1b) before anything else runs.
 
 The two stops are deliberate and different. Step 1 guards *correctness* — is this file
 really archive? Step 3 guards *cost* — splitting is ~$0.39 per 1,000 source lines, and the
@@ -91,7 +91,7 @@ classification are higher than of a routine drift check on an already-sorted cor
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
 | `/docs-builder reorg` (discover, confirm, then apply-reorg) | *First run*, steps 1-2 | classify a WHOLE corpus into product/archive | no (moves are `git mv`, plan reviewed first) |
-| `/docs-builder cleanup <file>` | *First run*, step 3 | split ONE named oversized doc → pages + index | no (original preserved) |
+| `/docs-builder cleanup <file>` | *First run*, step 3 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
 | `/docs-builder reorg` (bare `docs-builder.cjs reorg`, no stop) | *Docs drift* | due's drift summary (if a ledger stamp exists) + discover → apply-reorg → lint, whole corpus | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts an entire messy
@@ -100,7 +100,10 @@ itself**; anything it tags `oversized` still needs a human to run `cleanup <file
 individually (below), one named file per invocation, because that step spends real model
 budget and should never fire without a look first. `cleanup` is the ONLY entry point to the
 split pipeline — it refuses more than one file at a time, refuses a missing/non-`.md`/
-protected file, and prints its cost estimate before doing anything else.
+protected file, prints its cost estimate, then STOPS for an interview once the shape is
+measured (Mode 1, step 1b); `cleanup-apply` (Mode 1, step 4) is the only door back in, and it
+refuses to run until that interview has produced a `labels.json` with exactly one theme
+marked `core: true`.
 
 ## Layout
 
@@ -120,7 +123,9 @@ docs/
   .docs-builder/     machine-only working state. Never hand-edited, never read by a human.
     ledger.json        last consolidation SHA + per-doc line counts
     outline.json       Layer 1 scan
-    labels.json        the model's theme assignment
+    cleanup-shape.json `cleanup`'s mechanical heading-shape report — the interview's proposal
+                       is built from this, never a model guess at what a section is "about"
+    labels.json        the model's theme assignment (`core: true` on exactly one theme)
     reorg-plan.json    `discover`'s classification plan (Mode 0) — never moves anything itself
     validate.json      the gate's verdict
     failures.json      LIVE count of current `validate` gate failures, keyed
@@ -287,22 +292,30 @@ rewrite is printed per file so it is visible, never silent.
 
 ## Mode 1 — cleanup
 
-**`cleanup <file.md>` is the ONLY entry point to the split pipeline.** It takes exactly one
-named file — never zero, never more than one — and refuses cleanly (exit non-zero) if the
-file doesn't exist, isn't a `.md`, or is one of the protected entry-point docs (README,
-AGENT.md, etc.). Before anything else runs, it prints the file's line count and an
-estimated write cost (the same cost law `plan` uses in step 4 below, priced as a 1-page
-floor since the real page count isn't known until the model groups sections in step 2):
+**`cleanup <file.md>` is the ONLY entry point to the split pipeline, and it is a MEASURE step
+only.** Settled 2026-08-23 (`docs-builder-v3-spec.md`, "cleanup"): the original always ends
+up in `docs/archive/`, byte-identical, `git mv`, never edited — and everything the split
+produces is a **new** file, including the core (the theme the document is mainly about, which
+keeps the original's basename — see step 2a). Nothing in this mode ever rewrites a source
+document in place.
+
+`cleanup` takes exactly one named file — never zero, never more than one — and refuses
+cleanly (exit non-zero) if the file doesn't exist, isn't a `.md`, or is one of the protected
+entry-point docs (README, AGENT.md, etc.). It prints the file's line count and an estimated
+write cost (the same cost law `plan` uses in step 4 below, priced as a 1-page floor since the
+real page count isn't known until the model groups sections in step 2), runs step 1 (scan)
+below for you, then measures the document's heading shape and **stops**:
 
 ```bash
 REPO=<repo> node docs-builder/docs-builder.cjs cleanup docs/BIG.md
 ```
 
-That single invocation also runs step 1 (scan) below for you. The remaining steps —
-proposing/assigning themes, validating, planning, writing pages, archiving the original, and
-indexing — are unchanged and still hand-sequenced from here, driven by this file, not by the
-script: splitting spends real model budget, so nothing past the cost estimate above runs
-without a human choosing to continue.
+**Nothing past this command runs until a human has answered the interview (step 1b) below.**
+Not the archive move, not a page, not a model call beyond the scan `cleanup` already ran. The
+remaining steps — the interview, proposing/assigning themes, validating, planning, writing
+pages, archiving the original, and indexing — are driven by this file, not by the script:
+splitting spends real model budget, so nothing past the shape report runs without a human
+choosing to continue, and confirming, the themes.
 
 ### 1. Scan (script) — run automatically by `cleanup`, shown here for what it produces
 
@@ -322,10 +335,48 @@ corpus-wide reorg. Fixed; this is a **one-time breaking change** — any `labels
 made under the old bare-key format (no `<file> ::` prefix) will no longer match and must be
 regenerated.
 
-### 2a. Propose themes — **cheapest tier, ONE call over ALL headings**
+### 1b. The interview — a proposal from a read, a verdict from the user
 
-Feed every `records[].key` plus its `snip`. Ask for a fixed list of themes with a one-line
-gloss each. Aim for a list that leaves no theme holding more than ~30% of the lines.
+`cleanup` also writes `docs/.docs-builder/cleanup-shape.json` and prints it as a table: the
+document's H2 sections grouped **mechanically** by shared heading shape (e.g. `86 sections:
+"§N ..." — 11 sections, 193 lines (3%); "Addendum vN.N ..." — 75 sections, 5,476 lines
+(97%)`). This is measurement, not a guess — the script groups on heading text alone, never on
+what a section is *about*.
+
+Now read the document yourself — the cheapest tier is enough, and the read is weighted to the
+**opening**, where a document states its intent and what it is for, but covers enough of the
+rest to name the other themes actually present. Then ask, via `AskUserQuestion`, one question,
+in exactly this shape:
+
+> **Question: Is this split right?**
+>
+> <the shape table `cleanup` printed>
+>
+> This document is mainly: **\<your read of the dominant theme>**.
+> Other themes present: **\<theme>**, **\<theme>**, ...
+>
+> Is that right, and are those the themes you want split out?
+
+At minimum two options: **Confirm** (proceed with the themes exactly as stated) and
+**Correct** (the user names what the document is actually mainly about, and/or edits the
+other-themes list). **This must not degenerate into auto-detect wearing a costume** — the
+failure mode `docs-builder-v3-spec.md` names by name. A correction has to change what gets
+built: if the user corrects the "mainly" answer, that theme — not your first guess — is the
+one step 2a marks `core: true`; if they edit the other-themes list, that list — not your first
+guess — is the fixed list step 2a proposes against. Do not run step 2a until this question is
+answered.
+
+### 2a. Propose + assign themes — **cheapest tier, ONE call over ALL headings**
+
+Feed every `records[].key` plus its `snip`, together with the interview's confirmed-or-
+corrected answer from step 1b. Ask for a fixed list of themes with a one-line gloss each —
+the theme the interview named as "mainly" goes in as the **core** theme, everything else as
+an ordinary theme. Aim for a list that leaves no theme holding more than ~30% of the lines.
+
+**Exactly one theme is core**, marked `core: true` in `labels.json` (step 2b below). Its page
+will carry the source file's own basename (e.g. splitting `docs/01-product/PRD.md` yields a
+core page named `PRD.md`, not a slugified theme name) — `plan` (step 4) enforces this, and
+rejects a `labels.json` that marks more than one theme core.
 
 **This pass is load-bearing.** Skipping it and assigning directly gave 68 themes for 86
 sections, 57 of them singletons — perfect key accuracy, useless grouping. Chunking fixes
@@ -354,7 +405,9 @@ Each section gets a theme **from that fixed list**. Five rules, all paid for:
 4. **Validate before use** (step 3). Script, not model.
 5. **Propose globally before assigning** (2a).
 
-Write the result as `{ "themes": [{name, gloss}], "labels": [{key, theme}] }`.
+Write the result as `{ "themes": [{name, gloss, core?}], "labels": [{key, theme}] }` — `core:
+true` on exactly the one theme step 1b's interview settled on as "mainly"; omit it (or leave
+it `false`) on every other theme.
 
 ### 3. Validate (script) — **hard gate, exits 1 on failure**
 
@@ -380,20 +433,38 @@ var `index`/`plan`/`checkCitations` use), computed relative to `INDEX`'s own dir
 so it only checks links actually pointing into the pages dir, and stays correct when `PAGES`
 points somewhere other than the default `docs/wiki`.
 
-### 4. Plan (script)
+### 4. Plan + apply (script) — `cleanup-apply`, the door back in after the interview
+
+```bash
+REPO=<repo> node docs-builder/docs-builder.cjs cleanup-apply docs/BIG.md \
+  docs/.docs-builder/outline.json docs/.docs-builder/labels.json
+```
+
+This is the first script command allowed to run after step 1b, and it **refuses outright** —
+before doing anything — if `labels.json` is missing, or has no theme marked `core: true`: in
+both cases it prints that the interview has not happened yet and stops. Once that gate
+passes, it runs `plan` (below), which writes `docs/.docs-builder/tasks/task-<theme>.json` per
+page (the core theme's task file named after the original basename, per step 2a) and prints
+an estimated write cost for the pages **still to write**.
+
+If any page is still to write, `cleanup-apply` **stops there** — go to step 5 and write them,
+then re-run the exact same `cleanup-apply` command. It is deliberately re-runnable: a human/
+model page-writing step sits between planning and archiving that the script cannot run
+itself, so nothing is auto-chained across that gap. Once **every** page exists, that same
+re-run archives the original (step 6) and rebuilds the index (step 7) for you, in one call —
+no separate `archive`/`index` invocation needed, though both remain runnable standalone (their
+own sections below still apply if you ever need to run either by hand).
+
+`plan` is the underlying resume mechanism, unchanged: any theme whose page already exists in
+`docs/wiki/` (override with `PAGES=`) is reported `done` and dropped from the estimate, so a
+crash or an early `cleanup-apply` stop relaunches only what is missing. Each finished page is
+the checkpoint; there is no separate state file to go stale. It is also still runnable on its
+own:
 
 ```bash
 REPO=<repo> OUT=docs/.docs-builder/tasks node docs-builder/docs-builder.cjs plan \
   docs/.docs-builder/{outline,labels}.json
 ```
-
-Writes `docs/.docs-builder/tasks/task-<theme>.json` per page and prints an estimated write
-cost for the pages **still to write**.
-
-**`plan` is the resume mechanism.** Any theme whose page already exists in `docs/wiki/`
-(override with `PAGES=`) is reported `done` and dropped from the estimate, so re-running
-`plan` after a crash relaunches only what is missing. Each finished page is the checkpoint;
-there is no separate state file to go stale.
 
 ### 5. Write pages — **mid tier, one agent per page**
 
@@ -410,7 +481,7 @@ Each agent reads **only its own line ranges**. The value is context isolation.
   `plan` and it reports what is left. A cleanup that dies halfway and cannot resume is worse
   than a slow one.
 
-### 6. Archive the original (script)
+### 6. Archive the original (script) — run for you by `cleanup-apply` once all pages exist
 
 ```bash
 REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
@@ -435,7 +506,7 @@ exactly the mistake the printed message warns against.
 Pruning the archive is the user's own call — `git rm` — and nothing in this pipeline does it
 automatically. Archiving never deletes.
 
-### 7. Index (script)
+### 7. Index (script) — run for you by `cleanup-apply` once all pages exist
 
 ```bash
 OUT=docs/index.md node docs-builder/docs-builder.cjs index \
