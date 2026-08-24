@@ -161,6 +161,12 @@ describe a session too terse to quote.
   over, no exemptions claimed, 54 KB → 29 KB. Step 8 then runs the identical rule as a one-line
   `awk` over the written file — a report, not a second gate — so the two counts can never
   disagree.
+- **A quiet run still pays gate debt.** A run with no new stashes and no new antigens does not
+  skip straight to "nothing to consolidate" — it first runs the step-8 mechanical check against
+  the existing `MEMORY.md`. Only a 0-line result earns the early exit; any over-length line means
+  the exit is skipped and the Facts rewrite runs on the existing content with no new input. The
+  early exit used to sit above the rewrite, so a restored pre-fix file with 90 over-length lines
+  went through `/remember` untouched on a quiet run.
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
   2. **Semantic-merge** — sonnet groups same-complaint-different-words quotes friction left split.
@@ -188,6 +194,12 @@ describe a session too terse to quote.
      incrementing `sessions` once per hash instead of once per conversation. A nested
      `session_ids` shape (`{id, seen}` per hash) was measured and rejected: the ledger already
      stores that shape, so the trap would move, not close.
+  4. **A new entry needs `sessions` >= 2.** No match on a cluster with `sessions == 1` does not
+     seed a ledger row — a single occurrence has no recurrence to track yet, and seeding
+     singletons grows the ledger by dozens of never-recurring entries per run (three runs of the
+     old "no match → new entry" rule produced 30, 0, and 10 new entries). Friction re-scans every
+     session log on every run, so a mistake that recurs is seeded once it reaches 2. Merging a
+     1-session cluster into an EXISTING entry is unchanged — that is recurrence.
   Division of labor: **MEMORY.md is the render (read as guidance); the ledger is the
   record (checked, never injected).** Design + the POC evidence that shaped it:
   `docs/product/antigen-gate-prd.md`.
@@ -318,6 +330,19 @@ already runs.
   executes, which the JS suite couldn't previously see — three spec defects (signals
   double-counted, the ledger fix above, the length gate above) shipped silently in one day
   before this existed. See "Regression net" below.
+
+- **Quiet runs still pay gate debt (2026-08-24).** The "nothing to consolidate" early exit sat
+  above the Facts rewrite, so a run with no new stashes and no new antigens never reached the
+  length gate — a restored pre-fix `MEMORY.md` with 90 over-length lines went through `/remember`
+  untouched. The exit now requires the step-8 mechanical check to return 0 lines against the
+  existing file first; any lines over means the rewrite runs anyway, on existing content with no
+  new input.
+
+- **The ledger seeds only on recurrence (2026-08-24).** "No match → new entry" seeded a row for
+  every unmatched cluster, and nearly every cluster is a 1-session one-off — three runs of the
+  rule produced 30, 0, and 10 new entries. A new entry now needs cluster `sessions` >= 2; a
+  1-session cluster is not recorded, since friction re-scans every log each run and seeds it once
+  it recurs. Merging a 1-session cluster into an existing entry is unchanged — that is recurrence.
 
 - **Facts are compressed, not accumulated (2026-08-23).** `/remember` now rewrites the whole
   Facts section every run under a one-line/≤160-char bar, keeps the 10 most recent episodes and
