@@ -209,6 +209,30 @@ function moveChokepointGuards() {
   okTrue('the refusal names it as an entry-point/contract doc',
     /never moved|entry-point/.test(r2.out));
 
+  // (c) a SYMLINK out of the repo — the string check alone cannot see this one.
+  // Found by adversarial review of the (a) fix: path.resolve does not dereference, so
+  // `docs/evil.md -> /etc/passwd` passed confinement and the copy+unlink fallback wrote the
+  // TARGET's bytes into the repo (reproduced: exit 0, docs/archive/evil.md == /etc/passwd).
+  const target = path.join(os.tmpdir(), `db-symlink-target-${process.pid}.txt`);
+  fs.writeFileSync(target, 'SECRET TARGET CONTENT\n');
+  const s = repo({ 'docs/A.md': DOC('A') });
+  fs.symlinkSync(target, path.join(s, 'docs/evil.md'));
+  const r4 = db(s, ['archive', 'docs/evil.md', 'docs/archive/evil.md']);
+
+  ok('archive refuses a symlink pointing outside the repo', r4.code !== 0, true);
+  okTrue('it says the path is a symlink', /symlink/.test(r4.out));
+  okTrue("the target's content was NOT copied into the repo", !exists(s, 'docs/archive/evil.md'));
+  okTrue('the target file outside the repo is untouched', fs.readFileSync(target, 'utf8')
+    === 'SECRET TARGET CONTENT\n');
+  fs.unlinkSync(target);
+
+  // A symlink that stays INSIDE the repo is ordinary, not an attack — it must still work,
+  // or this guard has broken a legitimate layout.
+  const t = repo({ 'docs/A.md': DOC('A'), 'docs/real.md': DOC('Real') });
+  fs.symlinkSync(path.join(t, 'docs/real.md'), path.join(t, 'docs/link.md'));
+  const r5 = db(t, ['archive', 'docs/link.md', 'docs/archive/link.md']);
+  ok('a symlink to a file inside the repo still archives', r5.code, 0);
+
   // The guard must not fire on ordinary docs — a check that refuses everything is not a check.
   const r3 = db(p, ['archive', 'docs/A.md']);
   ok('an ordinary doc still archives cleanly', r3.code, 0);

@@ -902,12 +902,34 @@ const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('
 // copy+unlink FALLBACK below then did exactly what it says — copied that file into the repo
 // and unlinked the original. A traversal in a plan row is not hypothetical: plan rows pass
 // through a model-driven classification interview, on corpora cloned from elsewhere.
-function confined(p, what) {
-  const abs = path.resolve(path.isAbsolute(p) ? p : path.join(REPO, p));
-  const rel = path.relative(path.resolve(REPO), abs);
-  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel))
+// A string check alone is not enough: path.resolve() does NOT dereference symlinks, so
+// `docs/evil.md -> /etc/passwd` passes confinement and the copy+unlink fallback then reads
+// through the link and writes its TARGET's bytes into the repo. REPRODUCED 2026-08-24:
+// `archive docs/evil-link.md docs/archive/evil.md` exited 0 having copied /etc/passwd in.
+// Same threat model as the traversal above — a planted link in a cloned corpus needs nobody
+// to type anything. So: resolve the string first (catches `../x` on a path that does not
+// exist yet, which realpath cannot), then realpath what actually exists and re-check.
+// The DESTINATION is checked as a string only — it is not supposed to exist yet, and its
+// parent is created by doArchive itself.
+function confined(p, what, { deref = false } = {}) {
+  const inside = (root, a) => {
+    const rel = path.relative(root, a);
+    return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+  };
+  const root = path.resolve(REPO);
+  const abs = path.resolve(root, p);            // absolute p wins; relative p joins onto REPO
+  if (!inside(root, abs))
     throw new Error(`refusing to ${what} outside the repo: ${p}`);
-  return abs;
+  if (!deref) return abs;
+  let real;
+  try { real = fs.realpathSync(abs); }
+  catch { return abs; }                         // does not exist yet — the caller reports that
+  // Compare real against a REAL root: the repo itself may sit under a symlinked path
+  // (/tmp -> /private/tmp on macOS, and mkdtemp under it), which would otherwise read as
+  // an escape for every legitimate file.
+  if (!inside(fs.realpathSync(root), real))
+    throw new Error(`refusing to ${what} outside the repo: ${p} is a symlink to ${real}`);
+  return real;
 }
 
 // Core logic THROWS, never exits — so a caller doing many moves in a loop (apply-reorg)
@@ -921,7 +943,7 @@ function confined(p, what) {
 // README into docs/archive/ without a word (REPRODUCED 2026-08-24). Those two call-site
 // checks are kept: they fail earlier and with a message aimed at what the user actually ran.
 function doArchive(src, dest) {
-  const s = confined(src, 'move a doc from');
+  const s = confined(src, 'move a doc from', { deref: true });
   if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
   if (PROTECTED_NAMES.has(path.basename(src)))
     throw new Error(`refusing to move ${src}: ${path.basename(src)} is an entry-point/contract `
