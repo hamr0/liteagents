@@ -9,7 +9,7 @@
 6. [Environment](#environment)
 7. [Development Workflow](#development-workflow)
 8. [Twelve-Factor Checklist](#twelve-factor-checklist)
-9. [AGENTS.md Stub](#agentsmd-stub)
+9. [AGENTS.md Stub](#claudemd-stub)
 10. [AI Agent Instructions](#ai-agent-instructions)
 
 ---
@@ -47,7 +47,7 @@ Every task runs through three layers. Do not skip ahead to code.
 Not courtesies. These bind you as written, whether or not your tool enforces them.
 
 - **Always** identify affected files before making changes, and explain what will change and why
-- **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
+- **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.opencode/settings.json`
 - **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
 
 ---

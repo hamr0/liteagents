@@ -14,9 +14,14 @@ Run friction analysis, then consolidate session stashes + friction antigens into
   semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's Sonnet vs
   Opus). Use whatever your tool designates as that balanced default; never hardcode a
   vendor-specific model name.
-- **Batch independent subagent calls.** Step 2's per-stash extractions are independent of
-  each other — spawn them concurrently (parallel/background subagent calls in one turn)
-  where your tool supports it, instead of processing stashes one at a time.
+- **Batch stashes, don't fan out.** Step 2 gives each extraction agent **up to 5 stashes**
+  and uses as few agents as possible (3 stashes → 1 agent, 7 → 2). One agent reading several
+  sessions sees the same lesson recur and writes it once; one agent per stash writes it once
+  per stash and leaves the merge to catch the duplicates. If more than one agent is needed,
+  run them concurrently.
+- **Hot memory is short snippets, not prose.** A fact is one line, target 160 characters,
+  hard stop 180, stating a rule the agent should follow next time. Events, history, and
+  narrative are not facts.
 
 **What it does**
 
@@ -74,21 +79,52 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    - Read friction output written in step 0: `.factory/remember/friction/antigen_clusters.json` (preferred) or `.factory/remember/friction/antigen_review.md` (fallback)
    - Read existing `.factory/remember/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.factory/remember/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND friction produced no new antigens, report "nothing to consolidate" and stop
+   - If no unprocessed stashes AND friction produced no new antigens, run the step-8 mechanical
+     length check (the same awk: over 180 chars with no >100-char backtick literal) against the
+     existing `.factory/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
+     consolidate" and stop. If it returns any lines, "no new input" is not a reason to leave
+     gate debt in place — do NOT stop: proceed to step 3 and run the Facts rewrite + pre-write
+     gate on the existing content with no new input, then continue through step 8 as normal.
 
-2. **Extract from unprocessed stashes** (spawn one subagent per stash, in parallel — see Guardrails)
-   - For each unprocessed stash, call the mid-tier model (see Guardrails) to extract:
-     - **FACTS** (atomic, one-line): stable preferences, decisions, corrections, explicit "remember this"
-     - **EPISODE** (3-5 bullet narrative): what was the goal, what was tried, outcome, lesson
+2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
+   - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
+     - **FACTS** (one line each, target 160 chars, hard stop 180): stable preferences, decisions, corrections,
+       explicit "remember this". A fact is a **rule that changes future behaviour**, written
+       as the current truth — not an event that happened, not its history. A lesson that
+       recurs across the batch is written **once**.
+     - **EPISODE** (one per stash, 3-5 bullets): what was the goal, what was tried, outcome, lesson
      - **SKIP**: code details, file paths, errors, mechanical steps, LLM responses
    - Collect all new facts and episodes
 
 3. **Merge into MEMORY.md**
    - Read existing `.factory/remember/MEMORY.md` and parse its sections (## Facts, ## Episodes, ## Antigens)
-   - **Facts section**: call the mid-tier model with existing facts + newly extracted facts
-     - Rules: new updates replace old, contradictions keep new version, duplicates dropped
-     - Keep facts atomic, one line each
-   - **Episodes section**: append new episode entries (append-only, timestamped, no dedup)
+   - **Facts section — rewrite and compress, every run.** Call the mid-tier model with the
+     existing facts + the new facts + the lessons of any episodes aging out (below), and have
+     it return the **whole section rewritten**, not the old list with lines added:
+     - New replaces old; contradictions keep the new version; duplicates fold into one line.
+     - Shorten every fact that can be shorter. Target 160 chars, one line, current truth only —
+       no "supersedes", no version history, no narrative. The output should normally be
+       **shorter** than the input.
+     - Facts are never append-only: an old fact that a new one refines is rewritten in place.
+     - **Pre-write length gate — runs BEFORE MEMORY.md is written, not after.** A check that
+       only runs after the write (step 8) can merely describe damage already on disk; the gate
+       has to sit inside the merge, before anything hits the file. This applies to **every**
+       line in the draft Facts section, including lines carried over unchanged from the
+       previous MEMORY.md — the whole section is rewritten every run (see "Shorten every fact
+       that can be shorter" above), so every line is this run's output. "Not introduced this
+       run" is not a reason to skip a line. After producing the draft, check every line's
+       length: 161-180 chars passes silently. Over 180 MUST be shortened and re-checked. The
+       ONLY exemption is mechanical: a line whose single longest backtick-quoted literal is
+       itself longer than 100 characters (a path, command, or exact phrasing that genuinely
+       cannot be split) — that line is kept verbatim and listed as an exemption in the step-8
+       report. No other reason exempts a line — not established formatting, not dense by
+       convention, not pre-existing, not load-bearing detail. A line that's long because it holds
+       several sentences is shortened by splitting it into several facts or dropping the
+       history — never exempted. Only a draft that passes the gate (or has its overruns
+       exempted under the 100-char backtick rule) is written to `.factory/remember/MEMORY.md`.
+   - **Episodes section**: append new episode entries, keep only the **10 most recent**.
+     Every older episode is **folded, then deleted**: its lesson becomes a fact (handed to
+     the rewrite above); the narrative is removed. No archive — git has the history.
    - **Antigens section**: only update from friction output (step 4)
    - Write merged result to `.factory/remember/MEMORY.md` in the format under step 6.
 
@@ -155,18 +191,90 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
        "status": "observing|hot|rejected|escalated",
        "rule": "<current phrasing>",
        "attempts": [{ "n": 1, "rule": "<phrasing>", "adopted": "YYYY-MM-DD", "outcome": "active|failed" }],
-       "evidence": { "sessions": 0, "projects": [], "quotes": [], "last_seen": "YYYY-MM-DD" },
+       "evidence": { "sessions": 0, "session_ids": [{ "id": "<project-label>/<MMDD-HHMM>-<hash>", "seen": "YYYY-MM-DD" }], "projects": [], "quotes": [], "last_seen": "YYYY-MM-DD" },
        "recurred_while_hot": 0,
        "history": [{ "date": "YYYY-MM-DD", "event": "<transition>" }] }
      ```
 
+     **Evidence merges by session identity, not by re-counting a re-scan.** Friction re-scans
+     the entire corpus every run, so the same old session matches its cluster again on every
+     run; without an identity check, that re-detection would masquerade as new recurrence and
+     could promote a one-off to hot — the exact false-preference failure the observed-signal
+     redesign exists to prevent. Friction's clusters already carry `session_ids`. Identity is
+     the **trailing 8-char hash** — the part after the last `-` in the id — because project
+     labels can be renamed while the hash, derived from the session filename, is stable. Two
+     ids with the same hash are the same session, full stop.
+
+     Two ids with DIFFERENT hashes can also be one session. A fork or resume writes the same
+     conversation to a second session file with its own filename, so the hash alone would
+     count one reaction twice. `friction.cjs` collapses these before it emits clusters —
+     sessions sharing at least one message `uuid` are one conversation, and the group is
+     reported under a single canonical id (the lexicographically smallest). So the ids
+     reaching this step are already canonical; do not attempt to re-derive fork identity
+     here. Measured on a real 3,158-session corpus: 6 such groups exist, and of ~5M possible
+     session pairs only 9 share any uuid at all — every one a genuine duplicate.
+
+     **Migration (one-time, grandfathered): SEED, DO NOT COUNT.** Existing entries predate
+     `session_ids` and carry only a bare `sessions` count with an empty `session_ids` set. This
+     is mechanical — do not resolve it by judgment. On the run that first populates such an
+     entry's `session_ids` (i.e. `session_ids` is empty going in), do exactly these two things
+     and nothing else:
+     1. Write `session_ids` to this run's matched ids (NOT an empty set — the empty set is the
+        pre-migration state you are migrating FROM, not what you write).
+     2. Append the history line "identity migration — legacy count grandfathered, growth
+        requires new hashes".
+
+     Change NOTHING else on this run — not `sessions`, not `last_seen`, not
+     `recurred_while_hot`, not `status`. In particular, do NOT apply the "no hashes present →
+     new conversation" rule here: `session_ids` was empty, so every hash looks absent, and
+     counting would treat the entry's own already-counted history as fresh recurrence — on a
+     `hot` entry that also fires `recurred_while_hot`, which at 2 marks the phrasing failed and
+     rewrites a rule that never actually failed. Counting resumes on the NEXT run, once
+     `session_ids` is non-empty and an absent hash set is genuinely new evidence.
+
+     Observed for real: bareloop's first migration run carried two `hot` entries, each already
+     at `recurred_while_hot: 1`. Counting on migration would have taken both to 2 and force-
+     rephrased two working rules from re-detected pre-existing sessions. Two separate runs
+     avoided it only because whoever ran them noticed and overrode the text — which is the
+     definition of a rule that needs to be mechanical rather than prose.
+
      For each surviving antigen from 4a/4b, match against existing entries by `class_hints`
-     (the mistake class, not the rule wording — rules change, the class doesn't):
-     - **No match** → new entry, `status: "observing"`, attempt 1, history "candidate (N sessions)".
-     - **Match, `observing`** → merge evidence (sessions, quotes, projects, last_seen).
-       Crosses the 4b hot threshold → `status: "hot"`, history "promoted to hot (N sessions)".
-     - **Match, `hot`** → the mistake happened *while its rule was loaded*:
-       `recurred_while_hot += 1`, merge evidence, history "recurred while hot (count)".
+     (the mistake class, not the rule wording — rules change, the class doesn't). A matched
+     cluster represents exactly ONE conversation, no matter how many hashes its `session_ids`
+     holds — a fork/resume group deliberately carries every member file's hash so the cluster
+     can be matched under any of the conversation's filenames.
+
+     **`sessions` is the authoritative conversation count. `session_ids` is evidence detail —
+     a list of the FILES one conversation was written to. NEVER derive a count from
+     `len(session_ids)`; a fork or resume makes that number larger than the conversation
+     count.** This is mechanical — do not resolve it by judgment. Compare the cluster's hashes
+     against the entry's stored hash set as a set, not one at a time, and count per
+     conversation, never per hash:
+     - **None of the cluster's hashes present** → a genuinely new conversation: add ALL of the
+       cluster's hashes to `session_ids`, increment `sessions` by exactly 1 (never by the
+       number of hashes in the cluster), refresh `last_seen` to today's run date (session ids
+       carry no year), and count it once toward the 4b promotion threshold.
+     - **Any of the cluster's hashes already present** → this conversation is already counted:
+       add whichever of its hashes are still missing from `session_ids` (they are aliases of
+       the same conversation, and storing them keeps future matching robust under any of its
+       filenames), but change NOTHING else — not `sessions`, not `last_seen`, not history, not
+       `recurred_while_hot`. It is a re-scan re-detecting a conversation already counted, not
+       new evidence.
+     - **No match, cluster `sessions` >= 2** → new entry, `status: "observing"`, attempt 1,
+       history "candidate (N sessions)".
+     - **No match, cluster `sessions` == 1** → do NOT create a ledger entry. The ledger tracks
+       recurrence, and a single occurrence has no recurrence to track yet — seeding singletons
+       grows the ledger by dozens of never-recurring entries per run. Friction re-scans every
+       session log on every run, so if this mistake recurs, a later run will match it back to
+       2+ sessions and seed it then. This does not change the Match bullets below — a
+       1-session cluster can still merge into an EXISTING entry; that is recurrence.
+     - **Match, `observing`** → apply the new-conversation / already-counted rule above
+       (sessions, session_ids, quotes, projects, last_seen). Crosses the 4b hot threshold on a
+       genuinely new conversation → `status: "hot"`, history "promoted to hot (N sessions)".
+     - **Match, `hot`** → the mistake happened *while its rule was loaded*, and only when the
+       match is a genuinely new conversation (per the rule above, not a re-scan of an
+       already-present hash): `recurred_while_hot += 1` once per conversation, merge evidence,
+       history "recurred while hot (count)".
        - At `recurred_while_hot >= 2`: the phrasing failed. Mark the current attempt
          `outcome: "failed"`, draft attempt n+1 — it must differ from **every** prior
          attempt's text in this entry (failed attempts are the rejected-edit buffer: never
@@ -178,6 +286,20 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
          **Flag, don't act** — the user decides: enforcement (a hook, where the tool has
          them) or accepted limit.
      - **Match, `escalated`/`rejected`** (rejected = user veto) → merge evidence only; never re-propose.
+
+     **Decay (observing only).** Antigens are the fastest-decaying artifact and, until now,
+     had no exit. This is meaningful *because* of the identity fix above — without it,
+     `last_seen` would refresh on every re-scan and nothing would ever go stale. After the
+     matching pass, sweep every `observing` entry: if its `last_seen` is **older than 8
+     weeks** (matching the ~7-week transcript retention — evidence that old can no longer be
+     re-verified against the source logs), set `status: "expired"` and append a history line
+     "expired — no new evidence in 8+ weeks". The ledger entry is **kept**, never deleted
+     (append-only doctrine) — it just stops rendering into MEMORY.md. If a later run's new
+     session hash matches an `expired` entry's `class_hints`, merge the evidence and set
+     `status` back to `"observing"` with history "reactivated". `hot` entries **never expire
+     by age** — a loaded rule that stops recurring is the rule working, not staleness; a hot
+     entry leaves hot only via the existing `recurred_while_hot` escalation path above.
+     `escalated`/`rejected` are untouched by decay.
 
      Consistency: MEMORY.md's Antigens section is the render; the ledger is the record —
      after 4c every hot antigen in MEMORY.md has a matching `hot` ledger entry. Mutations
@@ -215,7 +337,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    > Auto-generated by /remember. Do not edit manually.
 
    ## Facts
-   - [atomic fact 1]
+   - [one-line rule, target 160 chars, hard stop 180]
 
    ## Episodes
    ### YYYY-MM-DD - [title]
@@ -231,6 +353,9 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    ### Low Confidence (needs more data)
    - [pattern] (evidence: [N] sessions)
    ```
+   The Medium/Low lists render only entries whose ledger `status` is `observing` (or `hot`
+   for High) — an entry marked `expired` by the decay rule (step 4c) is skipped here even
+   though it stays in `ledger.json`.
 
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.factory/remember/.processed`
@@ -248,8 +373,13 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
      missing, `git` fails, or the command errors, print one line explaining why the check
      was skipped. Never fail silently.
-   - **No ledger yet:** `due` says so itself and reports NOT due. Pass that line through
-     once, then move on — do not offer to create a ledger unless the user asks.
+   - **`docs/` exists but no `docs/.docs-builder/` directory:** docs-builder has never run
+     here — print one line telling the user to run `/docs-builder reorg` to organize and
+     index the corpus. Do NOT tell them to run `ledger` instead: `ledger` only stamps
+     whatever is currently on disk as the baseline, so on an unsorted pile it would record
+     the mess as correct and `due` would then report NOT due forever.
+   - **`docs/.docs-builder/ledger.json` exists:** run `due` and pass through its verdict, as
+     below.
    - Otherwise run it and pass through its verdict:
      ```bash
      node docs-builder/docs-builder.cjs due
@@ -260,14 +390,34 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
    - If DUE, end with one line and nothing more:
      ```
-     docs: 7 changed since 991f72d3 — run /docs-builder reconcile
+     docs: 7 changed since 991f72d3 — run /docs-builder reorg
      ```
 
 8. **Report to user** — print it AND write the same content to `.factory/remember/report.md`
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
-   - Facts count (total, new)
-   - Episodes count (total, new)
+   - Facts count (before → after the rewrite; the number should not grow by the number of new facts)
+   - **Mechanical length check** — run, don't estimate. This confirms the step-3 gate rather
+     than being the first check to catch an overrun. It implements the SAME mechanical
+     exemption as the gate (a line whose longest backtick literal exceeds 100 chars is not
+     flagged), so this count and the gate's count can never disagree:
+     ```bash
+     awk '
+     /^## Facts/{f=1} /^## Episodes/{f=0}
+     f && /^- / && length($0)>180 {
+       line=$0; maxlen=0
+       while (match(line, /`[^`]*`/)) {
+         seglen = RLENGTH-2
+         if (seglen > maxlen) maxlen = seglen
+         line = substr(line, RSTART+RLENGTH)
+       }
+       if (maxlen <= 100) print
+     }' .factory/remember/MEMORY.md
+     ```
+     Print every line it returns and the count. Zero is the target; non-zero means a gate miss
+     — every remaining overrun already had its chance to be exempted (100-char backtick
+     literal) inside the step-3 gate, so anything printed here should not exist.
+   - Episodes count (new, kept hot, folded + deleted)
    - Antigens count by confidence tier, with how many newly promoted to hot
    - Ledger lines — one per non-observing entry: id, short rule, status, recurrences since
      adoption. Highlight rephrased (RECURRED) and ESCALATED entries; escalations need a

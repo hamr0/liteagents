@@ -4,7 +4,7 @@
  *
  * Usage:
  *     node friction.cjs <sessions-directory>
- *     node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+ *     node friction.cjs ~/.claude/projects/<encoded-project-dir>/
  *
  * Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
  * package.json declares "type": "module", a `.js` file loads as an ES module and every
@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // =============================================================================
 // EMBEDDED CONFIG (from friction_config.json)
@@ -78,6 +79,13 @@ const CONFIG = {
   },
 };
 
+// Genuine USER REACTIONS that a friction antigen may anchor on. tool_loop /
+// repeated_question are agent-behavior signals (no user text to cluster, and
+// repeated_question over-fires on tool output) — they corroborate severity,
+// never seed. Shared by analyzeBadSession (which candidate to build) and
+// extractMain (which sessions are even worth reading for the dedup pass).
+const ANCHOR_SIGNALS = ['user_correction', 'user_curse', 'interrupt_cascade'];
+
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
@@ -102,15 +110,6 @@ function parseJsonl(raw, source) {
     }
   }
   return records;
-}
-
-function parseISODate(s) {
-  if (!s) return null;
-  try {
-    return new Date(s.replace('Z', '+00:00'));
-  } catch {
-    return null;
-  }
 }
 
 function formatDuration(minutes) {
@@ -157,11 +156,14 @@ function deriveSessionName(sessionFile, metadata) {
 
   let project;
   if (parent.startsWith('-')) {
+    // Detected at runtime — never hardcode a username or a personal folder.
+    // Claude Code encodes a project dir by replacing path separators with '-',
+    // so the current user's home encodes the same way (/home/ana -> -home-ana).
+    const homeEnc = os.homedir().replace(/[\\/]/g, '-');
     const prefixes = [
-      '-home-hamr-PycharmProjects-',
-      '-home-hamr-Documents-PycharmProjects-',
-      '-home-hamr-',
+      homeEnc + '-',
       '-home-',
+      '-Users-',
       '-',
     ];
     let found = false;
@@ -254,7 +256,7 @@ function looksLikeTerminalPaste(text) {
 function extractSignals(sessionFile) {
   const signals = [];
   let llmClaimedSuccess = false;
-  const toolHistory = [];
+  const toolHistoryCounts = new Map();
   const metadata = {};
 
   const raw = fs.readFileSync(sessionFile, 'utf-8');
@@ -450,6 +452,15 @@ function extractSignals(sessionFile) {
 
       // User messages (GOLD)
       if (typeof content === 'string') {
+        // Harness-injected notifications ride in as user-role turns but are
+        // machine text, not user text — skip signal detection entirely so a
+        // notification's boilerplate prose can't be mistaken for a curse or
+        // correction aimed at the agent.
+        const trimmedContent = content.trim();
+        if (trimmedContent.startsWith('<task-notification>') || trimmedContent.startsWith('[SYSTEM NOTIFICATION')) {
+          continue;
+        }
+
         if (content.toLowerCase().includes('/stash')) {
           signals.push({
             ts,
@@ -521,12 +532,8 @@ function extractSignals(sessionFile) {
           if (block.type === 'tool_use') {
             const toolName = block.name;
             const sig = JSON.stringify([toolName, JSON.stringify(block.input || {})]);
-            toolHistory.push(sig);
-
-            let count = 0;
-            for (const h of toolHistory) {
-              if (h === sig) count++;
-            }
+            toolHistoryCounts.set(sig, (toolHistoryCounts.get(sig) || 0) + 1);
+            const count = toolHistoryCounts.get(sig);
             if (count >= 3) {
               signals.push({
                 ts,
@@ -940,7 +947,7 @@ function aggregateSessions(analyses, config) {
   const totalObjective = ((aggregateBySource.tool || {}).total_friction || 0) +
                           ((aggregateBySource.user || {}).total_friction || 0);
   const totalLlm = (aggregateBySource.llm || {}).total_friction || 1;
-  const snr = totalLlm !== 0 ? Math.abs(totalObjective / totalLlm) : 0;
+  const snr = Math.abs(totalObjective / totalLlm);
 
   // Verdict
   const thresholds = config.thresholds;
@@ -975,8 +982,7 @@ function aggregateSessions(analyses, config) {
   for (const [source, data] of Object.entries(aggregateBySource)) {
     const sessionsCount = data.sessions_with_signals;
     // Sort top_signals by count descending (like Python's Counter.most_common)
-    const sortedSignals = Object.entries(data.top_signals)
-      .sort((a, b) => b[1] - a[1]);
+    const sortedSignals = sortedEntries(data.top_signals);
     const topSignals = {};
     for (const [k, v] of sortedSignals) topSignals[k] = v;
 
@@ -1114,52 +1120,6 @@ function aggregateSessions(analyses, config) {
     common_sequences: commonSequences,
     verdict: { status, reasons, recommended_actions: actions },
   };
-}
-
-// =============================================================================
-// FRICTION ANALYZE - print helpers
-// =============================================================================
-
-function printBox(title, lines, width) {
-  width = width || 60;
-  const hr = '\u2500'.repeat(width - 2);
-  console.log(`\u250C${hr}\u2510`);
-  console.log(`\u2502 ${title.toUpperCase().padEnd(width - 4)} \u2502`);
-  console.log(`\u251C${hr}\u2524`);
-  for (let line of lines) {
-    if (line.length > width - 4) line = line.slice(0, width - 7) + '...';
-    console.log(`\u2502 ${line.padEnd(width - 4)} \u2502`);
-  }
-  console.log(`\u2514${hr}\u2518`);
-}
-
-function printTable(headers, rows, colWidths) {
-  if (!colWidths) {
-    colWidths = headers.map((h, i) => {
-      let max = String(h).length;
-      for (const row of rows) {
-        const len = String(row[i]).length;
-        if (len > max) max = len;
-      }
-      return max + 2;
-    });
-  }
-
-  const topBorder = '\u250C' + colWidths.map(w => '\u2500'.repeat(w)).join('\u252C') + '\u2510';
-  const headerLine = '\u2502' + headers.map((h, i) => ` ${String(h).padEnd(colWidths[i] - 2)} `).join('\u2502') + '\u2502';
-  const sep = '\u251C' + colWidths.map(w => '\u2500'.repeat(w)).join('\u253C') + '\u2524';
-
-  console.log(topBorder);
-  console.log(headerLine);
-  console.log(sep);
-
-  for (const row of rows) {
-    const rowLine = '\u2502' + row.map((v, i) => ` ${String(v).padEnd(colWidths[i] - 2)} `).join('\u2502') + '\u2502';
-    console.log(rowLine);
-  }
-
-  const bottomBorder = '\u2514' + colWidths.map(w => '\u2500'.repeat(w)).join('\u2534') + '\u2518';
-  console.log(bottomBorder);
 }
 
 // =============================================================================
@@ -1712,9 +1672,13 @@ function findSessionFile(sessionsDir, sessionId) {
 // ANTIGEN EXTRACT - extract helpers
 // =============================================================================
 
-function extractContextWindow(sessionFile, anchorTs, windowSize) {
-  windowSize = windowSize || 5;
-
+/**
+ * Read and parse a session file once into its user/assistant turns.
+ * Callers that need multiple context windows from the same session (one per
+ * anchor signal) should build this once and reuse it, instead of re-reading
+ * and re-parsing the whole file per anchor.
+ */
+function buildTurns(sessionFile) {
   const raw = fs.readFileSync(sessionFile, 'utf-8');
   const events = parseJsonl(raw, sessionFile);
 
@@ -1725,6 +1689,11 @@ function extractContextWindow(sessionFile, anchorTs, windowSize) {
       turns.push({ ts, type: event.type, event });
     }
   }
+  return turns;
+}
+
+function extractContextWindow(turns, anchorTs, windowSize) {
+  windowSize = windowSize || 5;
 
   // Find anchor position
   let anchorIdx = null;
@@ -1857,6 +1826,8 @@ function extractUserMessage(event) {
   if (trimmed.startsWith('<command-name>')) return '';
   if (trimmed.startsWith('<system-reminder>')) return '';
   if (trimmed.startsWith('<local-command-stdout>')) return '';
+  if (trimmed.startsWith('<task-notification>')) return '';
+  if (trimmed.startsWith('[SYSTEM NOTIFICATION')) return '';
 
   return text.slice(0, 500);
 }
@@ -1871,25 +1842,21 @@ function analyzeBadSession(sessionFile, analysis, signals) {
   // NEW: anchor antigens only on OBSERVED user-reaction signals. Inferred
   // proxies (false_success/session_abandoned/user_intervention) never seed —
   // they only color severity. No fallback: a session with no observed reaction
-  // produces no candidate (silence is not an antigen).
-  // Seed only on genuine USER REACTIONS. tool_loop / repeated_question are
-  // agent-behavior signals (no user text to cluster, and repeated_question
-  // over-fires on tool output) — they corroborate severity, never seed.
-  const anchorSignals = [
-    'user_correction',
-    'user_curse',
-    'interrupt_cascade',
-  ];
-
-  const anchors = signals.filter(s => s.session === sessionId && anchorSignals.includes(s.signal));
+  // produces no candidate (silence is not an antigen). See ANCHOR_SIGNALS.
+  const anchors = signals.filter(s => s.session === sessionId && ANCHOR_SIGNALS.includes(s.signal));
 
   const candidates = [];
+  if (anchors.length === 0) return candidates;
+
+  // Parse the session file once and reuse it for every anchor's context
+  // window, instead of re-reading and re-parsing the whole file per anchor.
+  const turns = buildTurns(sessionFile);
 
   for (const anchor of anchors) {
     const anchorTs = anchor.ts || '';
     const anchorSignal = anchor.signal || 'unknown';
 
-    const window = extractContextWindow(sessionFile, anchorTs, 5);
+    const window = extractContextWindow(turns, anchorTs, 5);
     if (window.length === 0) continue;
 
     const allFiles = new Set();
@@ -1981,10 +1948,92 @@ function analyzeBadSession(sessionFile, analysis, signals) {
 }
 
 // =============================================================================
+// ANTIGEN EXTRACT - session dedup (forks/resumes of the same conversation)
+// =============================================================================
+
+/**
+ * One conversation can exist as several session files (forks/resumes), each
+ * with its own filename/uuid — friction identifies a session by the first 8
+ * chars of the filename, so without this, one user reaction gets counted as
+ * N distinct sessions, which can falsely trip the recurrence gate that
+ * promotes a cluster to an antigen. Sessions that share >= 1 message uuid
+ * are the SAME conversation; collapse them to one canonical session id
+ * (the lexicographically smallest id in the group) before clustering.
+ *
+ * Returns { canonicalOf, groups }: canonicalOf maps every input id to its
+ * group's canonical id; groups maps that canonical id to EVERY member id in
+ * its group (used to emit the full session_ids set on a cluster, since the
+ * canonical pick itself is only a stable grouping key, not guaranteed to be
+ * the same file across runs when its date prefix falls back to mtime).
+ */
+function computeCanonicalSessionIds(sessionIds, fileFor) {
+  const parent = new Map();
+  for (const id of sessionIds) parent.set(id, id);
+  const find = x => {
+    while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); }
+    return x;
+  };
+  const union = (a, b) => {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+
+  // A real uuid is a long, per-message-unique value. Guard against a
+  // degenerate/constant emitter (e.g. a tool whose logs always write "" or a
+  // fixed placeholder) unioning the whole corpus into one session: too-short
+  // uuids never seed a union, and a uuid shared across an implausible number
+  // of distinct sessions (a genuine fork/resume chain is a handful of files,
+  // not a dozen+) is treated as noise rather than real shared history.
+  const MIN_UUID_LEN = 8;
+  const MAX_SESSIONS_PER_UUID = 12;
+
+  const uuidToSessions = new Map();
+  for (const id of sessionIds) {
+    const file = fileFor.get(id);
+    if (!file) continue;
+    let events;
+    try {
+      events = parseJsonl(fs.readFileSync(file, 'utf-8'), file);
+    } catch {
+      continue;
+    }
+    for (const e of events) {
+      if (typeof e.uuid !== 'string' || e.uuid.length < MIN_UUID_LEN) continue;
+      if (!uuidToSessions.has(e.uuid)) uuidToSessions.set(e.uuid, []);
+      uuidToSessions.get(e.uuid).push(id);
+    }
+  }
+  for (const ids of uuidToSessions.values()) {
+    const distinctIds = [...new Set(ids)];
+    if (distinctIds.length > MAX_SESSIONS_PER_UUID) {
+      console.error(`warn: uuid shared by ${distinctIds.length} sessions (> ${MAX_SESSIONS_PER_UUID}) — treated as noise, not unioned`);
+      continue;
+    }
+    for (let i = 1; i < distinctIds.length; i++) union(distinctIds[0], distinctIds[i]);
+  }
+
+  const groups = new Map(); // root -> [ids]
+  for (const id of sessionIds) {
+    const root = find(id);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(id);
+  }
+  const canonicalOf = new Map();
+  const groupsByCanonical = new Map();
+  for (const ids of groups.values()) {
+    const canonical = ids.slice().sort()[0];
+    for (const id of ids) canonicalOf.set(id, canonical);
+    groupsByCanonical.set(canonical, ids);
+  }
+  return { canonicalOf, groups: groupsByCanonical };
+}
+
+// =============================================================================
 // ANTIGEN EXTRACT - clusterCandidates
 // =============================================================================
 
-function clusterCandidates(allCandidates) {
+function clusterCandidates(allCandidates, canonicalGroups) {
+  canonicalGroups = canonicalGroups || new Map();
   // NEW: cluster by CONTENT (keyword overlap of what the user actually said),
   // not by (anchor_signal, tool_pattern). Inferred signals were already barred
   // from seeding upstream; here they survive only as corroborating "errors"
@@ -1994,7 +2043,10 @@ function clusterCandidates(allCandidates) {
   // Ubiquitous path/file tokens that carry no topical meaning — if we cluster on
   // these we re-create OLD's over-merge (everything touches README/package.json).
   const PATH_STOP = new Set([
-    'home', 'hamr', 'documents', 'pycharmprojects', 'projects', 'claude', 'stash',
+    // the current user's login name is a path token everywhere and carries no
+    // topical meaning — detected at runtime, never hardcoded
+    (os.userInfo().username || '').toLowerCase(),
+    'home', 'users', 'documents', 'pycharmprojects', 'projects', 'claude', 'stash',
     'memory', 'commands', 'command', 'skills', 'skill', 'src', 'lib', 'app', 'dist',
     'build', 'node_modules', 'public', 'assets', 'utils', 'util', 'config', 'scripts',
     'readme', 'package', 'index', 'main', 'test', 'tests', 'spec', 'lock',
@@ -2132,11 +2184,18 @@ function clusterCandidates(allCandidates) {
     const peaks = cl.peaks.slice().sort((a, b) => a - b);
     const topSh = [...cl.shCount.entries()]
       .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length).map(([k]) => k);
-    const sessionIds = Object.keys(cl.sessions);
+    // Canonical ids are the dedup/grouping key (a session can be pinned to a
+    // different-but-equivalent group member across runs if its date prefix
+    // falls back to file mtime) — emit every raw member id per canonical id
+    // so a downstream matcher (e.g. /remember's ledger) can hit on ANY of
+    // them, while `sessions`/`nSessions` below stays the deduped conversation
+    // count (canonical ids), not the expanded file count.
+    const canonicalIds = Object.keys(cl.sessions);
+    const sessionIds = canonicalIds.flatMap(id => canonicalGroups.get(id) || [id]);
     const projects = [...new Set(
       sessionIds.map(s => s.includes('/') ? s.split('/')[0] : 'unknown')
     )].sort();
-    const nSessions = sessionIds.length;
+    const nSessions = canonicalIds.length;
     const signalNames = Object.keys(cl.signals);
     const dominant = sortedEntries(cl.signals)[0] ? sortedEntries(cl.signals)[0][0] : 'unknown';
 
@@ -2145,10 +2204,17 @@ function clusterCandidates(allCandidates) {
     // corroboration (errors) also escalates. #3: judge self-correction from the
     // MATCHED quotes — a cluster whose grouping phrase is "wrong project" etc. is
     // the user redirecting themselves, not an antigen → not severe.
+    // A 0-context cluster (no real user text survived, e.g. a terse-text
+    // session whose sig came only from the file-referent fallback below) has
+    // nothing to test against SELF_RE, so it must NOT auto-qualify as severe
+    // via user_correction alone — that would bypass the self-suspect filter
+    // by having nothing to filter. curse/interrupt_cascade (observed reaction
+    // signals) and machine-corroborating errors still count without context.
     const SELF_RE = /\b(wrong (project|window|repo|directory|folder)|never ?mind|nvm|scratch that|ignore (that|this)|disregard|my bad|oops)\b/i;
-    const allSelf = cl.contexts.length > 0 && cl.contexts.every(q => SELF_RE.test(q || ''));
+    const hasContext = cl.contexts.length > 0;
+    const allSelf = hasContext && cl.contexts.every(q => SELF_RE.test(q || ''));
     const severe = signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
-      || (signalNames.includes('user_correction') && !allSelf)
+      || (hasContext && signalNames.includes('user_correction') && !allSelf)
       || cl.errors.length > 0;
     const recurring = nSessions >= 3;   // recurrence × severity → artifact (the 2×2)
     let artifact;
@@ -2187,6 +2253,14 @@ function clusterCandidates(allCandidates) {
   // Final tiebreak on median peak friction — graded intensity discriminates
   // among clusters that tie on tier and recurrence. Ranking only: it reorders
   // within what recurrence already gated, never promotes across the 2x2.
+  //
+  // A cluster with no real user text is handled above by the `hasContext`
+  // gate on severity (never auto-severe via user_correction alone), not by a
+  // hard drop here — a 0-context cluster with genuine machine corroboration
+  // (errors) or an observed curse/interrupt can still surface, and a
+  // recurring 0-context cluster (file-referent fallback matched across
+  // sessions) can still be surfaced as a 'fact'. A one-off, mild, 0-context
+  // cluster still lands on 'drop' via the severity/recurrence grid itself.
   const kept = out.filter(c => c.suggested_artifact !== 'drop');
   kept.sort((a, b) =>
     b.score - a.score
@@ -2242,9 +2316,36 @@ function extractMain(sessionsDir) {
     ((b.friction_summary || {}).peak || 0) - ((a.friction_summary || {}).peak || 0)
   );
 
+  // Locate each session's physical file once, then dedup sessions that are
+  // really the same conversation (shared message uuids) before clustering.
+  const fileFor = new Map();
+  for (const analysis of sortedBad) {
+    const f = findSessionFile(sessionsDir, analysis.session_id);
+    if (f) fileFor.set(analysis.session_id, f);
+  }
+  // The dedup pass (computeCanonicalSessionIds) re-reads and re-parses every
+  // candidate file's full JSONL to build its uuid graph — the expensive part
+  // of a run. A session with no anchor signal never produces a candidate
+  // anyway (see analyzeBadSession/ANCHOR_SIGNALS), so restricting the dedup
+  // pass to only anchor-bearing sessions is behaviour-identical while
+  // skipping every file that could never contribute to a cluster.
+  const anchorSessionIds = new Set(
+    signals.filter(s => ANCHOR_SIGNALS.includes(s.signal)).map(s => s.session)
+  );
+  const { canonicalOf, groups } = computeCanonicalSessionIds(
+    sortedBad.map(a => a.session_id).filter(id => anchorSessionIds.has(id)),
+    fileFor
+  );
+
+  // Two files of the same conversation (a fork/resume) share identical
+  // message uuids and therefore identical event timestamps for any reaction
+  // that predates the fork — after remapping to the canonical session id,
+  // dedupe on (session, anchor timestamp, anchor signal) so that shared
+  // reaction contributes to `signals` only once, not once per file.
+  const seenCandidateKeys = new Set();
   for (const analysis of sortedBad) {
     const sessionId = analysis.session_id;
-    const sessionFile = findSessionFile(sessionsDir, sessionId);
+    const sessionFile = fileFor.get(sessionId);
 
     if (!sessionFile) {
       failed.push(sessionId);
@@ -2252,11 +2353,17 @@ function extractMain(sessionsDir) {
     }
 
     const candidates = analyzeBadSession(sessionFile, analysis, signals);
-    allCandidates.push(...candidates);
+    for (const c of candidates) {
+      c.session_id = canonicalOf.get(c.session_id) || c.session_id;
+      const dedupeKey = `${c.session_id}|${c.anchor_ts}|${c.anchor_signal}`;
+      if (seenCandidateKeys.has(dedupeKey)) continue;
+      seenCandidateKeys.add(dedupeKey);
+      allCandidates.push(c);
+    }
   }
 
   // Cluster candidates by (anchor_signal, tool_pattern)
-  const clusters = clusterCandidates(allCandidates);
+  const clusters = clusterCandidates(allCandidates, groups);
 
   // Terminal output
   console.log(`\u2713 ${allCandidates.length} raw candidates \u2192 ${clusters.length} clusters`);
@@ -2361,7 +2468,7 @@ Friction analysis pipeline - analyze sessions and extract antigens.
 
 Usage:
     node friction.cjs <sessions-directory>
-    node friction.cjs ~/.claude/projects/-home-hamr-PycharmProjects-liteagents/
+    node friction.cjs ~/.claude/projects/<encoded-project-dir>/
 
 Outputs (all in .claude/remember/friction/):
     friction_analysis.json   - Per-session analysis

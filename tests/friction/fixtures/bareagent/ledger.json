@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ag-001",
+      "class": "claimed-done-not-verified",
+      "class_hints": [
+        "validate not assert",
+        "did you validate not asseert",
+        "said would solve your problems and looks like you havent",
+        "no gaps, validate and verify",
+        "prove don't assert"
+      ],
+      "status": "hot",
+      "rule": "Never report a fix/feature/task as done/tested/solved without actually running verification (tests, regression, smoke) and showing the evidence — asserting success is not validating it. Verify by EXIT CODE, not by string-matching printed output.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Never report a fix, feature, or task as done/tested/solved without actually running verification (tests, regression, smoke) and showing the evidence — asserting success is not validating it.",
+          "adopted": "2026-07-21",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 5,
+        "projects": [
+          "bareloop",
+          "bareagent",
+          "8een",
+          "latefyi"
+        ],
+        "quotes": [
+          "did you validate not asseert?",
+          "you will fucking validate this after correction with fucking tests and regression and smoke test",
+          "i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet",
+          "no gaps, validate and verify",
+          "did you validate all changes since last time?",
+          "what did you gloss over? what did i miss? ... for 8 items that's not gloss, that's cheating"
+        ],
+        "last_seen": "2026-08-12",
+        "session_ids": [
+          {
+            "id": "ee7781f5",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "6494cd28",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "a46b7829",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "c0f4cc80",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "ddc47175",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "994a213b",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "2838339d",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "9b38119e",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "27209f4b",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "dc9bc135",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "2b9cfc1d",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "fa519180",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "08ac495c",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "454e04d8",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "2d37563b",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "086a1fbc",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "b9435655",
+            "seen": "2026-08-24"
+          }
+        ]
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-07-21",
+          "event": "candidate (4 sessions) — first signal to cross 1-session noise; medium tier, not loaded hot (needs 5+). Already captured as a durable Fact."
+        },
+        {
+          "date": "2026-08-12",
+          "event": "promoted to hot (5 sessions) — BA-20 session added a fresh agent-directed occurrence ('did you validate all changes', 'what did you gloss over? that's cheating' → 8-item pass/fail audit). Now loaded via @MEMORY.md."
+        },
+        {
+          "date": "2026-08-24",
+          "event": "identity migration — legacy count grandfathered, growth requires new hashes"
+        }
+      ]
+    },
+    {
+      "id": "ag-002",
+      "class": "papering-over-gaps",
+      "class_hints": [
+        "papering over",
+        "papering over missing capabilities",
+        "don't paper over it",
+        "no papering over"
+      ],
+      "status": "observing",
+      "rule": "Surface known gaps, missing capabilities, and process inefficiencies proactively — never let the user discover them later.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Surface known gaps, missing capabilities, and process inefficiencies proactively — never let the user discover them later.",
+          "adopted": "2026-07-21",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 3,
+        "projects": [
+          "multis",
+          "8een",
+          "bareloop"
+        ],
+        "quotes": [
+          "stop here, and dont paper over it. give me a full list/ask for what bareguard should do",
+          "no papering over missing capabilities, with litectx recall it just hands you the pointer but you want it to hand you the content",
+          "fuck you, papering over this. why didn't you merge them at one so i wouldn't have to do this x3?"
+        ],
+        "last_seen": "2026-07-21",
+        "session_ids": [
+          {
+            "id": "a7c115e5",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "9e521826",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "06376a71",
+            "seen": "2026-08-24"
+          }
+        ]
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-07-21",
+          "event": "candidate (3 sessions) — medium tier, not loaded hot (needs 5+). Already captured as a durable Fact."
+        },
+        {
+          "date": "2026-08-24",
+          "event": "identity migration — legacy count grandfathered, growth requires new hashes"
+        }
+      ]
+    }
+  ]
+}

@@ -142,7 +142,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 *Workflow & analysis*:
 - **brainstorming** - Structured brainstorming sessions
-- **docs-builder** - Reorg a docs corpus, split an oversized doc, keep pages current, index them
+- **docs-builder** - Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
 - **trace-back** - Trace bugs backward through call stack
 - **skill-creator** - Guide for creating new skills
 - **debug-method** - Four-phase debugging framework
@@ -162,10 +162,10 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 | Document | Description |
 |----------|-------------|
-| **[INSTALLER_GUIDE.md](docs/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
+| **[INSTALLER_GUIDE.md](docs/product/INSTALLER_GUIDE.md)** | Complete installation guide, troubleshooting, and FAQ |
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
-| **[remember-README.md](docs/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
-| **[docs-builder-README.md](docs/docs-builder-README.md)** | How `/docs-builder` works — the reorg/split/reconcile modes, what it measurably costs, and the ledger that tracks doc drift |
+| **[remember-README.md](docs/product/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
+| **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/cleanup modes, what it measurably costs, and the ledger that tracks doc drift |
 
 ---
 
@@ -199,7 +199,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 ## Stats
 
 - **11** Specialized Agents
-- **22** Workflow Commands & Skills
+- **18** Workflow Commands & Skills
 - **4** Supported Tools (Claude, Opencode, Ampcode, Droid)
 - **Apache-2.0** License
 
@@ -219,4 +219,4 @@ Apache-2.0 © 2026 hamr0 — see [LICENSE](LICENSE).
 
 ---
 
-**Need help?** See the [Installer Guide](docs/INSTALLER_GUIDE.md) or [open an issue](https://github.com/hamr0/liteagents/issues)
+**Need help?** See the [Installer Guide](docs/product/INSTALLER_GUIDE.md) or [open an issue](https://github.com/hamr0/liteagents/issues)

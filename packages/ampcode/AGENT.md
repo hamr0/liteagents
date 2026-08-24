@@ -27,7 +27,7 @@ These subagents are available when using Ampcode CLI.
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Reorg a docs corpus, split an oversized doc, keep pages current, index them | /docs-builder [reorg \| reconcile \| archive-cleanup \| <file.md>] | false |
+| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] | false |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas | false |
 | trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |

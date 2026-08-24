@@ -47,6 +47,18 @@ const testSuites = [
     file: 'installer/cross-platform-testing.test.js',
     description: 'Tests platform-specific behaviors (Linux)',
     expectedTests: 66
+  },
+  {
+    name: 'docs-builder',
+    file: 'docs-builder/docs-builder.test.js',
+    description: 'Tests docs-builder.cjs behaviour end-to-end in throwaway git repos',
+    expectedTests: 477
+  },
+  {
+    name: 'friction',
+    file: 'friction/friction.test.js',
+    description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
+    expectedTests: 238
   }
 ];
 
@@ -56,6 +68,7 @@ const results = {
   totalTests: 0,
   totalPassed: 0,
   totalFailed: 0,
+  floorFailures: 0,
   duration: 0,
   timestamp: new Date().toISOString()
 };
@@ -73,6 +86,27 @@ function printHeader() {
   console.log(`Running ${testSuites.length} test suites...`);
   console.log(`Timestamp: ${results.timestamp}`);
   console.log('');
+}
+
+/**
+ * Check the actual test count against a suite's expectedTests floor.
+ * expectedTests is a minimum, not an equality target: more tests than the
+ * floor is fine (and quietly noted), fewer is a hard failure.
+ */
+function checkFloor(suite, total) {
+  if (total < suite.expectedTests) {
+    return {
+      floorMet: false,
+      message: `Test count floor not met for ${suite.name}: expected >= ${suite.expectedTests}, got ${total}`
+    };
+  }
+  if (total > suite.expectedTests) {
+    return {
+      floorMet: true,
+      message: `  (note: ${suite.name} has ${total} tests, above its floor of ${suite.expectedTests} — floor could be raised)`
+    };
+  }
+  return { floorMet: true, message: null };
 }
 
 /**
@@ -98,7 +132,8 @@ function runTestSuite(suite) {
       total: 0,
       passRate: 0,
       duration: 0,
-      error: 'Test file not found'
+      error: 'Test file not found',
+      floorMet: false
     };
   }
 
@@ -125,6 +160,13 @@ function runTestSuite(suite) {
     console.log(`  Total: ${total} | Passed: ${passed} | Failed: ${failed} | Pass rate: ${passRate}%`);
     console.log(`  Duration: ${duration}ms`);
 
+    const { floorMet, message: floorMessage } = checkFloor(suite, total);
+    if (!floorMet) {
+      console.log(colors.red + `✗ ${floorMessage}` + colors.reset);
+    } else if (floorMessage) {
+      console.log(colors.cyan + floorMessage + colors.reset);
+    }
+
     return {
       name: suite.name,
       passed,
@@ -132,7 +174,9 @@ function runTestSuite(suite) {
       total,
       passRate: parseFloat(passRate),
       duration,
-      output: output.substring(0, 500) // Store first 500 chars
+      output: output.substring(0, 500), // Store first 500 chars
+      floorMet,
+      error: floorMet ? null : floorMessage
     };
 
   } catch (error) {
@@ -161,6 +205,13 @@ function runTestSuite(suite) {
       console.log(`  Error: ${error.message}`);
     }
 
+    const { floorMet, message: floorMessage } = checkFloor(suite, total);
+    if (!floorMet) {
+      console.log(colors.red + `✗ ${floorMessage}` + colors.reset);
+    } else if (floorMessage) {
+      console.log(colors.cyan + floorMessage + colors.reset);
+    }
+
     return {
       name: suite.name,
       passed,
@@ -168,8 +219,9 @@ function runTestSuite(suite) {
       total,
       passRate: parseFloat(passRate),
       duration,
-      error: total > 0 ? null : error.message,
-      output: combinedOutput.substring(0, 500)
+      error: total > 0 ? (floorMet ? null : floorMessage) : error.message,
+      output: combinedOutput.substring(0, 500),
+      floorMet
     };
   }
 }
@@ -186,10 +238,10 @@ function printSummary() {
   // Test suite results
   console.log(colors.bright + 'Test Suite Results:' + colors.reset);
   results.suites.forEach((suite, index) => {
-    const status = suite.failed === 0 && suite.total > 0
-      ? colors.green + '✓'
-      : suite.total === 0
-        ? colors.red + '✗'
+    const status = suite.floorMet === false || suite.total === 0
+      ? colors.red + '✗'
+      : suite.failed === 0
+        ? colors.green + '✓'
         : colors.yellow + '⚠';
 
     console.log(`${index + 1}. ${status} ${suite.name}${colors.reset}`);
@@ -215,10 +267,12 @@ function printSummary() {
   console.log('');
 
   // Final status
-  if (results.totalFailed === 0 && results.totalTests > 0) {
+  if (results.totalFailed === 0 && results.totalTests > 0 && results.floorFailures === 0) {
     console.log(colors.green + colors.bright + '🎉 All tests passed!' + colors.reset);
   } else if (results.totalTests === 0) {
     console.log(colors.red + colors.bright + '❌ No tests were executed!' + colors.reset);
+  } else if (results.floorFailures > 0) {
+    console.log(colors.red + colors.bright + `❌ ${results.floorFailures} suite(s) fell below their test count floor` + colors.reset);
   } else {
     console.log(colors.yellow + colors.bright + `⚠️  ${results.totalFailed} test(s) failed` + colors.reset);
   }
@@ -275,7 +329,7 @@ function generateMarkdownReport() {
   // Test suite details
   markdown += `## Test Suite Results\n\n`;
   results.suites.forEach((suite, index) => {
-    const status = suite.failed === 0 && suite.total > 0 ? '✅' : suite.total === 0 ? '❌' : '⚠️';
+    const status = suite.floorMet === false || suite.total === 0 ? '❌' : suite.failed === 0 ? '✅' : '⚠️';
     markdown += `### ${index + 1}. ${status} ${suite.name}\n\n`;
     markdown += `- **Total Tests**: ${suite.total}\n`;
     markdown += `- **Passed**: ${suite.passed}\n`;
@@ -319,6 +373,9 @@ function main() {
     results.totalTests += result.total;
     results.totalPassed += result.passed;
     results.totalFailed += result.failed;
+    if (result.floorMet === false) {
+      results.floorFailures += 1;
+    }
   }
 
   results.duration = Date.now() - startTime;
@@ -337,7 +394,7 @@ function main() {
   console.log('');
 
   // Exit with appropriate code
-  process.exit(results.totalFailed > 0 ? 1 : 0);
+  process.exit(results.totalFailed > 0 || results.floorFailures > 0 ? 1 : 0);
 }
 
 // Run if executed directly

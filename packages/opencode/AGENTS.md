@@ -27,7 +27,7 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | ID | Description | Usage | Auto |
 |---|---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Reorg a docs corpus, split an oversized doc, keep pages current, index them | /docs-builder [reorg \| reconcile \| archive-cleanup \| <file.md>] | false |
+| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] | false |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas | false |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
