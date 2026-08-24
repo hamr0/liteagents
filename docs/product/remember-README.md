@@ -96,17 +96,32 @@ mean a *conversation*, not a *file*. A fork or resume writes the same conversati
 second session file with its own name, and friction identifies a session by its filename —
 so without a guard, one reaction gets counted N times and can trip the promotion gate on
 its own. Friction collapses these before clustering: sessions sharing at least one message
-`uuid` are the same conversation, reported under a single canonical id (the
-lexicographically smallest). Measured on a real 3,158-session corpus: 6 such groups exist,
-and of ~5M possible session pairs only **9** share any `uuid` at all — every one a genuine
-duplicate, so the rule never merges independent sessions.
+`uuid` are the same conversation. The cluster then carries **every** member's hash in
+`session_ids`, so the ledger matches the conversation under any of its filenames — a single
+canonical id would not survive, because the id's timestamp prefix falls back to file mtime
+and so re-sorts when a member is touched or ages out of retention. Each distinct reaction is
+counted once, deduped on (conversation, anchor timestamp, anchor signal); a reaction made
+after a fork diverges is a different timestamp, so genuinely separate reactions both survive.
+Measured on a real 4,937-file corpus: 9 such groups exist, covering 23 files (largest group
+5), and every uuid overlap found was a genuine duplicate — the rule never merged independent
+sessions.
 
-**A cluster with no user text is dropped.** If the matched context window holds no real
+Finding the groups means parsing session files, so the pass is restricted to sessions that
+actually carry an anchor signal; one without an anchor can never produce a candidate. On the
+same corpus that is 84.1s → 53.0s per run with identical clustering. The cost: a fork sibling
+holding no anchor of its own is not discovered, so its hash is absent from `session_ids`
+(3 of 66 clusters). It could not have contributed evidence anyway, and it gains a hash the
+moment it gains a reaction.
+
+**A cluster with no user text cannot be severe.** If the matched context window holds no real
 words, there is nothing to classify and nothing to quote as evidence. Worse, an
 empty-context cluster short-circuits the self-correction filter (there is nothing to test),
-so a lone `user_correction` would auto-qualify as severe on no evidence at all. These are
-dropped outright, not downgraded — measured at 3 of 68 clusters on the real corpus, and
-nothing carrying real text was affected.
+so a lone `user_correction` would auto-qualify as severe on no evidence at all. Such a
+cluster is therefore barred from the severe path rather than deleted: a curse, an interrupt
+cascade, or a real tool error still counts, and a bare correction with nothing to quote falls
+out through the ordinary severity/recurrence routing. Dropping them outright was tried first
+and was wrong — it silently killed the file-referent fallback, whose whole purpose is to
+describe a session too terse to quote.
 
 **Outputs (`.claude/remember/friction/`):**
 | file | contents |
@@ -224,16 +239,25 @@ already runs.
 ## 4. Status (as of 2026-08-24)
 
 - **Session identity is content-based (2026-08-24).** Friction now collapses forked/resumed
-  session files into one conversation before clustering (shared message `uuid`), and drops
-  clusters that carry no user text. Both land in all four packages, covered by the repo's
-  first friction test suite (`tests/friction/friction.test.js`), written to fail against the
-  pre-fix script and observed doing so. A declared `forkedFrom` field exists and was tried
-  first — it catches only 5 of the 6 real duplicate groups (17% miss), so detection is by
-  content overlap instead. Threshold is one shared `uuid`: across ~5M possible session pairs
-  only 9 share any uuid at all, and every one is a genuine duplicate.
+  session files into one conversation before clustering (shared message `uuid`), and bars a
+  cluster carrying no user text from the severe path. Both land in all four packages, covered
+  by the repo's first friction test suite (`tests/friction/friction.test.js`), written to fail
+  against the pre-fix script and observed doing so. A declared `forkedFrom` field exists and
+  was tried first — it catches only 5 of the 6 real duplicate groups (17% miss), so detection
+  is by content overlap instead. Threshold is one shared `uuid`, and every uuid overlap on the
+  real corpus was a genuine duplicate.
+
+  A review of the first cut found the collapse was only half done: the *session count* merged
+  but both files' reactions still reached the cluster, so `signals` kept double-counting.
+  Reactions are now deduped on (conversation, anchor timestamp, anchor signal). Two further
+  defects were found the same way and fixed — a `uuid` was accepted as any string, so a log
+  format emitting `""` or a constant would have unioned the whole corpus into one session and
+  frozen every recurrence count at 1 (now guarded on length and per-uuid fan-out; measured max
+  fan-out on the real corpus is 5); and the empty-context rule was deleting clusters rather
+  than downgrading them, which killed the file-referent fallback outright.
 
   **It was corrective, not merely preventative.** Validated by running `/remember` on
-  bareloop, whose corpus holds 4 of the 6 duplicate groups. That run found a live false
+  bareloop, whose corpus holds 4 of the duplicate groups. That run found a live false
   promotion already sitting in loaded memory: `ag-014` ("confirm a project publishes to npm")
   rendered as **3 sessions** under Medium, but its evidence is a single reaction —
   `no npm for this` — from ONE agentic-toolkit conversation that had been forked into three
