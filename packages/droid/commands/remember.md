@@ -213,12 +213,12 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
         requires new hashes".
 
      Change NOTHING else on this run — not `sessions`, not `last_seen`, not
-     `recurred_while_hot`, not `status`. In particular, do NOT apply "hash not present →
-     increment" here: `session_ids` was empty, so every hash looks absent, and counting would
-     treat the entry's own already-counted history as fresh recurrence — on a `hot` entry that
-     also fires `recurred_while_hot`, which at 2 marks the phrasing failed and rewrites a rule
-     that never actually failed. Counting resumes on the NEXT run, once `session_ids` is
-     non-empty and an absent hash is genuinely new evidence.
+     `recurred_while_hot`, not `status`. In particular, do NOT apply the "no hashes present →
+     new conversation" rule here: `session_ids` was empty, so every hash looks absent, and
+     counting would treat the entry's own already-counted history as fresh recurrence — on a
+     `hot` entry that also fires `recurred_while_hot`, which at 2 marks the phrasing failed and
+     rewrites a rule that never actually failed. Counting resumes on the NEXT run, once
+     `session_ids` is non-empty and an absent hash set is genuinely new evidence.
 
      Observed for real: bareloop's first migration run carried two `hot` entries, each already
      at `recurred_while_hot: 1`. Counting on migration would have taken both to 2 and force-
@@ -227,20 +227,35 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      definition of a rule that needs to be mechanical rather than prose.
 
      For each surviving antigen from 4a/4b, match against existing entries by `class_hints`
-     (the mistake class, not the rule wording — rules change, the class doesn't). Then, for
-     each of the matched cluster's `session_ids`, compare its hash against the entry's stored
-     hash set:
-     - **Hash already present** → no-op: no change to `sessions`, `last_seen`, or history. It
-       is a re-scan re-detecting a session already counted, not new evidence.
-     - **Hash not present** → add the id to `session_ids`, increment `sessions` by 1, refresh
-       `last_seen` to today's run date (session ids carry no year), and count it toward the 4b
-       promotion threshold.
+     (the mistake class, not the rule wording — rules change, the class doesn't). A matched
+     cluster represents exactly ONE conversation, no matter how many hashes its `session_ids`
+     holds — a fork/resume group deliberately carries every member file's hash so the cluster
+     can be matched under any of the conversation's filenames.
+
+     **`sessions` is the authoritative conversation count. `session_ids` is evidence detail —
+     a list of the FILES one conversation was written to. NEVER derive a count from
+     `len(session_ids)`; a fork or resume makes that number larger than the conversation
+     count.** This is mechanical — do not resolve it by judgment. Compare the cluster's hashes
+     against the entry's stored hash set as a set, not one at a time, and count per
+     conversation, never per hash:
+     - **None of the cluster's hashes present** → a genuinely new conversation: add ALL of the
+       cluster's hashes to `session_ids`, increment `sessions` by exactly 1 (never by the
+       number of hashes in the cluster), refresh `last_seen` to today's run date (session ids
+       carry no year), and count it once toward the 4b promotion threshold.
+     - **Any of the cluster's hashes already present** → this conversation is already counted:
+       add whichever of its hashes are still missing from `session_ids` (they are aliases of
+       the same conversation, and storing them keeps future matching robust under any of its
+       filenames), but change NOTHING else — not `sessions`, not `last_seen`, not history, not
+       `recurred_while_hot`. It is a re-scan re-detecting a conversation already counted, not
+       new evidence.
      - **No match** → new entry, `status: "observing"`, attempt 1, history "candidate (N sessions)".
-     - **Match, `observing`** → merge evidence by hash as above (sessions, session_ids, quotes,
-       projects, last_seen). Crosses the 4b hot threshold on a genuinely new hash →
-       `status: "hot"`, history "promoted to hot (N sessions)".
-     - **Match, `hot`** → the mistake happened *while its rule was loaded*:
-       `recurred_while_hot += 1`, merge evidence, history "recurred while hot (count)".
+     - **Match, `observing`** → apply the new-conversation / already-counted rule above
+       (sessions, session_ids, quotes, projects, last_seen). Crosses the 4b hot threshold on a
+       genuinely new conversation → `status: "hot"`, history "promoted to hot (N sessions)".
+     - **Match, `hot`** → the mistake happened *while its rule was loaded*, and only when the
+       match is a genuinely new conversation (per the rule above, not a re-scan of an
+       already-present hash): `recurred_while_hot += 1` once per conversation, merge evidence,
+       history "recurred while hot (count)".
        - At `recurred_while_hot >= 2`: the phrasing failed. Mark the current attempt
          `outcome: "failed"`, draft attempt n+1 — it must differ from **every** prior
          attempt's text in this entry (failed attempts are the rejected-edit buffer: never
