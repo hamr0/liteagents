@@ -422,6 +422,31 @@ function discoverBuckets() {
     read(d, 'docs/index.md').includes('[Big]'));
 }
 
+/** Carry-forward must only preserve VALID buckets (product/logs/archive). A pre-v3 plan's
+ *  legacy bucket ('oversized'/'review') carried forward verbatim reproduces the exact
+ *  stale-schema state apply-reorg refuses — discover must treat it as unclassified instead,
+ *  while still carrying a genuinely classified row forward untouched. */
+function discoverCarryForwardValidOnly() {
+  group('7b. discover — carry-forward keeps valid buckets only, drops legacy ones');
+
+  const d = repo({ 'docs/BIG.md': DOC('Big'), 'docs/DONE.md': DOC('Done') });
+  db(d, ['discover']);
+  const planPath = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+  const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+  for (const row of plan.rows) {
+    if (row.file === 'docs/BIG.md') row.bucket = 'oversized'; // legacy pre-v3 value
+    if (row.file === 'docs/DONE.md') row.bucket = 'archive';  // real interview verdict
+  }
+  fs.writeFileSync(planPath, JSON.stringify(plan, null, 1));
+
+  db(d, ['discover']);
+  const plan2 = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+  const big = plan2.rows.find(r => r.file === 'docs/BIG.md');
+  const done = plan2.rows.find(r => r.file === 'docs/DONE.md');
+  ok('a legacy bucket is NOT carried forward — the row starts unclassified', big.bucket, '');
+  ok('a valid bucket IS carried forward', done.bucket, 'archive');
+}
+
 function reorgCollision() {
   group('8. apply-reorg — a collision must not stop the run');
 
@@ -1176,6 +1201,121 @@ function relativeLinksBothMove() {
     a.includes('[to B](B.md)'));
 }
 
+/**
+ * docs/archive/ exists to hold frozen originals — same rationale as CHANGELOG.md/log.md
+ * ("a record of where a file WAS is not a broken link"), one directory further. A real run
+ * measured 21 lines rewritten INSIDE docs/archive/PRD.md before this fix — archive must be
+ * byte-frozen. Two rules, deliberately split apart (do not collapse them):
+ *   (A) a file RESIDENT under archive/ is never a rewrite TARGET, stale links or not.
+ *   (B) links ELSEWHERE that POINT AT an archived file are still rewritten as before.
+ * The sharpest edge case is a reorg filling archive/ in one run: a file landing there must be
+ * frozen ON ARRIVAL, before its own outbound links get re-based from the new directory — so
+ * it comes out byte-identical (a pure git rename, R100), not just "unedited going forward".
+ */
+function archiveIsFrozen() {
+  group('23c. docs/archive/ is frozen against link rewrites');
+
+  // (1) A file ALREADY resident in archive/, with a link to a doc about to move — must not
+  // be edited at all, even though its link target legitimately just moved.
+  const d1 = repo({
+    'docs/sub/TARGET.md': DOC('Target'),
+    'docs/archive/OLD.md': [
+      '# Old', '', 'intro line', '',
+      'see [target](../sub/TARGET.md)', '',
+      '## Section One', '', 'words words words', '',
+    ].join('\n'),
+  });
+  const before1 = read(d1, 'docs/archive/OLD.md');
+  const r1 = db(d1, ['archive', 'docs/sub/TARGET.md']);
+  ok('(1) archive of TARGET.md exits clean', r1.code, 0);
+  okTrue('(1) TARGET.md landed in docs/archive/', exists(d1, 'docs/archive/TARGET.md'));
+  okTrue('(1) an already-archived file with a link to the moved doc is BYTE-UNCHANGED',
+    read(d1, 'docs/archive/OLD.md') === before1);
+
+  // (2) Rule B still holds: a NON-archive file linking to a doc that just moved INTO archive
+  // IS rewritten, same as any other move.
+  const d2 = repo({
+    'docs/sub/TARGET.md': DOC('Target'),
+    'README.md': 'see [target](docs/sub/TARGET.md) for details\n',
+  });
+  const r2 = db(d2, ['archive', 'docs/sub/TARGET.md']);
+  ok('(2) archive of TARGET.md exits clean', r2.code, 0);
+  okTrue('(2) a non-archive file\'s link to the newly-archived doc IS rewritten',
+    read(d2, 'README.md').includes('docs/archive/TARGET.md'));
+
+  // (3) The edge case: a doc moving INTO archive carries a relative link of its OWN. Under
+  // the old code this got re-based from the new (archive/) directory the moment it moved —
+  // under the freeze it must NOT: the file is frozen on arrival, stale links and all, coming
+  // out byte-identical to what it was before the move (a pure rename, R100 — no content delta).
+  const d3 = repo({
+    'docs/sub/MOVING.md': [
+      '# Moving', '', 'intro line', '',
+      'see [sibling](./SIBLING.md)', '',
+      '## Section One', '', 'words words words', '',
+    ].join('\n'),
+    'docs/sub/SIBLING.md': DOC('Sibling'),
+  });
+  const beforeBytes = read(d3, 'docs/sub/MOVING.md');
+  const r3 = db(d3, ['archive', 'docs/sub/MOVING.md']);
+  ok('(3) archive of MOVING.md exits clean', r3.code, 0);
+  okTrue('(3) landed in docs/archive/', exists(d3, 'docs/archive/MOVING.md'));
+  okTrue('(3) the moved file is BYTE-IDENTICAL to what it carried in (own links not re-based)',
+    read(d3, 'docs/archive/MOVING.md') === beforeBytes);
+
+  // NOT `git diff --cached` / `git show --name-status -M`: `git mv` STAGES the rename
+  // immediately, so a rename shows as a clean R100 in the staged snapshot even when a LATER,
+  // UNSTAGED edit modifies the working-tree file afterward — a staged-only assertion cannot
+  // see that class of bug at all (confirmed: it read R100 while the on-disk bytes had
+  // diverged). Assert the WORKING TREE itself is clean for this path instead: no unstaged
+  // ('M' in the porcelain Y column) component alongside the staged rename.
+  const statusLine = git(d3, ['status', '--porcelain']).split('\n')
+    .find(l => l.includes('docs/sub/MOVING.md')) || '';
+  okTrue('(3) the working tree has NO unstaged modification for the moved file',
+    statusLine.length > 0 && statusLine[1] !== 'M');
+}
+
+/**
+ * The ordering bug, pinned exactly as measured in a real repo/git run (not this file's
+ * synthetic fixtures): apply-reorg moves plan rows ONE AT A TIME. Row A (bucket product)
+ * moves FIRST; its rewriteLinks sweep walks every tracked file, including row B (bucket
+ * archive), which at that INSTANT is still sitting at its OLD path — "resident under
+ * archive/" reads false, so B's content gets edited. B then moves into archive one iteration
+ * later, carrying that edit in with it. isRewriteExempt must therefore test where a file WILL
+ * BE by the end of the run (the plan already commits to this), not only where it is right
+ * now — plannedArchiveSrc is that fix. The plan below deliberately puts the archive-bound row
+ * SECOND, after the row whose move would otherwise edit it.
+ */
+function archiveOrderingBug() {
+  group('23d. docs/archive/ frozen even when its move is NOT first in the plan (ordering bug)');
+
+  const d = repo({
+    'docs/GUIDE.md': DOC('Guide'),
+    'docs/OLDSPEC.md': [
+      '# Old Spec', '', 'intro line', '',
+      'see docs/GUIDE.md for details', '',
+      '## Section One', '', 'words words words', '',
+    ].join('\n'),
+  });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/GUIDE.md', bucket: 'product' },   // moves FIRST
+    { file: 'docs/OLDSPEC.md', bucket: 'archive' },  // moves SECOND — the one at risk
+  ] }) });
+  const beforeBytes = read(d, 'docs/OLDSPEC.md');
+
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('GUIDE.md moved into docs/product/', exists(d, 'docs/product/GUIDE.md'));
+  okTrue('OLDSPEC.md moved into docs/archive/', exists(d, 'docs/archive/OLDSPEC.md'));
+
+  okTrue('the archive-bound doc is BYTE-IDENTICAL despite GUIDE.md moving (and sweeping) FIRST',
+    read(d, 'docs/archive/OLDSPEC.md') === beforeBytes);
+
+  const statusLine = git(d, ['status', '--porcelain']).split('\n')
+    .find(l => l.includes('docs/archive/OLDSPEC.md')) || '';
+  okTrue('the working tree has NO unstaged modification for the archive-bound file',
+    statusLine.length > 0 && statusLine[1] !== 'M');
+}
+
 // ---------------------------------------------------------------- 24. apply-reorg's own scan
 
 /**
@@ -1684,6 +1824,188 @@ function cleanupPreservesWholeCorpusIndex() {
   ok('(i) every link in the themed view resolves', dead, 0);
 }
 
+// ---------------------------------------------------------------- 12b. index-flat search hint
+
+/** index-flat must write the search hint UNCONDITIONALLY, regardless of row count — a small
+ *  corpus (well under ROW_CEILING) still gets it, right under the H1, not just the trailer. */
+function indexFlatSearchHint() {
+  group('12b. index-flat — unconditional search hint under the H1');
+
+  const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const md = read(d, 'docs/index.md');
+  okTrue('index.md contains the search hint verbatim',
+    md.includes('Search this corpus instead of reading it whole: `/docs-builder search <query words>`'));
+  const lines = md.split('\n');
+  const h1Idx = lines.findIndex(l => l.startsWith('# '));
+  const hintIdx = lines.findIndex(l => l.includes('Search this corpus instead'));
+  okTrue('the hint sits under the H1, near the top (not the trailer)',
+    h1Idx >= 0 && hintIdx > h1Idx && hintIdx < lines.length - 5);
+  okTrue('this is a small corpus (well under the 100-row ceiling)',
+    (md.match(/^- \[/gm) || []).length < 100);
+}
+
+// ---------------------------------------------------------------- 12c. CLAUDE.md docs pointer
+
+/** apply-reorg writes a marker-wrapped pointer block into repo-root CLAUDE.md, same
+ *  convention `/remember` uses for MEMORY.md: a plain path (never `@`-referenced, which
+ *  would hot-load the whole index every session), idempotent replace-in-place, and it must
+ *  never disturb unrelated existing content. */
+function claudeMdDocsPointer() {
+  group('12c. apply-reorg — CLAUDE.md docs/index.md pointer block');
+
+  // (a) no CLAUDE.md before: apply-reorg creates one containing just the block.
+  {
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    okTrue('(a) no CLAUDE.md before apply-reorg', !exists(d, 'CLAUDE.md'));
+    const r = db(d, ['apply-reorg']);
+    ok('(a) apply-reorg exits clean', r.code, 0);
+    okTrue('(a) CLAUDE.md was created', exists(d, 'CLAUDE.md'));
+    const cmd = read(d, 'CLAUDE.md');
+    okTrue('(a) contains the START marker', cmd.includes('<!-- DOCS_INDEX:START -->'));
+    okTrue('(a) contains the END marker', cmd.includes('<!-- DOCS_INDEX:END -->'));
+    okTrue('(a) contains a PLAIN path to docs/index.md', cmd.includes('`docs/index.md`'));
+    okTrue('(a) does NOT contain an @-reference to the index', !cmd.includes('@docs/index.md'));
+    okTrue('(a) points at search for large corpora',
+      cmd.includes('/docs-builder search <query words>'));
+  }
+
+  // (b) a pre-existing DOCS_INDEX block: re-running apply-reorg replaces it in place, no dup.
+  {
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    db(d, ['apply-reorg']);
+    const first = read(d, 'CLAUDE.md');
+    okTrue('(b) exactly one START marker after first run',
+      (first.match(/<!-- DOCS_INDEX:START -->/g) || []).length === 1);
+
+    const r2 = db(d, ['apply-reorg']);
+    ok('(b) second apply-reorg exits clean', r2.code, 0);
+    const second = read(d, 'CLAUDE.md');
+    okTrue('(b) exactly one START marker after second run',
+      (second.match(/<!-- DOCS_INDEX:START -->/g) || []).length === 1);
+    okTrue('(b) exactly one END marker after second run',
+      (second.match(/<!-- DOCS_INDEX:END -->/g) || []).length === 1);
+  }
+
+  // (c) other pre-existing content (an unrelated marker block + prose) survives untouched.
+  {
+    const other = '# Project\n\nSome prose about this repo.\n\n'
+      + '<!-- MEMORY:START -->\n@.claude/remember/MEMORY.md\n<!-- MEMORY:END -->\n';
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean'), 'CLAUDE.md': other });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    const r = db(d, ['apply-reorg']);
+    ok('(c) apply-reorg exits clean', r.code, 0);
+    const cmd = read(d, 'CLAUDE.md');
+    okTrue('(c) unrelated prose survives', cmd.includes('Some prose about this repo.'));
+    okTrue('(c) unrelated marker block survives', cmd.includes('<!-- MEMORY:START -->')
+      && cmd.includes('@.claude/remember/MEMORY.md') && cmd.includes('<!-- MEMORY:END -->'));
+    okTrue('(c) the docs pointer block was appended', cmd.includes('<!-- DOCS_INDEX:START -->'));
+    okTrue('(c) CLAUDE.md itself was never moved (protected)', exists(d, 'CLAUDE.md'));
+  }
+
+  // (d) CONFIG env var: default (unset) still targets CLAUDE.md — the claude package's
+  // own invocation needs no env var at all.
+  {
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    const r = db(d, ['apply-reorg']);
+    ok('(d) apply-reorg exits clean with no CONFIG set', r.code, 0);
+    okTrue('(d) default with no CONFIG set still writes CLAUDE.md', exists(d, 'CLAUDE.md'));
+  }
+
+  // (e) CONFIG=AGENTS.md (droid/opencode's filename): writes the block into AGENTS.md
+  // instead, and must NOT also create a CLAUDE.md.
+  {
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean') });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    const r = db(d, ['apply-reorg'], { CONFIG: 'AGENTS.md' });
+    ok('(e) apply-reorg exits clean with CONFIG=AGENTS.md', r.code, 0);
+    okTrue('(e) CONFIG=AGENTS.md writes the block into AGENTS.md', exists(d, 'AGENTS.md'));
+    const cmd = read(d, 'AGENTS.md');
+    okTrue('(e) AGENTS.md contains the START marker', cmd.includes('<!-- DOCS_INDEX:START -->'));
+    okTrue('(e) AGENTS.md contains a PLAIN path to docs/index.md', cmd.includes('`docs/index.md`'));
+    okTrue('(e) does NOT create a CLAUDE.md', !exists(d, 'CLAUDE.md'));
+  }
+}
+
+// ---------------------------------------------------------------- 27. commit advisory
+
+/**
+ * moveDoc()'s `git mv` STAGES a rename immediately — correct, it's what preserves history —
+ * but nothing in apply-reorg's or archive's output ever said so. Confirmed TWICE in the
+ * wild: another session's `git add -A` / `git commit -a` silently absorbed the staged
+ * renames into an unrelated commit. Worse, a naive fix that just prints "commit with
+ * `-- docs`" is itself wrong: the run ALSO leaves UNSTAGED inbound-link rewrites that touch
+ * files outside docs/ (src/, scripts/, README.md, ...), and scoping the commit to docs/
+ * alone would commit moved files without their repaired links — a broken tree.
+ */
+function commitAdvisoryReported() {
+  group('27. commit advisory — staged renames must not vanish into an unrelated commit');
+
+  const d = repo({ 'docs/GUIDE.md': DOC('Guide') });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/GUIDE.md', bucket: 'product' },
+  ] }) });
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('(a) names the STAGED rename count', /1 rename\(s\) STAGED by git mv/.test(r.out));
+  okTrue('(a) tells the operator to commit (git add -u)', r.out.includes('git add -u'));
+  okTrue('(c) the recipe never scopes the commit to `docs` alone',
+    !/-- docs\b/.test(r.out) && !/commit\b[^\n]*\bdocs\b\s*$/m.test(r.out));
+}
+
+function commitAdvisorySkippedOnNoOp() {
+  group('27b. commit advisory — silent on a no-op re-run (nothing moved)');
+
+  const d = repo({ 'docs/product/GUIDE.md': DOC('Guide') });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [] }) });
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean on an empty plan', r.code, 0);
+  okTrue('(b) no advisory printed when nothing moved', !/rename\(s\) STAGED/.test(r.out));
+}
+
+function commitAdvisoryOnArchive() {
+  group('27c. commit advisory — archive() emits the same advisory');
+
+  const d = repo({ 'docs/A.md': DOC('A') });
+  const r = db(d, ['archive', 'docs/A.md']);
+  ok('archive exits clean', r.code, 0);
+  okTrue('(d) archive also names the STAGED rename count', /1 rename\(s\) STAGED by git mv/.test(r.out));
+  okTrue('(d) archive also points at git add -u', r.out.includes('git add -u'));
+}
+
+/**
+ * The failure mode this must break: an operator reads `git status`, sees only the smaller,
+ * docs-shaped STAGED block, and scopes their commit to docs/ — silently dropping every link
+ * repair outside it. A bare count ("35 link rewrites") still reads as "docs stuff"; only
+ * naming the actual non-docs top-level path the rewriter touched fights that.
+ */
+function commitAdvisoryNamesOutsideDocsPaths() {
+  group('27d. commit advisory — names non-docs paths the link rewriter touched');
+
+  const d = repo({
+    'docs/A.md': DOC('A'),
+    'README.md': '[link](docs/A.md)\n',
+  });
+  const r = db(d, ['archive', 'docs/A.md']); // -> docs/archive/A.md, README.md link rewritten
+  ok('archive exits clean', r.code, 0);
+  okTrue('README.md link was actually rewritten (precondition)',
+    read(d, 'README.md').includes('docs/archive/A.md'));
+  okTrue('(e) advisory\'s "outside docs/" clause names the top-level non-docs path README.md',
+    /outside docs\/: [^\n]*README\.md/.test(r.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
@@ -1718,17 +2040,20 @@ function main() {
   console.log(`script under test: ${path.relative(process.cwd(), DB)}`);
 
   const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
-    moveViaApplyReorg, moveFailureIsolation, discoverBuckets, reorgCollision,
+    moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
     ledgerAndDue, dueOutputContract, search, reorgCmd, archiveCleanupRemoved, validateArchiveChokepoints,
     tasksDirChokepoint, halfFinishedSplitDetection,
     reorgCorpusStability, reorgOutIgnored,
     archiveStandaloneFollowup, indexPendingUnwrittenPages,
     indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
-    relativeInboundLinks, relativeLinksBothMove,
+    indexFlatSearchHint, claudeMdDocsPointer,
+    relativeInboundLinks, relativeLinksBothMove, archiveIsFrozen, archiveOrderingBug,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
     cleanupCmd, applyReorgNamesCleanup,
     cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
     logsIdempotentAndIndexed, emptyDirCleanup, cleanupPreservesWholeCorpusIndex,
+    commitAdvisoryReported, commitAdvisorySkippedOnNoOp, commitAdvisoryOnArchive,
+    commitAdvisoryNamesOutsideDocsPaths,
     packageParity];
 
   for (const g of groups) {

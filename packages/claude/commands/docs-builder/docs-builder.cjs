@@ -783,6 +783,9 @@ function indexFlat() {
   const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
 
   let s = '# Index\n\n';
+  // Unconditional — not gated on row count, unlike ARCHIVE_WARN_ROWS/ROW_CEILING above: a
+  // reader should reach for `search` on instinct, not only once a corpus is already large.
+  s += '> Search this corpus instead of reading it whole: `/docs-builder search <query words>`\n\n';
   s += '**Completeness guarantee:** every file under `docs/product/`, every page under '
      + `\`${pagesRel}/\` (if any), every doc left in place after a reorg, every file under `
      + '`docs/logs/`, and every file under `docs/archive/` appears in exactly one row below.\n\n';
@@ -978,9 +981,39 @@ function rewriteArchivedPath(oldPath, newPath) {
 // is safe to do here even though the *inferred* dangling-reference lint was cut outright
 // (1/27 precision). Bounded on purpose: git-tracked text files only; never CHANGELOG.md or
 // log.md (append-only history — a record of where a file WAS is not a broken link); never the
-// pipeline's own JSON (rewriteArchivedPath owns those).
+// pipeline's own JSON (rewriteArchivedPath owns those); never a file RESIDENT under
+// docs/archive/ (same rationale, one directory further — see isRewriteExempt below).
 const LINK_EXTS = new Set(['.md', '.js', '.cjs', '.mjs', '.json', '.yml', '.yaml']);
 const LINK_SKIP = /(^|\/)(CHANGELOG\.md|log\.md)$/;
+
+// docs/archive/ exists to hold frozen originals — its whole purpose is a record of where a
+// file WAS, exactly the CHANGELOG.md/log.md rationale above, one directory further. A file
+// RESIDENT under it (REORG_DEST.archive, not a literal — one constant, so a future path
+// change can't desync this from where `apply-reorg` actually moves files) is never a rewrite
+// TARGET: not an inbound link inside it, and — the edge case that bites during a reorg, when
+// a run moves many files INTO archive in one pass — not its OWN outbound links either, so a
+// doc landing in archive comes out byte-identical to what it carried in (a pure git rename,
+// R100). This does NOT stop other files' links TO an archived path from being rewritten
+// (rewriteLinks' exact-path and relative-link passes below still walk every other file) —
+// only archive-resident files are exempt from being edited themselves.
+//
+// "Resident under archive/" alone is a moment-in-time test, and apply-reorg moves its plan's
+// rows ONE AT A TIME — MEASURED in the wild: row A (bucket product) moves first and its
+// sweep edits row B's CURRENT (pre-move) content, because B (bucket archive) is still sitting
+// at its OLD path at that instant and so reads as NOT resident yet. B then moves into archive
+// one iteration later, carrying A's edit in with it — frozen-on-arrival in name only. The fix
+// is to test where a file WILL BE by the end of THIS run, not only where it is right now:
+// plannedArchiveSrc holds the pre-move path of every row apply-reorg's plan already commits
+// to bucket:'archive', set once before its move loop starts (below). `archive` (the
+// standalone, single-file path) has no plan — it doesn't need one, since the one file it
+// moves is already covered by the resident check the instant its own git mv lands, before
+// rewriteLinks ever runs for it.
+let plannedArchiveSrc = new Set();
+// One predicate, called from the one place rewriteLinks() loops over candidate files, so the
+// exemption can never desync across callers the way moveDoc's follow-ups almost did.
+function isRewriteExempt(f) {
+  return LINK_SKIP.test(f) || f.startsWith(REORG_DEST.archive + '/') || plannedArchiveSrc.has(f);
+}
 
 // A real corpus (astral-sh/uv) cross-links its docs with RELATIVE paths — `../concepts/x.md`,
 // `./tools.md`, `guides/install.md` — never the repo-rooted form the exact-path match above
@@ -1047,7 +1080,7 @@ function rewriteLinks(oldPath, newPath) {
   }
   for (const f of tracked.split('\n')) {
     if (!f || !LINK_EXTS.has(path.extname(f))) continue;
-    if (LINK_SKIP.test(f) || f.startsWith('docs/.docs-builder/')) continue;
+    if (isRewriteExempt(f) || f.startsWith('docs/.docs-builder/')) continue;
     let text;
     try { text = fs.readFileSync(repoPath(f), 'utf8'); } catch { continue; }
     let n = 0;
@@ -1111,6 +1144,46 @@ function moveDoc(src, dest) {
   return out;
 }
 
+// Crash-isolated closing advisory, same spirit as the config-file injection in apply-reorg
+// below: a failure here must never make a moved file look unmoved. moveDoc's `git mv`
+// STAGES the rename immediately (that's what preserves history) but nothing else in this
+// tool's output ever said so — confirmed TWICE in the wild, in two different repos, where
+// another session's `git add -A` / `git commit -a` silently absorbed the staged renames
+// into an unrelated commit. The link rewrites moveDoc also makes are UNSTAGED and touch
+// files outside docs/ too, so the two must land in ONE commit — never `-- docs` alone,
+// which would commit moved files without their repaired inbound links (a broken tree).
+// Skipped entirely when nothing moved: no noise on a no-op re-run.
+function commitAdvisory(movedCount, linkFiles) {
+  if (!movedCount) return;
+  try {
+    const files = Array.from(new Set(linkFiles));
+    // The failure mode this must break: an operator reads `git status`, sees only the
+    // STAGED block (the smaller, docs-shaped half), and scopes their commit to `docs/` —
+    // silently dropping every link repair outside it. A bare count doesn't fight that
+    // ("35 link rewrites" still reads as "docs stuff"); naming the actual non-docs
+    // locations does. Derived from moveDoc's own linkFiles paths — no hardcoded dir names.
+    // Count FILES outside docs/, but list the distinct top-level LOCATIONS. Reporting the
+    // location count instead understates the trap: 19 files across 6 dirs printed as "6"
+    // reads as a rounding error rather than most of the change set.
+    const outsideFiles = files.filter(f => f.split('/')[0] !== 'docs');
+    const outsideDocs = Array.from(new Set(outsideFiles.map(f => f.split('/')[0]))).sort();
+    console.log(`\n${movedCount} rename(s) STAGED by git mv this run`);
+    console.log(files.length
+      ? `${files.length} link rewrite(s) UNSTAGED` + (outsideFiles.length
+        ? `, ${outsideFiles.length} outside docs/: ${outsideDocs.join(', ')}`
+        : ' (all inside docs/)')
+      : 'no inbound-link rewrites this run.');
+    console.log('Another session\'s `git add -A` / `git commit -a` will silently absorb these');
+    console.log('into an unrelated commit — this tool does NOT auto-commit (deliberately: you');
+    console.log('may want these moves bundled with other work). Capture BOTH the staged moves');
+    console.log('and the unstaged link rewrites in ONE commit — never scope it to `docs` alone,');
+    console.log('link rewrites touch files outside docs/ too:');
+    console.log('  git add -u && git commit -m "docs: reorg"');
+  } catch (e) {
+    console.error(`  WARN could not print the commit advisory: ${e.message}`);
+  }
+}
+
 function archive(src, dest) {
   if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
   // A throw and a `failures` entry mean different things and must be reported differently:
@@ -1130,6 +1203,7 @@ function archive(src, dest) {
   logOp('archive', `${src} -> ${r.rel}`
     + (r.links ? `, ${r.links} link(s) rewritten` : '')
     + (r.failures.length ? `, FOLLOW-UP FAILED: ${r.failures.join('; ')}` : ''));
+  commitAdvisory(1, r.linkFiles.map(x => x.file));
   if (r.failures.length) {
     // Exit 2, not 1: 1 means "nothing moved, retry `archive`" and this is the OPPOSITE —
     // the file DID move and re-running `archive` would be wrong, exactly as the message says.
@@ -1510,7 +1584,9 @@ function walkMd(dir, base, out) {
 // already-classified rows carry their `bucket` forward for any file discover still sees —
 // discover's job is keeping the plan CURRENT (fresh suggested/h1/snip/lines), not re-asking a
 // question that's already been answered. Only a file discover has never classified before
-// (new, or reappeared after a manual revert) starts unclassified, same as day one.
+// (new, or reappeared after a manual revert) starts unclassified, same as day one. Carry-forward
+// only accepts a currently-VALID bucket — a legacy pre-v3 value (e.g. 'oversized', 'review')
+// is dropped, not carried, so it starts unclassified instead of failing apply-reorg's schema check.
 function discover(root) {
   const rootRel = root || 'docs';
   const rootAbs = path.join(REPO, rootRel);
@@ -1522,7 +1598,7 @@ function discover(root) {
   if (fs.existsSync(planFile)) {
     try {
       const prev = parseJSONFileOrThrow(planFile);
-      for (const row of (prev.rows || [])) if (row.bucket) prevBuckets.set(row.file, row.bucket);
+      for (const row of (prev.rows || [])) if (VALID_BUCKETS.has(row.bucket)) prevBuckets.set(row.file, row.bucket);
     } catch (e) {
       console.error(`WARN: could not read the existing plan to preserve prior classifications `
         + `(${e.message}) — every row starts unclassified this run.`);
@@ -1638,6 +1714,38 @@ function collectEmptyDirs(rootAbs, dirs) {
   return removed;
 }
 
+// Same job `/remember` step 5 does for MEMORY.md, applied to the docs map: a marker-wrapped
+// pointer block in the repo's agent config file so a session finds docs/index.md without
+// being told. A PLAIN backticked path, never an `@`-reference — `@docs/index.md` would
+// hot-load the whole index into every session, which is exactly what index-flat's own search
+// hint above exists to avoid. The block is static (never varies with row count), so a re-run
+// rewrites it to identical bytes. THROWS on failure — same throwing-core convention as
+// moveDoc() — so the caller (applyReorg) decides how to report it; this never exits the
+// process itself.
+//
+// The target FILENAME differs per tool even though this script is byte-identical across all
+// 4 packages: claude -> CLAUDE.md, droid -> AGENTS.md, ampcode -> AGENT.md, opencode ->
+// AGENTS.md. Same escape hatch as REPO/OUT/PAGES/INDEX/N elsewhere in this file — an env var,
+// so the packaged command docs can pass their own tool's filename without a code fork.
+// Default stays CLAUDE.md so the claude package needs no env var set at all.
+const DOCS_INDEX_START = '<!-- DOCS_INDEX:START -->';
+const DOCS_INDEX_END = '<!-- DOCS_INDEX:END -->';
+function docsIndexBlock() {
+  return `${DOCS_INDEX_START}\n`
+    + 'Docs map: `docs/index.md` — every doc in this project, with line counts.\n'
+    + 'Too many rows to read whole? Search instead: `/docs-builder search <query words>`\n'
+    + `${DOCS_INDEX_END}`;
+}
+function injectClaudeMdPointer() {
+  const f = repoPath(process.env.CONFIG || 'CLAUDE.md');
+  const block = docsIndexBlock();
+  const startRe = new RegExp(`${DOCS_INDEX_START}[\\s\\S]*?${DOCS_INDEX_END}`);
+  if (!fs.existsSync(f)) { fs.writeFileSync(f, block + '\n'); return; }
+  const cur = fs.readFileSync(f, 'utf8');
+  if (startRe.test(cur)) fs.writeFileSync(f, cur.replace(startRe, block));
+  else fs.writeFileSync(f, cur.replace(/\n*$/, '\n\n') + block + '\n');
+}
+
 // v3 reorg (docs-builder-v3-spec.md, "four buckets"): the interview, not this function, does
 // the classifying — this only executes an ALREADY-approved plan. It refuses outright if any
 // row's `bucket` isn't one of the three real buckets: an empty bucket means the interview
@@ -1660,10 +1768,16 @@ function applyReorg(planFile) {
           + '(product/logs/archive), get the user\'s approval, then re-run.'));
   }
   const results = { moved: 0, skipped: 0, artifactsSynced: 0, linksRewritten: 0,
-                    syncFailed: 0, dirsRemoved: 0 };
+                    syncFailed: 0, dirsRemoved: 0, claudeMdUpdated: false };
+  // Set once, up front, from the SAME plan the loop below reads row.file from — every row
+  // this run already commits to bucket:'archive' is exempt from every rewrite the run makes,
+  // from the very first move, not only once it has actually landed there. See
+  // plannedArchiveSrc's definition next to isRewriteExempt for the ordering bug this closes.
+  plannedArchiveSrc = new Set(plan.rows.filter(r => r.bucket === 'archive').map(r => r.file));
   const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
   const splitCandidates = []; // oversized rows, at their NEW path — ordered logs-last below
   const sourceDirs = [];
+  const linkFilesTouched = []; // dedup'd for commitAdvisory() at the very end of this run
   for (const row of plan.rows) {
     const destDir = REORG_DEST[row.bucket];
     let base = path.basename(row.file);
@@ -1687,7 +1801,7 @@ function applyReorg(planFile) {
     results.linksRewritten += r.links;
     sourceDirs.push(path.dirname(path.join(REPO, row.file)));
     if (row.oversized) splitCandidates.push({ file: r.rel, bucket: row.bucket, lines: row.lines });
-    for (const { file, n } of r.linkFiles) console.log(`    ${file}: ${n} link(s) -> ${r.rel}`);
+    for (const { file, n } of r.linkFiles) { console.log(`    ${file}: ${n} link(s) -> ${r.rel}`); linkFilesTouched.push(file); }
     for (const f of r.failures) {
       console.error(`  WARN ${row.file} MOVED, but ${f}`);
       results.syncFailed++;
@@ -1718,10 +1832,23 @@ function applyReorg(planFile) {
   // without a second command. Runs unconditionally — oversized docs are sorted like anything
   // else now, so this was never conditional on them.
   indexFlat();
+  // Crash-isolated, same spirit as the moveDoc() follow-up failures collected above: a
+  // failure to write the config file is a WARN, never a thrown error — it must not make an
+  // already-moved file look unmoved or fail the run.
+  const configName = process.env.CONFIG || 'CLAUDE.md';
+  try {
+    injectClaudeMdPointer();
+    results.claudeMdUpdated = true;
+    console.log(`  updated ${configName} with the docs/index.md pointer`);
+  } catch (e) {
+    console.error(`  WARN could not update ${configName} with the docs/index.md pointer: ${e.message}`);
+  }
   logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
     + `${splitCandidates.length} oversized split candidate(s), `
     + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s), `
-    + `${results.dirsRemoved} empty dir(s) removed`);
+    + `${results.dirsRemoved} empty dir(s) removed, ${configName} updated: ${results.claudeMdUpdated}`);
+  // Printed LAST, after everything else this run does: it's the final thing on screen.
+  commitAdvisory(results.moved, linkFilesTouched);
 }
 
 // ---------------------------------------------------------------- reorg (single front door)
