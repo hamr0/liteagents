@@ -343,9 +343,15 @@ function main() {
   // bareagent: length gate bypassed, 91 raw lines >180 chars, 1 exempted by a
   // >100-char backtick literal -> 90 net violations. privcloud: a single 181-char
   // line overruns the 180 cap by 1 char, no exemption applies.
-  const I1_EXPECTED = { bareagent: 90, privcloud: 1 };
+  const I1_EXPECTED = { bareagent: 90, privcloud: 1, 'bareagent-fixed': 0 };
 
-  for (const proj of ['bareagent', 'privcloud']) {
+  // 'bareagent-fixed' is a CONFORMANCE pair for 'bareagent': the same corpus,
+  // re-captured from a live /remember run AFTER the length-gate bug was fixed.
+  // It carries no ledger.json (byte-identical to fixtures/bareagent/ledger.json,
+  // not duplicated here) or antigen_clusters.json, so I3/I4/I5 are skipped for
+  // it below via fs.existsSync — there is no existing absent-file skip
+  // mechanism elsewhere in this loop to reuse.
+  for (const proj of ['bareagent', 'bareagent-fixed', 'privcloud']) {
     // ---- I1: fact line length. Between "## Facts" and "## Episodes", every "- " line
     // must be <=180 chars, EXCEPT when its longest backtick-quoted literal is >100 chars.
     const memoryText = fs.readFileSync(path.join(FIXTURES, proj, 'MEMORY.md'), 'utf8');
@@ -364,6 +370,9 @@ function main() {
       ok(`I1 DETECTS bareagent length-gate bypass (90 of 94 facts over 180; ` +
         `raw ${rawViolations} before backtick exemption, net ${factViolations} after)`,
         factViolations, I1_EXPECTED[proj]);
+    } else if (proj === 'bareagent-fixed') {
+      ok(`I1 bareagent-fixed: same corpus after gate fix, ${factViolations} of ${factLines.length} facts over 180`,
+        factViolations, I1_EXPECTED[proj]);
     } else {
       ok(`I1 DETECTS privcloud 1-char overrun (181 chars, ${factViolations} of ${factLines.length} facts)`,
         factViolations, I1_EXPECTED[proj]);
@@ -379,32 +388,35 @@ function main() {
     // inflated entries (verified real: privcloud ag-006's two session_ids share
     // conversation prefix 0821-1747 and the two files share 99 message uuids —
     // sessions:2 is inflated, should be 1); every other entry is a CONFORMANCE
-    // check that stays green.
-    const I3_KNOWN_BAD = { bareagent: [], privcloud: ['ag-006'] };
-    const knownBad = new Set(I3_KNOWN_BAD[proj]);
-    const flagged = [];
-    const ledger = JSON.parse(fs.readFileSync(path.join(FIXTURES, proj, 'ledger.json'), 'utf8'));
-    for (const entry of ledger.entries) {
-      const rawIds = entry.evidence.session_ids || [];
-      const ids = rawIds.map(x => (typeof x === 'string' ? x : x.id));
-      // strip trailing "-<8 hex>" to get the conversation prefix (files of one forked
-      // conversation share that prefix); an id with no such suffix is its own prefix.
-      const prefixes = new Set(ids.map(id => id.replace(/-[0-9a-f]{8}$/, '')));
-      const sessions = entry.evidence.sessions;
-      const violates = sessions > prefixes.size;
-      if (violates) flagged.push(entry.id);
-      if (!knownBad.has(entry.id)) {
-        okTrue(`I3 (${proj} ${entry.id}) sessions (${sessions}) <= distinct conversation prefixes (${prefixes.size})`,
-          !violates);
+    // check that stays green. Skipped for bareagent-fixed: no ledger.json fixture.
+    const ledgerPath = path.join(FIXTURES, proj, 'ledger.json');
+    if (fs.existsSync(ledgerPath)) {
+      const I3_KNOWN_BAD = { bareagent: [], privcloud: ['ag-006'] };
+      const knownBad = new Set(I3_KNOWN_BAD[proj]);
+      const flagged = [];
+      const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+      for (const entry of ledger.entries) {
+        const rawIds = entry.evidence.session_ids || [];
+        const ids = rawIds.map(x => (typeof x === 'string' ? x : x.id));
+        // strip trailing "-<8 hex>" to get the conversation prefix (files of one forked
+        // conversation share that prefix); an id with no such suffix is its own prefix.
+        const prefixes = new Set(ids.map(id => id.replace(/-[0-9a-f]{8}$/, '')));
+        const sessions = entry.evidence.sessions;
+        const violates = sessions > prefixes.size;
+        if (violates) flagged.push(entry.id);
+        if (!knownBad.has(entry.id)) {
+          okTrue(`I3 (${proj} ${entry.id}) sessions (${sessions}) <= distinct conversation prefixes (${prefixes.size})`,
+            !violates);
+        }
+        okTrue(`I4 (${proj} ${entry.id}) sessions (${sessions}) <= session_ids.length (${ids.length})`,
+          sessions <= ids.length);
       }
-      okTrue(`I4 (${proj} ${entry.id}) sessions (${sessions}) <= session_ids.length (${ids.length})`,
-        sessions <= ids.length);
-    }
-    if (proj === 'bareagent') {
-      ok('I3 bareagent ledger has no inflated entries', JSON.stringify(flagged), JSON.stringify([]));
-    } else {
-      ok('I3 DETECTS privcloud inflated entries == [ag-006]',
-        JSON.stringify(flagged), JSON.stringify([...knownBad]));
+      if (proj === 'bareagent') {
+        ok('I3 bareagent ledger has no inflated entries', JSON.stringify(flagged), JSON.stringify([]));
+      } else {
+        ok('I3 DETECTS privcloud inflated entries == [ag-006]',
+          JSON.stringify(flagged), JSON.stringify([...knownBad]));
+      }
     }
   }
 
