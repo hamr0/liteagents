@@ -66,11 +66,9 @@ the docs/ layout".
 3. VALIDATE  script   every key exists, appears once, none invented, none off-list
 4. PLAN      script   task-<theme>.json per page + estimated write cost
 5. WRITE     mid   one agent per page, reads ONLY its own line ranges
-6. ARCHIVE   script   original -> docs/archive/ via verified `git mv`
-7. INDEX     script   docs/wiki-index.md — the THEMED view of THIS split only. The
-                       whole-corpus map, docs/index.md, is a different file with a
-                       different single writer (`index-flat`) — see "Two index files,
-                       two writers" below.
+6. ARCHIVE   script   original -> docs/archive/ via verified `git mv`, which also frees
+                       the original's path for the core page cleanup-apply relocates there
+7. INDEX-FLAT script   docs/index.md — the ONE index, whole corpus, rebuilt after the split
    LINT      script   supersession (act) / uncited + redundant (propose only)
 ```
 
@@ -133,15 +131,13 @@ link-repair sweep does in the same run (see *History*).
 REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
 ```
 
-**7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Defaults to
-`docs/wiki-index.md`, deliberately a different file from the whole-corpus map
-(`docs/index.md`) — see "Two index files, two writers" below. Run by hand once
-`labels.json` exists, or automatically as the last step of `cleanup-apply`.
-`apply-reorg`/`reorg` cover the whole-corpus map on their own via `index-flat` instead
-(see Mode 2 below), so a stale themed index is never mistaken for a current one.
+**7. Index-flat (script)** — rebuilds `docs/index.md`, the corpus's one index, so it
+captures the split's new shape: the archived original, the core page back at the original's
+path, and the remaining pages under `PAGES`. Run automatically as the last step of
+`cleanup-apply`; `apply-reorg`/`reorg` call the same thing (see Mode 2 below).
 
 ```bash
-node docs-builder.cjs index outline.json labels.json     # -> docs/wiki-index.md (default)
+REPO=<repo> node docs-builder.cjs index-flat                # -> docs/index.md
 ```
 
 **Lint (script)** — declared-only checks, see §D and §C.
@@ -236,9 +232,6 @@ docs/
                        `apply-reorg`/`reorg`/`cleanup-apply`). Never hand-edited. The
                        WHOLE-CORPUS map — the only file with a completeness guarantee.
                        Three sections: ## Product, ## Logs, ## Archive.
-  wiki-index.md        GENERATED, and ONLY by the themed `index` step, once labels.json
-                       exists. A DIFFERENT file from index.md, on purpose — see "Two index
-                       files, two writers" below. The themed view of ONE split only.
   log.md               append-only:  ## [DATE] operation | description — written by
                        `archive`, `apply-reorg`, `validate`, `reorg`; not by read-only
                        commands (`due`, `search`, `discover`).
@@ -269,13 +262,12 @@ warning below, which is console-only and fires only past `ARCHIVE_WARN_ROWS`, th
 the generated file itself and always present: a reader should reach for `search` on instinct,
 not only once the corpus already looks too big to read.
 
-**Two index files, two writers, on purpose.** `docs/index.md` (whole-corpus map,
-`index-flat`) and `docs/wiki-index.md` (themed view of one split, `index`) used to be the
-SAME file. A real defect on bareloop is why they were split: `apply-reorg` wrote the
-37-row whole-corpus map, then a PRD split's `index` step ran afterward and silently
-overwrote it with only that split's own 7-row themed view — 30 of 37 files vanished from a
-file that still claimed completeness. `index` now defaults to `docs/wiki-index.md`
-specifically so the two can never collide again — see "History of things that were wrong".
+**One index, one writer.** `docs/index.md` is written by `index-flat` and nothing else.
+There used to be a second, themed per-split index, and it was never asked for: it caused a
+corpus-map clobber, an `outline.json` clobber across concurrent splits, and a lowercasing bug
+that displayed a real page as "pending". Splitting it into its own file only relocated the
+problem, so it was **removed outright on 2026-08-24** — see "History of things that were
+wrong".
 
 **Never moved — enforced in code, not just documented.** This used to be prose only, and
 the code did not match it (see *History*, below). It is now two guards in `docs-builder.cjs`:
@@ -626,8 +618,38 @@ revision.
   Real defect on bareloop: `apply-reorg` wrote the 37-row whole-corpus map, then a PRD
   split's `index` step ran afterward and silently overwrote it with only that split's own
   7-row themed view — 30 of 37 files vanished from a file that still claimed completeness.
-  Fixed by giving the themed view its own file, `docs/wiki-index.md`, a sibling in the same
-  directory; `docs/index.md` is now `index-flat`'s alone to write.
+  First fix gave the themed view its own file — which only moved the failure (its `scan`
+  step then clobbered `outline.json` across concurrent splits). **Removed outright
+  2026-08-24**: one index, `docs/index.md`, `index-flat`'s alone to write.
+
+- **A fence-aware link rewriter is still not code-aware.** After fenced blocks were exempted,
+  an INLINE span corrupted identically: `` `map[key](arg)` `` came out of a reorg as
+  `` `map[key](../arg)` ``. Code spans are now masked too for the relative-link passes — but
+  deliberately NOT for the exact repo-rooted path matcher, where a backticked `docs/GUIDE.md`
+  is a real reference that must follow the move rather than rot.
+
+- **The commit advisory printed a recipe that could not run.** It named link-rewritten files
+  at their PRE-move paths, and `git add` is atomic — one stale pathspec exits 128 and stages
+  nothing. It also printed once per internal step (so `cleanup-apply` emitted several partial
+  recipes) and omitted the files the run generated. Now: one recipe per run, existing paths
+  only, covering moves, link rewrites, the rebuilt index, the config pointer, and the pages a
+  split wrote.
+
+- **Inbound-link repair listed tracked files only.** Every page a split had just written was
+  untracked, so relocating the core page out of `PAGES` left its sibling pages pointing at a
+  vacated path. It now covers untracked-but-not-ignored files too.
+
+- **The commit recipe omitted `docs/log.md` — a file the same run creates.** Found on the
+  first cold field run (privcloud): the operator followed the recipe, saw the run's own audit
+  log left untracked, and quietly added it by hand — the bug only surfaced because they were
+  asked for near-misses afterwards. `logOp()` now registers the file it writes, and the
+  skill's advisory tells operators to REPORT an incomplete recipe, never silently repair it.
+
+- **`discover` claimed "`bucket` is empty" even when it wasn't.** The closing message was
+  fixed boilerplate: a re-run whose buckets were already carried forward still printed it,
+  and the table hid the `bucket` column — so the operator re-read the JSON by hand to check
+  their own writes had landed. The message now reports the real state (none / partial / all
+  carried forward) and the table shows `bucket`.
 
 ---
 
@@ -636,5 +658,5 @@ revision.
 `docs/archive/docs-builder-v2-spec.md` (scan/validate/plan/write/archive/index mechanics,
 cost law, borrowed mechanics, ledger, the honest label — all still current), `docs/product/
 docs-builder-v3-spec.md` (four buckets, the classification interview, oversized-as-boolean,
-the two-index split, `reorg`'s current shape — the CURRENT architecture, superseding v2's
+the four-bucket model, `reorg`'s current shape — the CURRENT architecture, superseding v2's
 mode layout), `docs-builder.cjs`, `docs-builder.md`, `POC-E-RESULT.md`.

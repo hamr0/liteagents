@@ -7,8 +7,9 @@
 //   scan     <file.md...>                          -> outline.json   (Layer 1)
 //   validate <outline.json> <labels.json>          -> PASS/FAIL      (Layer 2 gate)
 //   plan     <outline.json> <labels.json>          -> task-<theme>.json per page (resumes)
-//   index    <outline.json> <labels.json>          -> index.md       (coarse reader index)
-//   index-flat                                     -> index.md       (flat, no labels needed)
+//   index-flat                                     -> index.md       (the ONE index: whole
+//                                                       corpus, no labels needed, rebuilt on
+//                                                       every reorg AND after every split)
 //   search   <outline.json> <query words...>       -> ranked sections (BM25, zero deps)
 //   archive  <src.md> [dest.md]                    -> verified MOVE into docs/archive/
 //   ledger                                         -> record the current state of docs/
@@ -38,10 +39,11 @@
 //                                                       model, outside this script) -> once all
 //                                                       pages exist, archive + rebuild index
 //
-// Env: REPO (default cwd), OUT (output path), INDEX (default docs/wiki-index.md, validate's
-// link check), PAGES (default docs/wiki, validate's citations + plan), TASKS (default
-// docs/.docs-builder/tasks, validate's citations reader-side match for plan's OUT), N
-// (search count, default 10), OVERSIZED_LINES (default 500, discover's oversized ceiling).
+// Env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md, validate's link
+// check — the same file index-flat writes), PAGES (default docs/wiki, validate's citations +
+// plan), TASKS (default docs/.docs-builder/tasks, validate's citations reader-side match for
+// plan's OUT), N (search count, default 10), OVERSIZED_LINES (default 500, discover's
+// oversized ceiling).
 
 // Extension is `.cjs`, not `.js`, ON PURPOSE. Installed project-locally into a repo whose
 // package.json declares "type": "module", a `.js` file is loaded as an ES module and every
@@ -105,6 +107,64 @@ function stripFences(text) {
   const lines = text.split('\n');
   const mask = fenceMask(lines);
   return lines.filter((_, i) => !mask[i]).join('\n');
+}
+
+// Same mask, a different use: `text.replace(regex, replacer)` but skipping any line inside a
+// fenced code block entirely, so a match never touches CODE. Every regex this is used with
+// (INLINE_LINK_RE, REF_LINK_RE, the exact repo-rooted path matcher in rewriteLinks) excludes
+// whitespace/newline from what it captures, so a match can never span two lines — line-at-a-
+// time masking is exact, not an approximation. MEASURED, real: `INLINE_LINK_RE` used to run
+// fence-blind and rewrote `](cleanAction.args)` — a JS property-access expression inside a
+// fenced ASCII-diagram code sample, not a markdown link at all — into a broken link target.
+// A fenced block is not the only way a doc shows code. FIELD BUG (real, reproduced on a
+// fresh repo the day fence-awareness shipped): an INLINE span, `map[key](arg)`, came out of
+// a reorg as `map[key](../arg)` — the identical corruption one syntax down, because masking
+// stopped at fences. A span is delimited by a matching backtick run on the SAME line (CommonMark
+// allows spans to wrap, but a wrapped span cannot be confused for a link target by any regex
+// here, all of which are single-line), so the same line-at-a-time treatment is exact here too.
+const CODE_SPAN_RE = /(`+)(?:(?!\1)[\s\S])*?\1/g;
+
+// Splits one line into alternating [outside, code, outside, code, ...] segments. Odd indices
+// are code spans and are never handed to a replacer.
+function codeSpanSegments(line) {
+  const segs = [];
+  let last = 0;
+  CODE_SPAN_RE.lastIndex = 0;
+  for (let m; (m = CODE_SPAN_RE.exec(line)) !== null;) {
+    segs.push(line.slice(last, m.index), m[0]);
+    last = m.index + m[0].length;
+  }
+  segs.push(line.slice(last));
+  return segs;
+}
+
+// `spans` says whether an inline `code span` is also off-limits. The two callers deliberately
+// differ:
+//   - the RELATIVE-link passes (INLINE_LINK_RE / REF_LINK_RE) INFER a link from `](...)`
+//     syntax, so a span holding `map[key](arg)` is code being misread as a link. spans: true.
+//   - the EXACT repo-rooted path matcher matches a literal, unambiguous path. A backticked
+//     `docs/GUIDE.md` in prose is how docs render a filename inline — it is a real reference
+//     to the moved file, and NOT rewriting it leaves a dead reference (asserted by the
+//     move-repair tests since v2). spans: false. A FENCE still means code for both: there the
+//     path is part of a snippet the reader copies verbatim.
+function replaceOutsideFences(text, regex, replacer, { spans = true } = {}) {
+  const lines = text.split('\n');
+  const mask = fenceMask(lines);
+  // A `^`-anchored regex (REF_LINK_RE) may only ever match at a real line start, so it is
+  // applied to the FIRST segment alone — segment 2 onward begins mid-line, and letting `^`
+  // re-anchor there would rewrite a target that is not a reference definition at all.
+  const anchored = regex.source.startsWith('^');
+  return lines.map((line, i) => {
+    if (mask[i]) return line;
+    if (!spans) return line.replace(regex, replacer);
+    const segs = codeSpanSegments(line);
+    if (segs.length === 1) return line.replace(regex, replacer);
+    return segs.map((seg, j) => {
+      if (j % 2 === 1) return seg;              // a code span: never a rewrite target
+      if (anchored && j !== 0) return seg;
+      return seg.replace(regex, replacer);
+    }).join('');
+  }).join('\n');
 }
 
 const ID_RE = /^([A-Z]{1,4}\d{1,4}(?:[-–][A-Z]?\d{1,4})?)\b/;
@@ -237,41 +297,33 @@ function checkPaths(o) {
   return [...new Set(o.records.map(r => r.file))].filter(f => !fs.existsSync(repoPath(f)));
 }
 
-// `index` (writer) and `checkLinks` (reader) must agree on exactly where PAGES sits relative
-// to INDEX's own directory — that link is read from inside the themed index, so it has to be
-// relative to THAT file, not to the repo root. Hardcoding 'wiki' in either end breaks the
-// moment PAGES points somewhere else; one function, called from both ends, so they can't
-// drift apart again. With both left at their defaults (INDEX=docs/wiki-index.md,
-// PAGES=docs/wiki) this still resolves to exactly 'wiki' — the normal case is unchanged.
-function pagesLinkPrefix(indexRel) {
-  const pagesDir = process.env.PAGES || 'docs/wiki';
-  return path.relative(path.dirname(repoPath(indexRel)), repoPath(pagesDir)).split(path.sep).join('/');
-}
-
-// (b) every markdown link inside the themed index that points into the pages dir must
-// resolve to a real file. Loud skip, not a silent pass, when that file is missing — same law
-// as the themes[] guard in loadPair() above: a gate that quietly stops checking is worse than
-// no gate. Reads `docs/wiki-index.md` by default (index()'s own default OUT — see its
-// comment), NOT docs/index.md: that file is index-flat's whole-corpus map, a different
-// artifact this validate gate has no business judging link-by-link.
+// (b) every markdown link inside the (one, whole-corpus) index must resolve to a real file.
+// Loud skip, not a silent pass, when that file is missing — same law as the themes[] guard in
+// loadPair() above: a gate that quietly stops checking is worse than no gate.
+//
+// v3 scope change (2026-08-24): the themed per-split index (docs/wiki-index.md) is gone —
+// see the removal note where its `index()` function used to be. This now checks the SAME
+// single index index-flat writes (`docs/index.md` by default), and checks EVERY link in it,
+// not just ones under a PAGES-relative prefix: the old scoping existed only because the
+// themed index's links were ALWAYS PAGES-relative by construction; the one index links into
+// product/, logs/, archive/ and PAGES/ all in the same file, so a prefix-scoped check would
+// silently stop covering most of it. This also means a core-theme page — settled 2026-08-23,
+// docs-builder-v3-spec.md "cleanup": lives in its own document's original directory, not
+// PAGES — is checked exactly like any other row, with no special case needed here at all.
 function checkLinks() {
-  const rel = process.env.INDEX || 'docs/wiki-index.md';
+  const rel = process.env.INDEX || 'docs/index.md';
   if (!fs.existsSync(repoPath(rel))) { console.error(`LOUD-SKIP: links check did not run — no ${rel}`); return { checked: false, bad: [] }; }
   const text = stripFences(fs.readFileSync(repoPath(rel), 'utf8'));
-  const prefix = pagesLinkPrefix(rel);
-  // Only links under the pages-dir prefix are checked — same scope as before (previously a
-  // literal 'wiki/' prefix), just resolved dynamically instead of hardcoded, so a link
-  // elsewhere in index.md (or anywhere else) that was never in scope stays out of scope.
-  const escPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Old regex required the capture to end `.md)` literally, so `(wiki/x.md#anchor)` never
-  // matched — a broken link went unchecked. And `%20` in a correct link false-positived
-  // against the real (unencoded) path. Fix: strip `#anchor` before the `.md` filter, decode
-  // before the existence check.
-  const links = new Set([...text.matchAll(new RegExp(`\\(${escPrefix}/([^)]+)\\)`, 'g'))]
+  const dir = path.dirname(rel);
+  // Old regex required the capture to end `.md)` literally, so `(x.md#anchor)` never matched
+  // — a broken link went unchecked. And `%20` in a correct link false-positived against the
+  // real (unencoded) path. Fix: strip `#anchor` before the `.md` filter, decode before the
+  // existence check. Absolute/external targets (a URL, a leading `/`) are never in scope —
+  // this only ever checks relative links, the only kind indexRow() ever writes.
+  const links = new Set([...text.matchAll(/\]\(([^()\s]+)\)/g)]
     .map(m => decodeURIComponent(m[1].split('#')[0]))
-    .filter(l => l.endsWith('.md'))
-    .map(l => `${prefix}/${l}`));
-  const bad = [...links].filter(link => !fs.existsSync(repoPath(path.join(path.dirname(rel), link))));
+    .filter(l => l.endsWith('.md') && !/^[a-z][a-z0-9+.-]*:/i.test(l) && !l.startsWith('/')));
+  const bad = [...links].filter(link => !fs.existsSync(repoPath(path.join(dir, link))));
   return { checked: true, bad };
 }
 
@@ -371,9 +423,14 @@ function reconcileFailures(ledger, check, targets, detailOf) {
 // `docs/log.md` is documented (Layout, Mode 3) as append-only — `## [DATE] operation |
 // description` — but nothing wrote it before this.
 function logOp(op, desc) {
-  const f = path.join(REPO, 'docs/log.md');
+  const rel = 'docs/log.md';
+  const f = path.join(REPO, rel);
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.appendFileSync(f, `## [${new Date().toISOString().slice(0, 10)}] ${op} | ${desc}\n`);
+  // FIELD BUG (privcloud, real first run): the commit recipe omitted this file — which THIS
+  // RUN had just created, holding this run's own audit lines. Following the recipe verbatim
+  // committed a reorg and left its log untracked. Same class as omitting the index.
+  noteGenerated(rel);
 }
 
 // Core THROWS-free / exit-free — same split as doArchive()/archive() and gitOrThrow()/git()
@@ -622,93 +679,23 @@ function plan(outlineF, labelsF) {
   return { rows, todo, pages };
 }
 
-// ---------------------------------------------------------------- index (coarse, reader-facing)
+// ---------------------------------------------------------------- (themed index — removed)
 
-// MEASURED: row count is the variable that decides whether an index helps or hurts.
-// 16 rows fine, 97 rows won, 364 rows lost. H3 grain is the WORST arm tested — internal only.
-const ROW_CEILING = 100;
-
-function index(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.cjs index <outline.json> <labels.json>');
-  const [o, l] = loadPair(outlineF, labelsF);
-  const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
-  const g = [...group(o, l)].sort((a, b) => b[1].length - a[1].length);
-  // Core-aware, same as `plan` — otherwise the core theme's link would point at a slugified
-  // theme name no file ever gets written to, while the real page sits at the source's own
-  // basename.
-  const slugs = buildThemeSlugs(g.map(([t]) => t), l, o);
-  // Same PAGES var and default the rest of the file uses (plan, checkCitations) — a theme
-  // only gets a hyperlink once its page is actually on disk there. Hardcoding 'docs/wiki'
-  // here was the exact bug fixed one commit ago; don't reintroduce it.
-  const pagesDir = process.env.PAGES || 'docs/wiki';
-  // Resolved once, up front, same default STRING as checkLinks()'s `INDEX` default (see the
-  // comment at `dest` below) — needed here already because the LINK TEXT below must be
-  // relative to where OUT is actually landing, not to the repo root. Getting the existence
-  // check right (pagesDir above) while leaving this hardcoded 'wiki' was the same bug half-
-  // fixed: PAGES honoured for "does the page exist" but not for "what does the link say".
-  //
-  // v3 fix: this used to default to docs/index.md — the SAME file index-flat/apply-reorg
-  // write, and the LAST writer wins. Real defect, found on bareloop: apply-reorg wrote the
-  // 37-row whole-corpus map, then a PRD split's `index` overwrote it with only that split's
-  // 7 wiki pages — 30 of 37 files silently vanished from a file that still claimed
-  // completeness. docs/index.md is now index-flat's alone to write (see indexFlat's own
-  // comment). This themed, per-split view gets its own file, `docs/wiki-index.md` — a
-  // sibling of docs/index.md (same directory, so pagesLinkPrefix's relative-to-PAGES math
-  // below is unchanged), never the corpus map.
-  const outRel = process.env.OUT || 'docs/wiki-index.md';
-  const linkPrefix = pagesLinkPrefix(outRel);
-  let rows = 0, pending = 0;
-  let s = '# Themed Index\n\n';
-  s += '**Scope:** this is the THEMED VIEW of one split\'s sections only — every section of '
-     + 'the source(s) that split covers appears in exactly one row below. It is not the '
-     + 'corpus map; for "does this file exist anywhere in docs/", read `docs/index.md` '
-     + '(written by `index-flat`/`apply-reorg`) instead.\n\n';
-  s += 'To answer a question about THIS split: read the rows that match, open only those '
-     + 'pages, and stop.\n\n';
-  s += '_Generated by `docs-builder.cjs index`. Never hand-edit — it is rebuilt every reorg._\n\n';
-  for (const [theme, recs] of g) {
-    const slug = slugs.get(theme);
-    const written = fs.existsSync(repoPath(path.join(pagesDir, `${slug}.md`)));
-    // Completeness requires every theme to appear here even before its page exists, but a
-    // link to a file that isn't there is exactly what checkLinks()'s validate gate flags as
-    // FAIL — so an unwritten page gets a plain-text row with a visible pending marker
-    // instead of a hyperlink. The marker lives in the row itself (not just the trailer)
-    // because a reader scanning the table by eye is unlikely to notice "no [] brackets" —
-    // an explicit word does not require noticing an absence.
-    if (written) s += `## [${theme}](${linkPrefix}/${slug}.md)\n\n`;
-    else { pending++; s += `## ${theme} _(pending — page not yet written)_\n\n`; }
-    if (gloss.get(theme)) s += `${gloss.get(theme)}\n\n`;
-    s += `${recs.length} sections.\n\n`;
-    for (const r of recs) {
-      rows++;
-      const t = r.h2.length > 110 ? r.h2.slice(0, 107) + '...' : r.h2;
-      s += `- ${r.id ? `**${r.id}** — ` : ''}${t}\n`;
-    }
-    s += '\n';
-  }
-  s += `---\n\nTotal: ${rows} rows across ${g.length} pages`
-     + (pending ? ` (${pending} pending)` : '') + '.\n';
-  // Same default STRING as checkLinks()'s `INDEX` default above, resolved the same
-  // REPO-relative way (repoPath) — not cwd-relative like the other pipeline JSON artifacts
-  // (see the cwd-vs-repo comment on `read`/`repoPath` near the top of the file). This themed
-  // view is a DELIVERABLE that lives in the target repo's docs/ tree, not throwaway pipeline
-  // state, so it must land where validate's link check will actually look for it. MEASURED
-  // the disagreement this guarded against originally: with no env vars set the old
-  // cwd-relative `'index.md'` default and checkLinks' `docs/index.md` default never pointed
-  // at the same file, so the link gate could only ever LOUD-SKIP or check a stale file.
-  const dest = repoPath(outRel);
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, s);
-  console.log(`wrote ${dest}: ${rows} rows / ${g.length} pages / ${s.length} chars`);
-  if (pending)
-    console.log(`${pending} of ${g.length} theme(s) have no page yet — listed without a link. `
-      + 'Run `plan` to see which.');
-  if (rows > ROW_CEILING)
-    console.log(`WARNING: ${rows} rows exceeds the ${ROW_CEILING}-row ceiling. MEASURED: a `
-      + '364-row index was the losing arm. Merge themes or index at page grain, not section '
-      + 'grain — and past this point, use `docs-builder.cjs search <outline.json> <query>` to '
-      + 'look sections up directly instead of reading index.md whole.');
-}
+// REMOVED 2026-08-24 (user decision, explicit spec: "ONE index... rewritten on every reorg...
+// also runs after splitting"). This used to be a SECOND index — a themed, per-split view at
+// `docs/wiki-index.md`, written by a subcommand called `index` — sitting alongside index-
+// flat's whole-corpus `docs/index.md`. It was never asked for, and it was the direct cause of
+// three separate defects: (1) an early version of it defaulted to the SAME file index-flat
+// writes, so the last writer silently clobbered the other's rows; (2) even split apart into
+// its own file, its own `scan` step still clobbered outline.json across concurrent splits
+// (see inFlightSplit(), which now refuses that instead); (3) its slug-based lookup
+// (slugOf()'s lowercasing) could report an existing page as "pending" for a heading like
+// "RLM_PRD" whose slug and file didn't round-trip. index-flat's whole-corpus `docs/index.md`
+// already covers everything this indexed (verified: it lists every PAGES/ page, at whatever
+// grain it exists in `## Product`) at the row-count grain MEASURED to actually help (16 rows
+// fine, 97 won, 364 lost — indexing every PAGES page a second time at section grain was
+// already trending toward the losing arm). `docs-builder.cjs search` remains the fallback
+// once a corpus outgrows a flat index — see its own comment below.
 
 // ---------------------------------------------------------------- index-flat (no labels)
 
@@ -717,12 +704,14 @@ function index(outlineF, labelsF) {
 //
 // docs/index.md is THIS function's file, and only this function's: `index-flat` (called
 // directly, and from `apply-reorg`/`cleanup-apply`) is the sole writer of the default OUT
-// path. A real defect on bareloop is why that line is load-bearing, not decoration: the
-// themed `index` subcommand used to share this same default, so a PRD split's themed index
-// (7 rows) silently overwrote the whole-corpus map (37 rows) the moment it ran after a reorg
-// — 30 files vanished from a file that still claimed completeness. `index` now defaults to a
-// different file entirely (docs/wiki-index.md, see its own comment) specifically so the two
-// can never collide again.
+// path. A real defect on bareloop is why that line is load-bearing, not decoration: a themed
+// `index` subcommand used to write a SECOND index (`docs/wiki-index.md`) that briefly
+// defaulted to this SAME file — a PRD split's 7-row themed index silently overwrote the
+// 37-row whole-corpus map the moment it ran, 30 files vanishing from a file that still
+// claimed completeness. Rather than keep giving the two index files their own defaults
+// forever, the themed one was removed outright 2026-08-24 (see the removal note where its
+// `index()` function used to live) — `docs/index.md` is now the ONE index there is to
+// collide with.
 //
 // `## Product` covers three things, using the SAME partition scanWholeCorpus() already
 // established (wholeCorpusFiles()) — not a fourth enumeration of the corpus:
@@ -744,7 +733,7 @@ function indexRow(rel, dest) {
   const h1 = (text.split('\n').find(l => l.startsWith('# ')) || '').slice(2).trim();
   const lines = text.split('\n').length;
   // Read from INSIDE index.md, so the link must resolve relative to index.md's own
-  // directory, not the repo root — same convention as `index`'s pagesLinkPrefix.
+  // directory, not the repo root.
   const relLink = path.relative(path.dirname(dest), repoPath(rel)).split(path.sep).join('/');
   return `- [${h1 || path.basename(rel)}](${relLink}) — ${lines} lines\n`;
 }
@@ -783,16 +772,15 @@ function indexFlat() {
   const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
 
   let s = '# Index\n\n';
-  // Unconditional — not gated on row count, unlike ARCHIVE_WARN_ROWS/ROW_CEILING above: a
-  // reader should reach for `search` on instinct, not only once a corpus is already large.
+  // Unconditional — not gated on row count, unlike ARCHIVE_WARN_ROWS below: a reader should
+  // reach for `search` on instinct, not only once a corpus is already large.
   s += '> Search this corpus instead of reading it whole: `/docs-builder search <query words>`\n\n';
   s += '**Completeness guarantee:** every file under `docs/product/`, every page under '
      + `\`${pagesRel}/\` (if any), every doc left in place after a reorg, every file under `
      + '`docs/logs/`, and every file under `docs/archive/` appears in exactly one row below.\n\n';
-  s += '_Generated by `docs-builder.cjs index-flat` — no `labels.json` was available, so this '
-     + 'is a flat, one-row-per-file map (no theme grouping, no model call). Run the split '
-     + 'pipeline and `index` for a themed index once one exists. Never hand-edit — rebuilt '
-     + 'every run._\n\n';
+  s += '_Generated by `docs-builder.cjs index-flat` — the ONE index, rebuilt every reorg and '
+     + 'after every split (`cleanup-apply`). No theme grouping, no model call. Never '
+     + 'hand-edit._\n\n';
   s += renderSection('Product', productRows);
   s += renderSection('Logs', logsRows);
   s += renderSection('Archive', archiveRows);
@@ -802,6 +790,7 @@ function indexFlat() {
 
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, s);
+  noteGenerated(outRel);
   console.log(`wrote ${dest}: ${total} rows (${productRows.length} product, `
     + `${logsRows.length} logs, ${archiveRows.length} archive)`);
   logOp('index-flat', `${total} row(s) (${productRows.length} product, `
@@ -818,9 +807,10 @@ function indexFlat() {
 
 // ---------------------------------------------------------------- search (BM25, zero deps)
 
-// The fallback once a corpus outgrows the index.md row ceiling (see ROW_CEILING above): a
-// reader who can't hold the whole index in one read needs ranked results instead. This
-// reuses outline.json (already on disk from `scan` — no second index to build or drift)
+// The fallback once a corpus outgrows a flat index-md's row ceiling (MEASURED against the
+// now-removed themed index: 16 rows fine, 97 rows won, 364 rows lost): a reader who can't
+// hold the whole index in one read needs ranked results instead. This reuses outline.json
+// (already on disk from `scan` — no second index to build or drift)
 // and scores with plain BM25 over each section's own text. No SQLite, no external search
 // tool: at doc-corpus scale (tens to low hundreds of sections) a linear scan in vanilla JS
 // is sub-millisecond, so a database buys nothing here — see dependency hierarchy in
@@ -1020,8 +1010,12 @@ function isRewriteExempt(f) {
 // looks for. A move that only fixes repo-rooted links leaves every one of those dead. Scope
 // is deliberately narrow: only inside actual markdown link syntax (`](target)` or a
 // reference-style `]: target` definition), never bare prose — "tools.md" on its own is too
-// ambiguous to touch safely. Not fence-aware, on purpose: the exact-path matcher above never
-// was either, and a link inside a fenced block still gets rewritten the same way.
+// ambiguous to touch safely. FENCE-AWARE (via rewriteRelativeLinks -> replaceOutsideFences,
+// same mask as everywhere else in the file): a fenced code sample showing this exact syntax,
+// e.g. `](cleanAction.args)` inside a JS snippet, is source CODE, not a markdown link — this
+// used to rewrite it into a broken link target anyway (MEASURED, real: it happened inside a
+// real doc's ASCII-diagram code fence). The exact-path matcher just below shares the same
+// fence-aware treatment now, for the same reason — see its own comment.
 const INLINE_LINK_RE = /\]\(([^()\s]+)\)/g;
 const REF_LINK_RE = /^(\s{0,3}\[[^\]]+\]:[ \t]*)(\S+)/gm;
 const isRelativeTarget = t => !/^([a-z][a-z0-9+.-]*:)|^[#/]/i.test(t);
@@ -1040,14 +1034,14 @@ function rewriteRelativeLinks(text, transform) {
     n++;
     return (pathPart.startsWith('./') && !next.startsWith('.') ? './' + next : next) + frag;
   };
-  let out = text.replace(INLINE_LINK_RE, (full, target) => {
+  let out = replaceOutsideFences(text, INLINE_LINK_RE, (full, target) => {
     if (!isRelativeTarget(target)) return full;
     const [pathPart, frag] = splitFragment(target);
     if (!pathPart) return full;
     const rewritten = build(pathPart, frag);
     return rewritten == null ? full : `](${rewritten})`;
   });
-  out = out.replace(REF_LINK_RE, (full, prefix, target) => {
+  out = replaceOutsideFences(out, REF_LINK_RE, (full, prefix, target) => {
     if (!isRelativeTarget(target)) return full;
     const [pathPart, frag] = splitFragment(target);
     if (!pathPart) return full;
@@ -1062,6 +1056,16 @@ function rewriteLinks(oldPath, newPath) {
   // Exact-path match. The lookbehind stops `xdocs/A.md` and `./docs/A.md` counting as this
   // path; the lookahead stops `docs/A.md.bak` and `docs/A.md-old`, while still allowing a
   // sentence-final `docs/A.md.` — a plain substring replace corrupts all four.
+  //
+  // Scope decision (same hazard class as INLINE_LINK_RE above, resolved the same way): this
+  // is an EXACT repo-rooted path, not an inferred one, so rewriting a real path fragment
+  // shown inside a fenced code sample is still often desirable (e.g. a doc's own worked
+  // example literally naming `docs/A.md`). But a path fragment inside code — `require('docs/
+  // A.md')`, a CLI invocation, a JSON snippet — is exactly the same hazard the relative-link
+  // fix above exists to prevent: unlike a markdown link target, this regex isn't scoped to
+  // link syntax at all, so it is the MORE exposed of the two, not the less. Consistency wins:
+  // both passes now share the one fence-aware mechanism (replaceOutsideFences), so a fence
+  // means the same thing everywhere in this file — code inside it is never a rewrite target.
   const re = new RegExp(`(?<![\\w./-])${esc}(?![\\w-]|\\.[A-Za-z0-9])`, 'g');
   // Returns what it did; prints nothing. `archive` and `apply-reorg` format their output
   // differently, and a helper that prints straight to stdout cannot be reused by both.
@@ -1071,20 +1075,30 @@ function rewriteLinks(oldPath, newPath) {
   // tracked files to rewrite, which is a SKIP, not a failed follow-up. Reporting it as a
   // failure made a fully successful `archive` exit 2 and tell the user to hand-fix something
   // that had never broken. A REAL git failure inside a real repo still throws.
-  let tracked;
-  try { tracked = gitOrThrow(['ls-files'], 'listing tracked files'); }
-  catch (e) {
+  let candidates;
+  try {
+    // TRACKED PLUS UNTRACKED-BUT-NOT-IGNORED. FIELD BUG (real, reproduced): this listed
+    // tracked files only, so every page a split had just written — brand new, never added —
+    // was invisible to the rewriter. Relocating the core page out of PAGES then left its
+    // sibling pages pointing at a path that no longer existed. A doc on disk with a broken
+    // link is broken whether or not git happens to know about it yet. `--exclude-standard`
+    // keeps .gitignore'd paths (build output, vendored trees) out, same as before.
+    const tracked = gitOrThrow(['ls-files'], 'listing tracked files');
+    const untracked = gitOrThrow(['ls-files', '--others', '--exclude-standard'],
+      'listing untracked files');
+    candidates = [...new Set((tracked + '\n' + untracked).split('\n'))];
+  } catch (e) {
     if (!/not a git repository/i.test(e.message)) throw e;
     result.skipped = 'inbound links: not a git repository — nothing tracked to rewrite';
     return result;
   }
-  for (const f of tracked.split('\n')) {
+  for (const f of candidates) {
     if (!f || !LINK_EXTS.has(path.extname(f))) continue;
     if (isRewriteExempt(f) || f.startsWith('docs/.docs-builder/')) continue;
     let text;
     try { text = fs.readFileSync(repoPath(f), 'utf8'); } catch { continue; }
     let n = 0;
-    let out = text.replace(re, () => (n++, newPath));
+    let out = replaceOutsideFences(text, re, () => (n++, newPath), { spans: false });
     if (path.extname(f) === '.md') {
       let rel;
       if (f === newPath) {
@@ -1152,11 +1166,43 @@ function moveDoc(src, dest) {
 // into an unrelated commit. The link rewrites moveDoc also makes are UNSTAGED and touch
 // files outside docs/ too, so the two must land in ONE commit — never `-- docs` alone,
 // which would commit moved files without their repaired inbound links (a broken tree).
-// Skipped entirely when nothing moved: no noise on a no-op re-run.
-function commitAdvisory(movedCount, linkFiles) {
-  if (!movedCount) return;
+//
+// FIXED 2026-08-24: this used to recommend `git add -u && git commit`. `git add -u` stages
+// EVERY tracked modification in the tree, not just this run's — the exact absorption hazard
+// this whole advisory exists to warn about, printed as the recipe. MEASURED, real: an
+// operator read it, recognised the hazard, refused the recipe and staged by explicit path
+// instead. The recipe now names only what THIS run actually touched: the moved path(s)
+// (`movedPaths` — git mv usually stages these already, but the copy+unlink fallback used
+// outside a git repo does not, so they're listed explicitly rather than assumed) plus every
+// file whose inbound links were rewritten (`linkFiles`). Skipped entirely when nothing moved:
+// no noise on a no-op re-run.
+// FIELD BUG (real, reproduced): this used to PRINT immediately, from wherever it was called
+// — so one `cleanup-apply` emitted several separate recipes (archive's, then the core-page
+// relocation's), each naming only its own step. An operator running the last one printed
+// staged the core page and silently dropped the archive move. It now ACCUMULATES across the
+// whole run and prints exactly once, from the dispatcher.
+//
+// FIELD BUG (real, reproduced): the recipe also named files at their PRE-move path — a file
+// whose inbound links were rewritten and which then moved itself was listed at a path that no
+// longer exists. `git add` is atomic: one stale pathspec makes the whole command exit 128 and
+// stage NOTHING, so following the printed recipe committed nothing at all. flush() drops
+// anything not on disk (it moved; its destination is already in `moved`).
+const RUN = { moved: [], links: [], generated: [] };
+const noteMoved = (...paths) => RUN.moved.push(...paths);
+const noteLinks = files => RUN.links.push(...files);
+// Files this run CREATED or REWROTE that no move produced — the rebuilt index, the config
+// file's pointer block, the pages a split wrote. Omitting them meant following the recipe
+// committed a reorg with no index and no pointer.
+const noteGenerated = (...paths) => RUN.generated.push(...paths);
+
+function flushCommitAdvisory() {
+  if (!RUN.moved.length) return;
   try {
-    const files = Array.from(new Set(linkFiles));
+    const onDisk = f => { try { return fs.existsSync(repoPath(f)); } catch { return false; } };
+    const moveSet = Array.from(new Set(RUN.moved)).filter(onDisk);
+    const linkSet = Array.from(new Set(RUN.links)).filter(onDisk);
+    const genSet = Array.from(new Set(RUN.generated)).filter(onDisk);
+    const allFiles = Array.from(new Set([...moveSet, ...linkSet, ...genSet]));
     // The failure mode this must break: an operator reads `git status`, sees only the
     // STAGED block (the smaller, docs-shaped half), and scopes their commit to `docs/` —
     // silently dropping every link repair outside it. A bare count doesn't fight that
@@ -1165,20 +1211,33 @@ function commitAdvisory(movedCount, linkFiles) {
     // Count FILES outside docs/, but list the distinct top-level LOCATIONS. Reporting the
     // location count instead understates the trap: 19 files across 6 dirs printed as "6"
     // reads as a rounding error rather than most of the change set.
-    const outsideFiles = files.filter(f => f.split('/')[0] !== 'docs');
+    const outsideFiles = linkSet.filter(f => f.split('/')[0] !== 'docs');
     const outsideDocs = Array.from(new Set(outsideFiles.map(f => f.split('/')[0]))).sort();
-    console.log(`\n${movedCount} rename(s) STAGED by git mv this run`);
-    console.log(files.length
-      ? `${files.length} link rewrite(s) UNSTAGED` + (outsideFiles.length
+    console.log(`\n${moveSet.length} rename(s) this run (git mv stages these automatically; `
+      + 'the copy+unlink fallback used outside a git repo does not)');
+    console.log(linkSet.length
+      ? `${linkSet.length} link rewrite(s) UNSTAGED` + (outsideFiles.length
         ? `, ${outsideFiles.length} outside docs/: ${outsideDocs.join(', ')}`
         : ' (all inside docs/)')
       : 'no inbound-link rewrites this run.');
-    console.log('Another session\'s `git add -A` / `git commit -a` will silently absorb these');
-    console.log('into an unrelated commit — this tool does NOT auto-commit (deliberately: you');
-    console.log('may want these moves bundled with other work). Capture BOTH the staged moves');
-    console.log('and the unstaged link rewrites in ONE commit — never scope it to `docs` alone,');
-    console.log('link rewrites touch files outside docs/ too:');
-    console.log('  git add -u && git commit -m "docs: reorg"');
+    console.log('A blanket `git add -A` / `git add -u` / `git commit -a` would ALSO absorb any');
+    console.log('unrelated in-flight work in the tree — this tool never suggests one (it does');
+    console.log('NOT auto-commit either: you may want these moves bundled with other work).');
+    console.log('Stage exactly what this run touched (renames + link rewrites), then commit:');
+    const quote = f => `'${f.replace(/'/g, `'\\''`)}'`;
+    const SHOWN = 20;
+    if (allFiles.length <= SHOWN) {
+      console.log(`  git add -- ${allFiles.map(quote).join(' ')}`);
+    } else {
+      const listRel = path.join(ARTIFACTS, 'commit-files.txt');
+      fs.mkdirSync(path.dirname(repoPath(listRel)), { recursive: true });
+      fs.writeFileSync(repoPath(listRel), allFiles.join('\n') + '\n');
+      console.log(`  ${allFiles.length} files touched — full list written to ${listRel}`);
+      console.log(`  git add -- ${allFiles.slice(0, SHOWN).map(quote).join(' ')}  # + `
+        + `${allFiles.length - SHOWN} more, see ${listRel}`);
+      console.log(`  cat ${listRel} | xargs git add --`);
+    }
+    console.log('  git commit -m "docs: reorg"');
   } catch (e) {
     console.error(`  WARN could not print the commit advisory: ${e.message}`);
   }
@@ -1203,7 +1262,7 @@ function archive(src, dest) {
   logOp('archive', `${src} -> ${r.rel}`
     + (r.links ? `, ${r.links} link(s) rewritten` : '')
     + (r.failures.length ? `, FOLLOW-UP FAILED: ${r.failures.join('; ')}` : ''));
-  commitAdvisory(1, r.linkFiles.map(x => x.file));
+  noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
   if (r.failures.length) {
     // Exit 2, not 1: 1 means "nothing moved, retry `archive`" and this is the OPPOSITE —
     // the file DID move and re-running `archive` would be wrong, exactly as the message says.
@@ -1211,6 +1270,7 @@ function archive(src, dest) {
     console.error(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
       + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
       + `${src}, it has already moved.`);
+    flushCommitAdvisory();
     process.exit(2);
   }
 }
@@ -1610,12 +1670,35 @@ function discover(root) {
   for (const r of rows) bySuggested[r.suggested]++;
   const oversizedCount = rows.filter(r => r.oversized).length;
   write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
-  console.table(rows.map(r => ({ file: r.file, h1: r.h1, suggested: r.suggested, oversized: r.oversized, lines: r.lines })));
+  // `bucket` is shown because it is the one column that says whether the interview has
+  // happened. FIELD BUG (privcloud): without it, an operator who had just written buckets into
+  // the plan had no confirmation from the table that their writes landed, and went back to
+  // re-read the JSON by hand.
+  console.table(rows.map(r => ({ file: r.file, h1: r.h1, suggested: r.suggested,
+    bucket: r.bucket || '—', oversized: r.oversized, lines: r.lines })));
   console.log(JSON.stringify({ ...bySuggested, oversized: oversizedCount }, null, 1));
-  console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
-    + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
-    + '(docs-builder.md): feed the model the plan, get bucket+reason per row, get the user\'s '
-    + 'approval, then run `apply-reorg` — it refuses to run while any `bucket` is empty.');
+  // FIELD BUG (privcloud, real first run): this used to assert "`bucket` is empty"
+  // unconditionally — including on a re-run where the buckets were filled and `apply-reorg`
+  // then ran fine seconds later. Output that contradicts the state it just wrote is worse
+  // than no output: it sent the operator back to read the JSON by hand to check their own
+  // writes had persisted. Carry-forward (above) is exactly why a re-run can arrive here with
+  // buckets already set, so this has to report what is actually in the plan.
+  const filled = rows.filter(r => r.bucket).length;
+  if (!filled) {
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
+      + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
+      + '(docs-builder.md): feed the model the plan, get bucket+reason per row, get the user\'s '
+      + 'approval, then run `apply-reorg` — it refuses to run while any `bucket` is empty.');
+  } else if (filled === rows.length) {
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — all ${rows.length} row(s) `
+      + 'already carry a `bucket`, carried forward from an earlier interview. Nothing further is '
+      + 'needed before `apply-reorg`; edit the plan first only if you want to reclassify.');
+  } else {
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — ${filled} of ${rows.length} `
+      + 'row(s) already carry a `bucket` (carried forward); the rest are still unclassified and '
+      + '`apply-reorg` refuses to run while any is empty. Run the classification interview '
+      + '(docs-builder.md) for the remainder, then re-run.');
+  }
   if (oversizedCount)
     console.log(`\n${oversizedCount} file(s) are oversized — they still get sorted into a `
       + 'bucket like everything else; splitting stays separate and opt-in (`cleanup <file>` '
@@ -1737,8 +1820,10 @@ function docsIndexBlock() {
     + `${DOCS_INDEX_END}`;
 }
 function injectClaudeMdPointer() {
-  const f = repoPath(process.env.CONFIG || 'CLAUDE.md');
+  const rel = process.env.CONFIG || 'CLAUDE.md';
+  const f = repoPath(rel);
   const block = docsIndexBlock();
+  noteGenerated(rel);
   const startRe = new RegExp(`${DOCS_INDEX_START}[\\s\\S]*?${DOCS_INDEX_END}`);
   if (!fs.existsSync(f)) { fs.writeFileSync(f, block + '\n'); return; }
   const cur = fs.readFileSync(f, 'utf8');
@@ -1777,7 +1862,8 @@ function applyReorg(planFile) {
   const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
   const splitCandidates = []; // oversized rows, at their NEW path — ordered logs-last below
   const sourceDirs = [];
-  const linkFilesTouched = []; // dedup'd for commitAdvisory() at the very end of this run
+  const linkFilesTouched = []; // dedup'd by flushCommitAdvisory() at the end of the run
+  const movedDestPaths = []; // every successful move's NEW path, same accumulator
   for (const row of plan.rows) {
     const destDir = REORG_DEST[row.bucket];
     let base = path.basename(row.file);
@@ -1797,6 +1883,7 @@ function applyReorg(planFile) {
     }
     console.log(`  ${row.file} -> ${r.rel}`);
     results.moved++;
+    movedDestPaths.push(r.rel);
     results.artifactsSynced += r.artifacts;
     results.linksRewritten += r.links;
     sourceDirs.push(path.dirname(path.join(REPO, row.file)));
@@ -1847,8 +1934,8 @@ function applyReorg(planFile) {
     + `${splitCandidates.length} oversized split candidate(s), `
     + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s), `
     + `${results.dirsRemoved} empty dir(s) removed, ${configName} updated: ${results.claudeMdUpdated}`);
-  // Printed LAST, after everything else this run does: it's the final thing on screen.
-  commitAdvisory(results.moved, linkFilesTouched);
+  // Accumulated here; the dispatcher prints the run's ONE recipe last, after every step.
+  noteMoved(...movedDestPaths); noteLinks(linkFilesTouched);
 }
 
 // ---------------------------------------------------------------- reorg (single front door)
@@ -1972,6 +2059,42 @@ function printShape(shape) {
   }
 }
 
+// `docs/.docs-builder/` is shared, not per-file: `cleanup`'s own `scan` OVERWRITES
+// outline.json with only ITS file's records (scan() has always worked this way — see its own
+// comment on batch-size-independent keys). MEASURED, real: running `cleanup` on a SECOND file
+// while a FIRST split still sat between `plan` and `archive` clobbered outline.json out from
+// under the first split (its labels.json now referenced keys the outline no longer had),
+// leaving `docs/wiki-index.md` at 0 rows with no error at all — the real defect was that
+// nothing failed; the artifacts were just silently wrong. Two ways to close this were
+// weighed: (a) make `scan` MERGE instead of overwrite, or (b) refuse to start a second split
+// while an earlier one is in flight. (a) was rejected: `validate` compares outline.json's
+// FULL record set against labels.json 1:1 (`doValidate`'s `missing` check) — a merged,
+// corpus-wide outline would make every OTHER file's sections show up as "missing" from a
+// single-file split's labels.json, trading this bug for a new false-positive gate failure in
+// a command this pipeline still ships standalone. (b) is chosen: safer, and the workflow it
+// blocks (two splits genuinely in flight at once) was never the documented one anyway —
+// cleanup-apply's own resumability already means "finish this split, then start the next".
+function inFlightSplit(file) {
+  const labelsF = path.join(ARTIFACTS, 'labels.json');
+  const outlineF = path.join(ARTIFACTS, 'outline.json');
+  if (!fs.existsSync(labelsF) || !fs.existsSync(outlineF)) return null;
+  let l, o;
+  try { l = parseJSONFileOrThrow(labelsF); o = parseJSONFileOrThrow(outlineF); }
+  catch { return null; } // a malformed artifact is not this check's job to diagnose
+  if (!coreThemeName(l.themes)) return null; // no core theme -> not a cleanup split at all
+  const other = [...new Set((o.records || []).map(r => r.file))].find(f => f !== file);
+  if (!other) return null;
+  // Archived -> that split is DONE: `archive()` rewrites outline.json's records[].file to
+  // the docs/archive/ path the instant the move lands (rewriteArchivedPath), so a finished
+  // split's record permanently exists on disk at its archive path — checking existence alone
+  // would misread a COMPLETED split as still in flight forever. Still at its pre-archive
+  // location -> genuinely in flight (plan ran, archive hasn't). Gone entirely -> archived
+  // (same as above) or a stale artifact; a leftover labels.json/outline.json is not a live
+  // conflict — a second, unrelated cleanup is exactly the normal, supported next step.
+  if (other.startsWith(REORG_DEST.archive + '/')) return null;
+  return fs.existsSync(repoPath(other)) ? other : null;
+}
+
 // v3 rule 1: `reorg` never splits. `cleanup` is the ONLY door into the split pipeline, and it
 // is now a MEASURE step only: cost estimate, scan, a mechanical heading-shape report — then
 // it STOPS. Settled 2026-08-23 (docs-builder-v3-spec.md, "cleanup"): the proposal (what this
@@ -1991,6 +2114,14 @@ function cleanup(files) {
     die(`cleanup: ${file} is a protected entry-point doc (README/CLAUDE.md/etc.) and is `
       + 'never split');
   if (!fs.existsSync(repoPath(file))) die(`cleanup: no such file: ${file}`);
+  const inFlight = inFlightSplit(file);
+  if (inFlight)
+    die(`cleanup: refusing to start — ${inFlight} looks like an in-progress split `
+      + '(docs/.docs-builder/labels.json has a core:true theme and its source file still '
+      + `exists, meaning \`plan\` has run but \`archive\` has not). A second cleanup here `
+      + `would overwrite that split's still-in-flight outline.json/labels.json. Finish it `
+      + `first: write its remaining pages, then re-run \`cleanup-apply ${inFlight} ...\` until `
+      + `it archives — THEN run \`cleanup ${file}\`.`);
   const lines = read(file).split('\n').length;
   const est = writeCostEstimate(1, lines);
   console.log(`${file}: ${lines} lines`);
@@ -2026,13 +2157,27 @@ function cleanup(files) {
 // A new subcommand rather than a `cleanup --apply` flag: this file has no flag parser
 // anywhere (every subcommand is positional, on purpose — see the dispatch table below), and
 // a one-off flag here would be a new parsing convention for one caller. It is also a
-// SEPARATE command from `plan`/`archive`/`index` rather than a wrapper that always chains
-// all three: a human/model page-writing step sits between `plan` and `archive` that this
-// script cannot run, so `cleanup-apply` is deliberately re-runnable — call it once and it
-// reports pages still to write (same resumability `plan` already has); call it again once
+// SEPARATE command from `plan`/`archive`/`index-flat` rather than a wrapper that always
+// chains all three: a human/model page-writing step sits between `plan` and `archive` that
+// this script cannot run, so `cleanup-apply` is deliberately re-runnable — call it once and
+// it reports pages still to write (same resumability `plan` already has); call it again once
 // every page exists and THAT run archives the original and rebuilds the index. It refuses
 // outright, before doing anything, if the interview clearly has not happened: no labels.json,
 // or a labels.json with no theme marked core:true.
+//
+// The core page's REAL destination (its own document's original directory, not PAGES —
+// settled 2026-08-23, docs-builder-v3-spec.md "cleanup") must be read from outline.json
+// BEFORE archiving: `archive(file)` runs moveDoc -> rewriteArchivedPath, which rewrites
+// outline.json's records[].file to the ARCHIVE path the instant the move lands, so the
+// original directory can only be recovered here, one line before that happens.
+function coreFileInfo(o, l) {
+  const coreName = coreThemeName(l.themes);
+  if (!coreName) return null;
+  const files = [...new Set((o.records || []).map(r => r.file))];
+  if (files.length !== 1) return null; // buildThemeSlugs (via plan(), already run) validates this
+  return { coreName, dir: path.posix.dirname(files[0]), base: path.basename(files[0]) };
+}
+
 function cleanupApply(file, outlineF, labelsF) {
   if (!file || !outlineF || !labelsF)
     die('usage: docs-builder.cjs cleanup-apply <file.md> <outline.json> <labels.json>');
@@ -2046,7 +2191,7 @@ function cleanupApply(file, outlineF, labelsF) {
     die('cleanup-apply: labels.json has no theme marked core:true — the interview has not '
       + "happened yet. Mark exactly one theme core:true (the document's main subject, from "
       + 'the interview\'s answer), then re-run cleanup-apply.');
-  const { todo } = plan(outlineF, labelsF);
+  const { rows, todo, pages } = plan(outlineF, labelsF);
   if (todo.length) {
     console.log(`\n${todo.length} page(s) still to write — write them (mid tier, one agent `
       + 'per page, docs-builder.md step 5), then re-run `cleanup-apply` to archive the '
@@ -2054,12 +2199,48 @@ function cleanupApply(file, outlineF, labelsF) {
     return;
   }
   console.log('\nall pages written — archiving the original and rebuilding the index.');
+  // Every page this split produced is a brand-new, untracked file. Nothing MOVED them, so
+  // only this knows they exist — and a commit recipe that omits them stages an archived
+  // original whose replacement content is nowhere in the commit.
+  noteGenerated(...rows.map(r => path.posix.join(pages, `${r.theme}.md`)));
+  const core = coreFileInfo(readArtifactJSON(outlineF), l);
   archive(file);
-  // Two indexes, two writers, on purpose (see index()'s own comment on the bug this fixes):
-  // the themed per-split view (docs/wiki-index.md) AND the whole-corpus map (docs/index.md).
-  // Archiving just moved a file and the new pages just appeared under PAGES — both are corpus
-  // changes docs/index.md must reflect, so indexFlat() runs every time, not just after reorg.
-  index(outlineF, labelsF);
+  // The model writes every page — core included — under PAGES (docs-builder.md's documented
+  // convention; unchanged, since the model can't write there directly: until the line above
+  // runs, the ORIGINAL still occupies that exact path, and overwriting a live, not-yet-
+  // archived source would violate "the original is never rewritten"). Once archiving frees
+  // that path, the core page is relocated from its interim PAGES location into the original
+  // document's own directory — only NON-core theme pages stay under PAGES for good.
+  if (core) {
+    const from = path.join(pages, core.base);
+    const to = path.join(core.dir, core.base);
+    if (from === to) {
+      console.log(`  core page ${from} already lives in the original document's own directory.`);
+    } else if (!fs.existsSync(repoPath(from))) {
+      console.error(`  WARN: expected the core page at ${from} (the model's page-writing step `
+        + `should have written it there) but it is missing — cannot relocate it into `
+        + `${core.dir}/. The index below will not show a core page for this split.`);
+    } else {
+      try {
+        const r = moveDoc(from, to);
+        console.log(`  relocated core page: ${from} -> ${to} (its own document's original `
+          + `directory — only non-core theme pages stay under ${pages}/)`);
+        for (const m of r.artifactNotes) console.log(`    ${m}`);
+        if (r.failures.length) console.error(`  WARN core page relocated, but ${r.failures.join('; ')}`);
+        noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
+      } catch (e) {
+        console.error(`  WARN could not relocate the core page from ${from} to ${to}: `
+          + `${e.message} — it remains at ${from}.`);
+      }
+    }
+  }
+  // v3 scope change (2026-08-24): the themed per-split index (docs/wiki-index.md) is gone —
+  // it was the direct cause of three separate defects (a corpus-map clobber, the multi-split
+  // outline.json clobber inFlightSplit() above now refuses, and a slugOf() lowercasing bug
+  // that rendered a real page as "pending"). ONE index now: index-flat's whole-corpus
+  // docs/index.md, rebuilt here so it captures the split's new shape (the archived original,
+  // the relocated core page at its real path, and the remaining PAGES/ pages) same as it
+  // already is after every reorg.
   indexFlat();
 }
 
@@ -2079,7 +2260,6 @@ switch (cmd) {
   case 'scan':        scan(rest); break;
   case 'validate':    validate(rest[0], rest[1]); break;
   case 'plan':        plan(rest[0], rest[1]); break;
-  case 'index':       index(rest[0], rest[1]); break;
   case 'index-flat':  indexFlat(); break;
   case 'search':      search(rest[0], rest.slice(1)); break;
   case 'archive':     archive(rest[0], rest[1]); break;
@@ -2092,25 +2272,32 @@ switch (cmd) {
   case 'cleanup':       cleanup(rest); break;
   case 'cleanup-apply': cleanupApply(rest[0], rest[1], rest[2]); break;
   default:
-    die('usage: docs-builder.cjs <scan|validate|plan|index|index-flat|search|archive|ledger|due|lint|'
+    die('usage: docs-builder.cjs <scan|validate|plan|index-flat|search|archive|ledger|due|lint|'
       + 'discover|apply-reorg|reorg|cleanup> [args]\n'
       + '  scan        <file.md...>                 -> outline.json\n'
       + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
       + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
-      + '  index       <outline.json> <labels.json> -> index.md\n'
-      + '  index-flat                                -> index.md, one row per docs/product/ file, no labels\n'
+      + '  index-flat                                -> index.md, the ONE index (whole corpus, no labels needed)\n'
       + '  search      <outline.json> <query...>     -> ranked sections (BM25, no deps)\n'
       + '  archive     <src.md> [dest.md]            -> verified MOVE into docs/archive/\n'
       + '  ledger                                    -> record current state of docs/\n'
       + '  due                                       -> what changed since the ledger\n'
       + '  lint        <file.md...>                  -> lint.json\n'
-      + '  discover    [root=docs]                   -> reorg-plan.json (proposes `suggested`, never moves, never sets `bucket`)\n'
+      + '  discover    [root=docs]                   -> reorg-plan.json (proposes `suggested`, never moves, never CLASSIFIES — carries forward already-approved buckets)\n'
       + '  apply-reorg [plan.json]                    -> executes the plan; refuses if any row\'s `bucket` is empty\n'
       + '  reorg                                     -> discover+apply-reorg+lint, plus `due`\'s '
       + 'drift summary if a ledger stamp exists (the single front door)\n'
       + '  cleanup     <file.md>                     -> ONE named file: cost estimate, then scan\n'
       + '                                                 (the ONLY entry point to the split pipeline)\n'
-      + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/wiki-index.md), '
+      + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
       + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
       + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');
 }
+
+// The run's ONE commit recipe, printed last, after every step of whichever subcommand ran.
+// Here rather than inside each subcommand precisely because a subcommand can call another
+// (cleanup-apply calls archive) — a per-function print is what produced several partial
+// recipes for one run. `die()`/`process.exit()` paths never reach this, which is correct:
+// a run that failed has nothing to stage. archive's exit-2 branch flushes explicitly, since
+// there the move DID land.
+flushCommitAdvisory();

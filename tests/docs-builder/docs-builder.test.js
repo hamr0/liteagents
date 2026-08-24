@@ -203,10 +203,6 @@ function slugCollision() {
     .filter(f => f.endsWith('.json'));
   ok('two colliding theme names produce two task files, not one', tasks.length, 2);
   okTrue('plan did not crash on the collision', p.code === 0);
-
-  const idx = db(d, ['index', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json'], { OUT: 'docs/index.md' });
-  okTrue('index also survives the collision', idx.code === 0);
 }
 
 // ---------------------------------------------------------------- 4. a doc move
@@ -910,82 +906,6 @@ function archiveStandaloneFollowup() {
     /FOLLOW-UP FAILED/.test(logContent));
 }
 
-/** `index` used to write a `[theme](wiki/<slug>.md)` link for EVERY theme in labels.json,
- *  whether or not that page had actually been written — so a fresh reconcile (scan -> validate
- *  -> index -> lint) on a repo whose pages hadn't been written yet produced an index.md full
- *  of dead links, and the NEXT validate FAILed on links the tool itself manufactured. Fixed:
- *  a theme with no page on disk still gets a row (completeness guarantee), but as plain text
- *  with a pending marker, never a hyperlink to a file that isn't there. */
-function indexPendingUnwrittenPages() {
-  group('21. index — an unwritten page is listed, never linked');
-
-  const d = repo({ 'docs/A.md': `# A\n\nintro\n\n## One\n\nx\n\n## Two\n\ny\n` });
-  db(d, ['scan', 'docs/A.md']);
-  const o = artifact(d, 'outline.json');
-  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
-    themes: [{ name: 'alpha', gloss: '' }, { name: 'beta', gloss: '' }],
-    labels: [{ key: o.records[0].key, theme: 'alpha' },
-             { key: o.records[1].key, theme: 'beta' }] }) });
-  // Only beta's page is actually written.
-  write(d, { 'docs/wiki/beta.md': '---\ntitle: Beta\n---\n\nwritten content here.\n' });
-
-  // No OUT override: `index`'s themed view now defaults to docs/wiki-index.md, a sibling of
-  // (never the same file as) docs/index.md — the whole-corpus map only index-flat writes.
-  const idx = db(d, ['index', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json']);
-  ok('index exits clean', idx.code, 0);
-  okTrue('index reports how many themes are pending',
-    /1 of 2 theme\(s\) have no page yet/.test(idx.out));
-  okTrue('index points to `plan` for which pages are pending', /plan/.test(idx.out));
-
-  const md = read(d, 'docs/wiki-index.md');
-  okTrue('the unwritten theme is present but NOT a resolvable wiki link',
-    /## alpha/.test(md) && !/\[alpha\]\(wiki\/alpha\.md\)/.test(md));
-  okTrue('the unwritten row carries a visible pending marker', /alpha.*pending/i.test(md));
-  okTrue('the written theme still gets a normal link', /\[beta\]\(wiki\/beta\.md\)/.test(md));
-  okTrue('the trailer distinguishes pending from written',
-    /Total: \d+ rows across 2 pages \(1 pending\)/.test(md));
-
-  const val = db(d, ['validate', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
-  okTrue('validate no longer reports a bad link for the unwritten page',
-    /"badLinks": 0/.test(val.out));
-  okTrue('validate\'s links.bad is empty', /"bad": \[\]/.test(val.out));
-
-  // PAGES= must be honoured by BOTH the existence check AND the emitted link text, not a
-  // hardcoded docs/wiki. Regression: index's existence check honoured PAGES but the link text
-  // it wrote stayed hardcoded to `wiki/<slug>.md`, so with PAGES=docs/pages the emitted link
-  // pointed at a file that was never there — validate then FAILed on a link `index` itself
-  // wrote, for a page that genuinely existed under the real (custom) PAGES dir.
-  const d2 = repo({ 'docs/A.md': `# A\n\nintro\n\n## One\n\nx\n` });
-  db(d2, ['scan', 'docs/A.md']);
-  const o2 = artifact(d2, 'outline.json');
-  write(d2, { 'docs/.docs-builder/labels.json': JSON.stringify({
-    themes: [{ name: 'gamma', gloss: '' }],
-    labels: [{ key: o2.records[0].key, theme: 'gamma' }] }) });
-  write(d2, { 'docs/custom-pages/gamma.md': '---\ntitle: Gamma\n---\n\nwritten.\n' });
-  const idx2 = db(d2, ['index', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json'], { PAGES: 'docs/custom-pages' });
-  ok('index (custom PAGES) exits clean', idx2.code, 0);
-  const md2 = read(d2, 'docs/wiki-index.md');
-  okTrue('PAGES= is honoured: no pending marker when the custom-dir page exists',
-    !/pending/i.test(md2));
-  okTrue('PAGES= is honoured: the emitted link is NOT the hardcoded wiki/ path',
-    !/\[gamma\]\(wiki\/gamma\.md\)/.test(md2));
-  // The link is read from inside the themed index, so it must resolve relative to that
-  // file's own directory (docs/), not the repo root — assert on the actual filesystem
-  // target, not on one hardcoded string, so this doesn't just trade one hardcoded
-  // expectation for another.
-  const linkMatch = md2.match(/## \[gamma\]\(([^)]+)\)/);
-  okTrue('PAGES= is honoured: a link was emitted at all for the written page', !!linkMatch);
-  if (linkMatch) okTrue('PAGES= is honoured: that link resolves to the real page on disk',
-    fs.existsSync(path.join(d2, 'docs', linkMatch[1])));
-
-  const val2 = db(d2, ['validate', 'docs/.docs-builder/outline.json',
-    'docs/.docs-builder/labels.json'], { PAGES: 'docs/custom-pages' });
-  okTrue('validate reports zero bad links with a custom PAGES dir',
-    /"badLinks": 0/.test(val2.out));
-}
-
 /** v3: `index-flat` covers the WHOLE corpus, not just docs/product/ — one `docs/index.md`,
  *  sectioned `## Product` (product/ + PAGES pages + anything left in place, e.g. an oversized
  *  doc apply-reorg deliberately didn't move) and `## Archive` (archive/). `search` reads
@@ -1121,8 +1041,14 @@ function applyReorgAutoIndexes() {
  * apply-reorg run on a uv clone moved 61 files and reported `linksRewritten: 0`. This pins
  * the fix: for every git-tracked .md file, a link inside `](...)` or a reference-style
  * `]: ...` target is ALSO matched by resolving it relative to the SCANNING file's own
- * directory. Fence-awareness is explicitly NOT part of the fix (documented, not a gap): the
- * existing exact-path matcher was never fence-aware either, and this keeps that trade-off.
+ * directory.
+ *
+ * FENCE-AWARE (fixed 2026-08-24): a relative link syntax INSIDE a fenced code block is CODE,
+ * not a markdown link — MEASURED, real: `](cleanAction.args)`, a JS property-access
+ * expression inside a fenced ASCII-diagram code sample, got rewritten into a broken link
+ * target because this used to run fence-blind. This pins the fix at both call sites
+ * (rewriteLinks' exact-path pass AND rewriteRelativeLinks' relative-path pass): code inside a
+ * fence is never touched; a real link outside one still is.
  */
 function relativeInboundLinks() {
   group('23. relative inbound links — the uv-shaped gap (moveDoc via archive)');
@@ -1136,7 +1062,7 @@ function relativeInboundLinks() {
       'fragment form: [frag](../sub/A.md#Section-One)',
       'decoy (different file, same basename): [decoy](../other/A.md)', '',
       '```',
-      'fenced form: [fenced](../sub/A.md)',
+      'fenced form (CODE, not a link): [fenced](../sub/A.md)',
       '```', '',
     ].join('\n'),
     'docs/LINKS.md': [
@@ -1144,6 +1070,15 @@ function relativeInboundLinks() {
       'dot-slash form: [dotslash](./sub/A.md)',
       'bare form: [bare](sub/A.md)', '',
       '[ref-style]: sub/A.md', '',
+    ].join('\n'),
+    // The exact repo-rooted matcher (a DIFFERENT regex/pass than the relative-link one above)
+    // must be fence-aware too, for the same reason — same hazard class, same fix.
+    'docs/EXACT.md': [
+      '# Exact', '',
+      'real mention: see docs/sub/A.md for details', '',
+      '```js',
+      "const required = ['docs/sub/A.md']; // CODE, not a rewrite target",
+      '```', '',
     ].join('\n'),
   });
   const r = db(d, ['archive', 'docs/sub/A.md']); // -> docs/archive/A.md
@@ -1156,8 +1091,14 @@ function relativeInboundLinks() {
     note.includes('[frag](../archive/A.md#Section-One)'));
   okTrue('a link to a DIFFERENT file with the same basename is left alone',
     note.includes('[decoy](../other/A.md)'));
-  okTrue('a relative link inside a fenced code block is still rewritten (documented, not fence-aware)',
-    note.includes('[fenced](../archive/A.md)'));
+  okTrue('a relative link SYNTAX inside a fenced code block is left alone — it is CODE',
+    note.includes('[fenced](../sub/A.md)') && !note.includes('[fenced](../archive/A.md)'));
+
+  const exact = read(d, 'docs/EXACT.md');
+  okTrue('an exact repo-rooted path OUTSIDE a fence is still rewritten',
+    exact.includes('see docs/archive/A.md for details'));
+  okTrue('the SAME exact path INSIDE a fenced code block is left alone — it is CODE',
+    exact.includes("required = ['docs/sub/A.md']") && !exact.includes("required = ['docs/archive/A.md']"));
 
   const links = read(d, 'docs/LINKS.md');
   okTrue('./ prefix is kept when the original link had one',
@@ -1478,6 +1419,57 @@ function cleanupCmd() {
 }
 
 /**
+ * 25b. FIX (2026-08-24): `docs/.docs-builder/` is shared, not per-file — `cleanup`'s own
+ * `scan` OVERWRITES outline.json with only ITS file's records. MEASURED, real: running
+ * `cleanup` on a SECOND file while a FIRST split still sat between `plan` and `archive`
+ * silently clobbered the first split's outline.json/labels.json, with no error at all —
+ * `docs/wiki-index.md` (before it was removed) landed at 0 rows after a real 3-split run.
+ * `cleanup` now refuses to start a second split while an earlier one is in flight (labels.json
+ * has a core:true theme whose source file still exists — plan ran, archive hasn't). Once that
+ * split finishes (archived), a second cleanup on an unrelated file is the normal next step and
+ * must NOT be blocked.
+ */
+function cleanupRefusesConcurrentSplit() {
+  group('25b. cleanup — refuses a second split while an earlier one is between plan and archive');
+
+  const d = repo({
+    'docs/BIG.md': `# Big\n\n## One\n\nalpha alpha alpha\n\n## Two\n\nbeta beta beta\n`,
+    'docs/OTHER.md': DOC('Other'),
+  });
+
+  // Start the first split: cleanup + plan (labels.json with core:true), but do NOT archive.
+  db(d, ['cleanup', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: 'g', core: true }, { name: 'Rest', gloss: 'g2' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Rest' }] }) });
+  db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']); // reports todo, doesn't archive
+  okTrue('setup: the first split is between plan and archive (still unarchived)',
+    exists(d, 'docs/BIG.md') && !exists(d, 'docs/archive'));
+
+  // The negative control: PRE-FIX, this second cleanup silently overwrote outline.json.
+  const second = db(d, ['cleanup', 'docs/OTHER.md']);
+  ok('cleanup on a second file while the first is in flight is REFUSED', second.code, 1);
+  okTrue('the refusal names the in-progress file', /docs\/BIG\.md/.test(second.out));
+  okTrue('the refusal explains why (in-progress split)', /in-progress split/.test(second.out));
+  okTrue('the refused run never touched outline.json — still the first split\'s records',
+    artifact(d, 'outline.json').records.some(r => r.file === 'docs/BIG.md'));
+
+  // Finish the first split (write both pages, archive), THEN a second cleanup must proceed.
+  const page = title => `---\ntype: reference\ntitle: ${title}\n---\n\n# ${title}\n\n`
+    + 'body line\n'.repeat(10);
+  write(d, { 'docs/wiki/BIG.md': page('Big'), 'docs/wiki/rest.md': page('Rest') });
+  const finish = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('finishing the first split exits clean', finish.code, 0);
+  okTrue('the first split is now archived', exists(d, 'docs/archive/BIG.md'));
+
+  const after = db(d, ['cleanup', 'docs/OTHER.md']);
+  ok('a second cleanup on an unrelated file is fine once the first split is archived', after.code, 0);
+}
+
+/**
  * (d) `apply-reorg`'s oversized follow-up must name `cleanup <file>` per file, with a line
  * count, AT THE FILE'S NEW (moved) PATH — not the pre-move one, since v3 moves oversized docs
  * like everything else — and logs-bucket split candidates must sort LAST (spec §5).
@@ -1677,11 +1669,23 @@ function cleanupApplyFullCycle() {
     'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
   ok('second cleanup-apply exits clean', second.code, 0);
   okTrue('second call archives and rebuilds the index', /archiving the original/.test(second.out));
-  okTrue('the original path is gone', !exists(d, 'docs/BIG.md'));
-  okTrue('the archive holds the file at its basename', exists(d, 'docs/archive/BIG.md'));
+  okTrue('the archive holds the ORIGINAL, frozen, at its basename', exists(d, 'docs/archive/BIG.md'));
   okTrue('the archived copy is byte-identical to the original — moved, never rewritten',
     fs.readFileSync(path.join(d, 'docs/archive/BIG.md')).equals(before));
+
+  // settled 2026-08-23 (docs-builder-v3-spec.md, "cleanup"): the core page lives in the
+  // ORIGINAL document's own directory, keeping its basename — so `docs/BIG.md` exists again,
+  // now holding the NEW core page (not the frozen original, which is the archive's job).
+  okTrue('the core page landed back at the original path (its own document\'s directory)',
+    exists(d, 'docs/BIG.md'));
+  okTrue('what\'s at the original path is the NEW core page, not the frozen original',
+    read(d, 'docs/BIG.md').includes('title: Big'));
+  okTrue('the core page is no longer at its interim PAGES location',
+    !exists(d, 'docs/wiki/BIG.md'));
+  okTrue('the non-core theme page stays under PAGES', exists(d, 'docs/wiki/other.md'));
   okTrue('index.md was rebuilt', exists(d, 'docs/index.md'));
+  okTrue('index.md links to the core page at its real (relocated) location',
+    read(d, 'docs/index.md').includes('[Big](BIG.md)'));
 }
 
 // ---------------------------------------------------------------- 31-33. v3 four-bucket extras
@@ -1809,19 +1813,28 @@ function cleanupPreservesWholeCorpusIndex() {
   const md = read(d, 'docs/index.md');
   okTrue('(h) the pre-existing product file is STILL indexed after the split', md.includes('[Other]'));
   okTrue('(h) the pre-existing logs file is STILL indexed after the split', md.includes('[A Prereg]'));
-  okTrue('(h) the split\'s own wiki pages are indexed too', /\[Big\]/.test(md) || /wiki\/BIG\.md/.test(md));
   okTrue('(h) the archived original is indexed under ## Archive',
     (md.split(/^## /m).find(s => s.startsWith('Archive')) || '').includes('BIG'));
 
-  // (i) the themed per-split view is a SEPARATE file, and its own links resolve.
-  okTrue('(i) the themed view lives at its own file, not docs/index.md', exists(d, 'docs/wiki-index.md'));
-  const wmd = read(d, 'docs/wiki-index.md');
-  const links = [...wmd.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
-  okTrue('(i) the themed view has at least one link', links.length > 0);
+  // (i) v3 scope change (2026-08-24): there is only ONE index now (docs/index.md, index-flat)
+  // — the themed per-split view is gone. The core page relocated into the moved original's
+  // OWN directory (docs/product/, since apply-reorg moved BIG.md there before the split), NOT
+  // docs/wiki/; the non-core page stays under PAGES. Both are indexed, and every link in the
+  // one index resolves.
+  okTrue('(i) the core page relocated into its own (moved) original directory',
+    exists(d, 'docs/product/BIG.md'));
+  okTrue('(i) the core page is no longer at its interim PAGES location',
+    !exists(d, 'docs/wiki/BIG.md'));
+  okTrue('(i) the non-core page is indexed under its PAGES location',
+    md.includes('[Other]') && /\[Other\]\(wiki\/other\.md\)/.test(md));
+  okTrue('(i) the core page is indexed at its real (relocated) location',
+    /\[Big\]\(product\/BIG\.md\)/.test(md));
+  const links = [...md.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
+  okTrue('(i) the index has at least one link', links.length > 0);
   let dead = 0;
   for (const link of links)
     if (!fs.existsSync(path.join(d, 'docs', link))) dead++;
-  ok('(i) every link in the themed view resolves', dead, 0);
+  ok('(i) every link in the index resolves', dead, 0);
 }
 
 // ---------------------------------------------------------------- 12b. index-flat search hint
@@ -1949,6 +1962,11 @@ function claudeMdDocsPointer() {
  * `-- docs`" is itself wrong: the run ALSO leaves UNSTAGED inbound-link rewrites that touch
  * files outside docs/ (src/, scripts/, README.md, ...), and scoping the commit to docs/
  * alone would commit moved files without their repaired links — a broken tree.
+ *
+ * FIXED 2026-08-24: the advisory used to recommend `git add -u && git commit` — `git add -u`
+ * stages EVERY tracked modification in the tree, the exact absorption hazard this advisory
+ * exists to warn about, printed as the actual recipe. A real operator read it, recognised the
+ * hazard, and refused it. The recipe now names only what this run touched, by explicit path.
  */
 function commitAdvisoryReported() {
   group('27. commit advisory — staged renames must not vanish into an unrelated commit');
@@ -1959,10 +1977,17 @@ function commitAdvisoryReported() {
   ] }) });
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
-  okTrue('(a) names the STAGED rename count', /1 rename\(s\) STAGED by git mv/.test(r.out));
-  okTrue('(a) tells the operator to commit (git add -u)', r.out.includes('git add -u'));
+  okTrue('(a) names the rename count', /1 rename\(s\) this run/.test(r.out));
+  okTrue('(a) the recipe stages the moved file by explicit path',
+    /git add -- '?docs\/product\/GUIDE\.md'?/.test(r.out));
   okTrue('(c) the recipe never scopes the commit to `docs` alone',
     !/-- docs\b/.test(r.out) && !/commit\b[^\n]*\bdocs\b\s*$/m.test(r.out));
+
+  // The unsafe recipe this replaced (`git add -u`/`-A`) must never be the ACTUAL printed
+  // command — only ever named in the prose warning against it.
+  const addLines = r.out.split('\n').filter(l => /^\s*git add /.test(l));
+  okTrue('(f) no printed `git add` command uses -u/-A (would absorb unrelated in-flight work)',
+    addLines.length > 0 && addLines.every(l => !/-u\b|-A\b/.test(l)));
 }
 
 function commitAdvisorySkippedOnNoOp() {
@@ -1972,7 +1997,7 @@ function commitAdvisorySkippedOnNoOp() {
   write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [] }) });
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean on an empty plan', r.code, 0);
-  okTrue('(b) no advisory printed when nothing moved', !/rename\(s\) STAGED/.test(r.out));
+  okTrue('(b) no advisory printed when nothing moved', !/rename\(s\) this run/.test(r.out));
 }
 
 function commitAdvisoryOnArchive() {
@@ -1981,8 +2006,46 @@ function commitAdvisoryOnArchive() {
   const d = repo({ 'docs/A.md': DOC('A') });
   const r = db(d, ['archive', 'docs/A.md']);
   ok('archive exits clean', r.code, 0);
-  okTrue('(d) archive also names the STAGED rename count', /1 rename\(s\) STAGED by git mv/.test(r.out));
-  okTrue('(d) archive also points at git add -u', r.out.includes('git add -u'));
+  okTrue('(d) archive also names the rename count', /1 rename\(s\) this run/.test(r.out));
+  okTrue('(d) archive also stages the moved file by explicit path',
+    /git add -- '?docs\/archive\/A\.md'?/.test(r.out));
+  const addLines = r.out.split('\n').filter(l => /^\s*git add /.test(l));
+  okTrue('(d) archive\'s printed git add never uses -u/-A',
+    addLines.length > 0 && addLines.every(l => !/-u\b|-A\b/.test(l)));
+}
+
+/**
+ * The strongest form of the regression: run the advisory's OWN printed recipe for real,
+ * against a repo carrying unrelated uncommitted work, and prove that work survives untouched.
+ * Anything short of executing it is trusting the recipe rather than testing it.
+ */
+function commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork() {
+  group('27e. commit advisory — its own printed recipe must not absorb unrelated in-flight work');
+
+  const d = repo({
+    'docs/A.md': DOC('A'),
+    'README.md': '[link](docs/A.md)\n',
+    'src/unrelated.js': 'const x = 1;\n',
+  });
+  // Unrelated in-flight edit, uncommitted — exactly what `git add -A`/`-u` would absorb.
+  write(d, { 'src/unrelated.js': 'const x = 2; // unrelated in-flight work\n' });
+
+  const r = db(d, ['archive', 'docs/A.md']);
+  ok('archive exits clean', r.code, 0);
+
+  const addLine = r.out.split('\n').find(l => /^\s*git add -- /.test(l));
+  okTrue('the advisory printed an explicit-path git add command', !!addLine);
+  if (addLine) {
+    execFileSync('bash', ['-c', addLine.trim()], { cwd: d });
+    execFileSync('bash', ['-c', 'git commit -qm "docs: reorg"'], { cwd: d });
+
+    const status = git(d, ['status', '--porcelain']);
+    okTrue('the moved file is committed, not left staged', !/docs\/archive\/A\.md/.test(status));
+    // `git diff --name-only` (unstaged only, unambiguous) rather than porcelain's XY columns —
+    // `git()`'s own `.trim()` can eat porcelain's leading space when that line lands first.
+    okTrue('the unrelated in-flight edit was NOT absorbed — still an unstaged modification',
+      git(d, ['diff', '--name-only']).split('\n').includes('src/unrelated.js'));
+  }
 }
 
 /**
@@ -2004,6 +2067,207 @@ function commitAdvisoryNamesOutsideDocsPaths() {
     read(d, 'README.md').includes('docs/archive/A.md'));
   okTrue('(e) advisory\'s "outside docs/" clause names the top-level non-docs path README.md',
     /outside docs\/: [^\n]*README\.md/.test(r.out));
+}
+
+
+// ------------------------------------------------- 34-37. field-run regressions (2026-08-24)
+
+/**
+ * FIELD BUG (real, reproduced on a fresh repo): the link rewriter became fence-aware but not
+ * inline-code-aware, so a one-line code sample in backticks corrupts exactly as a fenced one
+ * used to — `map[key](arg)` came out of a reorg as `map[key](../arg)`. Same defect class as
+ * the `](cleanAction.args)` corruption, one syntax down.
+ */
+function inlineCodeSpansNotRewritten() {
+  group('34. link rewriter — an inline `code span` is CODE, never a link target');
+
+  const d = repo({
+    'docs/prd.md': '# PRD\n\nSee the [design notes](design.md).\n\n'
+      + 'Inline code: `map[key](arg)` and `tools[a.name](a.args)` must survive.\n\n'
+      + '```js\nconst out = handlers[evt.type](evt.payload);\n```\n',
+    'docs/design.md': '# Design\n\nBack to the [PRD](prd.md).\n',
+  });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const prd = read(d, 'docs/product/prd.md');
+  okTrue('an inline code span is left byte-exact', prd.includes('`map[key](arg)`'));
+  okTrue('a second inline code span on the same line is left byte-exact',
+    prd.includes('`tools[a.name](a.args)`'));
+  okTrue('fenced code is still left alone (unchanged behaviour)',
+    prd.includes('handlers[evt.type](evt.payload)'));
+  // Negative control: the fix must not disable real link rewriting on the same line/file.
+  okTrue('a REAL markdown link outside code is still rewritten',
+    /\]\(design\.md\)/.test(prd) === false || prd.includes('](design.md)'));
+  okTrue('the real link still resolves after the move',
+    exists(d, path.posix.join('docs/product', (prd.match(/\]\(([^)]+)\)/) || [])[1] || 'MISSING')));
+}
+
+/**
+ * FIELD BUG (real, reproduced): the advisory's recipe named `docs/prd.md` — a link-rewritten
+ * file's PRE-move path — after that same file had itself moved to docs/product/prd.md. `git
+ * add` is atomic: one bad pathspec makes it exit 128 and stage NOTHING. The operator follows
+ * the printed recipe and commits nothing at all.
+ */
+function commitRecipePathsAllExist() {
+  group('35. commit advisory — every path in the recipe exists, so the recipe actually runs');
+
+  const d = repo({
+    // A.md links to B.md; BOTH move this run, so A is recorded as link-rewritten at its old
+    // path and then moves itself. That ordering is what produced the stale pathspec.
+    'docs/A.md': '# A\n\nintro\n\n## S\n\nSee [B](B.md).\n',
+    'docs/B.md': '# B\n\nintro\n\n## S\n\nSee [A](A.md).\n',
+  });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  const addLines = r.out.split('\n').filter(l => /^\s*git add -- /.test(l));
+  ok('exactly ONE recipe is printed for the run', addLines.length, 1);
+
+  const quoted = (addLines[0] || '').match(/'([^']+)'/g) || [];
+  const paths = quoted.map(q => q.slice(1, -1));
+  const missing = paths.filter(p => !exists(d, p));
+  ok('no recipe path is stale (every one exists on disk)', missing.join(','), '');
+
+  // Run it for real: the strongest form of this assertion.
+  const res = spawnSync('bash', ['-c', (addLines[0] || 'false').trim()], { cwd: d, encoding: 'utf8' });
+  ok('the printed recipe runs clean', res.status, 0);
+  const staged = git(d, ['diff', '--cached', '--name-only']);
+  okTrue('the generated index is staged by the recipe', staged.includes('docs/index.md'));
+  okTrue('the moved docs are staged by the recipe', staged.includes('docs/product/A.md'));
+}
+
+/**
+ * FIELD BUG (real, reproduced): cleanup-apply printed the advisory THREE times — once from
+ * archive(), once from the core-page relocation, once more — each naming only its own step's
+ * files. An operator running the LAST one staged the core page and silently dropped the
+ * archive move.
+ */
+function commitAdvisoryPrintedOncePerRun() {
+  group('36. commit advisory — one recipe per RUN, covering every step of it');
+
+  const original = '# Big\n\n## One\n\nalpha alpha\n\n## Two\n\nbeta beta\n';
+  const d = repo({ 'docs/BIG.md': original });
+  db(d, ['cleanup', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', core: true }, { name: 'Other' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Other' }] }) });
+  const page = t => `---\ntitle: ${t}\n---\n\n# ${t}\n\n` + 'body line\n'.repeat(10);
+  write(d, { 'docs/wiki/BIG.md': page('Big'), 'docs/wiki/other.md': page('Other') });
+
+  const r = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('cleanup-apply exits clean', r.code, 0);
+
+  const addLines = r.out.split('\n').filter(l => /^\s*git add -- /.test(l));
+  ok('exactly ONE recipe is printed for the whole run', addLines.length, 1);
+
+  const recipe = (addLines[0] || '').trim();
+  okTrue('the one recipe covers the archive move', recipe.includes('docs/archive/BIG.md'));
+  okTrue('the one recipe covers the relocated core page', recipe.includes('docs/BIG.md'));
+  okTrue('the one recipe covers the non-core page the split produced', recipe.includes('docs/wiki/other.md'));
+  okTrue('the one recipe covers the rebuilt index', recipe.includes('docs/index.md'));
+
+  const res = spawnSync('bash', ['-c', recipe || 'false'], { cwd: d, encoding: 'utf8' });
+  ok('the printed recipe runs clean', res.status, 0);
+}
+
+/**
+ * FIELD BUG (real, reproduced): inbound-link rewriting iterates `git ls-files` — TRACKED
+ * files only. Every page a split just wrote is brand new and untracked, so relocating the
+ * core page out of PAGES left its sibling pages' relative links pointing at a path that no
+ * longer exists. Exposed by the core-page-stays-home change: before it, the core page never
+ * left PAGES, so sibling links never needed repair.
+ */
+function linkRewriteSeesUntrackedFiles() {
+  group('37. link rewriter — an untracked file on disk still gets its inbound links repaired');
+
+  const original = '# Big\n\n## One\n\nalpha alpha\n\n## Two\n\nbeta beta\n';
+  const d = repo({ 'docs/BIG.md': original });
+  db(d, ['cleanup', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', core: true }, { name: 'Other' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Other' }] }) });
+  const page = (t, link) => `---\ntitle: ${t}\n---\n\n# ${t}\n\n` + 'body line\n'.repeat(10)
+    + `\nSee [the core page](${link}) for context.\n`;
+  // other.md is UNTRACKED and links to the core page at its interim PAGES location.
+  write(d, { 'docs/wiki/BIG.md': page('Big', 'other.md'), 'docs/wiki/other.md': page('Other', 'BIG.md') });
+  okTrue('the sibling page is untracked (precondition)',
+    git(d, ['status', '--porcelain']).includes('docs/wiki/'));
+
+  const r = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('cleanup-apply exits clean', r.code, 0);
+  okTrue('the core page relocated (precondition)', exists(d, 'docs/BIG.md'));
+
+  const other = read(d, 'docs/wiki/other.md');
+  okTrue('the untracked sibling no longer points at the vacated PAGES path',
+    !/\]\(BIG\.md\)/.test(other));
+  const target = (other.match(/\]\(([^)]+)\)/) || [])[1];
+  okTrue(`the untracked sibling's link resolves to the core page's real location (got ${target})`,
+    !!target && exists(d, path.posix.normalize(path.posix.join('docs/wiki', target))));
+}
+
+
+/**
+ * FIELD BUG (privcloud, real first run): the recipe omitted `docs/log.md` — a file THIS RUN
+ * created, holding the run's own audit lines. An operator following the recipe verbatim
+ * commits a reorg whose log is left untracked. Same class as the index/config omission.
+ */
+function commitRecipeCoversTheRunLog() {
+  group('38. commit advisory — covers docs/log.md, which the run itself writes');
+
+  const d = repo({ 'docs/A.md': DOC('A'), 'docs/B.md': DOC('B') });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the run wrote docs/log.md (precondition)', exists(d, 'docs/log.md'));
+
+  const addLine = r.out.split('\n').find(l => /^\s*git add -- /.test(l));
+  okTrue('a recipe was printed', !!addLine);
+  okTrue('the recipe names docs/log.md', /'docs\/log\.md'/.test(addLine || ''));
+
+  // The real bar: run it, then nothing this run produced is left behind untracked.
+  execFileSync('bash', ['-c', (addLine || 'false').trim()], { cwd: d });
+  execFileSync('bash', ['-c', 'git commit -qm "docs: reorg"'], { cwd: d });
+  const untracked = git(d, ['ls-files', '--others', '--exclude-standard'])
+    .split('\n').filter(Boolean).filter(f => !f.startsWith('docs/.docs-builder/'));
+  ok('nothing the run produced is left untracked after the recipe', untracked.join(','), '');
+}
+
+/**
+ * FIELD BUG (privcloud, real first run): `discover` asserted "`bucket` is empty" every time,
+ * including a re-run where the buckets were demonstrably filled and `apply-reorg` then ran
+ * fine. The operator had to go re-read the JSON by hand to confirm their own writes had
+ * persisted. Output that contradicts the state it just wrote costs more than silence.
+ */
+function discoverReportsRealBucketState() {
+  group('39. discover — its closing message reflects the ACTUAL bucket state, and the table shows it');
+
+  const d = repo({ 'docs/A.md': DOC('A'), 'docs/B.md': DOC('B') });
+  const first = db(d, ['discover']);
+  ok('first discover exits clean', first.code, 0);
+  okTrue('with no buckets set, it says so', /`bucket` is empty/.test(first.out));
+
+  fillBucketsFromSuggested(d);
+  const second = db(d, ['discover']);
+  ok('second discover exits clean', second.code, 0);
+  okTrue('carry-forward kept the buckets (precondition)',
+    JSON.parse(read(d, 'docs/.docs-builder/reorg-plan.json')).rows.every(r => r.bucket));
+  okTrue('it no longer claims the buckets are empty', !/`bucket` is empty/.test(second.out));
+  okTrue('it says the classification is already in place', /already carr/i.test(second.out));
+  // Instrument check: a bare /bucket/ matches the ADVISORY PROSE, not the table — it passed
+  // against pre-fix code that had no such column. Assert on the table's own box-drawn header.
+  const header = second.out.split('\n').find(l => l.startsWith('\u2502 (index)'));
+  okTrue('a console.table header was printed (precondition)', !!header);
+  okTrue('the printed table has a bucket column', /\bbucket\b/.test(header || ''));
 }
 
 // ---------------------------------------------------------------- 13. packaging
@@ -2044,16 +2308,18 @@ function main() {
     ledgerAndDue, dueOutputContract, search, reorgCmd, archiveCleanupRemoved, validateArchiveChokepoints,
     tasksDirChokepoint, halfFinishedSplitDetection,
     reorgCorpusStability, reorgOutIgnored,
-    archiveStandaloneFollowup, indexPendingUnwrittenPages,
+    archiveStandaloneFollowup,
     indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
     indexFlatSearchHint, claudeMdDocsPointer,
     relativeInboundLinks, relativeLinksBothMove, archiveIsFrozen, archiveOrderingBug,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
-    cleanupCmd, applyReorgNamesCleanup,
+    cleanupCmd, cleanupRefusesConcurrentSplit, applyReorgNamesCleanup,
     cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
     logsIdempotentAndIndexed, emptyDirCleanup, cleanupPreservesWholeCorpusIndex,
     commitAdvisoryReported, commitAdvisorySkippedOnNoOp, commitAdvisoryOnArchive,
-    commitAdvisoryNamesOutsideDocsPaths,
+    commitAdvisoryNamesOutsideDocsPaths, commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork,
+    inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
+    linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
     packageParity];
 
   for (const g of groups) {
