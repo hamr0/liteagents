@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — spec only, no code written.
 **Date:** 2026-08-23
-**Supersedes the mode layout in** `docs/docs-builder-v2-spec.md`. The v2 mechanics
+**Supersedes the mode layout in** `docs/archive/docs-builder-v2-spec.md`. The v2 mechanics
 (scan/validate/plan/index/search, script-does-bookkeeping) are unchanged and carried forward.
 
 ## Why v3
@@ -249,6 +249,12 @@ not a spec, and 41% of the bucket being run records makes the bucket useless for
 | `archive/` | self-declared dead |
 
 `logs/` is history that still matters, distinct from `archive/`, which is history that is done.
+
+**Carry-forward is bucket-schema-aware.** Re-running `discover` carries an already-classified
+row's bucket forward, but only when it is one of the three current buckets — a legacy pre-v3
+value (`oversized`, `review`) is dropped instead, since carrying it verbatim was observed to
+make `apply-reorg` refuse the plan as stale schema. The row then starts unclassified and goes
+through the normal interview.
 
 ### 4. Classification is the model's job, behind an approval gate
 

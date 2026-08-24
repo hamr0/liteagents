@@ -2,7 +2,7 @@
 type: reference
 title: docs-builder
 status: draft
-updated: 2026-08-21
+updated: 2026-08-24
 ---
 
 # docs-builder
@@ -10,7 +10,7 @@ updated: 2026-08-21
 `/docs-builder` splits a documentation file once it outgrows its row in `docs/README.md`,
 keeps the resulting pages current, and generates an index so they can be found. It is a
 **slash command**, not a skill: `commands/docs-builder.md` plus a bundled
-`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fourteen subcommands) —
+`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fifteen subcommands) —
 the same shape as `/remember`.
 
 It ships in all four packages. `docs-builder.cjs` hardcodes no tool-specific paths, so it
@@ -26,7 +26,7 @@ and therefore has to be maintained as four near-copies.
 > **docs-builder makes docs current, complete and findable.
 > It does not make them cheaper to read.**
 
-That is the honest label from the spec (`docs/docs-builder-v2-spec.md` §16). It was measured
+That is the honest label from the spec (`docs/archive/docs-builder-v2-spec.md` §16). It was measured
 four ways, on real navigation questions against real docs, and the best case for
 docs-builder's output was a **tie with doing nothing**. Do not sell this tool as a token
 saving or a reading-time saving. It is not one.
@@ -54,6 +54,11 @@ The index's job is narrow: say "stop here," not "help you search."
 
 ## How it works — the flow
 
+This is Mode 1's pipeline — what runs, model steps included, once `cleanup <file>`'s own
+interview has approved a theme split for one named file (see Mode 1 below). Mode 0
+(`reorg`, whole-corpus sorting) is a different, simpler pipeline — see "The three modes and
+the docs/ layout".
+
 ```
 1. SCAN      script   headings -> outline.json (h1, h2, h3, line ranges, snippet)
 2a. PROPOSE  cheap    ONE call, ALL headings  -> fixed theme list + one-line glosses
@@ -62,7 +67,10 @@ The index's job is narrow: say "stop here," not "help you search."
 4. PLAN      script   task-<theme>.json per page + estimated write cost
 5. WRITE     mid   one agent per page, reads ONLY its own line ranges
 6. ARCHIVE   script   original -> docs/archive/ via verified `git mv`
-7. INDEX     script   docs/index.md, regenerated from steps 1 + 3
+7. INDEX     script   docs/wiki-index.md — the THEMED view of THIS split only. The
+                       whole-corpus map, docs/index.md, is a different file with a
+                       different single writer (`index-flat`) — see "Two index files,
+                       two writers" below.
    LINT      script   supersession (act) / uncited + redundant (propose only)
 ```
 
@@ -117,19 +125,23 @@ measured page came in under it unprompted. Launch 3 at a time, checkpoint each f
 so a cleanup that dies partway can resume instead of restarting.
 
 **6. Preserve (script)** — copies the original byte-identical, verifies by sha256, refuses
-to overwrite.
+to overwrite. That guarantee now holds past the copy too: `docs/archive/` is frozen, so
+nothing resident there is ever a rewrite target again, no matter what a later row's own
+link-repair sweep does in the same run (see *History*).
 
 ```bash
 REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
 ```
 
-**7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Run by hand
-once `labels.json` exists — `reorg`/`apply-reorg` cover the whole-corpus case automatically
-via `index-flat` instead (see Mode 2 below), so a stale themed index is never mistaken for
-a current one.
+**7. Index (script)** — coarse, points at the synthesized pages, 10–100 rows. Defaults to
+`docs/wiki-index.md`, deliberately a different file from the whole-corpus map
+(`docs/index.md`) — see "Two index files, two writers" below. Run by hand once
+`labels.json` exists, or automatically as the last step of `cleanup-apply`.
+`apply-reorg`/`reorg` cover the whole-corpus map on their own via `index-flat` instead
+(see Mode 2 below), so a stale themed index is never mistaken for a current one.
 
 ```bash
-OUT=docs/index.md node docs-builder.cjs index outline.json labels.json
+node docs-builder.cjs index outline.json labels.json     # -> docs/wiki-index.md (default)
 ```
 
 **Lint (script)** — declared-only checks, see §D and §C.
@@ -147,7 +159,7 @@ options, no recommendation, no third:
 
 | Option | What it does | Cost |
 |---|---|---|
-| **First run** | sort every `.md` into product/archive, then split anything too big | spends model budget |
+| **First run** | sort every `.md` into product/logs/archive, then split anything too big | spends model budget |
 | **Docs drift** | rebuild the index, re-run lint, report what changed. Nothing moves, nothing splits | cheap — the common case |
 
 Pass an argument (`reorg` or `cleanup <file.md>`) and it skips the question, so the flow
@@ -157,12 +169,27 @@ Auto-detecting the mode from repo state was considered and rejected — the two 
 cost, so a wrong guess on the more expensive one is expensive to unwind. Same call
 `live-canvas` made.
 
-**"First run" has two stops, and they guard different things.** `discover` prints its table
-and moves nothing; you confirm before `apply-reorg` runs — that stop guards **correctness**
-(a `review`-bucketed file with no H1 is a guess, not a classification). After the moves, the
-oversized list is printed with line counts and an estimated cost and you pick which to
-split — that stop guards **cost** (~$0.39 per 1,000 source lines). Never split N files in
-one shot on a list you haven't seen.
+**`search` is a third mode, but explicit-argument only — it is never offered as a picker
+option.** `/docs-builder search <query words...>` BM25-ranks sections of
+`docs/.docs-builder/outline.json` against the query and points at a file/line range; it moves
+nothing and calls no model. It defaults the outline path so the invocation needs only query
+words, and `N=` overrides the result count (default 10). The bare-invocation picker above
+stays at exactly two options on purpose — `search` isn't a cost decision that needs a
+recommendation, so it doesn't get a third slot in a question designed around exactly that
+distinction.
+
+**"First run" has two stops, and they guard different things.** `discover` writes a plan
+where every row carries a mechanical `suggested` bucket + `reason` (a PRIOR, never a
+verdict) but an **empty** `bucket` — nothing moves yet. The classification interview then
+has the model fill `bucket` (`product`/`logs`/`archive`) for every row, and only then is
+the full table shown for approval via `AskUserQuestion` (approve all / correct specific
+rows / abort) — that stop guards **correctness**: `apply-reorg` refuses outright to run
+while any row's `bucket` is still empty, so nothing moves on an unreviewed plan. After the
+moves, the oversized-file list is printed with line counts and an estimated cost and you
+pick which to split — that stop guards **cost** (~$0.39 per 1,000 source lines). Never
+split N files in one shot on a list you haven't seen. Oversized files are sorted into a
+bucket like every other file — size only decides whether a doc is *splittable*, it no
+longer decides where a doc is filed.
 
 **One asymmetry worth internalising:** `due` measures *drift* (what changed since the last
 ledger stamp) and knows nothing about file size. `discover` measures *size* and knows
@@ -174,16 +201,20 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
-| `/docs-builder reorg` (discover, confirm, then apply-reorg) | *First run*, steps 1-2 | classify a WHOLE corpus into product/archive | no (moves are `git mv`, plan reviewed first) |
-| `/docs-builder cleanup <file.md>` | *First run*, step 3 | split ONE named oversized doc → pages + index | no (original preserved) |
-| `/docs-builder reorg` (bare `docs-builder.cjs reorg`, no stop) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → apply-reorg → lint, whole corpus | no |
+| `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
+| `/docs-builder cleanup <file.md>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
+| `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts a whole messy
-`docs/` tree into product/archive in one pass and **never splits anything itself**; anything
-it tags `oversized` still needs a human to run `cleanup <file>` on it individually, since
-that step spends real model money and should never fire without a look first. `cleanup` is
-the ONLY entry point to the split pipeline — it refuses more than one file at a time, refuses
-a missing/non-`.md`/protected file, and prints its cost estimate before doing anything else.
+`docs/` tree into the product/logs/archive layout in one pass and **never splits anything
+itself**; an oversized file still moves into its bucket like everything else, but still
+needs a human to run `cleanup <file>` on it individually, one named file per invocation,
+since that step spends real model money and should never fire without a look first.
+`cleanup` is the ONLY entry point to the split pipeline — it refuses more than one file at a
+time, refuses a missing/non-`.md`/protected file, prints its cost estimate, scans the file,
+then prints a mechanical heading-shape report and **STOPS for its own interview** before
+anything else runs. `cleanup-apply` is the only door back in, and it refuses until
+`labels.json` exists with exactly one theme marked `core: true`.
 
 v3 folded the old `reconcile` and `due` commands into `reorg`: "first run" (nothing sorted
 yet) and "since last time" (a ledger stamp already exists) turned out to be the same job with
@@ -201,16 +232,50 @@ nudge.
 ```
 docs/
   README.md          entry point, referenced from CLAUDE.md
-  index.md            GENERATED by script. never hand-edited.
-  log.md               append-only:  ## [DATE] operation | description
-  product/            specs. `apply-reorg` MOVES files here (`git mv`); content is never
-                       rewritten.
+  index.md            GENERATED, and ONLY by `index-flat` (called directly, or from
+                       `apply-reorg`/`reorg`/`cleanup-apply`). Never hand-edited. The
+                       WHOLE-CORPUS map — the only file with a completeness guarantee.
+                       Three sections: ## Product, ## Logs, ## Archive.
+  wiki-index.md        GENERATED, and ONLY by the themed `index` step, once labels.json
+                       exists. A DIFFERENT file from index.md, on purpose — see "Two index
+                       files, two writers" below. The themed view of ONE split only.
+  log.md               append-only:  ## [DATE] operation | description — written by
+                       `archive`, `apply-reorg`, `validate`, `reorg`; not by read-only
+                       commands (`due`, `search`, `discover`).
+  product/            specs, designs, plans — the default. `apply-reorg` MOVES files here
+                       (`git mv`); content is never rewritten.
+  logs/                pre-registrations, results, learnings, reports — historical, still
+                       relevant. Same MOVE discipline as product/archive. See "Why `logs/`
+                       exists" below.
   wiki/                synthesised pages, written by Mode 1 (`cleanup`)'s page writers.
-  archive/             what got cleaned up: originals, moved via `git mv`. Pruning is the
-                       user's own call (`git rm`) — nothing here does it automatically.
-  .docs-builder/       machine-only state: ledger.json, outline.json, labels.json,
-                       reorg-plan.json, validate.json, failures.json, lint.json, tasks/
+  archive/             what got cleaned up: self-declared dead. Originals are BYTE-FROZEN —
+                       never a rewrite target, so a doc lands byte-identical to what it
+                       carried in. Links elsewhere pointing AT it are still repaired.
+                       Pruning is the user's own call (`git rm`) — nothing here does it
+                       automatically.
+  .docs-builder/       machine-only state: ledger.json, outline.json, cleanup-shape.json,
+                       labels.json, reorg-plan.json, validate.json, failures.json,
+                       lint.json, tasks/
 ```
+
+**`index.md` deliberately stays visible.** It is the thing a reader (or an agent) opens
+first — the measured winning arm is *pages + a coarse index*. Hiding it under a dot-dir
+would break the one mechanism that works. Only machine state goes in `.docs-builder/`.
+
+**`index.md` now carries a search hint unconditionally.** Every regeneration writes a
+blockquote under the H1 — "Search this corpus instead of reading it whole:
+`/docs-builder search <query words>`" — regardless of row count. Unlike the archive-growth
+warning below, which is console-only and fires only past `ARCHIVE_WARN_ROWS`, this one is in
+the generated file itself and always present: a reader should reach for `search` on instinct,
+not only once the corpus already looks too big to read.
+
+**Two index files, two writers, on purpose.** `docs/index.md` (whole-corpus map,
+`index-flat`) and `docs/wiki-index.md` (themed view of one split, `index`) used to be the
+SAME file. A real defect on bareloop is why they were split: `apply-reorg` wrote the
+37-row whole-corpus map, then a PRD split's `index` step ran afterward and silently
+overwrote it with only that split's own 7-row themed view — 30 of 37 files vanished from a
+file that still claimed completeness. `index` now defaults to `docs/wiki-index.md`
+specifically so the two can never collide again — see "History of things that were wrong".
 
 **Never moved — enforced in code, not just documented.** This used to be prose only, and
 the code did not match it (see *History*, below). It is now two guards in `docs-builder.cjs`:
@@ -221,7 +286,7 @@ the code did not match it (see *History*, below). It is now two guards in `docs-
   so the walker never sees them.
 - `walkMd` skips every dot-dir (`.git/`, `.github/`, `.claude/`, `.factory/`, `.opencode/`,
   `.amp/`, `.docs-builder/`) and `node_modules/`, plus the dirs reorg itself owns
-  (`product/`, `archive/`, `wiki/`) so a second run is idempotent.
+  (`product/`, `logs/`, `archive/`, `wiki/`) so a second run is idempotent.
 
 ---
 
@@ -229,23 +294,95 @@ the code did not match it (see *History*, below). It is now two guards in `docs-
 
 v1 (the old skill) did full-corpus reorg by handing an agent a prose rulebook and letting
 it `mv` files by judgement — the exact shape that measured 27% correct on bookkeeping
-elsewhere in this pipeline. `reorg` rebuilds v1's scope with v2's discipline: `discover`
-classifies every doc mechanically (script, no model, no cost) into `product` / `archive` /
-`oversized` / `review`, writes a plan, and moves **nothing** until `apply-reorg` is run
-against a reviewed plan.
+elsewhere in this pipeline. `reorg` rebuilds v1's scope with the same script-does-
+bookkeeping discipline, but **classification itself is the model's job now, behind an
+approval gate** (`docs-builder-v3-spec.md`, "four buckets, and the model does the
+sorting") — a reversal from the v2 design, where a fixed rule alone decided the bucket.
+The reversal is deliberate, not a relapse: the FROZEN incident below is usually read as
+proof a model must not classify, but the actual failure was the *silent move with no
+gate at all*, not the judgement. The approval gate is the safety property, and it is
+strictly stronger than a rule that moves files unreviewed.
 
-Run for real on bareloop's actual `docs/` (35 files, not a fixture): 16 → `product`,
-12 → `archive`, 8 → `oversized` (left in place with a follow-up list, never auto-split),
-0 → unclassifiable. 28 verified moves, 0 skipped, `git status` showed clean renames.
+**`discover` no longer classifies — it enriches and proposes.** For every `.md` file under
+`docs/` (skipping `product/`, `logs/`, `archive/`, `wiki/`, `.docs-builder/`, and the
+protected entry-point docs) it writes a row carrying `h1`, a short `snip`, an `oversized`
+**boolean** (over `OVERSIZED_LINES`, default 500, an UNMEASURED starting point — size
+decides *splittable*, never *sorted*), and a mechanical `suggested` bucket + `reason`: a
+PRIOR the classification interview is shown, never an authority over it. `bucket` itself
+starts **empty on every row** — that's the field the interview fills, and the only field
+`apply-reorg` reads to decide where a file goes. `review` no longer exists as a bucket: a
+no-H1 file with no strong signal is just an ordinary unclassified row, same as any other,
+that the interview decides like everything else.
+
+The classification interview: feed the model the whole plan table (file, h1, snip, lines,
+suggested+reason) in **one call**, have it fill `bucket` (`product`/`logs`/`archive`) with
+a one-line reason per row, write the answers into `reorg-plan.json`, then show the user the
+full table via `AskUserQuestion` — approve all / correct specific rows / abort. The
+approval table has a mandated shape: **exactly four columns**, `file | lines | →
+destination | why`, `→ destination` is the row's **full destination path**
+(`docs/archive/PRD.md`), never the bare bucket word, and rows are **sorted by
+destination** so a misfiled doc stands out against its neighbours instead of scattering
+through a path-sorted list. Only after approval does `apply-reorg` run, and it refuses
+outright if any row's `bucket` is still empty.
+
+**Why `logs/` exists.** Measured on bareloop's real `product/` after an earlier reorg (27
+files): 11 were experiment records (8 `*-PREREG`, 2 `*-LEARNINGS`, others) sitting
+alongside 14 actual specs and designs — **41% of the bucket was run history, not
+product**, which made the bucket useless for finding specs (`docs-builder-v3-spec.md`,
+"four buckets: `logs/` joins the layout"). `logs/` is history that still matters — a
+prereg or a results doc — distinct from `archive/`, which is history that is done.
+
+**A prior, three-bucket run, for scale (superseded numbers, kept as a data point, not a
+current claim):** run on bareloop's actual `docs/` (35 files, not a fixture) under the
+pre-`logs`, pre-interview design: 16 → `product`, 12 → `archive`, 8 → `oversized` (then
+still a bucket, left in place with a follow-up list, never auto-split), 0 → `review`. 28
+verified moves, 0 skipped, `git status` showed clean renames (`docs-builder-v2-spec.md`
+§19c). Neither `oversized` nor `review` are buckets any more, so these counts do not map
+onto the current product/logs/archive split — a fresh end-to-end run under the four-bucket
+interview-gated design has not been separately totalled in source. **UNMEASURED.**
 
 The classification rule that took two tries: the archive signal ("this doc says it's
-CLOSED/FROZEN/deprecated") went case-insensitive first, and false-positived on real files —
+CLOSED/DEPRECATED") went case-insensitive first, and false-positived on real files —
 "Supersedes **nothing**" (negation), "archived spines" (describing input data, not the doc
 itself). Fixed by requiring the SHOUTED all-caps form, which is how this corpus's own
 writing convention marks a genuine self-declaration. Two real misses were traded away for
 that precision, and neither is dangerous — a miss just leaves a doc classified `product`
 instead of `archive`, and nothing moves without a reviewed plan anyway. Full account,
 including a process-killing bug the negative-control test caught before it shipped: spec §19.
+`FROZEN` was on this word list too, until it was measured against bareloop's real corpus and
+found responsible for 10 of 12 `archive` false positives on its own — dropped outright, see
+*History* below.
+
+**Discover is idempotent across re-runs, but not blind to prior work.** Re-running
+`discover` carries an already-classified row's `bucket` forward for any file it still sees
+at the same path — it does not re-litigate a decision the interview already made. Only a
+file `discover` has never classified before (new, or reappeared after a manual revert)
+starts unclassified. This is why bare `reorg` (Mode 2) can compose `discover` with
+`apply-reorg` with no stop on an already-sorted corpus: nothing new to classify, so the
+gate never fires. Carry-forward only accepts a currently-valid bucket — a legacy pre-v3
+value (`oversized`, `review`) is dropped rather than carried, so that row starts
+unclassified instead of making `apply-reorg` refuse the whole plan as stale schema (see
+*History*).
+
+**`apply-reorg` now writes a docs pointer into the repo's own agent config file.** A
+marker-wrapped `<!-- DOCS_INDEX:START -->`/`<!-- DOCS_INDEX:END -->` block naming
+`docs/index.md` as a **plain path, never an `@`-reference** — hot-loading a large index into
+every session is exactly what this avoids — plus the same search hint `index.md` itself
+carries. `CONFIG=` picks the target (default `CLAUDE.md`), because the script is
+byte-identical across all four packages but their config filenames differ (`CLAUDE.md` /
+`AGENTS.md` / `AGENT.md`). Idempotent: an existing block is replaced in place, never
+duplicated; the rest of the file is left alone.
+
+**A commit advisory now closes both `apply-reorg` and `archive`.** `git mv` stages a rename
+immediately — nothing in this tool's output ever said so, and it was confirmed twice, in two
+different repos, where another session's `git add -A` silently folded the staged renames into
+an unrelated commit. The advisory names the staged rename count, the unstaged link-rewrite
+count, and the distinct top-level locations outside `docs/` that were touched, then prints a
+one-line recipe (`git add -u && git commit -m "docs: reorg"`) that captures both in ONE
+commit — deliberately never scoped to `docs` alone, since the link rewrites the moves trigger
+reach outside `docs/` too (`src/`, `scripts/`, `tests/`, `README.md`) and a `docs`-scoped
+commit would ship moved files with their inbound links unrepaired. Nothing is ever
+auto-committed.
 
 ---
 
@@ -261,6 +398,7 @@ including a process-killing bug the negative-control test caught before it shipp
 | Supersession lint precision | 24/24 (100%) across 4 repos, after a fix (see "History of things that were wrong") |
 | Cost prediction accuracy | `plan` estimated $1.96, measured $1.9664 — 0.3% error |
 | Fence handling | headings inside code fences excluded; drops 982 false sections on aurora (2,213 → 1,231) |
+| Regression suite | 410/410 tests passing |
 
 The **governing rule behind the lint design**, independently re-derived from `/remember`'s
 finding on session logs: **observed beats inferred.** Lint only on what a doc *says about
@@ -464,8 +602,39 @@ revision.
   cost of 2 real bareloop hits no longer caught — explicit, consistent with the project's
   precision-over-recall stance.
 
+- **"Carry-forward keeps a row's classified bucket" → it also carried legacy pre-v3 values.**
+  Found on a real run: an old plan's `bucket: "oversized"` was carried forward verbatim on a
+  re-run of `discover`, which then made `apply-reorg` refuse the plan as stale schema.
+  Carry-forward now accepts only a currently-valid bucket (`product`/`logs`/`archive`); a
+  legacy value is dropped so the row starts unclassified and goes through the normal
+  interview.
+
+- **"Archive is byte-frozen" → a later row's own sweep could still edit it.** Measured: a real
+  reorg run rewrote 21 lines inside an archived PRD. Cause was the exemption testing a file's
+  CURRENT location, one row at a time — a file bound for `archive` but not yet moved still
+  read as "not resident" the instant an earlier row's link-repair sweep ran, so it absorbed an
+  edit before its own move carried it in, arriving in `docs/archive/` already changed. Fixed
+  by testing a row's PLANNED destination instead, computed once (`plannedArchiveSrc`) before
+  the move loop starts, so an archive-bound doc is exempt from the run's very first rewrite,
+  not only from whenever it happens to move. One predicate, `isRewriteExempt`, one call site
+  — generalizing the same rule already applied to `CHANGELOG.md`/`log.md`. Links elsewhere
+  that point AT an archived file are still repaired; only the archived file's own bytes are
+  frozen.
+
+- **"There is one index.md" → there were two writers racing for the same file.** The themed
+  `index` subcommand used to default to the same path `apply-reorg`/`index-flat` write.
+  Real defect on bareloop: `apply-reorg` wrote the 37-row whole-corpus map, then a PRD
+  split's `index` step ran afterward and silently overwrote it with only that split's own
+  7-row themed view — 30 of 37 files vanished from a file that still claimed completeness.
+  Fixed by giving the themed view its own file, `docs/wiki-index.md`, a sibling in the same
+  directory; `docs/index.md` is now `index-flat`'s alone to write.
+
 ---
 
 ## Sources
 
-`docs/docs-builder-v2-spec.md`, `SKILL.md`, `docs-builder.cjs`, `POC-E-RESULT.md`.
+`docs/archive/docs-builder-v2-spec.md` (scan/validate/plan/write/archive/index mechanics,
+cost law, borrowed mechanics, ledger, the honest label — all still current), `docs/product/
+docs-builder-v3-spec.md` (four buckets, the classification interview, oversized-as-boolean,
+the two-index split, `reorg`'s current shape — the CURRENT architecture, superseding v2's
+mode layout), `docs-builder.cjs`, `docs-builder.md`, `POC-E-RESULT.md`.
