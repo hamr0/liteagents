@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.17.1] - 2026-08-25
+
+### Fixed
+- **`AGENT_RULES.md`'s table of contents linked to an anchor that does not exist** in the
+  droid, opencode and ampcode kits. Entry 9 pointed at `#claudemd-stub` while the heading it
+  names is `## AGENTS.md Stub` / `## AGENT.md Stub` — anchors `#agentsmd-stub` /
+  `#agentmd-stub`. The per-tool rename substituted the visible heading text and the link
+  label and left the anchor on the claude spelling, so the link was dead in three of four
+  kits. Claude's was correct and is untouched. Cosmetic, but it is the mention-form this repo
+  already has a rule about: a rename sweep must cover every form, and an anchor is one. Every
+  TOC anchor in all four copies was audited against every heading; this was the only
+  mismatch. Found while diffing the agentic-toolkit mirror, which carried the correct anchor
+  and the *wrong* settings path — each side right about a different line.
+
 ## [2.17.0] - 2026-08-24
 
 ### Added
