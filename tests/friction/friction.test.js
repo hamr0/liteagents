@@ -323,6 +323,116 @@ function main() {
     if (uploadCluster) ok('(g) degenerate-uuid widget session stays its own', uploadCluster.sessions, 1);
   }
 
+  // ---------------------------------------------------------------- /remember output regression fixtures
+  // Real, uncrafted MEMORY.md / ledger.json / antigen_clusters.json captured from live
+  // /remember runs on two other repos (bareagent, privcloud), copied read-only into
+  // tests/friction/fixtures/. These assert hard invariants the spec makes about
+  // /remember's own OUTPUT files — the first regression coverage that layer has ever had.
+  // Pure file parsing; no dependency on friction.cjs, ~/.claude, or any live repo.
+  group('/remember output fixtures — regression invariants (I1-I5; I6 escalated, see report)');
+
+  const FIXTURES = path.join(__dirname, 'fixtures');
+
+  // A known-bad fixture is a DETECTION test: assert the checker reports the exact
+  // known violation count/set (so the suite proves the checker catches it). A
+  // known-good fixture is a CONFORMANCE test: assert zero violations. When a
+  // fixture is regenerated from a run where the underlying bug is fixed, flip its
+  // assertion from DETECTS-N to ==0 (or from a non-empty set to the empty set).
+
+  // ---- I1: known-bad violation counts, captured from real /remember runs.
+  // bareagent: length gate bypassed, 91 raw lines >180 chars, 1 exempted by a
+  // >100-char backtick literal -> 90 net violations. privcloud: a single 181-char
+  // line overruns the 180 cap by 1 char, no exemption applies.
+  const I1_EXPECTED = { bareagent: 90, privcloud: 1 };
+
+  for (const proj of ['bareagent', 'privcloud']) {
+    // ---- I1: fact line length. Between "## Facts" and "## Episodes", every "- " line
+    // must be <=180 chars, EXCEPT when its longest backtick-quoted literal is >100 chars.
+    const memoryText = fs.readFileSync(path.join(FIXTURES, proj, 'MEMORY.md'), 'utf8');
+    const factsStart = memoryText.indexOf('## Facts');
+    const episodesStart = memoryText.indexOf('## Episodes');
+    const factsSection = memoryText.slice(factsStart, episodesStart);
+    const factLines = factsSection.split('\n').filter(l => l.startsWith('- '));
+    let factViolations = 0, rawViolations = 0;
+    for (const line of factLines) {
+      const backtickLens = [...line.matchAll(/`([^`]*)`/g)].map(m => m[1].length);
+      const exempt = backtickLens.length > 0 && Math.max(...backtickLens) > 100;
+      if (line.length > 180) rawViolations++;
+      if (line.length > 180 && !exempt) factViolations++;
+    }
+    if (proj === 'bareagent') {
+      ok(`I1 DETECTS bareagent length-gate bypass (90 of 94 facts over 180; ` +
+        `raw ${rawViolations} before backtick exemption, net ${factViolations} after)`,
+        factViolations, I1_EXPECTED[proj]);
+    } else {
+      ok(`I1 DETECTS privcloud 1-char overrun (181 chars, ${factViolations} of ${factLines.length} facts)`,
+        factViolations, I1_EXPECTED[proj]);
+    }
+
+    // ---- I2: episode cap. "### " entries under "## Episodes" (before "## Antigens") <= 10.
+    const antigensStart = memoryText.indexOf('## Antigens');
+    const episodesSection = memoryText.slice(episodesStart, antigensStart);
+    const episodeCount = (episodesSection.match(/^### /gm) || []).length;
+    okTrue(`I2 (${proj}) episode count <= 10 (found ${episodeCount})`, episodeCount <= 10);
+
+    // ---- I3/I4: ledger session accounting. I3 DETECTS the known-bad set of
+    // inflated entries (verified real: privcloud ag-006's two session_ids share
+    // conversation prefix 0821-1747 and the two files share 99 message uuids —
+    // sessions:2 is inflated, should be 1); every other entry is a CONFORMANCE
+    // check that stays green.
+    const I3_KNOWN_BAD = { bareagent: [], privcloud: ['ag-006'] };
+    const knownBad = new Set(I3_KNOWN_BAD[proj]);
+    const flagged = [];
+    const ledger = JSON.parse(fs.readFileSync(path.join(FIXTURES, proj, 'ledger.json'), 'utf8'));
+    for (const entry of ledger.entries) {
+      const rawIds = entry.evidence.session_ids || [];
+      const ids = rawIds.map(x => (typeof x === 'string' ? x : x.id));
+      // strip trailing "-<8 hex>" to get the conversation prefix (files of one forked
+      // conversation share that prefix); an id with no such suffix is its own prefix.
+      const prefixes = new Set(ids.map(id => id.replace(/-[0-9a-f]{8}$/, '')));
+      const sessions = entry.evidence.sessions;
+      const violates = sessions > prefixes.size;
+      if (violates) flagged.push(entry.id);
+      if (!knownBad.has(entry.id)) {
+        okTrue(`I3 (${proj} ${entry.id}) sessions (${sessions}) <= distinct conversation prefixes (${prefixes.size})`,
+          !violates);
+      }
+      okTrue(`I4 (${proj} ${entry.id}) sessions (${sessions}) <= session_ids.length (${ids.length})`,
+        sessions <= ids.length);
+    }
+    if (proj === 'bareagent') {
+      ok('I3 bareagent ledger has no inflated entries', JSON.stringify(flagged), JSON.stringify([]));
+    } else {
+      ok('I3 DETECTS privcloud inflated entries == [ag-006]',
+        JSON.stringify(flagged), JSON.stringify([...knownBad]));
+    }
+  }
+
+  // ---- I5: cluster contract (privcloud antigen_clusters.json only — the only fixture
+  // that has one). sessions <= session_ids.length, and sessions == distinct prefixes.
+  const privClusters = JSON.parse(
+    fs.readFileSync(path.join(FIXTURES, 'privcloud', 'antigen_clusters.json'), 'utf8'));
+  let multiFileClusters = 0;
+  for (const c of privClusters) {
+    const ids = c.session_ids || [];
+    okTrue(`I5 (privcloud) sessions (${c.sessions}) <= session_ids.length (${ids.length}) — ${c.theme}`,
+      c.sessions <= ids.length);
+    const prefixes = new Set(ids.map(id => id.replace(/-[0-9a-f]{8}$/, '')));
+    okTrue(`I5 (privcloud) sessions (${c.sessions}) == distinct conversation prefixes (${prefixes.size}) — ${c.theme}`,
+      c.sessions === prefixes.size);
+    if (ids.length > c.sessions) multiFileClusters++;
+  }
+  // KNOWN: exactly 2 clusters have session_ids.length > sessions ("no npm for this" with 3
+  // ids, "change docs to Gists" with 2) — characterizes the fixture's correct multi-file shape.
+  ok('I5 (privcloud) multi-file clusters (session_ids.length > sessions) count', multiFileClusters, 2);
+
+  // I6 (antigen tier <-> ledger status cross-check) is NOT implemented: neither fixture's
+  // MEMORY.md "## Antigens" section carries an "ag-NNN" (or any) id marker next to an
+  // entry — grep confirms zero "ag-[0-9]" matches in either file. Matching High Confidence
+  // prose to a ledger "hot" entry would require fuzzy text matching between the antigen's
+  // written rule and the ledger's `rule`/`class` fields, which is guessing, not parsing.
+  // Escalated per task instructions rather than guessed at; see final report.
+
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
   console.log(`Total tests: ${passed + failed}`);

@@ -1,0 +1,1404 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ag-001",
+      "class": "wrong-search-result",
+      "class_hints": [
+        "wrong-search-result"
+      ],
+      "status": "observing",
+      "rule": "When a user rejects a search/download result, vary the search source or terms instead of repeating the same query.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When a user rejects a search/download result, vary the search source or terms instead of repeating the same query.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-multis/0707-1155-a91765e8",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-multis"
+        ],
+        "quotes": [
+          "no, find other subs"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-002",
+      "class": "missed-security-edge-case",
+      "class_hints": [
+        "missed-security-edge-case"
+      ],
+      "status": "observing",
+      "rule": "When designing security-critical logic (auth/proof/nonce schemes), enumerate and address all reuse/replay scenarios before presenting the design as complete.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When designing security-critical logic (auth/proof/nonce schemes), enumerate and address all reuse/replay scenarios before presenting the design as complete.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-8een/0716-1356-ee7781f5",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-8een"
+        ],
+        "quotes": [
+          "You're missing one thing: a proof is stamped with the nonce it was made for. That changes everything. Here's the whole picture in three cases."
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-003",
+      "class": "ungrounded-technical-claim",
+      "class_hints": [
+        "ungrounded-technical-claim"
+      ],
+      "status": "observing",
+      "rule": "Ground technical claims about SDK/framework behavior in the actual source or docs before asserting them, not an unverified interpretation.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Ground technical claims about SDK/framework behavior in the actual source or docs before asserting them, not an unverified interpretation.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-litectx/0622-1108-a01fae47",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-litectx"
+        ],
+        "quotes": [
+          "no, it wont, i will discuss wuth bareagen. so your call is that adverserial eval from agent sdk is just an agent with tools? did you ground your check from claude agent sdk"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-004",
+      "class": "stale-doc-not-reread",
+      "class_hints": [
+        "stale-doc-not-reread"
+      ],
+      "status": "observing",
+      "rule": "Before implementing, re-read the referenced doc at its current path/state, not a stale or previously-cached version.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Before implementing, re-read the referenced doc at its current path/state, not a stale or previously-cached version.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-litectx/0618-1649-89782bc6",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-litectx"
+        ],
+        "quotes": [
+          "no, just start implementing doc updated ~/PycharmProjects/multis/docs/01-product/litectx-asks/fail-closed-scope-default.md"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-005",
+      "class": "unrequested-artifact-created",
+      "class_hints": [
+        "unrequested-artifact-created"
+      ],
+      "status": "observing",
+      "rule": "Don't create new recurring artifacts (indexes, generated files) that weren't asked for, especially ones that must be maintained on every future change, without asking first.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't create new recurring artifacts (indexes, generated files) that weren't asked for, especially ones that must be maintained on every future change, without asking first.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-liteagents/0823-2336-ed7c0cce",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-liteagents"
+        ],
+        "quotes": [
+          "i never fucking asked for it, you made that shit, only one fucking index that gets rewrittent with every reorg and clean links, it runs after splitting to capture new shape of split docs"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-006",
+      "class": "incomplete-content-item-dropped",
+      "class_hints": [
+        "incomplete-content-item-dropped"
+      ],
+      "status": "observing",
+      "rule": "When drafting bio/profile/doc content on the user's behalf, include every item the user specified and verify nothing was dropped before presenting it as final.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When drafting bio/profile/doc content on the user's behalf, include every item the user specified and verify nothing was dropped before presenting it as final.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 2,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-liteagents/0821-1747-85ccb808",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-liteagents/0821-1747-cd5f780b",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-liteagents"
+        ],
+        "quotes": [
+          "change docs to Gists, and you are missing 1 Hey, I'm Amr - AI-Native Builder. Local-first AI agents and privacy-first products - no accounts, no tracking, open rails over rented infrastructure."
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (2 sessions)"
+        }
+      ]
+    },
+    {
+      "id": "ag-007",
+      "class": "premature-commit",
+      "class_hints": [
+        "premature-commit"
+      ],
+      "status": "observing",
+      "rule": "While a branch is in an experimental/testing state, hold off on any commits until the user explicitly says to proceed or switch back.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "While a branch is in an experimental/testing state, hold off on any commits until the user explicitly says to proceed or switch back.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0822-1801-df462869",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "no testing other slash command docs-builder, so hold off any commit until i tell you to switch branches back"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-008",
+      "class": "claimed-done-not-verified",
+      "class_hints": [
+        "claimed-done-not-verified"
+      ],
+      "status": "observing",
+      "rule": "Never report a task, fix, or test as done/validated/tested until you have actually run the verification and observed the result - don't claim success from assumption.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Never report a task, fix, or test as done/validated/tested until you have actually run the verification and observed the result - don't claim success from assumption.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 4,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareguard/0812-1905-994a213b",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-bareloop/0714-0842-ddc47175",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-liteagents/0708-1204-ac726e3e",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-liteagents/0526-0910-668e5fb2",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareguard",
+          "PycharmProjects-bareloop",
+          "PycharmProjects-liteagents"
+        ],
+        "quotes": [
+          "did you validate all fixes and confirmed that no regression? btw, this is by far one of the worst sessions of zero trust of the amount of times you said you finished and validated then found shit. how/when can i release now?",
+          "the fuck are you doing? i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet and coming back complaining"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (4 sessions)"
+        }
+      ]
+    },
+    {
+      "id": "ag-009",
+      "class": "poor-release-scoping",
+      "class_hints": [
+        "poor-release-scoping"
+      ],
+      "status": "observing",
+      "rule": "Scope each release/feature properly upfront instead of shipping one feature at a time reactively - plan the batch, don't drip-feed.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Scope each release/feature properly upfront instead of shipping one feature at a time reactively - plan the batch, don't drip-feed.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareagent/0823-1557-88782558",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareagent"
+        ],
+        "quotes": [
+          "ask him what the fuck is wrong with him and why you/him haven't scoped well the last ba23?. work it out and fucking reconcile, tired of one feat a release"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-010",
+      "class": "confusing-explanation",
+      "class_hints": [
+        "confusing-explanation"
+      ],
+      "status": "observing",
+      "rule": "When explaining a multi-step pipeline or design, walk through the concrete mechanism step by step - don't leave the reader to infer what happens after a described step.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When explaining a multi-step pipeline or design, walk through the concrete mechanism step by step - don't leave the reader to infer what happens after a described step.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0714-1649-48a7c9c7",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "what the fuck is that logic, i give you a problem. \"please find why memory loading takes time in gitdone repo\" ... then what? what does it know about which primitives does it need?! how the fuck does that work after?"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-011",
+      "class": "unnecessary-otp-prompt",
+      "class_hints": [
+        "unnecessary-otp-prompt"
+      ],
+      "status": "observing",
+      "rule": "Don't prompt for OTP/2FA when the user has said they're already authenticated or prefers a different login method (e.g. passkey) - use the remembered method.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't prompt for OTP/2FA when the user has said they're already authenticated or prefers a different login method (e.g. passkey) - use the remembered method.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 2,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-8een/0713-1854-0a398305",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "hamr/0726-0037-cccfcd0f",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-8een",
+          "hamr"
+        ],
+        "quotes": [
+          "no otp, use npm login like last time i use passkey",
+          "no otp, just publish i am already logged in"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (2 sessions)"
+        }
+      ]
+    },
+    {
+      "id": "ag-012",
+      "class": "vague-handoff-spec",
+      "class_hints": [
+        "vague-handoff-spec"
+      ],
+      "status": "observing",
+      "rule": "When you need something built by another agent/team, give a specific, detailed spec grounded in the agreed PRD instead of a vague handoff ask.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When you need something built by another agent/team, give a specific, detailed spec grounded in the agreed PRD instead of a vague handoff ask.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-litectx/0613-2226-5e66d8c1",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-litectx"
+        ],
+        "quotes": [
+          "no, i want you to decide what you need from bareguard to build, be specfic to what you need as agreed in ce prd, be detailed, specific and i will pass it to baregaurd then you can go with build b"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-013",
+      "class": "excessive-false-positives",
+      "class_hints": [
+        "excessive-false-positives"
+      ],
+      "status": "observing",
+      "rule": "Tune detection/reporting for high recall on real hits without flooding the user with false positives - over-reporting to be safe is still a failure mode.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Tune detection/reporting for high recall on real hits without flooding the user with false positives - over-reporting to be safe is still a failure mode.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-edgelms/0707-0731-5415b1f4",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-edgelms"
+        ],
+        "quotes": [
+          "over reporting without spamming and so many false positives, was not the desired outcome, correct?"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-014",
+      "class": "agent-hung-no-output",
+      "class_hints": [
+        "agent-hung-no-output"
+      ],
+      "status": "observing",
+      "rule": "If a long-running agent/task produces no output or appears stuck, surface a status/progress check rather than letting the user have to force-kill it.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "If a long-running agent/task produces no output or appears stuck, surface a status/progress check rather than letting the user have to force-kill it.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0815-1624-5536fc27",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "no, nothing, had to kill it ctrl c"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-015",
+      "class": "overbuilt-unrequested-complexity",
+      "class_hints": [
+        "overbuilt-unrequested-complexity"
+      ],
+      "status": "observing",
+      "rule": "Don't add unrequested complexity (pricing tiers, extra config shapes/resume-modes) - use one sane default and ask before expanding scope.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't add unrequested complexity (pricing tiers, extra config shapes/resume-modes) - use one sane default and ask before expanding scope.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareagent/0813-1533-e3ccf3e4",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareagent"
+        ],
+        "quotes": [
+          "no tables, no pricing for us, use one default pricing if no params passed #2 for clipipe, we don't need resume in that particular shape, as pause always start from the beginning of last step, ask bareloop for clairifications."
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-016",
+      "class": "wasteful-costly-approach",
+      "class_hints": [
+        "wasteful-costly-approach"
+      ],
+      "status": "observing",
+      "rule": "When an approach is burning tokens/money without producing results, stop and switch strategy rather than repeating the same failing plan.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When an approach is burning tokens/money without producing results, stop and switch strategy rather than repeating the same failing plan.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0803-2305-6945178a",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "how would that be any different while you are burning money for no fucking use? why is it failing smart pants? why did the plans went worse? ... we can't keep burning money like this"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-017",
+      "class": "ignored-source-doc",
+      "class_hints": [
+        "ignored-source-doc"
+      ],
+      "status": "observing",
+      "rule": "Before writing content, follow the referenced source-of-truth doc exactly - don't invent content, and confirm you followed it when asked.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Before writing content, follow the referenced source-of-truth doc exactly - don't invent content, and confirm you followed it when asked.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-gitdone/0602-1433-ccaf5d48",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-gitdone"
+        ],
+        "quotes": [
+          "dont fucking create shit, did you follow this or not, simple fucking ask"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-018",
+      "class": "wrong-target-edited",
+      "class_hints": [
+        "wrong-target-edited"
+      ],
+      "status": "observing",
+      "rule": "Confirm which specific item/section needs the change before editing - don't apply an update to the wrong target in a doc.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Confirm which specific item/section needs the change before editing - don't apply an update to the wrong target in a doc.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-litectx/0627-2334-cf9a23ba",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-litectx"
+        ],
+        "quotes": [
+          "no, it's the episode that needed a config knob and safe default 30d that you updated prd with"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-019",
+      "class": "no-working-e2e-demo",
+      "class_hints": [
+        "no-working-e2e-demo"
+      ],
+      "status": "observing",
+      "rule": "Don't substitute status reports and hand-rolled demonstrations for an actual end-to-end run the user can try themselves - get a real runnable path working early.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't substitute status reports and hand-rolled demonstrations for an actual end-to-end run the user can try themselves - get a real runnable path working early.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0813-2012-e86e9a0e",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "i need to fucking run a whole run end to end to get a fucking feel for it, since we started this couple of weeks ago and i am reading reports, and you are handrolling shit"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-020",
+      "class": "confusing-prose-not-clear-status",
+      "class_hints": [
+        "confusing-prose-not-clear-status"
+      ],
+      "status": "observing",
+      "rule": "Answer status questions directly and simply (pass/fail, what's left, current location) - don't bury the answer in prose.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Answer status questions directly and simply (pass/fail, what's left, current location) - don't bury the answer in prose.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 2,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0807-0007-8d4e0bce",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-8een/0714-1011-08ac495c",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop",
+          "PycharmProjects-8een"
+        ],
+        "quotes": [
+          "no prose and keep it simple. #2 where are we from layer 3?",
+          "your whole thing is confusing prose. did m2 pass cleanly? do we have any open fixes? did you validate not assert?"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (2 sessions)"
+        }
+      ]
+    },
+    {
+      "id": "ag-021",
+      "class": "misunderstood-domain-model",
+      "class_hints": [
+        "misunderstood-domain-model"
+      ],
+      "status": "observing",
+      "rule": "Verify your understanding of the core domain model against the user's explicit framing before building around your own assumption.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Verify your understanding of the core domain model against the user's explicit framing before building around your own assumption.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-dwi/0604-2134-95c97950",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-dwi"
+        ],
+        "quotes": [
+          "no, why? every repo is a closed transaction one customer one stylists, repo = transaction/po"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-022",
+      "class": "wrong-default-chosen",
+      "class_hints": [
+        "wrong-default-chosen"
+      ],
+      "status": "observing",
+      "rule": "Don't silently pick a default value for money/time-sensitive parameters that the user hasn't confirmed - surface the choice.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't silently pick a default value for money/time-sensitive parameters that the user hasn't confirmed - surface the choice.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareloop/0726-0006-768e1b72",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareloop"
+        ],
+        "quotes": [
+          "no default, 50% is fine, both money and time"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-023",
+      "class": "skipped-poc-methodology",
+      "class_hints": [
+        "skipped-poc-methodology"
+      ],
+      "status": "observing",
+      "rule": "Build and validate each module end-to-end on its own against the toughest assumption before moving to the next - don't chain unvalidated modules together or optimize for the easiest case that happens to pass.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Build and validate each module end-to-end on its own against the toughest assumption before moving to the next - don't chain unvalidated modules together or optimize for the easiest case that happens to pass.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-justabit/0814-1632-2838339d",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-justabit"
+        ],
+        "quotes": [
+          "follow prd and agent_rules, modules are modular so each has to work end to end on its own before graduating, build with toughest assumption not the easiest fit to pass"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-024",
+      "class": "patch-on-patch",
+      "class_hints": [
+        "patch-on-patch"
+      ],
+      "status": "observing",
+      "rule": "When a flow has accumulated patch-on-patch, stop and propose a clean redesign instead of adding another patch, and let in-flight user requests persist until answered or explicitly canceled.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When a flow has accumulated patch-on-patch, stop and propose a clean redesign instead of adding another patch, and let in-flight user requests persist until answered or explicitly canceled.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-multis/0624-1659-5a572803",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-multis"
+        ],
+        "quotes": [
+          "this loop needs a clean redesign as you are patching up shit on top of shit. any ask from admin needs to stick until answered or canceled then resume"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-025",
+      "class": "unvalidated-delivery",
+      "class_hints": [
+        "unvalidated-delivery"
+      ],
+      "status": "observing",
+      "rule": "After making a correction, actually validate it with tests, regression, and a smoke test before calling it delivered - don't hand off an unverified fix.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "After making a correction, actually validate it with tests, regression, and a smoke test before calling it delivered - don't hand off an unverified fix.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareagent/0612-2311-9b38119e",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareagent"
+        ],
+        "quotes": [
+          "fix the hook arg first, then build the adapter, you will validate this after correction with tests and regression and smoke test"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-026",
+      "class": "incomplete-status-report",
+      "class_hints": [
+        "incomplete-status-report"
+      ],
+      "status": "observing",
+      "rule": "When asked for outstanding work, give the complete list of everything pending - don't gloss over or omit items.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When asked for outstanding work, give the complete list of everything pending - don't gloss over or omit items.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-multis/0706-2318-a7c115e5",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-multis"
+        ],
+        "quotes": [
+          "stop here, and dont paper over it. give me a full list/ask for what bareguard should do"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-027",
+      "class": "wrong-content-in-wrong-file",
+      "class_hints": [
+        "wrong-content-in-wrong-file"
+      ],
+      "status": "observing",
+      "rule": "Don't turn a README into a changelog - keep content types in their proper file/section.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't turn a README into a changelog - keep content types in their proper file/section.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-multis/0706-2158-a7db6da2",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-multis"
+        ],
+        "quotes": [
+          "also, readme is fucked, this is not a changelog to add this shit"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-028",
+      "class": "edited-wrong-copy-not-origin",
+      "class_hints": [
+        "edited-wrong-copy-not-origin"
+      ],
+      "status": "observing",
+      "rule": "Land edits in the origin/source-of-truth doc first, completely (no omissions) - don't edit a downstream copy that other projects don't feed from.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Land edits in the origin/source-of-truth doc first, completely (no omissions) - don't edit a downstream copy that other projects don't feed from.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-litectx/0613-1554-a49d63a9",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-litectx"
+        ],
+        "quotes": [
+          "you fucked the doc. hamr0 is the origin and your updates should have landed there cleanly, addition no omission. this feeds all other projects"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-029",
+      "class": "unnecessary-work-fragmentation",
+      "class_hints": [
+        "unnecessary-work-fragmentation"
+      ],
+      "status": "observing",
+      "rule": "Don't split one logical batch of independent work into multiple separate PRs/branches when they could be merged together - that multiplies review/release overhead needlessly.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't split one logical batch of independent work into multiple separate PRs/branches when they could be merged together - that multiplies review/release overhead needlessly.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-8een/0714-0912-9e521826",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-8een"
+        ],
+        "quotes": [
+          "so we have to run 3 code-reviews and 3 releases on each to merge with main. if they were all separate work and no cross contaminated, why didn't you merge them at once"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-030",
+      "class": "wrong-publish-method",
+      "class_hints": [
+        "wrong-publish-method"
+      ],
+      "status": "observing",
+      "rule": "Don't default to npm publish or any specific registry/distribution action unless explicitly requested - confirm the intended channel first.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't default to npm publish or any specific registry/distribution action unless explicitly requested - confirm the intended channel first.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-agentic-toolkit/0703-1545-3ff5515b",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-agentic-toolkit/0703-1545-70434ba2",
+            "seen": "2026-08-24"
+          },
+          {
+            "id": "PycharmProjects-agentic-toolkit/0703-1545-8e48c2ae",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-agentic-toolkit"
+        ],
+        "quotes": [
+          "no npm for this"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session, 3 file-hashes under one canonical conversation)"
+        }
+      ]
+    },
+    {
+      "id": "ag-031",
+      "class": "avoid-literal-line-counts",
+      "class_hints": [
+        "avoid-literal-line-counts"
+      ],
+      "status": "observing",
+      "rule": "In user-facing copy, don't state literal line counts - imply scale qualitatively (small/large) instead.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "In user-facing copy, don't state literal line counts - imply scale qualitatively (small/large) instead.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-bareguard/0629-2256-d3fed81f",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-bareguard"
+        ],
+        "quotes": [
+          "don't mention lines, just imply that it's small or nothing at all"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-032",
+      "class": "overcomplicated-flow",
+      "class_hints": [
+        "overcomplicated-flow"
+      ],
+      "status": "observing",
+      "rule": "When a confirmation flow requires too many steps, redesign it for a fuzzy-match-and-confirm shortcut rather than a long linear sequence.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When a confirmation flow requires too many steps, redesign it for a fuzzy-match-and-confirm shortcut rather than a long linear sequence.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-multis/0705-0957-fdb97d1f",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-multis"
+        ],
+        "quotes": [
+          "this definitely needs redesign. forget should be fuzzy matching, too long, how can we make it easier"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-033",
+      "class": "misapplied-ui-edit",
+      "class_hints": [
+        "misapplied-ui-edit"
+      ],
+      "status": "observing",
+      "rule": "When editing UI per user instruction, confirm exactly which element to keep vs remove before applying the edit - don't guess.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "When editing UI per user instruction, confirm exactly which element to keep vs remove before applying the edit - don't guess.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-hamr0/0703-1247-0521fd97",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-hamr0"
+        ],
+        "quotes": [
+          "no, keep % remove the bar"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    },
+    {
+      "id": "ag-034",
+      "class": "unnecessary-pr-per-change",
+      "class_hints": [
+        "unnecessary-pr-per-change"
+      ],
+      "status": "observing",
+      "rule": "Don't open a PR for every small change by default - push directly to main unless the user asks for PR review.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Don't open a PR for every small change by default - push directly to main unless the user asks for PR review.",
+          "adopted": "2026-08-24",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-looped/0710-2355-9dcf5560",
+            "seen": "2026-08-24"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-looped"
+        ],
+        "quotes": [
+          "stop creating a pr for every change, you can push to main"
+        ],
+        "last_seen": "2026-08-24"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        {
+          "date": "2026-08-24",
+          "event": "candidate (1 session)"
+        }
+      ]
+    }
+  ]
+}
