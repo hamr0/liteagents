@@ -79,7 +79,12 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    - Read friction output written in step 0: `.opencode/remember/friction/antigen_clusters.json` (preferred) or `.opencode/remember/friction/antigen_review.md` (fallback)
    - Read existing `.opencode/remember/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.opencode/remember/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND friction produced no new antigens, report "nothing to consolidate" and stop
+   - If no unprocessed stashes AND friction produced no new antigens, run the step-8 mechanical
+     length check (the same awk: over 180 chars with no >100-char backtick literal) against the
+     existing `.opencode/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
+     consolidate" and stop. If it returns any lines, "no new input" is not a reason to leave
+     gate debt in place — do NOT stop: proceed to step 3 and run the Facts rewrite + pre-write
+     gate on the existing content with no new input, then continue through step 8 as normal.
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
@@ -255,7 +260,14 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
        filenames), but change NOTHING else — not `sessions`, not `last_seen`, not history, not
        `recurred_while_hot`. It is a re-scan re-detecting a conversation already counted, not
        new evidence.
-     - **No match** → new entry, `status: "observing"`, attempt 1, history "candidate (N sessions)".
+     - **No match, cluster `sessions` >= 2** → new entry, `status: "observing"`, attempt 1,
+       history "candidate (N sessions)".
+     - **No match, cluster `sessions` == 1** → do NOT create a ledger entry. The ledger tracks
+       recurrence, and a single occurrence has no recurrence to track yet — seeding singletons
+       grows the ledger by dozens of never-recurring entries per run. Friction re-scans every
+       session log on every run, so if this mistake recurs, a later run will match it back to
+       2+ sessions and seed it then. This does not change the Match bullets below — a
+       1-session cluster can still merge into an EXISTING entry; that is recurrence.
      - **Match, `observing`** → apply the new-conversation / already-counted rule above
        (sessions, session_ids, quotes, projects, last_seen). Crosses the 4b hot threshold on a
        genuinely new conversation → `status: "hot"`, history "promoted to hot (N sessions)".
