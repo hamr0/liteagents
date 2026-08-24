@@ -64,6 +64,8 @@ test-installation-*/
 # control exactly like the suite it replaced (see tests/docs-builder/docs-builder.test.js).
 !/tests/docs-builder/
 !/tests/docs-builder/docs-builder.test.js
+!/tests/friction/
+!/tests/friction/friction.test.js
 
 # Release artifacts
 liteagents-*.tgz

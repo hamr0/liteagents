@@ -61,13 +61,13 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      > list in step 0, then re-run `/remember`. Consolidating stashes only this time.
 
 1. **Gather sources**
-   - **Legacy layout migration (one-time, loud).** Older versions used `.claude/memory/` and
-     `.claude/friction/`. If either exists: move the pipeline files
-     `.claude/memory/{MEMORY.md,ledger.json,.processed}` → `.factory/remember/`, and **discard**
-     the old `.claude/friction/` contents entirely — friction regenerates all of its output
+   - **Legacy layout migration (one-time, loud).** Older versions used `.factory/memory/` and
+     `.factory/friction/`. If either exists: move the pipeline files
+     `.factory/memory/{MEMORY.md,ledger.json,.processed}` → `.factory/remember/`, and **discard**
+     the old `.factory/friction/` contents entirely — friction regenerates all of its output
      fresh every run (step 0 has already rebuilt it in `.factory/remember/friction/` by the time
      migration runs; stale copies carry no unique information and moving them would overwrite
-     fresh output). **Move only those pipeline files** — anything else in `.claude/memory/`
+     fresh output). **Move only those pipeline files** — anything else in `.factory/memory/`
      (e.g. user-owned rule files) stays where it is. Remove the old dirs only if empty, update the managed MEMORY section in AGENTS.md to
      the new reference (step 5), and tell the user exactly what moved.
    - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
@@ -193,11 +193,38 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      labels can be renamed while the hash, derived from the session filename, is stable. Two
      ids with the same hash are the same session, full stop.
 
-     **Migration (one-time, grandfathered).** Existing entries predate `session_ids` and carry
-     only a bare `sessions` count. Leave that count exactly as-is, start `session_ids` as an
-     empty set, and append the history line "identity migration — legacy count grandfathered,
-     growth requires new hashes". From that point on the count only moves when a genuinely new
-     hash lands.
+     Two ids with DIFFERENT hashes can also be one session. A fork or resume writes the same
+     conversation to a second session file with its own filename, so the hash alone would
+     count one reaction twice. `friction.cjs` collapses these before it emits clusters —
+     sessions sharing at least one message `uuid` are one conversation, and the group is
+     reported under a single canonical id (the lexicographically smallest). So the ids
+     reaching this step are already canonical; do not attempt to re-derive fork identity
+     here. Measured on a real 3,158-session corpus: 6 such groups exist, and of ~5M possible
+     session pairs only 9 share any uuid at all — every one a genuine duplicate.
+
+     **Migration (one-time, grandfathered): SEED, DO NOT COUNT.** Existing entries predate
+     `session_ids` and carry only a bare `sessions` count with an empty `session_ids` set. This
+     is mechanical — do not resolve it by judgment. On the run that first populates such an
+     entry's `session_ids` (i.e. `session_ids` is empty going in), do exactly these two things
+     and nothing else:
+     1. Write `session_ids` to this run's matched ids (NOT an empty set — the empty set is the
+        pre-migration state you are migrating FROM, not what you write).
+     2. Append the history line "identity migration — legacy count grandfathered, growth
+        requires new hashes".
+
+     Change NOTHING else on this run — not `sessions`, not `last_seen`, not
+     `recurred_while_hot`, not `status`. In particular, do NOT apply "hash not present →
+     increment" here: `session_ids` was empty, so every hash looks absent, and counting would
+     treat the entry's own already-counted history as fresh recurrence — on a `hot` entry that
+     also fires `recurred_while_hot`, which at 2 marks the phrasing failed and rewrites a rule
+     that never actually failed. Counting resumes on the NEXT run, once `session_ids` is
+     non-empty and an absent hash is genuinely new evidence.
+
+     Observed for real: bareloop's first migration run carried two `hot` entries, each already
+     at `recurred_while_hot: 1`. Counting on migration would have taken both to 2 and force-
+     rephrased two working rules from re-detected pre-existing sessions. Two separate runs
+     avoided it only because whoever ran them noticed and overrode the text — which is the
+     definition of a rule that needs to be mechanical rather than prose.
 
      For each surviving antigen from 4a/4b, match against existing entries by `class_hints`
      (the mistake class, not the rule wording — rules change, the class doesn't). Then, for

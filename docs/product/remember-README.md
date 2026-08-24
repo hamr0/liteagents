@@ -91,6 +91,23 @@ guessed. An antigen is a **triad**:
   (`/stash`), `session_abandoned`, `long_silence`. These never seed — they only add context
   or escalate, and only when they actually surround a real reaction.
 
+**One conversation counts once.** Recurrence is what promotes a rule, so a session has to
+mean a *conversation*, not a *file*. A fork or resume writes the same conversation to a
+second session file with its own name, and friction identifies a session by its filename —
+so without a guard, one reaction gets counted N times and can trip the promotion gate on
+its own. Friction collapses these before clustering: sessions sharing at least one message
+`uuid` are the same conversation, reported under a single canonical id (the
+lexicographically smallest). Measured on a real 3,158-session corpus: 6 such groups exist,
+and of ~5M possible session pairs only **9** share any `uuid` at all — every one a genuine
+duplicate, so the rule never merges independent sessions.
+
+**A cluster with no user text is dropped.** If the matched context window holds no real
+words, there is nothing to classify and nothing to quote as evidence. Worse, an
+empty-context cluster short-circuits the self-correction filter (there is nothing to test),
+so a lone `user_correction` would auto-qualify as severe on no evidence at all. These are
+dropped outright, not downgraded — measured at 3 of 68 clusters on the real corpus, and
+nothing carrying real text was affected.
+
 **Outputs (`.claude/remember/friction/`):**
 | file | contents |
 |---|---|
@@ -204,7 +221,37 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-08-23)
+## 4. Status (as of 2026-08-24)
+
+- **Session identity is content-based (2026-08-24).** Friction now collapses forked/resumed
+  session files into one conversation before clustering (shared message `uuid`), and drops
+  clusters that carry no user text. Both land in all four packages, covered by the repo's
+  first friction test suite (`tests/friction/friction.test.js`), written to fail against the
+  pre-fix script and observed doing so. A declared `forkedFrom` field exists and was tried
+  first — it catches only 5 of the 6 real duplicate groups (17% miss), so detection is by
+  content overlap instead. Threshold is one shared `uuid`: across ~5M possible session pairs
+  only 9 share any uuid at all, and every one is a genuine duplicate.
+
+  **It was corrective, not merely preventative.** Validated by running `/remember` on
+  bareloop, whose corpus holds 4 of the 6 duplicate groups. That run found a live false
+  promotion already sitting in loaded memory: `ag-014` ("confirm a project publishes to npm")
+  rendered as **3 sessions** under Medium, but its evidence is a single reaction —
+  `no npm for this` — from ONE agentic-toolkit conversation that had been forked into three
+  session files and counted three times. The ledger had it right at 1 the whole time; the
+  render was the inflated copy. Post-fix friction emits only the canonical id, and the entry
+  now sits in Low at 1 session.
+
+- **The ledger migration is "seed, do not count" (2026-08-24).** A defect found by the same
+  bareloop run. The migration clause said to start `session_ids` empty; the matching rules
+  said an absent hash is new evidence and increments `sessions`. On the one run where the set
+  IS empty those two are contradictory — every entry's own history reads as fresh recurrence,
+  and on a `hot` entry that also drives `recurred_while_hot`, which at 2 rewrites a rule that
+  never failed. bareloop carried two hot entries already at 1, so counting would have
+  force-rephrased both. Two separate runs avoided it only because the operator noticed and
+  overrode the text, which is the definition of a rule that must be mechanical. `remember.md`
+  now carries an explicit override: on the run that first populates `session_ids`, write the
+  ids and change nothing else — not `sessions`, not `last_seen`, not `recurred_while_hot`,
+  not `status`. Counting resumes on the next run.
 
 - **Facts are compressed, not accumulated (2026-08-23).** `/remember` now rewrites the whole
   Facts section every run under a one-line/≤160-char bar, keeps the 10 most recent episodes and

@@ -53,6 +53,12 @@ const testSuites = [
     file: 'docs-builder/docs-builder.test.js',
     description: 'Tests docs-builder.cjs behaviour end-to-end in throwaway git repos',
     expectedTests: 354
+  },
+  {
+    name: 'friction',
+    file: 'friction/friction.test.js',
+    description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
+    expectedTests: 26
   }
 ];
 
