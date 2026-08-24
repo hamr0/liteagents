@@ -2005,7 +2005,10 @@ function computeCanonicalSessionIds(sessionIds, fileFor) {
   }
   for (const ids of uuidToSessions.values()) {
     const distinctIds = [...new Set(ids)];
-    if (distinctIds.length > MAX_SESSIONS_PER_UUID) continue;
+    if (distinctIds.length > MAX_SESSIONS_PER_UUID) {
+      console.error(`warn: uuid shared by ${distinctIds.length} sessions (> ${MAX_SESSIONS_PER_UUID}) — treated as noise, not unioned`);
+      continue;
+    }
     for (let i = 1; i < distinctIds.length; i++) union(distinctIds[0], distinctIds[i]);
   }
 

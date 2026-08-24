@@ -225,6 +225,23 @@ function buildFixture(root) {
     ]);
   }
 
+  // (h) UUID CAP OVERFLOW — 13 distinct sessions (one more than
+  // MAX_SESSIONS_PER_UUID=12) whose events all share one constant, real-length
+  // uuid ("h-shared-uuid-cap", >=8 chars so it isn't caught by the (g)
+  // degenerate-uuid length guard instead). This must NOT union into one
+  // canonical session (same protection as (g), for an implausibly-large
+  // sharing count rather than a too-short uuid) AND must emit a stderr
+  // warning so the cap firing is visible, not silent.
+  const capUuid = 'h-shared-uuid-cap';
+  for (let i = 1; i <= 13; i++) {
+    const n = String(i).padStart(2, '0');
+    writeSession(path.join(sessionsDir, 'projH'), `h${n}111111-hhhh-cap.jsonl`, [
+      { type: 'user', text: `please review capfile number ${n}`, mins: 0, uuid: capUuid },
+      { type: 'assistant', text: 'Done! Fixed it.', mins: 1, uuid: capUuid },
+      { type: 'user', text: `wrong, capfile ${n} review is still incomplete`, mins: 2, uuid: capUuid },
+    ]);
+  }
+
   return sessionsDir;
 }
 
@@ -321,6 +338,17 @@ function main() {
     if (loginCluster) ok('(g) degenerate-uuid login session stays its own', loginCluster.sessions, 1);
     if (exportCluster) ok('(g) degenerate-uuid export session stays its own', exportCluster.sessions, 1);
     if (uploadCluster) ok('(g) degenerate-uuid widget session stays its own', uploadCluster.sessions, 1);
+
+    // (h) UUID CAP OVERFLOW — 13 sessions sharing one real-length uuid (one
+    // over MAX_SESSIONS_PER_UUID=12) must NOT union into a single canonical
+    // session, and the cap firing must be visible on stderr, not silent.
+    const capCluster = clusters.find(c => (c.top_keywords || []).includes('capfile'));
+    okTrue('(h) uuid-cap-overflow cluster found', !!capCluster);
+    if (capCluster) {
+      okTrue('(h) uuid-cap-overflow sessions do NOT collapse to 1 (13 distinct)', capCluster.sessions > 1);
+    }
+    okTrue('(h) uuid-cap-overflow emits a stderr warning when the cap fires',
+      result.out.includes('warn: uuid shared by 13 sessions'));
   }
 
   // ---------------------------------------------------------------- /remember output regression fixtures
