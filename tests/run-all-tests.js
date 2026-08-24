@@ -58,7 +58,7 @@ const testSuites = [
     name: 'friction',
     file: 'friction/friction.test.js',
     description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
-    expectedTests: 26
+    expectedTests: 238
   }
 ];
 
