@@ -1,8 +1,8 @@
 ---
 name: docs-builder
-description: Reorg a docs corpus, split an oversized doc, keep pages current, index them
-usage: /docs-builder [reorg | cleanup <file.md>]
-argument-hint: [reorg | cleanup <file.md> — empty asks first run vs. drift]
+description: Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
+usage: /docs-builder [reorg | cleanup <file.md> | search <query words...>]
+argument-hint: [reorg | cleanup <file.md> | search <query words...> — empty asks first run vs. drift]
 allowed-tools: Read, Write, Edit, Grep, Glob, Task, AskUserQuestion, Bash(node:*), Bash(git:*), Bash(rg:*)
 ---
 
@@ -36,7 +36,8 @@ carry over, the absolute prices do not.
 
 ## Invocation
 
-**With an argument** (`reorg` or `cleanup <file>`) — run that mode directly, no question asked.
+**With an argument** (`reorg`, `cleanup <file>`, or `search <query words...>`) — run that mode
+directly, no question asked.
 
 **Bare `/docs-builder`, no argument — ALWAYS ask, never auto-detect.** Run `due` first and
 put its one-line verdict in the question text so the choice is informed. Then use
@@ -55,6 +56,13 @@ and ask anyway — never guess the mode on the user's behalf.
 
 Auto-detecting was considered and rejected: the two differ in cost (an unreviewed first-run
 plan vs. a cheap drift check), and a wrong guess on the first one is expensive to unwind.
+
+**`search` is a separate, explicit-argument-only mode — it is NOT a third bare-invocation
+option.** The picker above stays at exactly two; do not add `search` to it. Typing
+`/docs-builder search <query words...>` runs the mode directly (same rule as `reorg` and
+`cleanup` above): it defaults the outline path to `docs/.docs-builder/outline.json` so the
+user need only supply query words, and `N=` overrides the result count (default 10). It is
+read-only — no model cost, no interview, nothing moves.
 
 ### What each option runs
 
@@ -103,6 +111,7 @@ already sorted: nothing new to classify, so the interview gate never fires.
 | `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
 | `/docs-builder cleanup <file>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
 | `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | due's drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
+| `/docs-builder search <query words...>` | *(none — explicit-argument mode only, never offered in the bare picker)* | BM25-rank sections of `docs/.docs-builder/outline.json` against the query, read-only | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts an entire messy
 `docs/` tree into the four-bucket structure below in one pass and **never splits anything
@@ -135,8 +144,11 @@ docs/
   logs/              pre-registrations, results, learnings, reports — historical, still
                      relevant. Same MOVE discipline as product/archive.
   wiki/              synthesised pages, written by Mode 1 (`cleanup`)'s page writers.
-  archive/           what got cleaned up: self-declared dead. Originals, byte-identical,
-                     history preserved via `git mv`. Pruning is `git rm`, the user's own
+  archive/           what got cleaned up: self-declared dead. Originals are BYTE-FROZEN:
+                     nothing under here is ever a rewrite target, so a doc lands byte-identical
+                     to what it carried in (a clean R100 rename) and stays that way. Links
+                     elsewhere POINTING AT it are still repaired. History via `git mv`.
+                     Pruning is `git rm`, the user's own
                      call — nothing here does it automatically.
   .docs-builder/     machine-only working state. Never hand-edited, never read by a human.
     ledger.json        last consolidation SHA + per-doc line counts
@@ -279,6 +291,23 @@ was the silent move, not the judgement.
 3. Show the user the full resulting table via `AskUserQuestion` — approve all / correct
    specific rows / abort. A correction changes the plan file.
 
+   **Show EXACTLY these four columns, in this order.** No extras, no prose padding — the
+   operator is scanning for a row that looks wrong, and every extra column hides it:
+
+   | file | lines | → destination | why |
+
+   - **`file`** — the doc's CURRENT path.
+   - **`lines`** — the plan's line count. Append `(oversized)` when the row is oversized.
+   - **`→ destination`** — the **full destination PATH** this row will move to, e.g.
+     `docs/archive/PRD.md` — **never the bare bucket word** (`archive`). A wrong destination
+     is obvious in a path and easy to skim past in a single word. This is the column the
+     operator is actually approving.
+   - **`why`** — the model's one-line reason, trimmed to one line.
+
+   **Sort the rows by destination**, so all `archive` rows sit together, then `logs`, then
+   `product`. A misfiled doc is easiest to spot against its neighbours; scattered through a
+   path-sorted list it reads as normal.
+
 Only after approval does `apply-reorg` run. The approval gate, not the classifier's
 mechanism, is the safety property here — and it is strictly stronger than a rule that moves
 files with no gate at all.
@@ -308,6 +337,21 @@ a pointer to re-run `discover`.
 - **After the scan, `apply-reorg` writes `docs/index.md` itself** — it calls `index-flat`
   (see below) automatically, so a reorg-only corpus ends up indexed without a second command.
   Runs every time, unconditionally.
+- **`apply-reorg` also writes the docs pointer into `CLAUDE.md`** — a marker-wrapped
+  `<!-- DOCS_INDEX:START -->`/`<!-- DOCS_INDEX:END -->` block naming `docs/index.md` as a
+  **plain path, never an `@`-reference**: hot-loading a 100-row index into every session is
+  exactly what this avoids. The block also carries the `/docs-builder search` hint, and is
+  static — it never varies with row count, so a re-run rewrites identical bytes. Idempotent:
+  an existing block is replaced in place, never duplicated; other content is left alone.
+  The target is `CONFIG=` (default `CLAUDE.md`); this package uses `CONFIG=CLAUDE.md`.
+- **The moves land STAGED in your git index — commit them promptly.** `git mv` stages each
+  rename immediately (that is what preserves history), so when `apply-reorg` returns the repo
+  is holding N staged renames. Any other session's `git add -A` or `git commit -a` will absorb
+  them into an unrelated commit — OBSERVED TWICE, in two different repos. `apply-reorg` prints
+  a closing advisory naming the counts and a copy-pasteable recipe. Do NOT scope that commit to
+  `docs` alone: the renames are staged, but the inbound-link rewrites are UNSTAGED and reach
+  outside `docs/` (`src/`, `scripts/`, `tests/`, `README.md`). Both belong in ONE commit, or you
+  ship moved files whose links were never repaired. The tool never auto-commits, by design.
 - A basename collision (two files, same name, different original folders) is
   disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
   destination** is skipped, logged, and does not stop the rest of the run.
@@ -360,7 +404,17 @@ the link. The match is exact and anchored — a lookbehind rejects `xdocs/A.md` 
 
 **Never rewritten:** any file whose BASENAME is `CHANGELOG.md` or `log.md`, at ANY depth — not
 only the root `CHANGELOG.md` / `docs/log.md`. Both are append-only history — a record of where
-a file *was* is not a broken link. `docs/.docs-builder/` is excluded too; item 1 owns it.
+a file *was* is not a broken link.
+
+**Archive is frozen — one rule, two directions.** Nothing resident under `docs/archive/` is
+ever a rewrite TARGET (its bytes are never touched, stale links and all), but links ELSEWHERE
+that POINT AT an archived file ARE still repaired. Same rationale as `CHANGELOG.md`/`log.md`,
+one directory further: an archived doc is a historical record, and a record of where a file
+*was* is not a broken link. This is evaluated against a row's **destination**, not its current
+location — a reorg fills the archive, so a doc bound for `archive/` is exempt from the run's
+FIRST rewrite, not from whenever it happens to move. Without that it would be edited by an
+earlier row's sweep and carry the edit in with it (measured: it did). The check lives in one
+predicate, `isRewriteExempt`, at one call site. `docs/.docs-builder/` is excluded too; item 1 owns it.
 
 **A known, deliberate trade-off: this is a literal exact-path match over raw file bytes, not
 fence-aware or context-aware.** It rewrites every exact, word-bounded occurrence of the old path
@@ -378,7 +432,9 @@ rewrite is printed per file so it is visible, never silent.
 
 **`cleanup <file.md>` is the ONLY entry point to the split pipeline, and it is a MEASURE step
 only.** Settled 2026-08-23 (`docs-builder-v3-spec.md`, "cleanup"): the original always ends
-up in `docs/archive/`, byte-identical, `git mv`, never edited — and everything the split
+up in `docs/archive/` via `git mv`, **byte-identical** — the archive is frozen and the
+link rewriter never edits anything resident there (see "Archive is frozen" below) — and
+everything the split
 produces is a **new** file, including the core (the theme the document is mainly about, which
 keeps the original's basename — see step 2a). Nothing in this mode ever rewrites a source
 document in place.
@@ -511,8 +567,11 @@ citation landing inside its own task's source ranges (`citations`). **Uncited se
 reported but never block** — flagged for a human, not a failure. **Do not proceed on FAIL**
 — re-run the failing chunk.
 
-The `links` check reads `INDEX` (default `docs/index.md`) rather than a hardcoded path — set it
-if the index lives somewhere else in this repo. It resolves links against `PAGES` too (same
+The `links` check reads `INDEX` (default `docs/wiki-index.md`, matching the themed `index`
+step's own default — NOT `docs/index.md`, which is `index-flat`'s file) rather than a hardcoded
+path — set it if the index lives somewhere else in this repo. `TASKS` (default
+`docs/.docs-builder/tasks`) likewise overrides where the `citations` check looks for the
+per-page task files. It resolves links against `PAGES` too (same
 var `index`/`plan`/`checkCitations` use), computed relative to `INDEX`'s own directory —
 so it only checks links actually pointing into the pages dir, and stays correct when `PAGES`
 points somewhere other than the default `docs/wiki`.
@@ -631,7 +690,14 @@ link, and the trailer ("Total: N rows across M pages (P pending)") and console o
 say how many are pending — run `plan` to see which.
 
 **Past the ceiling:** if `index` warns the corpus is over 100 rows, don't read the themed
-view whole — look sections up directly instead:
+view whole — look sections up directly instead. The human entry point is the slash command:
+
+```
+/docs-builder search <query words...>
+```
+
+which defaults the outline path and takes only the query. The underlying script form still
+works directly, and is what the slash command runs:
 
 ```bash
 REPO=<repo> node docs-builder/docs-builder.cjs search docs/.docs-builder/outline.json <query words...>

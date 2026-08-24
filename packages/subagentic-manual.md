@@ -119,7 +119,7 @@ Install for your platform:
 - `debug-method` - Four-phase debugging framework
 
 **Commands (10)**
-- `docs-builder` - Reorg a docs corpus, split an oversized doc, keep pages current, index them
+- `docs-builder` - Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory

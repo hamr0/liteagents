@@ -142,7 +142,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 *Workflow & analysis*:
 - **brainstorming** - Structured brainstorming sessions
-- **docs-builder** - Reorg a docs corpus, split an oversized doc, keep pages current, index them
+- **docs-builder** - Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
 - **trace-back** - Trace bugs backward through call stack
 - **skill-creator** - Guide for creating new skills
 - **debug-method** - Four-phase debugging framework

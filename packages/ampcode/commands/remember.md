@@ -312,8 +312,13 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
      missing, `git` fails, or the command errors, print one line explaining why the check
      was skipped. Never fail silently.
-   - **No ledger yet:** `due` says so itself and reports NOT due. Pass that line through
-     once, then move on — do not offer to create a ledger unless the user asks.
+   - **`docs/` exists but no `docs/.docs-builder/` directory:** docs-builder has never run
+     here — print one line telling the user to run `/docs-builder reorg` to organize and
+     index the corpus. Do NOT tell them to run `ledger` instead: `ledger` only stamps
+     whatever is currently on disk as the baseline, so on an unsorted pile it would record
+     the mess as correct and `due` would then report NOT due forever.
+   - **`docs/.docs-builder/ledger.json` exists:** run `due` and pass through its verdict, as
+     below.
    - Otherwise run it and pass through its verdict:
      ```bash
      node docs-builder/docs-builder.cjs due
