@@ -103,13 +103,20 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      - Facts are never append-only: an old fact that a new one refines is rewritten in place.
      - **Pre-write length gate — runs BEFORE MEMORY.md is written, not after.** A check that
        only runs after the write (step 8) can merely describe damage already on disk; the gate
-       has to sit inside the merge, before anything hits the file. After producing the draft
-       Facts section, check every line's length: 161-180 chars passes silently. Over 180 must
-       be shortened and re-checked, UNLESS the length comes from a verbatim quote or a literal
-       constant (path, command, exact phrasing) that cannot be shortened without losing meaning
-       — those are kept verbatim and listed as exemptions in the step-8 report instead of being
-       forced short. Only a draft that passes the gate (or has its overruns exempted) is written
-       to `.factory/remember/MEMORY.md`.
+       has to sit inside the merge, before anything hits the file. This applies to **every**
+       line in the draft Facts section, including lines carried over unchanged from the
+       previous MEMORY.md — the whole section is rewritten every run (see "Shorten every fact
+       that can be shorter" above), so every line is this run's output. "Not introduced this
+       run" is not a reason to skip a line. After producing the draft, check every line's
+       length: 161-180 chars passes silently. Over 180 MUST be shortened and re-checked. The
+       ONLY exemption is mechanical: a line whose single longest backtick-quoted literal is
+       itself longer than 100 characters (a path, command, or exact phrasing that genuinely
+       cannot be split) — that line is kept verbatim and listed as an exemption in the step-8
+       report. No other reason exempts a line — not established formatting, not dense by
+       convention, not pre-existing, not load-bearing detail. A line that's long because it holds
+       several sentences is shortened by splitting it into several facts or dropping the
+       history — never exempted. Only a draft that passes the gate (or has its overruns
+       exempted under the 100-char backtick rule) is written to `.factory/remember/MEMORY.md`.
    - **Episodes section**: append new episode entries, keep only the **10 most recent**.
      Every older episode is **folded, then deleted**: its lesson becomes a fact (handed to
      the rewrite above); the narrative is removed. No archive — git has the history.
@@ -379,12 +386,25 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    - Number of stashes processed
    - Facts count (before → after the rewrite; the number should not grow by the number of new facts)
    - **Mechanical length check** — run, don't estimate. This confirms the step-3 gate rather
-     than being the first check to catch an overrun:
+     than being the first check to catch an overrun. It implements the SAME mechanical
+     exemption as the gate (a line whose longest backtick literal exceeds 100 chars is not
+     flagged), so this count and the gate's count can never disagree:
      ```bash
-     awk '/^## Facts/{f=1} /^## Episodes/{f=0} f && /^- / && length($0)>182' .factory/remember/MEMORY.md
+     awk '
+     /^## Facts/{f=1} /^## Episodes/{f=0}
+     f && /^- / && length($0)>180 {
+       line=$0; maxlen=0
+       while (match(line, /`[^`]*`/)) {
+         seglen = RLENGTH-2
+         if (seglen > maxlen) maxlen = seglen
+         line = substr(line, RSTART+RLENGTH)
+       }
+       if (maxlen <= 100) print
+     }' .factory/remember/MEMORY.md
      ```
-     Print every line it returns and the count. Zero is the target; non-zero means quote/constant
-     exemptions from the step-3 gate (list them) or a gate miss.
+     Print every line it returns and the count. Zero is the target; non-zero means a gate miss
+     — every remaining overrun already had its chance to be exempted (100-char backtick
+     literal) inside the step-3 gate, so anything printed here should not exist.
    - Episodes count (new, kept hot, folded + deleted)
    - Antigens count by confidence tier, with how many newly promoted to hot
    - Ledger lines — one per non-observing entry: id, short rule, status, recurrences since
