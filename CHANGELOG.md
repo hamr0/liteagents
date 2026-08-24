@@ -15,7 +15,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
-## [2.17.0] - 2026-08-23
+## [2.17.0] - 2026-08-24
+
+### Added
+- **docs-builder v3 — the model sorts a corpus into four buckets, behind an approval gate.**
+  v2 could only move a file a mechanical rule already recognised; everything else stayed put.
+  v3 has `discover` *propose* a bucket per file (`product` / `logs` / `archive`, with
+  `oversized` as a separate boolean flag, not a bucket) and stop — a classification interview
+  fills in `bucket`, and only then does `apply-reorg` move anything. The risk was never the
+  model's judgement, it was a silent move; so the gate is the fix, not a better heuristic.
+  `reconcile`, `due` and `archive-cleanup` folded into the `reorg` front door — `due`'s output
+  contract is preserved because `/remember` step 7 reads it.
+- **`cleanup <file>` — splitting is opt-in and per-file.** It measures, prints the cost, and
+  stops for an interview; `cleanup-apply` runs only after `labels.json` exists with exactly
+  one `core:true` theme. The core page keeps the original basename and lands back in the
+  original document's own directory; only non-core theme pages stay under `docs/wiki/`. The
+  original is always archived byte-identical (sha verified before and after), never edited.
+- **`search`** — zero-dependency BM25 over the corpus. Measured against reading the split
+  corpus whole on real data: a **tie** (~73K tokens either way), so splitting is justified by
+  recall, not by cost — the README says so rather than implying a saving that isn't there.
+- **The first behavioural test suite this tool has ever had** — 472 tests in throwaway git
+  repos, including negative controls that assert the gates can actually fail. It was written
+  after four rounds of hand-found bugs kept recurring with nothing in the repo able to catch
+  them. `tests/run-all-tests.js` now treats `expectedTests` as an enforced floor: a breach
+  exits 1 (it used to print the number and pass regardless).
+
+### Fixed
+- **One chokepoint for a doc move, and all three of its guards now live there.** `moveDoc` is
+  the single path a doc changes location through. Three defects, each reproduced against the
+  shipped script before being fixed: a plan row containing `../` could move — and **delete** —
+  a file from outside the repo via the copy+unlink fallback; `archive README.md` archived the
+  README because `PROTECTED_NAMES` was enforced at two call sites but not at the chokepoint;
+  and `cleanup-apply` died mid-split because `archive()` called `process.exit(2)` on a
+  follow-up failure while running in-process, leaving the original archived, the core page
+  stranded, and no index — silently. Path confinement and the protected-name check now sit in
+  `doArchive`; `archive` split into `archiveOrThrow` plus a CLI wrapper.
+- **One index.** The themed per-split index used to write the same path as the whole-corpus
+  map: on a real corpus a split's index step overwrote a 37-row map with its own 7 rows, and
+  the file still claimed completeness. `index-flat` is now the sole writer of `docs/index.md`;
+  the themed variant was removed outright.
+- **`FROZEN` dropped from the archive trigger words** — on a real 37-file corpus it caused
+  ~10 of 12 archive calls to be false positives, because in that corpus `FROZEN` means
+  "locked, still current". Precision over recall, with no replacement heuristic.
+- **Relative links are rewritten when a file moves**, fence-aware *and* inline-code-span-aware
+  for the relative passes (a `` `map[key](arg)` `` span was being corrupted into a link), and
+  inbound-link repair now covers untracked-but-not-ignored files — a split's brand-new pages
+  were invisible to it before.
+- **The commit advisory prints one recipe per run that actually runs.** It used to name files
+  at their pre-move paths (`git add` is atomic — one stale pathspec exits 128 and stages
+  *nothing*), print once per internal step, and omit files the run itself generated, including
+  `docs/log.md`. Found on a cold field run where the operator quietly hand-repaired it.
+- **`/remember`: one conversation counts once.** A fork or resume writes the same conversation
+  to several session files, and the ledger was counting files — an antigen rendered "3
+  sessions" that was really one conversation. Sessions are now unioned on shared message
+  uuids (`sessions` is authoritative; `session_ids` is evidence), reactions deduped on
+  (conversation, anchor timestamp, anchor signal), and the scan restricted to anchor-bearing
+  sessions — 84.1s → 53.0s per run on the real corpus with identical clustering.
+- **`/remember`: the ledger seeds only on recurrence.** New entries are minted at `sessions
+  >= 2`; three prior runs had produced 30 / 0 / 10 singleton entries. Quiet runs now also run
+  the length-gate check before the "nothing to consolidate" exit, and that gate's exemption is
+  mechanical (a >100-char backtick literal) rather than a judgement call the model could talk
+  itself past.
+- **`friction.cjs` skips task-notification blocks** in both signal detection and context
+  capture — their boilerplate was matching as false curses/corrections — and warns on stderr
+  when a uuid's fan-out exceeds the cap instead of dropping the union silently.
 
 ### Changed
 - **`/remember` now compresses hot memory instead of accumulating it.** `MEMORY.md` is loaded

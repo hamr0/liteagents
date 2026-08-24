@@ -651,6 +651,27 @@ revision.
   their own writes had landed. The message now reports the real state (none / partial / all
   carried forward) and the table shows `bucket`.
 
+- **"`moveDoc` is the one chokepoint" → two of its three guards lived at call sites instead.**
+  A review found three defects of one shape, each reproduced against the shipped script before
+  a line was changed. **(1) A plan row could move a file from outside the repo.** `doArchive`
+  resolved its endpoints with `path.join(REPO, src)` and never checked they stayed inside
+  `REPO`; a `"file": "../secret.txt"` row reached it through `apply-reorg`, `git mv` refused
+  it (source outside the work tree), and the copy+unlink **fallback** then copied that file in
+  and deleted the original. Plan rows pass through a model-driven interview on corpora cloned
+  from elsewhere, so nobody has to type a traversal for one to arrive. **(2) `archive
+  README.md` archived the README**, exit 0, no message: `PROTECTED_NAMES` was enforced in
+  `walkMd` and `cleanup` — the two callers that happened to need it — and not at the
+  chokepoint every mover funnels through. **(3) `cleanup-apply` died mid-split.** `archive()`
+  called `process.exit(2)` on a *follow-up* failure, correct for the CLI and wrong in-process:
+  `cleanup-apply` calls it and still has to relocate the core page and rebuild `docs/index.md`.
+  The bare exit left the original archived, the core page stranded under `PAGES/`, no index —
+  and printed a commit recipe blessing that state. Both guards now sit in `doArchive`; the
+  call-site checks stay because they fail earlier with a better-aimed message. `archive` split
+  into `archiveOrThrow` (core) plus a CLI wrapper, exit-2 contract unchanged, and
+  `cleanup-apply` now names both steps it skipped and says not to re-run. This is the third
+  time this file has shipped a guard at a call site rather than at the chokepoint — see the
+  `CLAUDE.md`/`walkMd` and `REPO`-vs-cwd entries above.
+
 ---
 
 ## Sources

@@ -4,8 +4,9 @@ Entry point for this repo's own documentation — dogfooding `docs-builder`'s ow
 
 | Doc | What it is |
 |---|---|
-| [`docs-builder-v2-spec.md`](archive/docs-builder-v2-spec.md) | The docs-builder v2 spec: measured design decisions, POC results, and the built subcommand set. |
-| [`product/docs-builder-README.md`](product/docs-builder-README.md) | User-facing guide to `/docs-builder` — the four modes, the menu, the docs/ layout. |
+| [`docs-builder-v2-spec.md`](archive/docs-builder-v2-spec.md) | The docs-builder v2 spec: measured design decisions, POC results, and the built subcommand set. Superseded by v3; kept for the mechanics and the cost law, which still hold. |
+| [`product/docs-builder-v3-spec.md`](product/docs-builder-v3-spec.md) | The current spec: index-first, four buckets, the classification interview, and the measurement that argues for it. |
+| [`product/docs-builder-README.md`](product/docs-builder-README.md) | User-facing guide to `/docs-builder` — the three modes, the menu, the docs/ layout. |
 | [`product/remember-README.md`](product/remember-README.md) | Guide to the `/stash` → `/remember` hot-memory pipeline and the `friction.cjs` sensor. |
 | [`product/INSTALLER_GUIDE.md`](product/INSTALLER_GUIDE.md) | How to install and manage liteagents across the supported AI tools. |
 | [`product/antigen-gate-prd.md`](product/antigen-gate-prd.md) | PRD for the (deferred) validation-gated hot-memory antigen gate. |

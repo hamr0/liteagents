@@ -199,7 +199,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 ## Stats
 
 - **11** Specialized Agents
-- **22** Workflow Commands & Skills
+- **18** Workflow Commands & Skills
 - **4** Supported Tools (Claude, Opencode, Ampcode, Droid)
 - **Apache-2.0** License
 
