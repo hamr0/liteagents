@@ -9,7 +9,7 @@
 6. [Environment](#environment)
 7. [Development Workflow](#development-workflow)
 8. [Twelve-Factor Checklist](#twelve-factor-checklist)
-9. [AGENT.md Stub](#claudemd-stub)
+9. [AGENT.md Stub](#agentmd-stub)
 10. [AI Agent Instructions](#ai-agent-instructions)
 
 ---
