@@ -894,14 +894,41 @@ function search(outlineF, queryWords) {
 // comment in indexFlat() above).
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
+// Both endpoints of every move must resolve INSIDE the repo. REPO may be relative (the test
+// harness runs with REPO='.'), so resolve both sides before comparing — a `path.join` alone
+// happily produces `../secret.txt` and reports no error.
+// REPRODUCED 2026-08-24: a `"file": "../secret.txt"` row in reorg-plan.json reached doArchive
+// through applyReorg -> moveDoc. `git mv` refused it (source outside the work tree), and the
+// copy+unlink FALLBACK below then did exactly what it says — copied that file into the repo
+// and unlinked the original. A traversal in a plan row is not hypothetical: plan rows pass
+// through a model-driven classification interview, on corpora cloned from elsewhere.
+function confined(p, what) {
+  const abs = path.resolve(path.isAbsolute(p) ? p : path.join(REPO, p));
+  const rel = path.relative(path.resolve(REPO), abs);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel))
+    throw new Error(`refusing to ${what} outside the repo: ${p}`);
+  return abs;
+}
+
 // Core logic THROWS, never exits — so a caller doing many moves in a loop (apply-reorg)
 // can catch one bad file and keep going. `archive()` below is the CLI-facing wrapper that
 // turns a throw into a `die()` for a single direct invocation.
+//
+// Both guards below live HERE, at the chokepoint, and not at the call sites that happen to
+// need them today. That is the whole point of moveDoc being the one path a doc moves
+// through: a guard placed at a caller is a guard the next caller forgets. PROTECTED_NAMES
+// used to be enforced in walkMd and cleanup only — so `archive README.md` moved the repo's
+// README into docs/archive/ without a word (REPRODUCED 2026-08-24). Those two call-site
+// checks are kept: they fail earlier and with a message aimed at what the user actually ran.
 function doArchive(src, dest) {
-  const s = path.isAbsolute(src) ? src : path.join(REPO, src);
+  const s = confined(src, 'move a doc from');
   if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
+  if (PROTECTED_NAMES.has(path.basename(src)))
+    throw new Error(`refusing to move ${src}: ${path.basename(src)} is an entry-point/contract `
+      + 'doc (README, CLAUDE.md, CHANGELOG, the index, the log, ...) and is never moved, at '
+      + 'any depth — every human and agent reads it first.');
   const rel = dest || path.join('docs/archive', path.basename(src));
-  const d = path.isAbsolute(rel) ? rel : path.join(REPO, rel);
+  const d = confined(rel, 'move a doc to');
   if (fs.existsSync(d)) throw new Error(`refusing to overwrite ${rel}`);
   const before = sha(s), size = fs.statSync(s).size;
   fs.mkdirSync(path.dirname(d), { recursive: true });
@@ -1243,16 +1270,20 @@ function flushCommitAdvisory() {
   }
 }
 
-function archive(src, dest) {
-  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
+// Core THROWS on a follow-up failure, never exits (same split as doArchive()/archive() and
+// gitOrThrow()/git()). cleanupApply() calls this IN-PROCESS and still has work to do after it
+// — relocating the core page and rebuilding docs/index.md — so it must be able to catch the
+// failure and say what its own run is skipping. A bare process.exit(2) in here killed that
+// run mid-flight and printed only archive's message, naming neither of the two skipped steps.
+function archiveOrThrow(src, dest) {
   // A throw and a `failures` entry mean different things and must be reported differently:
   // a throw means NOTHING moved and retrying is correct; a failure means the file DID move
   // and telling the user to re-run `archive` would be actively wrong. MEASURED: a malformed
   // outline.json used to crash here with a bare stack trace naming neither the artifact nor
   // the fact that the file had already moved.
-  let r;
-  try { r = moveDoc(src, dest); }
-  catch (e) { die(e.message); }
+  // Move failure propagates as a plain throw (no `followUpFailed`): NOTHING moved, retrying
+  // is correct. archive() below turns it back into die()'s clean exit-1 message for the CLI.
+  const r = moveDoc(src, dest);
   console.log(`archived ${src} -> ${r.rel}  ${r.size} bytes  sha256 ${r.sha.slice(0, 16)} MATCH  (${r.how})`);
   for (const m of r.artifactNotes) console.log(`  ${m}`);
   for (const { file, n } of r.linkFiles) console.log(`  ${file}: ${n} link(s) -> ${r.rel}`);
@@ -1264,12 +1295,23 @@ function archive(src, dest) {
     + (r.failures.length ? `, FOLLOW-UP FAILED: ${r.failures.join('; ')}` : ''));
   noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
   if (r.failures.length) {
+    const e = new Error(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
+      + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
+      + `${src}, it has already moved.`);
+    e.followUpFailed = true; // the move LANDED; only a follow-up failed. See archive() below.
+    throw e;
+  }
+}
+
+function archive(src, dest) {
+  if (!src) die('usage: docs-builder.cjs archive <src.md> [dest.md]');
+  try { archiveOrThrow(src, dest); }
+  catch (e) {
+    if (!e.followUpFailed) die(e.message); // nothing moved — exit 1, retry `archive`
     // Exit 2, not 1: 1 means "nothing moved, retry `archive`" and this is the OPPOSITE —
     // the file DID move and re-running `archive` would be wrong, exactly as the message says.
     // A caller branching on exit code alone must be able to tell these two outcomes apart.
-    console.error(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
-      + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
-      + `${src}, it has already moved.`);
+    console.error(e.message);
     flushCommitAdvisory();
     process.exit(2);
   }
@@ -2204,7 +2246,22 @@ function cleanupApply(file, outlineF, labelsF) {
   // original whose replacement content is nowhere in the commit.
   noteGenerated(...rows.map(r => path.posix.join(pages, `${r.theme}.md`)));
   const core = coreFileInfo(readArtifactJSON(outlineF), l);
-  archive(file);
+  try { archiveOrThrow(file); }
+  catch (e) {
+    if (!e.followUpFailed) die(e.message); // nothing moved — the original is untouched
+    // The original DID move, so this run cannot be resumed by re-running `cleanup-apply`:
+    // that would call archiveOrThrow on a file that is no longer there. Name the two steps
+    // this run is dropping and how to finish them by hand — exiting silently left an
+    // operator with a half-applied split and no idea the index was still stale.
+    console.error(e.message);
+    console.error(`\ncleanup-apply STOPPED here. Two steps did NOT run: the core page was not `
+      + `relocated out of ${pages}/ into the original document's directory, and docs/index.md `
+      + `was not rebuilt (it still describes the pre-split shape). Do NOT re-run `
+      + `\`cleanup-apply\` — ${file} has already moved. Fix the failure above, move the core `
+      + `page yourself, then run \`docs-builder.cjs index-flat\` to rebuild the index.`);
+    flushCommitAdvisory();
+    process.exit(2);
+  }
   // The model writes every page — core included — under PAGES (docs-builder.md's documented
   // convention; unchanged, since the model can't write there directly: until the line above
   // runs, the ORIGINAL still occupies that exact path, and overwriting a live, not-yet-

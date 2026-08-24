@@ -96,6 +96,125 @@ function fillBucketsFromSuggested(dir, planRel = 'docs/.docs-builder/reorg-plan.
 const DOC = (h1, h2 = 'Section One', body = 'words words words') =>
   `# ${h1}\n\nintro line\n\n## ${h2}\n\n${body}\n`;
 
+// ------------------------------------------- 0. cleanup-apply follow-up failure (regression)
+
+/**
+ * Regression, 2026-08-24. `archive()` called `process.exit(2)` directly when a moveDoc
+ * FOLLOW-UP failed (outline/labels sync or link rewrite) — the move itself having landed.
+ * That is correct for the `archive` CLI, but `cleanup-apply` calls the same function
+ * IN-PROCESS and still has two steps to run after it: relocating the core page out of
+ * PAGES/, and rebuilding docs/index.md. The bare exit killed the run mid-flight, so an
+ * operator got archive's message and no hint that the index was left describing the
+ * pre-split shape. Pre-fix this group's "names both skipped steps" assertion FAILS
+ * (observed: got [false], expected [true]) while the exit code stayed 2 either way — the
+ * exit code alone could never have caught this, which is why it went unnoticed.
+ *
+ * The failure is induced by making outline.json read-only, so rewriteArchivedPath's
+ * writeFileSync throws EACCES inside moveDoc. Nothing is stubbed: this is the real
+ * follow-up-failure path, reached the way a real permissions problem would reach it.
+ */
+function cleanupApplyFollowUpFailureIsReported() {
+  group('0. cleanup-apply — a follow-up failure names what the run skipped (regression)');
+
+  const original = '# Big\n\n## One\n\nalpha alpha alpha\n\n## Two\n\nbeta beta beta\n';
+  const d = repo({ 'docs/BIG.md': original });
+  db(d, ['cleanup', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: 'g', core: true }, { name: 'Other', gloss: 'g2' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Other' }] }) });
+  const page = title => `---\ntype: reference\ntitle: ${title}\n---\n\n# ${title}\n\n`
+    + 'body line\n'.repeat(10);
+  write(d, { 'docs/wiki/BIG.md': page('Big'), 'docs/wiki/other.md': page('Other') });
+
+  const outlineF = path.join(d, 'docs/.docs-builder/outline.json');
+  fs.chmodSync(outlineF, 0o444);
+
+  // Pre-flight: can this test produce the negative at all? Running as root (or on a
+  // filesystem ignoring the mode) would make the write succeed, the follow-up never fail,
+  // and every assertion below pass for the wrong reason. Prove the mode actually bites.
+  let readOnlyHolds = false;
+  try { fs.writeFileSync(outlineF, fs.readFileSync(outlineF)); }
+  catch { readOnlyHolds = true; }
+  okTrue('pre-flight: read-only outline.json really does reject writes (else this test cannot fail)',
+    readOnlyHolds);
+
+  const r = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  fs.chmodSync(outlineF, 0o644); // so the tmpdir stays removable
+
+  // We are on the FOLLOW-UP path, not the move-failure path: the move landed.
+  okTrue('the original was archived — the move itself succeeded', exists(d, 'docs/archive/BIG.md'));
+  ok('exit code is still 2 — "it moved, do not retry" (contract unchanged)', r.code, 2);
+  okTrue('archive\'s own message still explains the move succeeded',
+    /the move above SUCCEEDED/.test(r.out));
+
+  // The regression itself: cleanup-apply must name ITS OWN skipped work.
+  okTrue('cleanup-apply says it stopped', /cleanup-apply STOPPED here/.test(r.out));
+  okTrue('it names the core page as not relocated', /core page was not[\s\S]{0,40}relocated/.test(r.out));
+  okTrue('it names docs/index.md as not rebuilt', /docs\/index\.md[\s\S]{0,30}was not rebuilt/.test(r.out));
+  okTrue('it warns against re-running cleanup-apply (the original has already moved)',
+    /Do NOT re-run/.test(r.out) && /already moved/.test(r.out));
+
+  // And the skipped work really is skipped — the message is not lying about the state.
+  okTrue('the core page is indeed still at its interim PAGES location', exists(d, 'docs/wiki/BIG.md'));
+  okTrue('docs/index.md was indeed not written', !exists(d, 'docs/index.md'));
+}
+
+// ------------------------------------------- 0b. the move chokepoint's own guards (regression)
+
+/**
+ * Regression, 2026-08-24, both REPRODUCED against the pre-fix script before this was written.
+ *
+ * (a) Path traversal. `doArchive` resolved its endpoints with `path.join(REPO, src)` and
+ *     never checked the result stayed inside REPO. A `"file": "../secret.txt"` row in
+ *     reorg-plan.json reached it through applyReorg -> moveDoc; `git mv` refused (source
+ *     outside the work tree) and the copy+unlink fallback then copied that outside file INTO
+ *     the repo and deleted the original. Observed pre-fix: `../secret.txt` gone, its content
+ *     at docs/product/secret.txt.
+ * (b) Protected docs. PROTECTED_NAMES was enforced in walkMd and cleanup, but not at the
+ *     chokepoint every mover funnels through. Observed pre-fix: `archive README.md` exited
+ *     clean having moved the repo's README into docs/archive/.
+ *
+ * Both guards now live in doArchive. These assert the guard is at the CHOKEPOINT, not at one
+ * caller: (a) goes in through apply-reorg, (b) through the archive CLI — two different
+ * callers, one guard.
+ */
+function moveChokepointGuards() {
+  group('0b. the move chokepoint refuses traversal and protected docs (regression)');
+
+  // (a) traversal, via apply-reorg
+  const d = repo({ 'docs/A.md': DOC('A') });
+  const outside = path.join(d, '..', `db-outside-${path.basename(d)}.txt`);
+  fs.writeFileSync(outside, 'OUTSIDE\n');
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({
+    rows: [{ file: `../${path.basename(outside)}`, bucket: 'product', suggested: 'product',
+      oversized: false, why: 'planted traversal' }] }) });
+  const r = db(d, ['apply-reorg']);
+
+  okTrue('the file outside the repo still exists — it was NOT deleted', fs.existsSync(outside));
+  okTrue('nothing was copied into the repo', !exists(d, 'docs/product/' + path.basename(outside)));
+  okTrue('the run says it refused a path outside the repo', /outside the repo/.test(r.out));
+  // Tolerant on purpose: pre-fix this file is already gone (that IS the bug), and an ENOENT
+  // here would abort the group before part (b) ever ran.
+  try { fs.unlinkSync(outside); } catch { /* pre-fix: already deleted by the bug */ }
+
+  // (b) protected doc, via the archive CLI — a different caller, the same guard
+  const p = repo({ 'README.md': '# Readme\n\nbody\n', 'docs/A.md': DOC('A') });
+  const r2 = db(p, ['archive', 'README.md']);
+
+  okTrue('README.md is still at the repo root', exists(p, 'README.md'));
+  okTrue('README.md was NOT archived', !exists(p, 'docs/archive/README.md'));
+  ok('archive exits non-zero on a protected doc', r2.code !== 0, true);
+  okTrue('the refusal names it as an entry-point/contract doc',
+    /never moved|entry-point/.test(r2.out));
+
+  // The guard must not fire on ordinary docs — a check that refuses everything is not a check.
+  const r3 = db(p, ['archive', 'docs/A.md']);
+  ok('an ordinary doc still archives cleanly', r3.code, 0);
+  okTrue('and it really moved', exists(p, 'docs/archive/A.md'));
+}
+
 // ---------------------------------------------------------------- 1. negative controls
 
 /**
@@ -2303,7 +2422,8 @@ function main() {
   console.log(`${colors.bright}${colors.cyan}docs-builder behavioural tests${colors.reset}`);
   console.log(`script under test: ${path.relative(process.cwd(), DB)}`);
 
-  const groups = [negativeControls, scanContract, slugCollision, moveViaArchive,
+  const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
+    negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
     ledgerAndDue, dueOutputContract, search, reorgCmd, archiveCleanupRemoved, validateArchiveChokepoints,
     tasksDirChokepoint, halfFinishedSplitDetection,
