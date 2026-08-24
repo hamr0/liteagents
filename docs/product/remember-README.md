@@ -126,7 +126,7 @@ describe a session too terse to quote.
 **Outputs (`.claude/remember/friction/`):**
 | file | contents |
 |---|---|
-| `antigen_clusters.json` | **the contract `/remember` reads** — clusters with `theme`, `suggested_artifact`, `confidence`, `severity`, `sessions`, `projects`, `contexts` (verbatim quotes), `preceding` (trigger), `self_suspect` |
+| `antigen_clusters.json` | **the contract `/remember` reads** — clusters with `theme`, `suggested_artifact`, `confidence`, `severity`, `sessions`, `session_ids` (all member files of a conversation; count from `sessions`, never from this list's length), `projects`, `contexts` (verbatim quotes), `preceding` (trigger), `self_suspect` |
 | `antigen_review.md` | human-readable version of the clusters |
 | `antigen_candidates.json` | raw per-reaction candidates before clustering |
 | `friction_raw.jsonl` | every detected signal |
@@ -149,8 +149,18 @@ describe a session too terse to quote.
 - **Episodes: keep the 10 most recent; older ones are folded, then deleted.** An aging episode's
   *lesson* is handed to the fact rewrite; the narrative is removed. There is no episode archive —
   git already holds the history, and an archive that is never loaded is not memory.
-- **A mechanical length check runs at the end** — a one-line `awk` over the written file that
-  names every fact over the cap. It reports, it never fails the run and never edits by hand.
+- **A pre-write length gate runs BEFORE `MEMORY.md` is written, not after** — a check that
+  only runs post-write can merely describe damage already on disk. Every line in the draft
+  Facts section must be ≤180 chars, including lines carried over unchanged from the previous
+  file (the whole section is rewritten every run, so every line is this run's output). Over
+  180 must be shortened and re-checked. The only exemption is mechanical: a line whose single
+  longest backtick-quoted literal is itself over 100 chars. No judgement exemption exists —
+  the earlier version let a line stand if it "cannot be shortened without losing meaning," and
+  on a real run the model used that to exempt 91 of 94 fact lines (longest 1290 chars) as the
+  file's "established style." After the fix, the same corpus re-run for real came out 0 of 100
+  over, no exemptions claimed, 54 KB → 29 KB. Step 8 then runs the identical rule as a one-line
+  `awk` over the written file — a report, not a second gate — so the two counts can never
+  disagree.
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
   2. **Semantic-merge** — sonnet groups same-complaint-different-words quotes friction left split.
@@ -167,6 +177,17 @@ describe a session too terse to quote.
      decision — enforcement (a hook) or accepted limit.
   2. **No duplicate rules** — new corrections are matched to existing classes by
      `class_hints` before anything new is minted.
+  3. **Counting is per conversation, never per file.** `sessions` is the authoritative
+     conversation count; `session_ids` only lists the FILES one conversation was written to
+     (a fork/resume carries every member's hash), and a count is never derived from
+     `session_ids.length`. None of a cluster's hashes present → a genuinely new conversation,
+     `sessions` += 1. Any hash already present → already counted — store the missing aliases,
+     change nothing else. Found live, not by review: a real `/remember` run rendered "no npm
+     for this" as 3 sessions for one conversation forked into three files, and a second entry
+     (2 files, 99 shared message `uuid`s) was inflated the same way — the loop had been
+     incrementing `sessions` once per hash instead of once per conversation. A nested
+     `session_ids` shape (`{id, seen}` per hash) was measured and rejected: the ledger already
+     stores that shape, so the trap would move, not close.
   Division of labor: **MEMORY.md is the render (read as guidance); the ledger is the
   record (checked, never injected).** Design + the POC evidence that shaped it:
   `docs/product/antigen-gate-prd.md`.
@@ -262,8 +283,10 @@ already runs.
   rendered as **3 sessions** under Medium, but its evidence is a single reaction —
   `no npm for this` — from ONE agentic-toolkit conversation that had been forked into three
   session files and counted three times. The ledger had it right at 1 the whole time; the
-  render was the inflated copy. Post-fix friction emits only the canonical id, and the entry
-  now sits in Low at 1 session.
+  render was the inflated copy. Traced at the time to friction's session accounting — but the
+  same shape of bug recurred on a later live run after this fix, and turned out to sit one
+  layer downstream, in the ledger's own hash counting (see "The ledger counted files, not
+  conversations" below).
 
 - **The ledger migration is "seed, do not count" (2026-08-24).** A defect found by the same
   bareloop run. The migration clause said to start `session_ids` empty; the matching rules
@@ -276,6 +299,25 @@ already runs.
   now carries an explicit override: on the run that first populates `session_ids`, write the
   ids and change nothing else — not `sessions`, not `last_seen`, not `recurred_while_hot`,
   not `status`. Counting resumes on the next run.
+
+- **The ledger counted files, not conversations (2026-08-24).** Fork dedup made a cluster
+  carry every member file's hash in `session_ids`, but step 4c still looped per hash and
+  incremented `sessions` once per hash — turning fork dedup's own fix into file-counting one
+  layer down. Caught live, not by review: a real `/remember` run rendered "no npm for this" as
+  3 sessions and promoted it to Medium; friction had it right at `sessions:1` with three
+  hashes, and the spec inflated it downstream (2 of 66 clusters affected). Counting is now
+  stated as mechanical rather than judgement (see §2, "Updates the antigen ledger").
+
+- **Mechanical-only length gate (2026-08-24).** The pre-write gate's judgement exemption
+  ("cannot be shortened without losing meaning") let a real run exempt 91 of 94 fact lines
+  (longest 1290 chars) as "established style"; replaced with the single mechanical exemption —
+  a >100-char backtick literal (see §2). Re-run for real on the same corpus: 0 of 100 over,
+  no exemptions claimed, 54 KB → 29 KB.
+
+- **First regression net for the spec layer (2026-08-24).** `remember.md` is prose a model
+  executes, which the JS suite couldn't previously see — three spec defects (signals
+  double-counted, the ledger fix above, the length gate above) shipped silently in one day
+  before this existed. See "Regression net" below.
 
 - **Facts are compressed, not accumulated (2026-08-23).** `/remember` now rewrites the whole
   Facts section every run under a one-line/≤160-char bar, keeps the 10 most recent episodes and
@@ -303,6 +345,21 @@ already runs.
 - **Injection fix** — the managed CLAUDE.md section now uses the explicit
   `@.claude/remember/MEMORY.md` path; the previous bare `@MEMORY.md` resolved to a
   nonexistent root-level file, so hot memory was silently not loading in Claude Code.
+
+### Regression net (2026-08-24)
+
+`tests/friction/friction.test.js` runs five invariants over **real captured outputs** in
+`tests/friction/fixtures/` — the first test the spec layer has ever had. `remember.md` is
+prose a model executes, so the JS suite couldn't previously see it: fact lines ≤180 chars with
+the one mechanical backtick exemption (I1), episodes ≤10 (I2), ledger `sessions` ≤ distinct
+conversation prefixes in `session_ids` (I3), `sessions` ≤ evidence count (I4), and cluster
+`sessions` == distinct conversations (I5). Known-bad fixtures are **detection** tests asserting
+the exact violation count — bareagent 90 of 94 facts over cap, privcloud's 181-char line,
+privcloud's `ag-006` counted as 2 sessions for one resumed conversation (99 shared message
+`uuid`s); the fixed run's output (`bareagent-fixed`, 0 of 100 over) is the **conformance** half
+of the same pair. Each detection path was watched failing under a tampered fixture before being
+trusted. The test runner's per-suite `expectedTests` is now a hard floor — fewer than declared
+fails the run — raised to 238 for friction.
 
 ### Earlier (2026-06-16)
 
