@@ -427,11 +427,11 @@ function main() {
 
   // ---------------------------------------------------------------- /remember output regression fixtures
   // Real, uncrafted MEMORY.md / ledger.json / antigen_clusters.json captured from live
-  // /remember runs on two other repos (bareagent, privcloud), copied read-only into
-  // tests/friction/fixtures/. These assert hard invariants the spec makes about
+  // /remember runs on three other repos (bareagent, privcloud, zkagent), copied read-only
+  // into tests/friction/fixtures/. These assert hard invariants the spec makes about
   // /remember's own OUTPUT files — the first regression coverage that layer has ever had.
   // Pure file parsing; no dependency on friction.cjs, ~/.claude, or any live repo.
-  group('/remember output fixtures — regression invariants (I1-I5; I6 escalated, see report)');
+  group('/remember output fixtures — regression invariants (I1-I6)');
 
   const FIXTURES = path.join(__dirname, 'fixtures');
 
@@ -540,12 +540,63 @@ function main() {
   // ids, "change docs to Gists" with 2) — characterizes the fixture's correct multi-file shape.
   ok('I5 (privcloud) multi-file clusters (session_ids.length > sessions) count', multiFileClusters, 2);
 
-  // I6 (antigen tier <-> ledger status cross-check) is NOT implemented: neither fixture's
-  // MEMORY.md "## Antigens" section carries an "ag-NNN" (or any) id marker next to an
-  // entry — grep confirms zero "ag-[0-9]" matches in either file. Matching High Confidence
-  // prose to a ledger "hot" entry would require fuzzy text matching between the antigen's
-  // written rule and the ledger's `rule`/`class` fields, which is guessing, not parsing.
-  // Escalated per task instructions rather than guessed at; see final report.
+  // ---- I6: ledger status <-> session-count consistency (4b/4c contradiction fix), plus
+  // MEMORY.md High Confidence id <-> ledger "hot" cross-check where an id is present.
+  // Violation triad matches the spec: hot with sessions<5, observing with sessions>=5,
+  // expired with sessions>=5 (privcloud has several observing entries at sessions:1,
+  // pre-dating this fix and out of scope -- they are not part of the triad, so they
+  // stay green). zkagent (captured 2026-08-25) is the fixture that motivated this: ag-001
+  // was born hot at 6 sessions on its very first /remember run for a fresh ledger.
+  // None of the three fixtures' MEMORY.md High Confidence bullets actually carry an
+  // "ag-NNN" id (grep confirms 0 "ag-[0-9]" matches in all three, zkagent included) --
+  // that id-suffix format appears only in this repo's own live .claude/remember/MEMORY.md,
+  // not in any captured fixture -- so the id-matching half below currently checks 0 ids
+  // per fixture (vacuously passes) but is real code, exercised the moment a fixture with
+  // ids is captured.
+  function checkLedgerStatus(ledger) {
+    const bad = [];
+    for (const entry of ledger.entries) {
+      const n = entry.evidence.sessions;
+      const s = entry.status;
+      const violates = (s === 'hot' && n < 5) || (s === 'observing' && n >= 5) ||
+        (s === 'expired' && n >= 5);
+      if (violates) bad.push(entry.id);
+    }
+    return bad;
+  }
+
+  for (const proj of ['bareagent', 'privcloud', 'zkagent']) {
+    const ledgerPath = path.join(FIXTURES, proj, 'ledger.json');
+    if (!fs.existsSync(ledgerPath)) continue;
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    const bad = checkLedgerStatus(ledger);
+    ok(`I6 (${proj}) ledger status <-> session count consistent (hot>=5, observing/expired<5)`,
+      JSON.stringify(bad), JSON.stringify([]));
+
+    const memText = fs.readFileSync(path.join(FIXTURES, proj, 'MEMORY.md'), 'utf8');
+    const hcStart = memText.indexOf('### High Confidence');
+    const hcEnd = memText.indexOf('### ', hcStart + 1);
+    const hcSection = memText.slice(hcStart, hcEnd === -1 ? undefined : hcEnd);
+    const ids = [...hcSection.matchAll(/—\s*(ag-\d+)\s*$/gm)].map(m => m[1]);
+    for (const id of ids) {
+      const entry = ledger.entries.find(e => e.id === id);
+      okTrue(`I6 (${proj}) MEMORY.md High Confidence id ${id} is a hot ledger entry with sessions>=5`,
+        !!entry && entry.status === 'hot' && entry.evidence.sessions >= 5);
+    }
+  }
+
+  // ---- I6 DETECTION: tamper an in-memory copy of zkagent's ledger (ag-001, born hot at
+  // 6 sessions on 2026-08-25 -- the case that surfaced the 4b/4c contradiction) by flipping
+  // status to "observing" without touching its session count, and confirm checkLedgerStatus
+  // flags exactly that id. Proves the checker can fail, not just pass.
+  {
+    const zkLedger = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'zkagent', 'ledger.json'), 'utf8'));
+    const tampered = JSON.parse(JSON.stringify(zkLedger));
+    tampered.entries.find(e => e.id === 'ag-001').status = 'observing';
+    const bad = checkLedgerStatus(tampered);
+    ok('I6 DETECTS tampered zkagent ag-001 (flipped to observing at 6 sessions)',
+      JSON.stringify(bad), JSON.stringify(['ag-001']));
+  }
 
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);

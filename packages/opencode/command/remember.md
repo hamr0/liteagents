@@ -276,8 +276,11 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
        filenames), but change NOTHING else — not `sessions`, not `last_seen`, not history, not
        `recurred_while_hot`. It is a re-scan re-detecting a conversation already counted, not
        new evidence.
-     - **No match, cluster `sessions` >= 2** → new entry, `status: "observing"`, attempt 1,
-       history "candidate (N sessions)".
+     - **No match, cluster `sessions` >= 2** → new entry, attempt 1. `status` follows the
+       4b tier from the entry's combined evidence, not a fixed "observing": `"hot"` if
+       `sessions` is already >= 5 on arrival (history "candidate (N sessions) — born hot"),
+       else `"observing"` (history "candidate (N sessions)"). A fresh ledger on a project
+       with mature global evidence can hit the hot case on its very first run.
      - **No match, cluster `sessions` == 1** → do NOT create a ledger entry. The ledger tracks
        recurrence, and a single occurrence has no recurrence to track yet — seeding singletons
        grows the ledger by dozens of never-recurring entries per run. Friction re-scans every
