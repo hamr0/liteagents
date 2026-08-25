@@ -692,6 +692,20 @@ function main() {
     ok('replay 0 malformed labels', report.malformed.length, 0);
   }
 
+  // ---- count's optional trailing [reportPath]: writes the same report object it
+  // prints to stdout, as a file -- so a caller (remember.md 4c/8) can read the
+  // report back without re-parsing stdout. Omitted, as above, means stdout only.
+  {
+    const reportPath = path.join(tmpDir('friction-report-'), 'count_report.json');
+    const outPath = path.join(tmpDir('friction-report-out-'), 'ledger.out.json');
+    const r = runSub(['count', path.join(CC, 'modal_fresh.json'), path.join(CC, 'ledger.prerun.json'),
+      path.join(CC, 'antigen_clusters.json'), '2026-08-25', outPath, reportPath]);
+    const stdoutReport = JSON.parse(r.out);
+    okTrue('count reportPath: file was written', fs.existsSync(reportPath));
+    const fileReport = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+    ok('count reportPath: file content equals stdout report', JSON.stringify(fileReport), JSON.stringify(stdoutReport));
+  }
+
   // Part 2: the real historical grouping (clusters 1+16+18+20+23+29 -> ag-001, as the
   // actual /remember run classified it) reproduces this repo's own live ledger's
   // hand-computed recurred_while_hot exactly, once the adopted-date gate applies:

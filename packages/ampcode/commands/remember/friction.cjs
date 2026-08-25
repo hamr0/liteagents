@@ -2668,9 +2668,9 @@ function countLedger(ledger, labels, clusters, runDate) {
  * the updated ledger.
  */
 function countMain(argv) {
-  const [labelsPath, ledgerPath, clustersPathArg, runDateArg, outLedgerPath] = argv;
+  const [labelsPath, ledgerPath, clustersPathArg, runDateArg, outLedgerPath, reportPath] = argv;
   if (!labelsPath || !ledgerPath) {
-    console.log('Usage: node friction.cjs count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]');
+    console.log('Usage: node friction.cjs count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath] [reportPath]');
     return 1;
   }
   const clustersPath = clustersPathArg || './antigen_clusters.json';
@@ -2683,6 +2683,9 @@ function countMain(argv) {
   const { ledger: updatedLedger, report } = countLedger(ledger, labels, clusters, runDate);
 
   console.log(JSON.stringify(report, null, 2));
+  if (reportPath) {
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+  }
   if (outLedgerPath) {
     fs.writeFileSync(outLedgerPath, JSON.stringify(updatedLedger, null, 2));
   } else {
