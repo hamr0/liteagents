@@ -83,16 +83,12 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      fallback carries no `session_ids`, so identity matching cannot run on it).
    - Read existing `.factory/remember/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.factory/remember/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND (friction was skipped OR `antigen_clusters.json` is
-     empty), run the step-8 mechanical length check (the same awk: over 180 chars with no
-     >100-char backtick literal) against the existing `.factory/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
-     consolidate" and stop. If it returns any lines, "no new input" is not a reason to leave
-     gate debt in place — do NOT stop: proceed to step 3 and run the Facts rewrite + pre-write
-     gate on the existing content with no new input, then continue through step 8 as normal.
-     (Whether friction produced NEW antigens is only knowable after 4c's identity
-     matching runs — `antigen_clusters.json` is always populated when friction ran,
-     since it re-scans everything, so "empty" — not "no new antigens" — is the check
-     available at this point.)
+   - **No unprocessed stashes → skip steps 2-3 (extraction and the Facts rewrite)
+     entirely — facts are never rewritten with zero new input**, not even to clear existing
+     length-gate debt on `.factory/remember/MEMORY.md`. Steps 4-5 (friction → ledger count →
+     Antigens render) are stash-independent and still run whenever friction produced output
+     (see step 4's own guard). If there is also no friction
+     output, report "nothing to consolidate" and stop after step 1.
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
@@ -162,7 +158,10 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      - an existing ledger id (`ag-NNN`) — only if the cluster is narrowly the SAME
        mistake class as that entry's `class_hints`+`rule`+`evidence.quotes`, not just
        similar sentiment. State the entry's specific claim precisely in the prompt (a
-       generic one-liner rule is not enough to bound the match — see 4c Open item 2).
+       generic one-liner rule is not enough to bound the match — see 4c Open item 2) and
+       give the classifier a negative example, not just the positive claim, e.g. for
+       ag-001 (validate, don't assert): "did you test it?" matches; "we're burning money,
+       why is it failing?" does NOT — cost/outcome complaints are not validation claims.
      - `new:<theme>` — a real, agent-directed mistake matching no existing entry.
        `<theme>` is NOT freeform LLM prose: derive it mechanically from the cluster's
        own `top_keywords[0]` and `top_keywords[1]` (lowercase, hyphen-joined). This
@@ -219,16 +218,24 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
        "history": [{ "date": "YYYY-MM-DD", "event": "<transition>" }] }
      ```
 
-     Immediately after 4a produces `labels.json`, run this exact command as a real shell
-     invocation:
+     Immediately after 4a produces `labels.json`, run these exact commands as real shell
+     invocations, in order. First:
      ```bash
-     node <path-to-friction.cjs> count <labels.json> <ledger.json> <clusters.json> <today's-date> <ledger.json>.new
+     node <path-to-friction.cjs> migrate-attempts .factory/remember/ledger.json .factory/remember/ledger.json
+     ```
+     This records any hand-drifted `rule` text as a new attempt so I7 (`rule` == the last
+     attempt's `rule`) holds before counting runs; it is a no-op on an already-consistent
+     ledger, so always run it regardless of whether drift is suspected. Then:
+     ```bash
+     node <path-to-friction.cjs> count <labels.json> <ledger.json> <clusters.json> <today's-date> <ledger.json>.new .factory/remember/friction/count_report.json
      ```
      Then **overwrite `ledger.json` with `<ledger.json>.new`'s contents** (e.g. `mv
      ledger.json.new ledger.json`). Do not stop after `labels.json` — producing labels is
      4a, not the deliverable of this step. `friction.cjs count <labels.json> <ledger.json>
-     [clusters.json] [runDate] [outLedgerPath]` is deterministic, no LLM involved, so it
-     can't drift between repos or runs. It implements, mechanically, everything the old
+     [clusters.json] [runDate] [outLedgerPath] [reportPath]` is deterministic, no LLM
+     involved, so it can't drift between repos or runs; the count report is also written to
+     `.factory/remember/friction/count_report.json` for step 8 to read back. It implements,
+     mechanically, everything the old
      prose reasoning here used to require by hand:
 
      - **Session identity** — the trailing 8-char hash of a session id (stable across
@@ -363,7 +370,8 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    ```
    Take that command's stdout **verbatim** and replace MEMORY.md's entire `## Antigens`
    section with it (from the `## Antigens` line up to, but not including, the next `## `
-   heading). This step's output IS the correctness check for itself: after replacing, `node
+   heading, or to end of file if Antigens is the last section — it usually is). This step's
+   output IS the correctness check for itself: after replacing, `node
    <path-to-friction.cjs> check <ledger.json> <MEMORY.md>` must report `I6-new: EQUAL` — if
    it doesn't, something was edited by hand instead of pasted from the script's stdout; redo
    it from the script's stdout exactly, never patch MEMORY.md manually to make it match.
@@ -459,7 +467,9 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      — every remaining overrun already had its chance to be exempted (100-char backtick
      literal) inside the step-3 gate, so anything printed here should not exist.
    - Episodes count (new, kept hot, folded + deleted)
-   - Antigens count by confidence tier, with how many newly promoted to hot
+   - Antigens count by confidence tier, with how many newly promoted to hot — sourced
+     from `.factory/remember/friction/count_report.json` (4c's count report), not
+     recomputed by hand
    - Ledger lines — one per non-observing entry: id, short rule, status, recurrences since
      adoption. Highlight rephrased (RECURRED) and ESCALATED entries; escalations need a
      user decision, e.g.:
