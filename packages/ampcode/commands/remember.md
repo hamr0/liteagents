@@ -168,9 +168,15 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        alone raised measured 5-run exact-label agreement from 0.884 to ~0.97-0.99 by
        removing wording variance as a source of disagreement — the remaining variance
        is genuine classification disagreement (drop vs. new:, or which existing id),
-       not paraphrase noise.
+       not paraphrase noise. Also output a `rule`: one line stating the behavioral
+       rule this cluster's evidence supports, same do/don't imperative style as an
+       existing ledger entry's `rule` (e.g. "Never say work is validated... without an
+       actual run behind it"). This is the only LLM-authored field here — `<theme>`
+       naming stays mechanical. `friction.cjs count` requires it whenever the cluster's
+       own `sessions >= 2` (it will create a ledger entry); below that it's unused.
 
-     Output is strictly `{cluster_index: label}` for every cluster in the batch.
+     Output is `{cluster_index: label}` for `drop`/`ag-NNN`; for `new:<theme>`, output
+     `{cluster_index: {label: "new:<theme>", rule: "<one-line rule>"}}`.
    - **4b. Route + tier by recurrence.** For each cluster and each same-label group
      (the clusters 4a gave the same label) — its tier comes from the distinct-
      conversation count `friction.cjs count` (4c) computes for it, the union of the

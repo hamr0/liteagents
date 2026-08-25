@@ -776,6 +776,103 @@ function main() {
     ok(`I7 (${label}) after migrate-attempts: 0 mismatches`, m ? m[1] : r.out, '0');
   }
 
+  // ---- `new:` labels require a classifier-authored rule to create an entry: the
+  // 4a classifier's output for `new:` is now {label, rule} (bare-string still
+  // supported for drop/ag-NNN, and for `new:` when sessions<2 -- it never creates
+  // anything). No placeholder rule text may ever land in a ledger.
+  group('friction.cjs count — new: labels require a rule (no placeholder)');
+  {
+    const ruleCluster = [{
+      sessions: 2,
+      session_ids: ['proj/0101-0000-aaaaaaaa', 'proj/0102-0000-bbbbbbbb'],
+      projects: ['proj'], contexts: ['a real quote'], top_keywords: ['kw1', 'kw2'],
+    }];
+    const emptyLedger = { entries: [] };
+
+    // (a) {label, rule} with sessions>=2 -> entry created with that exact rule text.
+    {
+      const dir = tmpDir('friction-newrule-');
+      const clustersPath = path.join(dir, 'clusters.json');
+      fs.writeFileSync(clustersPath, JSON.stringify(ruleCluster));
+      const ledgerPath = path.join(dir, 'ledger.json');
+      fs.writeFileSync(ledgerPath, JSON.stringify(emptyLedger));
+      const labelsPath = path.join(dir, 'labels.json');
+      const RULE_TEXT = 'Always confirm the migration adopted-date gate before counting.';
+      fs.writeFileSync(labelsPath, JSON.stringify({ '0': { label: 'new:test-theme', rule: RULE_TEXT } }));
+      const outPath = path.join(dir, 'ledger.out.json');
+      const r = runSub(['count', labelsPath, ledgerPath, clustersPath, '2026-08-25', outPath]);
+      const report = JSON.parse(r.out);
+      ok('(a) new: with rule, sessions>=2: 0 malformed', report.malformed.length, 0);
+      ok('(a) new: with rule, sessions>=2: 1 newEntries', report.newEntries.length, 1);
+      const after = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+      ok('(a) created entry rule == classifier-authored rule', after.entries[0].rule, RULE_TEXT);
+      ok('(a) created entry attempts[0].rule == classifier-authored rule',
+        after.entries[0].attempts[0].rule, RULE_TEXT);
+      okTrue('(a) no placeholder text anywhere in created entry',
+        !JSON.stringify(after.entries[0]).includes('POC placeholder'));
+    }
+
+    // (b) bare string "new:theme" (no rule) with sessions>=2 -> malformed, entry NOT
+    // created. This is the regression case: pre-fix code silently wrote a placeholder
+    // string as the rule instead of rejecting it -- this must FAIL against pre-fix
+    // code and PASS against the fix.
+    {
+      const dir = tmpDir('friction-newnorule-');
+      const clustersPath = path.join(dir, 'clusters.json');
+      fs.writeFileSync(clustersPath, JSON.stringify(ruleCluster));
+      const ledgerPath = path.join(dir, 'ledger.json');
+      fs.writeFileSync(ledgerPath, JSON.stringify(emptyLedger));
+      const labelsPath = path.join(dir, 'labels.json');
+      fs.writeFileSync(labelsPath, JSON.stringify({ '0': 'new:test-theme' }));
+      const outPath = path.join(dir, 'ledger.out.json');
+      const r = runSub(['count', labelsPath, ledgerPath, clustersPath, '2026-08-25', outPath]);
+      const report = JSON.parse(r.out);
+      ok('(b) new: no rule, sessions>=2: 0 newEntries (no placeholder-backed entry)',
+        report.newEntries.length, 0);
+      ok('(b) new: no rule, sessions>=2: 1 malformed', report.malformed.length, 1);
+      const after = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+      ok('(b) ledger unchanged: 0 entries', after.entries.length, 0);
+    }
+
+    // (c) bare string "new:theme" (old shape, no rule) with sessions<2 -> dropped as
+    // before (never creates an entry, so no rule is needed), not malformed.
+    {
+      const dir = tmpDir('friction-newnorule-1session-');
+      const oneSessionCluster = [{
+        sessions: 1, session_ids: ['proj/0101-0000-cccccccc'],
+        projects: ['proj'], contexts: ['a quote'], top_keywords: ['kw1'],
+      }];
+      const clustersPath = path.join(dir, 'clusters.json');
+      fs.writeFileSync(clustersPath, JSON.stringify(oneSessionCluster));
+      const ledgerPath = path.join(dir, 'ledger.json');
+      fs.writeFileSync(ledgerPath, JSON.stringify(emptyLedger));
+      const labelsPath = path.join(dir, 'labels.json');
+      fs.writeFileSync(labelsPath, JSON.stringify({ '0': 'new:test-theme' }));
+      const outPath = path.join(dir, 'ledger.out.json');
+      const r = runSub(['count', labelsPath, ledgerPath, clustersPath, '2026-08-25', outPath]);
+      const report = JSON.parse(r.out);
+      ok('(c) new: no rule, sessions<2: 0 malformed (dropped, never creates)', report.malformed.length, 0);
+      ok('(c) new: no rule, sessions<2: 1 droppedNew1session', report.droppedNew1session.length, 1);
+      ok('(c) new: no rule, sessions<2: 0 newEntries', report.newEntries.length, 0);
+    }
+  }
+
+  // ---- repo-wide: the removed placeholder literal must not exist anywhere (code,
+  // fixtures, or any committed artifact) after the fix. Uses the full former literal
+  // (not just the words "POC placeholder", which this test file itself mentions when
+  // asserting its absence) so the check doesn't self-match.
+  {
+    const REPO_ROOT = path.join(__dirname, '..', '..');
+    const selfPath = path.relative(REPO_ROOT, __filename);
+    const grep = spawnSync('git',
+      ['grep', '-l', 'needs LLM-authored rule text', '--', '.', `:!${selfPath}`],
+      { cwd: REPO_ROOT, encoding: 'utf8' });
+    // git grep exits 1 when there are no matches -- that's the passing case here.
+    // This test file itself is excluded via pathspec since it names the phrase to
+    // assert its absence, which would otherwise self-match.
+    ok('git grep placeholder literal: 0 files in repo', grep.status === 1 ? 0 : (grep.stdout || '').split('\n').filter(Boolean).length, 0);
+  }
+
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
   console.log(`Total tests: ${passed + failed}`);

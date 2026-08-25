@@ -2489,10 +2489,11 @@ function sessionDateFromId(id, runDate) {
 
 /**
  * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
- * Merges classifier labels (index -> "drop"|"ag-NNN"|"new:theme") by label, counts
- * distinct new conversations (one per cluster INDEX, never per hash or per group),
- * and applies the ledger rules mechanically. Prints the count report to stdout;
- * writes the updated ledger to outLedgerPath if given, else also to stdout.
+ * Merges classifier labels (index -> "drop" | "ag-NNN" | "new:theme" | {label:
+ * "new:theme", rule: "<one-line rule>"}) by label, counts distinct new conversations
+ * (one per cluster INDEX, never per hash or per group), and applies the ledger rules
+ * mechanically. Prints the count report to stdout; writes the updated ledger to
+ * outLedgerPath if given, else also to stdout.
  */
 function nextAntigenId(ledger) {
   let max = 0;
@@ -2548,12 +2549,19 @@ function countLedger(ledger, labels, clusters, runDate) {
   const agGroups = new Map(); // ag-NNN label -> [cluster indices] (matching still merges)
   const newClusterIdxs = []; // `new:` clusters -- Guard B: never grouped, each stands alone
   for (let i = 0; i < clusters.length; i++) {
-    const lbl = labels[String(i)];
+    // Label shape: a bare string ("drop"|"ag-NNN"|"new:theme") for drop/ag-NNN, or
+    // {label, rule} for "new:" -- the 4a classifier now emits the one-line rule text
+    // for a brand-new theme in the same judgment (no separate LLM pass). Both shapes
+    // are accepted so pre-existing bare-string labels.json fixtures keep working.
+    const raw = labels[String(i)];
+    const isObjLabel = raw && typeof raw === 'object';
+    const lbl = isObjLabel ? raw.label : raw;
+    const rule = isObjLabel ? raw.rule : undefined;
     const isNewLabel = typeof lbl === 'string' && lbl.startsWith('new:');
     const known = lbl === 'drop' || VALID_ID.test(lbl) || isNewLabel;
     if (!known) { malformed.push({ index: i, label: lbl }); continue; }
     if (lbl === 'drop') continue;
-    if (isNewLabel) { newClusterIdxs.push({ index: i, label: lbl }); continue; }
+    if (isNewLabel) { newClusterIdxs.push({ index: i, label: lbl, rule }); continue; }
     if (!agGroups.has(lbl)) agGroups.set(lbl, []);
     agGroups.get(lbl).push(i);
   }
@@ -2631,11 +2639,18 @@ function countLedger(ledger, labels, clusters, runDate) {
     report.matched.push({ label, clusters: idxs, before, after: entry.evidence.sessions, newConversations, newConvClusterIdxs, isTrueMigration, isMigrationFill, recurredWhileHotCount, gatedOutClusterIdxs, promoted: statusBefore === 'observing' && entry.status === 'hot' });
   }
 
-  for (const { index: i, label } of newClusterIdxs) {
+  for (const { index: i, label, rule } of newClusterIdxs) {
     const cluster = clusters[i];
     const combinedSessions = cluster.sessions;
     const hashes = cluster.session_ids.map(antigenHash);
     if (combinedSessions < 2) { report.droppedNew1session.push({ label, idxs: [i], sessions: combinedSessions }); continue; }
+    // A `new:` cluster that will actually create a ledger entry requires the
+    // classifier-authored rule text -- no placeholder fallback. Missing/empty is
+    // reported as malformed and the entry is NOT created (see friction.cjs BUG fix).
+    if (!rule || typeof rule !== 'string' || rule.trim() === '') {
+      malformed.push({ index: i, label, reason: 'new: label creating an entry (sessions>=2) requires a non-empty rule' });
+      continue;
+    }
     const status = combinedSessions >= 5 ? 'hot' : 'observing';
     const id = nextAntigenId(ledger);
     const newEntry = {
@@ -2643,8 +2658,8 @@ function countLedger(ledger, labels, clusters, runDate) {
       class: label.slice(4),
       class_hints: buildClassHints(cluster),
       status,
-      rule: `[POC placeholder — needs LLM-authored rule text] ${label.slice(4)}`,
-      attempts: [{ n: 1, rule: `[POC placeholder — needs LLM-authored rule text] ${label.slice(4)}`, adopted: runDate, outcome: 'active' }],
+      rule,
+      attempts: [{ n: 1, rule, adopted: runDate, outcome: 'active' }],
       evidence: {
         sessions: combinedSessions,
         session_ids: cluster.session_ids.map(sid => ({ id: sid, seen: runDate })),
