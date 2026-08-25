@@ -173,8 +173,9 @@ quote.
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **4a. Classify** — sonnet labels each cluster once: `drop` (self-directed), an
      existing ledger id (same mistake class), or `new:<theme>` (theme derived
-     mechanically from the cluster's own top keywords, not freeform prose). No merging,
-     no arithmetic — that's 4c.
+     mechanically from the cluster's own top keywords, not freeform prose) plus a
+     one-line, classifier-authored `rule` for that theme — the only LLM-authored field
+     here. No merging, no arithmetic — that's 4c.
   2. **4b. Route + tier** — recurring + severe → antigen; recurring + mild → Fact;
      one-off (<2 sessions) → nothing yet, re-surfaces next run. Tier is driven by
      `friction.cjs count`'s distinct-session count: High (5+, loads hot), Medium (3-4,

@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`/remember`'s antigen step redesigned to classify-then-count.** A 15-repo audit found
+  MEMORY.md's Antigens section hand-drifted from the ledger in 14/15 repos and rule-text
+  disagreement in 22 entries, root-caused to the model writing the same rule text in three
+  places and doing hash/dedup arithmetic in prose. Narrowed the LLM to one classification
+  judgment per cluster (`drop` | existing `ag-NNN` | `new:<theme>`); moved everything else —
+  hash union, dedup, promotion, rendering, and checking — into deterministic code
+  (`friction.cjs count`/`render`/`check`/`migrate-attempts`). Added invariants I6-new
+  (render(ledger) byte-equal to MEMORY.md's Antigens section) and I7 (`rule` ==
+  `attempts[last].rule`), Guard B (`new:` clusters never merge with each other in the same
+  classify batch), and an adopted-date gate so pre-fix evidence can't count toward
+  `recurred_while_hot`. `remember.md` rewritten as literal commands to run, not prose to
+  interpret. Validated live on 3 real repos; 918 tests passing at the time, mirrored to all
+  four packages with 0 non-path diffs.
+
 ### Fixed
+- **A newly-created antigen entry's `rule` text was a literal placeholder string,
+  not real content.** `friction.cjs count` wrote
+  a hardcoded placeholder string into `rule` and
+  `attempts[0].rule` for any brand-new `ag-NNN` entry, and `render` printed it verbatim into
+  MEMORY.md — so the placeholder could land in a user's actual memory file. The 4a classifier
+  now emits the one-line rule text alongside a `new:<theme>` label in the same judgment (no
+  new LLM pass): `{cluster_index: {label: "new:<theme>", rule: "..."}}`. `count` accepts both
+  this shape and the old bare-string shape (bare stays valid for `drop`/`ag-NNN`, and for
+  `new:` clusters with `sessions < 2`, which never create an entry). A `new:` cluster with
+  `sessions >= 2` and no rule is reported as malformed and creates nothing — never falls back
+  to placeholder text. All four packages; 930 tests passing.
 - **friction's severity axis was degenerate — every cluster it ever emitted was severe.**
   Clusters are seeded only on an observed reaction (`user_correction`, `user_curse`,
   `interrupt_cascade`), and the severe test accepted all three of those same signals, so the

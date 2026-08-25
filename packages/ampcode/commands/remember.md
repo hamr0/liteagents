@@ -127,8 +127,12 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        history — never exempted. Only a draft that passes the gate (or has its overruns
        exempted under the 100-char backtick rule) is written to `.amp/remember/MEMORY.md`.
    - **Episodes section**: append new episode entries, keep only the **10 most recent**.
-     Every older episode is **folded, then deleted**: its lesson becomes a fact (handed to
-     the rewrite above); the narrative is removed. No archive — git has the history.
+     **Dedup before appending**: if a new episode covers the same work as one already in the
+     section (same goal or same session's work under different wording — judge by content, not
+     title), merge the new detail into the existing entry instead of appending a second copy.
+     Re-processing a stash whose episode is already filed must not create a near-duplicate
+     pair. Every older episode is **folded, then deleted**: its lesson becomes a fact (handed
+     to the rewrite above); the narrative is removed. No archive — git has the history.
    - **Antigens section**: only update from friction output (step 4)
    - Write merged result to `.amp/remember/MEMORY.md` in the format under step 5.
 
