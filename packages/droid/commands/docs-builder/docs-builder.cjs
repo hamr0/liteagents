@@ -1884,7 +1884,7 @@ const DOCS_INDEX_END = '<!-- DOCS_INDEX:END -->';
 function docsIndexBlock() {
   return `${DOCS_INDEX_START}\n`
     + 'Docs map: `docs/index.md` — every doc in this project, with line counts.\n'
-    + 'Too many rows to read whole? Search instead: `/docs-builder search <query words>`\n'
+    + 'Search this corpus instead of reading it whole: `/docs-builder search <query words>`\n'
     + `${DOCS_INDEX_END}`;
 }
 function injectClaudeMdPointer() {
