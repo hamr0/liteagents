@@ -29,6 +29,19 @@ const path = require('path');
 const FRICTION = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
   'remember', 'friction.cjs');
 
+// mkdtempSync wrapper that tracks every dir it creates so they can be swept
+// up on exit — otherwise each test run leaks temp dirs into os.tmpdir().
+const tmpDirs = [];
+function tmpDir(prefix) {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tmpDirs.push(d);
+  return d;
+}
+process.on('exit', () => {
+  if (process.env.KEEP_TMP) return;
+  for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true });
+});
+
 const colors = { reset: '\x1b[0m', green: '\x1b[32m', red: '\x1b[31m',
   yellow: '\x1b[33m', cyan: '\x1b[36m', bright: '\x1b[1m' };
 
@@ -135,7 +148,7 @@ function buildFixture(root) {
   // ignores shorter ones as a degenerate-uuid guard (see FIX E / fixture (g)).
   const dupEvents = correctionTurns(
     'please fix the database migration script',
-    'no that is not right, the database migration still broke everything',
+    'no that is not right, the database migration still broke everything, damn it',
     ['dup-uuid-0001', 'dup-uuid-0002', 'dup-uuid-0003']);
   writeSession(path.join(sessionsDir, 'projA'), '11111111-aaaa-forkA.jsonl', dupEvents);
   writeSession(path.join(sessionsDir, 'projA'), '22222222-aaaa-forkB.jsonl', dupEvents);
@@ -147,12 +160,12 @@ function buildFixture(root) {
   writeSession(path.join(sessionsDir, 'projB'), '33333333-bbbb-real1.jsonl',
     correctionTurns(
       'please check the payment gateway',
-      'no that is not right, the payment gateway timeout is still happening',
+      'no that is not right, the payment gateway timeout is still happening, damn it',
       ['b1-u1', 'b1-u2', 'b1-u3']));
   writeSession(path.join(sessionsDir, 'projB'), '44444444-bbbb-real2.jsonl',
     correctionTurns(
       'please check the payment gateway',
-      'no that is not right, the payment gateway timeout is still happening',
+      'no that is not right, the payment gateway timeout is still happening, damn it',
       ['b2-u1', 'b2-u2', 'b2-u3']));
 
   // (c) EMPTY-CONTEXT CLUSTER — both user turns are <=2 chars ("hi" / "no").
@@ -172,7 +185,7 @@ function buildFixture(root) {
   writeSession(path.join(sessionsDir, 'projD'), '66666666-dddd-real.jsonl',
     correctionTurns(
       'please clean up the report generator',
-      'no that is not right, the report generator still crashes on export',
+      'no that is not right, the report generator still crashes on export, damn it',
       ['d-u1', 'd-u2', 'd-u3']));
 
   // (e) PARTIAL OVERLAP — pins the threshold at ">=1 shared uuid". A real fork
@@ -184,12 +197,12 @@ function buildFixture(root) {
   writeSession(path.join(sessionsDir, 'projE'), '77777777-eeee-forkA.jsonl',
     correctionTurns(
       'please rebuild the search indexer',
-      'no that is not right, the search indexer skips half the files',
+      'no that is not right, the search indexer skips half the files, damn it',
       ['e-shared-u1', 'eA-u2', 'eA-u3']));
   writeSession(path.join(sessionsDir, 'projE'), '88888888-eeee-forkB.jsonl',
     correctionTurns(
       'please rebuild the search indexer',
-      'no that is not right, the search indexer skips half the files',
+      'no that is not right, the search indexer skips half the files, damn it',
       ['e-shared-u1', 'eB-u2', 'eB-u3']));
 
   // (f) 0-CONTEXT WITH MACHINE CORROBORATION — both user turns are terse
@@ -214,9 +227,9 @@ function buildFixture(root) {
   // destroying recurrence counting.
   const degenerateUuid = '';
   for (const [proj, file, ask, correction] of [
-    ['projG', 'g1111111-gggg-one.jsonl', 'please refactor the login handler', 'wrong, the login handler crashes on submit'],
-    ['projG', 'g2222222-gggg-two.jsonl', 'please optimize the export pipeline', 'stop, the export pipeline is far too slow'],
-    ['projG', 'g3333333-gggg-three.jsonl', 'please redesign the upload widget', 'revert, the upload widget rejects large files'],
+    ['projG', 'g1111111-gggg-one.jsonl', 'please refactor the login handler', 'wrong, the login handler crashes on submit, damn it'],
+    ['projG', 'g2222222-gggg-two.jsonl', 'please optimize the export pipeline', 'stop, the export pipeline is far too slow, damn it'],
+    ['projG', 'g3333333-gggg-three.jsonl', 'please redesign the upload widget', 'revert, the upload widget rejects large files, damn it'],
   ]) {
     writeSession(path.join(sessionsDir, proj), file, [
       { type: 'user', text: ask, mins: 0, uuid: degenerateUuid },
@@ -242,6 +255,25 @@ function buildFixture(root) {
     ]);
   }
 
+  // (i) SEVERITY IS INTENSITY, NOT EXISTENCE — two one-off sessions. The
+  // first is a plain correction with real text and no curse, interrupt, or
+  // tool error: one-off + mild → 'drop', so it must NOT appear in the output
+  // at all. The second is the same shape plus a curse: one-off + severe →
+  // 'episode', kept. Pre-fix, a plain user_correction with context was
+  // auto-severe, so every cluster friction could ever emit was severe and the
+  // fact/drop quadrants of the recurrence × severity grid were unreachable
+  // (measured 69/69 severe on the real corpus).
+  writeSession(path.join(sessionsDir, 'projI'), 'i1111111-iiii-mild.jsonl',
+    correctionTurns(
+      'please warm the lookup cachewarmer on boot',
+      'no that is not right, the cachewarmer still misses half the keys',
+      ['i1-u1', 'i1-u2', 'i1-u3']));
+  writeSession(path.join(sessionsDir, 'projI'), 'i2222222-iiii-severe.jsonl',
+    correctionTurns(
+      'please fix the cron dispatcher',
+      'no that is not right, the dispatcher still double-fires, damn it',
+      ['i2-u1', 'i2-u2', 'i2-u3']));
+
   return sessionsDir;
 }
 
@@ -250,9 +282,9 @@ function buildFixture(root) {
 function main() {
   group('friction.cjs — session dedup + empty-context cluster drop');
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'friction-test-'));
+  const root = tmpDir('friction-test-');
   const sessionsDir = buildFixture(root);
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'friction-cwd-'));
+  const cwd = tmpDir('friction-cwd-');
 
   const result = run(cwd, sessionsDir);
   ok('friction.cjs ran without crashing', result.code, 0);
@@ -339,6 +371,24 @@ function main() {
     if (exportCluster) ok('(g) degenerate-uuid export session stays its own', exportCluster.sessions, 1);
     if (uploadCluster) ok('(g) degenerate-uuid widget session stays its own', uploadCluster.sessions, 1);
 
+    // (i) SEVERITY IS INTENSITY — a one-off plain correction (no curse,
+    // interrupt, or error) is mild and must be dropped from the output; the
+    // same shape with a curse is severe and survives as an episode. Every
+    // cluster that IS emitted must carry a curse, interrupt, or error — the
+    // property that makes the fact/drop quadrants reachable at all.
+    const mildCluster = findCluster(clusters, 'cachewarmer');
+    okTrue('(i) one-off plain correction (mild) is dropped', !mildCluster);
+    const severeCluster = findCluster(clusters, 'dispatcher');
+    okTrue('(i) one-off correction + curse (severe) is kept', !!severeCluster);
+    if (severeCluster) {
+      ok('(i) one-off curse cluster is severe', severeCluster.severity, 'severe');
+      ok('(i) one-off curse cluster routes to episode', severeCluster.suggested_artifact, 'episode');
+    }
+    const hasIntensity = c => Object.keys(c.signals || {}).some(s => s === 'user_curse' || s === 'interrupt_cascade')
+      || (c.errors || []).length > 0;
+    okTrue('(i) every emitted ONE-OFF cluster carries a curse, interrupt, or error',
+      clusters.filter(c => c.sessions < 3).every(hasIntensity));
+
     // (h) UUID CAP OVERFLOW — 13 sessions sharing one real-length uuid (one
     // over MAX_SESSIONS_PER_UUID=12) must NOT union into a single canonical
     // session, and the cap firing must be visible on stderr, not silent.
@@ -346,9 +396,33 @@ function main() {
     okTrue('(h) uuid-cap-overflow cluster found', !!capCluster);
     if (capCluster) {
       okTrue('(h) uuid-cap-overflow sessions do NOT collapse to 1 (13 distinct)', capCluster.sessions > 1);
+      // 13 plain corrections, no curse/interrupt/error: recurring + mild →
+      // 'fact'. Pre-fix this was 'antigen' (auto-severe) — the fact quadrant
+      // was unreachable.
+      ok('(h)/(i) recurring plain-correction cluster is mild', capCluster.severity, 'mild');
+      ok('(h)/(i) recurring plain-correction cluster routes to fact', capCluster.suggested_artifact, 'fact');
     }
     okTrue('(h) uuid-cap-overflow emits a stderr warning when the cap fires',
       result.out.includes('warn: uuid shared by 13 sessions'));
+  }
+
+  // ---------------------------------------------------------------- S6: empty-dir second run
+  // /remember always runs friction from the same project cwd, so after the first real run
+  // .claude/remember/friction/friction_analysis.json is always already on disk. A later run
+  // against a sessions dir with no sessions (moved root, typo, empty mount) must not silently
+  // reuse that leftover file and report success — /remember relies on a non-zero exit to
+  // loud-skip. Reuses this file's own fixture (a real run) as the "good" first run, then a
+  // second run in the SAME cwd against an empty directory.
+  group('friction.cjs — empty sessions dir on a second run must not report success');
+  {
+    const cwd2 = tmpDir('friction-cwd2-');
+    const goodResult = run(cwd2, sessionsDir);
+    ok('(S6) first run (real sessions) exits 0', goodResult.code, 0);
+
+    const emptyDir = tmpDir('friction-empty-');
+    const badResult = run(cwd2, emptyDir);
+    okTrue('(S6) second run (empty dir, same cwd) does NOT report success',
+      badResult.code !== 0);
   }
 
   // ---------------------------------------------------------------- /remember output regression fixtures

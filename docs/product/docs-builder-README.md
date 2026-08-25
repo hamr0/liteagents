@@ -7,10 +7,10 @@ updated: 2026-08-24
 
 # docs-builder
 
-`/docs-builder` splits a documentation file once it outgrows its row in `docs/README.md`,
+`/docs-builder` splits a documentation file once it outgrows its row in `docs/index.md`,
 keeps the resulting pages current, and generates an index so they can be found. It is a
 **slash command**, not a skill: `commands/docs-builder.md` plus a bundled
-`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fifteen subcommands) —
+`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fourteen subcommands) —
 the same shape as `/remember`.
 
 It ships in all four packages. `docs-builder.cjs` hardcodes no tool-specific paths, so it
@@ -149,6 +149,12 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 ---
 
 ## How you invoke it
+
+**The script lives next to the command, not in your repo.** Every `node
+docs-builder/docs-builder.cjs …` in the spec is relative to the command's own directory
+(`~/.claude/commands/` once installed); the target repo is whatever `REPO=` names, defaulting
+to the cwd. The spec now says so up front — before it did, a run on an external repo searched
+the target tree for the script, found nothing, and refused (see History).
 
 **Bare `/docs-builder` never guesses.** It runs `due` for context, then asks — two
 options, no recommendation, no third:
@@ -671,6 +677,31 @@ revision.
   `cleanup-apply` now names both steps it skipped and says not to re-run. This is the third
   time this file has shipped a guard at a call site rather than at the chokepoint — see the
   `CLAUDE.md`/`walkMd` and `REPO`-vs-cwd entries above.
+
+- **The spec never said where its own script was (2026-08-25).** Every command read
+  `node docs-builder/docs-builder.cjs …`, a path relative to the command's directory, and
+  nothing said so. Inside this repo that path happens to resolve, so every dogfood run passed;
+  on the first external repo (zkagent) the model searched the target tree, found nothing, and
+  — correctly — refused to rebuild the tool from its own spec. `remember.md` had carried the
+  matching "locate `friction.cjs` next to this command" step since ledger v1; `docs-builder.md`
+  now has the same paragraph at the top of Invocation. A tool validated only on the repo that
+  contains it has not been validated as installed.
+
+- **Half the state lived in the cwd, half under `REPO` (2026-08-25).** `docs/.docs-builder/*`
+  JSON resolved against the cwd; `index.md`, the ledger, the log and the config pointer against
+  `REPO`. The two coincide only when run from the repo root, which every dogfood run had done.
+  `ARTIFACTS` now resolves under `REPO` at its one declaration; explicit `OUT=`/path arguments
+  keep their meaning. The spec now `cd`s to the target root and calls the script by absolute
+  path (`$DB`); the `REPO=<repo>` prefixes are gone — they had also never matched the command's
+  `allowed-tools: Bash(node:*)`. Same review: neither picker flow ever ran `ledger`, so after a
+  real first run `due` said NOT due forever and `/remember`'s nudge never fired — both flows
+  now stamp after the commit; `discover` on an already-sorted corpus told the operator to run
+  an interview on a 0-row plan; `apply-reorg` wrote a config pointer to a `docs/index.md` that
+  `index-flat` had just declined to write, and its results JSON said `claudeMdUpdated: false`
+  on the line before "updated CLAUDE.md"; the usage string omitted `cleanup-apply`. Each was
+  reproduced on a fixture before the fix, and each fix's test was watched failing first. The
+  test suite itself leaked every `mkdtemp` repo it made — ~1,000 per run — until `/tmp` ran
+  out of inodes mid-session; it now removes them on exit (`KEEP_TMP=1` keeps them).
 
 ---
 

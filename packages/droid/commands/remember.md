@@ -9,7 +9,7 @@ Run friction analysis, then consolidate session stashes + friction antigens into
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
 - Keep changes tightly scoped to the requested outcome.
-- **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, record as a low-confidence episode — do not promote.
+- **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, do not promote — leave it to recurrence (a ledger `observing` entry at 2 sessions, nothing at 1).
 - **Mid-tier model, not hardcoded.** Steps 2/3/4a delegate to a mid-tier model — capable of
   semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's Sonnet vs
   Opus). Use whatever your tool designates as that balanced default; never hardcode a
@@ -39,7 +39,9 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
-     exists and contains `.jsonl` files (recursively). **Never prompt the user.**
+     exists and contains `.jsonl` files directly, or one level down in per-project
+     subdirectories (friction.cjs scans exactly those two levels, not a deep recursive walk).
+     **Never prompt the user.**
      ```
      # ── Add your own global sessions root at the TOP so it is checked first ──
      ~/.claude/projects/                 # Claude Code
@@ -76,15 +78,21 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      already exists, leave it untouched — never overwrite, even if the bundled template
      changes in a later version; it becomes user-owned the moment it lands in the project.
    - Read all `.factory/stash/*.md` files in the current project
-   - Read friction output written in step 0: `.factory/remember/friction/antigen_clusters.json` (preferred) or `.factory/remember/friction/antigen_review.md` (fallback)
+   - Read friction output written in step 0: `.factory/remember/friction/antigen_clusters.json` (preferred) or `.factory/remember/friction/antigen_review.md` (fallback). On the fallback path, step 4c does NO counting — merge quotes into
+     matching entries only; never change `sessions`, `last_seen`, or `recurred_while_hot` (the
+     fallback carries no `session_ids`, so identity matching cannot run on it).
    - Read existing `.factory/remember/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.factory/remember/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND friction produced no new antigens, run the step-8 mechanical
-     length check (the same awk: over 180 chars with no >100-char backtick literal) against the
-     existing `.factory/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
+   - If no unprocessed stashes AND (friction was skipped OR `antigen_clusters.json` is
+     empty), run the step-8 mechanical length check (the same awk: over 180 chars with no
+     >100-char backtick literal) against the existing `.factory/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
      consolidate" and stop. If it returns any lines, "no new input" is not a reason to leave
      gate debt in place — do NOT stop: proceed to step 3 and run the Facts rewrite + pre-write
      gate on the existing content with no new input, then continue through step 8 as normal.
+     (Whether friction produced NEW antigens is only knowable after 4c's identity
+     matching runs — `antigen_clusters.json` is always populated when friction ran,
+     since it re-scans everything, so "empty" — not "no new antigens" — is the check
+     available at this point.)
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
@@ -126,7 +134,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      Every older episode is **folded, then deleted**: its lesson becomes a fact (handed to
      the rewrite above); the narrative is removed. No archive — git has the history.
    - **Antigens section**: only update from friction output (step 4)
-   - Write merged result to `.factory/remember/MEMORY.md` in the format under step 6.
+   - Write merged result to `.factory/remember/MEMORY.md` in the format under step 5.
 
 4. **Distill friction into antigens** (only if friction output exists)
 
@@ -165,18 +173,24 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      - `suggested_artifact: antigen` (recurring + severe) or an LLM-merged group → an
        **antigen** (a "do/don't" behavioral rule), with its verbatim evidence quotes.
      - `suggested_artifact: fact` (recurring + mild) → a **Fact**.
-     - `suggested_artifact: episode` that did **not** merge into a recurring group → an
-       **Episode** (one-off; recorded, not a rule).
+     - `suggested_artifact: episode` that did **not** merge into a recurring group → **not
+       an Episode, and at 1 session not written anywhere.** The Episodes section is stash-fed
+       and capped at 10; friction's one-offs are cross-project and arrive by the dozen, so
+       filing them there would flush the stash episodes. Nothing is lost: friction re-scans
+       every session log on every run, so the cluster re-surfaces until it recurs — and at 2
+       sessions it gets its home, a ledger `observing` entry (4c), which step 5 renders under
+       Low Confidence. `suggested_artifact` is friction's structural proposal, not a filing
+       decision; the filing rule is this list.
      - Confidence by distinct-session recurrence:
        - **High** (5+ sessions) → loaded hot via `@MEMORY.md`
        - **Medium** (3-4 sessions) → recorded under Antigens, *not* loaded hot
-       - **Low** (<3 sessions) → keep as Episode only
+       - **Low** (<3 sessions) → ledger `observing` only at 2 sessions; nothing at 1
    - **Recurrence tiers bind everything, including LLM-merged groups:** merging consolidates
      evidence, it never elevates it — a merged group's tier comes from its combined
-     distinct-session count (e.g. a 2-session merged group is still Low → Episode + ledger
-     `observing`, not an antigen entry in MEMORY.md).
+     distinct-session count (e.g. a 2-session merged group is still Low → ledger
+     `observing` only, not an antigen entry in MEMORY.md).
    - **Never auto-promote.** Only High-confidence (5+ sessions) antigens load hot. A
-     single dramatic correction is an Episode, not an antigen.
+     single dramatic correction is recorded nowhere yet, not an antigen.
    - Update the Antigens section in MEMORY.md (promote/demote based on new recurrence).
    - **4c. Update the antigen ledger** (`.factory/remember/ledger.json`) — the evidence trail
      linking each rule to the mistake it targets and whether it is working. Create it as
@@ -216,11 +230,13 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 
      **Migration (one-time, grandfathered): SEED, DO NOT COUNT.** Existing entries predate
      `session_ids` and carry only a bare `sessions` count with an empty `session_ids` set. This
-     is mechanical — do not resolve it by judgment. On the run that first populates such an
-     entry's `session_ids` (i.e. `session_ids` is empty going in), do exactly these two things
-     and nothing else:
+     is mechanical — do not resolve it by judgment. The trigger is **`session_ids` empty going
+     in AND no "identity migration" history line yet** — an entry that already carries that
+     line and still has an empty set matched nothing since; leave it alone, it is not a fresh
+     migration. On the run that fires, do exactly these two things and nothing else:
      1. Write `session_ids` to this run's matched ids (NOT an empty set — the empty set is the
-        pre-migration state you are migrating FROM, not what you write).
+        pre-migration state you are migrating FROM, not what you write). If this run matched no
+        ids, leave `session_ids` empty — it fills on the first future match.
      2. Append the history line "identity migration — legacy count grandfathered, growth
         requires new hashes".
 
@@ -282,7 +298,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
          reset `recurred_while_hot` to 0.
        - If 2 attempts have already failed and the antigen persists → `status: "escalated"`:
          remove the rule from MEMORY.md's hot section, record a Fact instead ("persistent
-         failure mode: <class> — no phrasing reduces it"), and flag it in the step-7 report.
+         failure mode: <class> — no phrasing reduces it"), and flag it in the step-8 report.
          **Flag, don't act** — the user decides: enforcement (a hook, where the tool has
          them) or accepted limit.
      - **Match, `escalated`/`rejected`** (rejected = user veto) → merge evidence only; never re-propose.
@@ -354,8 +370,10 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    - [pattern] (evidence: [N] sessions)
    ```
    The Medium/Low lists render only entries whose ledger `status` is `observing` (or `hot`
-   for High) — an entry marked `expired` by the decay rule (step 4c) is skipped here even
-   though it stays in `ledger.json`.
+   for High) AND whose `evidence.sessions` is >= 2 — an entry marked `expired` by the decay
+   rule (step 4c) is skipped here even though it stays in `ledger.json`. A legacy 1-session
+   `observing` entry (see 4b) stays in the ledger and grows or expires like any other, but is
+   not rendered.
 
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.factory/remember/.processed`
@@ -367,7 +385,9 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
    write that already happened in steps 3-6.
 
    - **Locate `docs-builder.cjs`** — bundled next to this command at
-     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`).
+     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`). Call it by
+     its **absolute path** in the command below — the cwd here is the target repo, not this
+     package, so a cwd-relative path fails everywhere except the liteagents repo itself.
    - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
      saying anything. Most projects have no doc corpus and a nudge every run is noise.
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
@@ -382,12 +402,15 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      below.
    - Otherwise run it and pass through its verdict:
      ```bash
-     node docs-builder/docs-builder.cjs due
+     node <docs-builder.cjs> due
      ```
      `due` compares `docs/` against the SHA stamped in `docs/.docs-builder/ledger.json`
      using `git diff --numstat -M`, classifying each doc as new / moved / moved+changed /
      changed (with the line delta and rough percentage) / deleted. It is **due at >=5
      changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
+   - If `due` prints "no ledger yet" (no `docs/.docs-builder/ledger.json` to compare against),
+     do NOT relay it — print the same `/docs-builder reorg` line as the no-`docs/.docs-builder/`
+     case above, for the same reason: `ledger` would stamp an unsorted pile as correct.
    - If DUE, end with one line and nothing more:
      ```
      docs: 7 changed since 991f72d3 — run /docs-builder reorg
@@ -396,7 +419,10 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 8. **Report to user** — print it AND write the same content to `.factory/remember/report.md`
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
-   - Facts count (before → after the rewrite; the number should not grow by the number of new facts)
+   - Facts count (before → after the rewrite) plus how many existing lines were merged or
+     shortened. At steady state — lines already ≤160, no near-duplicates — a run that grows by
+     exactly its new facts and shortens nothing is correct; say so rather than forcing merges
+     to hit a number. The bound on facts is the write-bar at entrance, not a count.
    - **Mechanical length check** — run, don't estimate. This confirms the step-3 gate rather
      than being the first check to catch an overrun. It implements the SAME mechanical
      exemption as the gate (a line whose longest backtick literal exceeds 100 chars is not
@@ -435,7 +461,7 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 - Memory file: `.factory/remember/MEMORY.md` (single source of truth, referenced as `@.factory/remember/MEMORY.md`)
 - Rules template: `.factory/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced as `@.factory/remember/AGENT_RULES.md`)
 - Antigen ledger: `.factory/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
-- Consolidation report: `.factory/remember/report.md` (latest step-7 report, overwritten each run)
+- Consolidation report: `.factory/remember/report.md` (latest step-8 report, overwritten each run)
 - Processed manifest: `.factory/remember/.processed`
 - Docs ledger (READ ONLY from here — owned by `/docs-builder`): `docs/.docs-builder/ledger.json`
 - Friction output (transient, regenerated each run): `.factory/remember/friction/` — `antigen_clusters.json` (preferred input), `antigen_review.md` (fallback), plus raw analysis files

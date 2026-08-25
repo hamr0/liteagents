@@ -113,15 +113,18 @@ holding no anchor of its own is not discovered, so its hash is absent from `sess
 (3 of 66 clusters). It could not have contributed evidence anyway, and it gains a hash the
 moment it gains a reaction.
 
-**A cluster with no user text cannot be severe.** If the matched context window holds no real
-words, there is nothing to classify and nothing to quote as evidence. Worse, an
-empty-context cluster short-circuits the self-correction filter (there is nothing to test),
-so a lone `user_correction` would auto-qualify as severe on no evidence at all. Such a
-cluster is therefore barred from the severe path rather than deleted: a curse, an interrupt
-cascade, or a real tool error still counts, and a bare correction with nothing to quote falls
-out through the ordinary severity/recurrence routing. Dropping them outright was tried first
-and was wrong — it silently killed the file-referent fallback, whose whole purpose is to
-describe a session too terse to quote.
+**Severity is intensity, not existence.** A cluster only exists because the user visibly
+reacted (correction, curse, interrupt), so a plain `user_correction` cannot also be what
+makes it *severe* — otherwise every cluster friction can emit is severe by construction.
+That is exactly what happened until 2026-08-25: measured 69/69 severe on the real corpus,
+which collapsed the recurrence × severity grid into recurrence alone (`fact` and `drop`
+were unreachable; every one-off "no, do X instead" became an "episode"). Severe now means a
+curse, an interrupt cascade, or a real tool error corroborating the reaction; a bare
+correction is mild and falls out through the ordinary routing (one-off → drop, recurring →
+fact). A cluster whose every quote is a self-correction ("wrong repo") is never severe. A
+cluster with no user text at all is not dropped outright — that was tried first and silently
+killed the file-referent fallback, whose whole purpose is to describe a session too terse to
+quote.
 
 **Outputs (`.claude/remember/friction/`):**
 | file | contents |
@@ -248,7 +251,7 @@ caught next time. So friction under-detects rather than over-writes.
    tabs, context-switching), so they're zero unless they follow an unresolved reaction.
 3. **Agent-directed vs self-correction** — not every "no, wrong…" is an antigen. "Wrong
    project, abort" is you redirecting yourself; friction flags it `self_suspect` and the LLM
-   confirms/drops it. (Friction stopped auto-marking every correction severe.)
+   confirms/drops it. (A plain correction is mild; only a curse, interrupt, or tool error is severe.)
 4. **The trigger is kept** — the agent's preceding action + result (often a *claimed* exit-0
    success the user is contradicting) is attached to each reaction, so an antigen carries
    both halves: what the agent did **and** what you said about it.
@@ -269,7 +272,41 @@ already runs.
 
 ---
 
-## 4. Status (as of 2026-08-24)
+## 4. Status (as of 2026-08-25)
+
+- **Severity is intensity, not existence (2026-08-25).** Friction's severe test accepted the
+  same three signals that seed a cluster, so every cluster it had ever emitted was severe —
+  measured 69/69 on the real corpus (3,170 sessions, 77 projects), 66/66 on the privcloud
+  fixture. The recurrence × severity grid was a 1×2 on recurrence alone: `fact` and `drop`
+  had never fired, and a `/remember` run saw 68 "severe episodes" from ordinary one-off
+  corrections. Severe now means a curse, an interrupt cascade, or a tool error corroborating
+  the reaction; a plain correction is mild. Same corpus after: 69 → 31 clusters, every one of
+  the 38 dropped correction-only. Fixture (i) and a new assertion on (h) (13 plain
+  corrections → `fact`, not `antigen`) were observed failing on the pre-fix script; `expectedTests`
+  raised to 248. The bug dated from ledger v1 (v2.13.0) — the two rules landed in the same
+  commit — and was found by a session that counted the severity distribution instead of
+  trusting the labels.
+
+  Two spec contradictions fell out of the same review. Step 4b routed a one-off severe cluster
+  to "an Episode" — a section that is stash-fed and capped at 10, which 4c's own no-singleton
+  rule already made unreachable; 4b now says a one-off is written nowhere until it recurs. And
+  step 8's "facts should not grow by the number of new facts" was measured false at steady
+  state (bareloop: 273 facts, mean 131 chars, 0 near-duplicates — the compressor correctly
+  shortened nothing) and reworded so it cannot invite forced merges.
+
+  A second review pass the same day, spec against script, found more of the same shape. friction:
+  when analyze found no sessions it fell through to extract on the PREVIOUS run's
+  `friction_analysis.json` — exit 0, `antigen_clusters.json` clobbered to empty; the no-input
+  path now returns a distinct exit code (2 — 1 was already the verdict) and stops. Spec: step 7
+  called `docs-builder.cjs` by a cwd-relative path (fails in every repo but this one) and relayed
+  `due`'s "run ledger" advice that step 7 itself forbids; the `antigen_review.md` fallback carries
+  no `session_ids`, so 4c would have counted every re-scan as recurrence — no counting on that
+  path now; the migration clause re-fired every run on an entry that matched nothing (ag-007/008
+  live); the early-stop condition depended on 4c's own output; step 5 rendered legacy 1-session
+  `observing` entries the no-singleton rule says have nothing to show; three step cross-references
+  pointed at the wrong step; "recursively" was two levels. Decided and kept: a friction `fact`
+  (3+ sessions, mild) files straight into Facts at 3 while an antigen needs 5 — facts are not
+  rules, and the compressor bounds them.
 
 - **Session identity is content-based (2026-08-24).** Friction now collapses forked/resumed
   session files into one conversation before clustering (shared message `uuid`), and bars a
@@ -384,7 +421,7 @@ privcloud's `ag-006` counted as 2 sessions for one resumed conversation (99 shar
 `uuid`s); the fixed run's output (`bareagent-fixed`, 0 of 100 over) is the **conformance** half
 of the same pair. Each detection path was watched failing under a tampered fixture before being
 trusted. The test runner's per-suite `expectedTests` is now a hard floor — fewer than declared
-fails the run — raised to 238 for friction.
+fails the run — raised to 238 for friction (248 as of 2026-08-25).
 
 ### Earlier (2026-06-16)
 

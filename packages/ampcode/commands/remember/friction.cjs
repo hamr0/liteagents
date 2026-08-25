@@ -1412,7 +1412,7 @@ function analyzeMain(sessionsDir) {
     stat = fs.statSync(inputPath);
   } catch {
     console.log(`No sessions found in ${inputPath}`);
-    return 1;
+    return 2; // 2 = no input; 1 is reserved for the verdict below
   }
 
   if (stat.isFile()) {
@@ -1444,7 +1444,7 @@ function analyzeMain(sessionsDir) {
 
   if (sessionFiles.length === 0) {
     console.log(`No sessions found in ${inputPath}`);
-    return 1;
+    return 2; // 2 = no input; 1 is reserved for the verdict below
   }
 
   // Create output dir
@@ -2213,9 +2213,17 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     const SELF_RE = /\b(wrong (project|window|repo|directory|folder)|never ?mind|nvm|scratch that|ignore (that|this)|disregard|my bad|oops)\b/i;
     const hasContext = cl.contexts.length > 0;
     const allSelf = hasContext && cl.contexts.every(q => SELF_RE.test(q || ''));
-    const severe = signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
-      || (hasContext && signalNames.includes('user_correction') && !allSelf)
-      || cl.errors.length > 0;
+    // Severity is INTENSITY, distinct from existence. Every cluster already
+    // exists only because of an observed reaction (ANCHOR_SIGNALS), so a plain
+    // user_correction must NOT by itself qualify as severe — that made every
+    // cluster severe by construction and collapsed the 2x2 below into
+    // recurrence alone (fact/drop were unreachable; measured 69/69 severe on
+    // the real corpus). Severe = a curse, an interrupt cascade, or a tool
+    // error corroborating the reaction. A self-correction ("wrong repo") is
+    // never severe even with an error attached.
+    const severe = !allSelf && (
+      signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
+      || cl.errors.length > 0);
     const recurring = nSessions >= 3;   // recurrence × severity → artifact (the 2×2)
     let artifact;
     if (recurring && severe) artifact = 'antigen';
@@ -2494,7 +2502,8 @@ Outputs (all in .amp/remember/friction/):
 
   // Step 1: Analyze sessions
   console.log('\n[1/2] Analyzing sessions...\n');
-  analyzeMain(sessionsDir);
+  const rc = analyzeMain(sessionsDir);
+  if (rc === 2) return rc; // no sessions found -- stop before extractMain touches antigen_clusters.json
 
   // Check if analysis produced output
   const analysisFile = '.amp/remember/friction/friction_analysis.json';

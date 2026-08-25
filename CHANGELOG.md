@@ -9,6 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **friction's severity axis was degenerate — every cluster it ever emitted was severe.**
+  Clusters are seeded only on an observed reaction (`user_correction`, `user_curse`,
+  `interrupt_cascade`), and the severe test accepted all three of those same signals, so the
+  thing required for a cluster to exist also made it severe. Measured 69/69 severe on the real
+  corpus (3170 sessions, 77 projects) and 66/66 on the privcloud fixture. The documented
+  recurrence × severity 2×2 was therefore a 1×2 on recurrence alone: `fact` (recurring + mild)
+  and `drop` (one-off + mild) had never once fired, and every one-off "no, do X instead" was
+  labelled an `episode` — 68 of them in a single `/remember` run. Severe now means intensity:
+  a curse, an interrupt cascade, or a tool error corroborating the reaction; a plain
+  correction is mild. Re-run on the same corpus: 69 → 31 clusters, all 38 dropped were
+  correction-only with no curse/interrupt/error. Regression fixture (i) plus a new assertion
+  on (h) (13 plain corrections → `fact`, not `antigen`) observed failing on pre-fix code;
+  five dedup fixtures gained a curse word so they stay observable. All four packages.
+- **Review of both specs against their scripts found 24 more defects; each was reproduced,
+  approved, and then fixed one at a time by a delegated agent with a failing-first test.**
+  docs-builder script: `apply-reorg` wrote a config pointer to a `docs/index.md` that
+  `index-flat` had just declined to write (now skipped with a message); its results JSON
+  reported `claudeMdUpdated: false` because it printed before the flag was set; `discover` on
+  an already-sorted corpus told the operator to run a classification interview on a 0-row
+  plan; the usage string omitted `cleanup-apply`; and JSON state (`docs/.docs-builder/*`)
+  resolved against the cwd while `index.md`/ledger/config resolved against `REPO`, splitting
+  the state when run from anywhere but the root — `ARTIFACTS` now resolves under `REPO` at
+  the one chokepoint, explicit `OUT=`/path args unchanged. friction: when analyze found no
+  sessions it fell through to extract on the PREVIOUS run's `friction_analysis.json`, exit 0,
+  clobbering `antigen_clusters.json` to empty — the no-input case now returns a distinct code
+  (2; 1 was already the verdict) and stops. docs-builder spec: commands now `cd` to the target
+  root and call the script by absolute path (`$DB`), every `REPO=<repo>` prefix dropped (they
+  also never matched `allowed-tools: Bash(node:*)`); neither picker flow ever stamped the
+  ledger, so `due` said NOT due forever — both end with `ledger` after the commit; Modes table
+  pointed at a nonexistent "step 4"; empty follow-up list had no instruction; two stale
+  `docs/README.md` refs and "fifteen subcommands" (fourteen). remember spec: step 7 called
+  `docs-builder.cjs` cwd-relative (MODULE_NOT_FOUND on every repo but this one) and relayed
+  `due`'s "run ledger" advice that step 7 itself forbids; the `antigen_review.md` fallback has
+  no `session_ids`, so 4c would have counted every re-scan as recurrence (no counting on that
+  path now); the migration clause re-fired every run on an entry that matched nothing; the
+  early-stop condition depended on 4c's own output; step 5 rendered legacy 1-session
+  `observing` entries; three wrong step cross-references; "recursively" was two levels.
+  Also: both test suites leaked every `mkdtemp` dir (~1,000 per docs-builder run) until
+  `/tmp` ran out of inodes mid-session — both now remove them on exit (`KEEP_TMP=1` keeps).
+  Not changed, flagged as a design call: a friction `fact` (3+ sessions, mild) writes straight
+  into hot Facts with no ledger stage while an antigen needs 5 — reachable for the first time
+  since the severity fix.
+- **`/docs-builder` could not find its own script outside this repo.** `docs-builder.md` wrote
+  every command as `node docs-builder/docs-builder.cjs …` without saying that path is
+  relative to the command's own directory (`~/.claude/commands/`), so on an external repo the
+  model searched the target tree, found nothing, and refused to run. Added the same "locate
+  the script first" step `remember.md` already has for `friction.cjs`. All four packages.
+
+- **`/remember` step 4b routed a one-off severe friction cluster to "an Episode" that has no
+  home.** The Episodes section is stash-fed and capped at 10, and 4c already refuses a ledger
+  entry for a 1-session cluster — so the instruction contradicted the rest of the command and,
+  post-severity-fix, would have asked for ~30 cross-project one-offs to flush the stash
+  episodes. 4b now says what 4c already implied: a one-off is written nowhere; friction
+  re-surfaces it every run until it recurs, and at 2 sessions it gets a ledger `observing`
+  entry. Step 8's "facts should not grow by the number of new facts" expectation was reworded
+  too — measured on bareloop at steady state (273 facts, mean 131 chars, 0 near-duplicates)
+  the compressor correctly shortens nothing, and the old wording invited forced merges.
+  All four packages.
+
 ### Planned
 - Community marketplace submissions
 - Additional skills for data analysis
