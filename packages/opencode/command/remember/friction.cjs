@@ -2570,6 +2570,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     if (!entry.evidence.session_ids) entry.evidence.session_ids = [];
     const existing = new Set(entry.evidence.session_ids.map(s => antigenHash(s.id)));
     const before = entry.evidence.sessions;
+    const statusBefore = entry.status;
     const wasEmpty = entry.evidence.session_ids.length === 0;
     const hadMigrationLine = (entry.history || []).some(h => h.event.startsWith('identity migration'));
     // TRUE first-time migration (remember.md 4c "SEED, DO NOT COUNT"): session_ids empty
@@ -2627,7 +2628,7 @@ function countLedger(ledger, labels, clusters, runDate) {
       }
       if (entry.status === 'observing' && entry.evidence.sessions >= 5) entry.status = 'hot';
     }
-    report.matched.push({ label, clusters: idxs, before, after: entry.evidence.sessions, newConversations, newConvClusterIdxs, isTrueMigration, isMigrationFill, recurredWhileHotCount, gatedOutClusterIdxs });
+    report.matched.push({ label, clusters: idxs, before, after: entry.evidence.sessions, newConversations, newConvClusterIdxs, isTrueMigration, isMigrationFill, recurredWhileHotCount, gatedOutClusterIdxs, promoted: statusBefore === 'observing' && entry.status === 'hot' });
   }
 
   for (const { index: i, label } of newClusterIdxs) {
