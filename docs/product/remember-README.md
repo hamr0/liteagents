@@ -171,9 +171,21 @@ quote.
   early exit used to sit above the rewrite, so a restored pre-fix file with 90 over-length lines
   went through `/remember` untouched on a quiet run.
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
-  1. **Classify target** — sonnet decides agent-directed vs self-correction; drops the latter.
-  2. **Semantic-merge** — sonnet groups same-complaint-different-words quotes friction left split.
-  3. **Tier by recurrence** — High (5+ sessions, *loads hot*), Medium (3-4, recorded), Low (<3, episode).
+  1. **4a. Classify** — sonnet labels each cluster once: `drop` (self-directed), an
+     existing ledger id (same mistake class), or `new:<theme>` (theme derived
+     mechanically from the cluster's own top keywords, not freeform prose). No merging,
+     no arithmetic — that's 4c.
+  2. **4b. Route + tier** — recurring + severe → antigen; recurring + mild → Fact;
+     one-off (<2 sessions) → nothing yet, re-surfaces next run. Tier is driven by
+     `friction.cjs count`'s distinct-session count: High (5+, loads hot), Medium (3-4,
+     recorded), Low (2, ledger `observing` only).
+  3. **4c. Count** — `friction.cjs count` is a deterministic script, not the LLM: session
+     identity, promotion (`observing`→`hot` at sessions >= 5), the adopted-date gate, and
+     decay all happen mechanically against `ledger.json`.
+- Step 5 renders the Antigens section with `friction.cjs render` — byte-for-byte from the
+  ledger, no LLM paraphrase. `friction.cjs check` validates the ledger/MEMORY.md invariants
+  (I6-new, I7); `friction.cjs migrate-attempts` is a one-time fixer for hand-drifted `rule`
+  text.
 - It works **only from friction's short quotes — never the raw logs.**
 - **Updates the antigen ledger** (`.claude/remember/ledger.json`, step 4c) — the evidence
   trail behind the Antigens section. One entry per mistake-class: which rule targets it,
