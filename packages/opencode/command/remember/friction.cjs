@@ -2466,7 +2466,7 @@ function extractMain(sessionsDir) {
 }
 
 // =============================================================================
-// POC SUBCOMMANDS -- classify-then-count antigen redesign (see remember-4a-4c-5.md)
+// CLASSIFY-THEN-COUNT SUBCOMMANDS -- count/render/check/migrate-attempts (see remember.md steps 4a-4c/5)
 // =============================================================================
 
 function antigenHash(id) { return id.split('-').pop(); }
