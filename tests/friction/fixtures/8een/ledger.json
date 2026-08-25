@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ag-001",
+      "class": "papering-over-instead-of-fixing-root-cause",
+      "class_hints": ["papering over", "patching up shit on top of shit", "paper over it", "why didn't you merge them at one"],
+      "status": "observing",
+      "rule": "Don't paper over a problem to avoid the real fix — surface it and address the root cause (batch related work into one merge, disclose missing capabilities, stop stacking patches) even when it costs more up front.",
+      "attempts": [
+        { "n": 1, "rule": "Don't paper over a problem to avoid the real fix — surface it and address the root cause.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 4,
+        "projects": ["multis", "8een", "bareloop"],
+        "quotes": [
+          "fuck you, papering over this. so we have to run fucking 3 code-reviews and 3 releases on each to merge with main. if they were all separate work and no cross contaminated, why didn't you merge them at one so i wouldn't have to do this x3?",
+          "this loop needs a clean resdesign as you are patching up shit on top of shit... this needs a redesign",
+          "stop here, and dont paper over it. give me a full list/ask for what bareguard should do",
+          "no papering over missing capabilities"
+        ],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (4 sessions, 3 projects) — medium; below 5-session hot threshold" }
+      ]
+    },
+    {
+      "id": "ag-002",
+      "class": "claimed-success-not-verified",
+      "class_hints": ["claimed success (exit 0)", "validate this after correction with fucking tests", "no gaps, validate and verify", "thought you already tested", "havent yet and coming back complaining"],
+      "status": "hot",
+      "rule": "Never report a task done off an exit code or surface signal alone — run and show the actual tests, regression and smoke checks before claiming success, and repeat on every follow-up fix.",
+      "attempts": [
+        { "n": 1, "rule": "Never report done off an exit code alone — run and show real tests before claiming success.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 5,
+        "projects": ["liteagents", "bareagent", "latefyi", "bareloop"],
+        "quotes": [
+          "fix the hook arg first, then build the adapter, and fuck you big time, you will fucking validate this after correction with fucking tests and regression and smoke test, fuck you again",
+          "no gaps, validate and verify",
+          "the fuck are you doing? i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet and coming back complaining"
+        ],
+        "last_seen": "2026-07-16"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (4 sessions, 3 projects) — medium; below 5-session hot threshold" },
+        { "date": "2026-07-16", "event": "promoted to hot (5 sessions, 4 projects) — new distinct session in bareloop; reinforced by 8een session's explicit verify demand" }
+      ]
+    },
+    {
+      "id": "ag-003",
+      "class": "unverified-against-source-doc",
+      "class_hints": ["did you ground your check", "per readme", "did you follow this or not"],
+      "status": "observing",
+      "rule": "Ground a technical claim in the actual source (README / SDK / spec doc) before asserting it, and never skip a file the user explicitly pointed at.",
+      "attempts": [
+        { "n": 1, "rule": "Ground a technical claim in the actual source before asserting it.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 3,
+        "projects": ["litectx", "bareagent", "gitdone"],
+        "quotes": [
+          "did you ground your check from claude agent sdk",
+          "no, does bareagent require bareguard as deps always per readme?",
+          "dont fucking create shit, ...privacy-agents-seo.md did you follow this or not, simple fucking ask"
+        ],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (3 sessions, 3 projects) — medium; below 5-session hot threshold" }
+      ]
+    },
+    {
+      "id": "ag-004",
+      "class": "loses-track-of-already-applied-doc-updates",
+      "class_hints": ["that you updated prd with", "just start implementing doc updated"],
+      "status": "observing",
+      "rule": "Check whether a doc/PRD update already landed before flagging it as missing — don't re-litigate work that is already in.",
+      "attempts": [
+        { "n": 1, "rule": "Check whether a doc/PRD update already landed before flagging it missing.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 2,
+        "projects": ["litectx"],
+        "quotes": [
+          "no, it's the episode that needed a config knob and safe default 30d that you updated prd with"
+        ],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (2 sessions) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-005",
+      "class": "ignored-established-user-preference",
+      "class_hints": ["use npm login like last time i use passkey"],
+      "status": "observing",
+      "rule": "Reuse the workflow the user already established in a prior session instead of defaulting to a different one.",
+      "attempts": [
+        { "n": 1, "rule": "Reuse the workflow the user already established.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["8een"],
+        "quotes": ["no otp, use npm login like last time i use passkey"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-006",
+      "class": "readme-turned-into-changelog",
+      "class_hints": ["readme is fucked", "not a fucking changelog"],
+      "status": "observing",
+      "rule": "Keep README content to its stated purpose — do not append changelog-style running notes or status updates.",
+      "attempts": [
+        { "n": 1, "rule": "Keep README to its purpose; it is not a changelog.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["multis"],
+        "quotes": ["also, readme is fucked, this is not a fucking changelog to add this shit"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-007",
+      "class": "overspecific-detail-in-external-doc",
+      "class_hints": ["don't mention lines", "imply that it;s small"],
+      "status": "observing",
+      "rule": "In adopter-facing docs, state size/scope qualitatively — do not expose precise internal metrics such as line counts.",
+      "attempts": [
+        { "n": 1, "rule": "No precise internal metrics in adopter-facing docs.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["bareguard"],
+        "quotes": ["don't mention lines, just imply that it;s small or nothing at all"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-008",
+      "class": "overcomplicated-ux-flow-needs-redesign",
+      "class_hints": ["defintely needs redesign", "too long, how can we make it easier"],
+      "status": "observing",
+      "rule": "When a flow needs many sequential prompts, prefer a simpler match-then-confirm design over stacking more steps.",
+      "attempts": [
+        { "n": 1, "rule": "Prefer match-then-confirm over stacking sequential prompts.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["multis"],
+        "quotes": ["no, this defintely needs redesign... too long, how can we make it easier"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-009",
+      "class": "excessive-process-friction-pr-per-change",
+      "class_hints": ["stop creating a pr for every change", "you can push to main"],
+      "status": "observing",
+      "rule": "Don't default to a PR for every small change — match the repo's actual workflow rather than assuming the stricter one.",
+      "attempts": [
+        { "n": 1, "rule": "Match the repo's actual workflow; don't assume PR-per-change.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["looped"],
+        "quotes": ["stop creating a pr for every change, you can push to main"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only. NOTE: 8een is the opposite — main is protected, PR-gated, admin-merge only on explicit say-so. This rule is repo-specific and must never be generalized to 8een." }
+      ]
+    },
+    {
+      "id": "ag-010",
+      "class": "vague-spec-not-decisive",
+      "class_hints": ["be specfic to what you need", "be detailed, specific"],
+      "status": "observing",
+      "rule": "When asked to define requirements for a downstream component, commit to a specific detailed spec instead of deferring the decision back to the user.",
+      "attempts": [
+        { "n": 1, "rule": "Commit to a specific spec instead of deferring back.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["litectx"],
+        "quotes": ["i want you to decide what you need from bareguard to build, be specfic to what you need"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    },
+    {
+      "id": "ag-011",
+      "class": "edited-downstream-copy-not-source-of-truth",
+      "class_hints": ["hamr0 is the origin", "rollover suggested chanegs to hamr0"],
+      "status": "observing",
+      "rule": "Where projects share a doc lineage, edit the origin/source-of-truth doc and propagate copies from there — never edit a downstream copy in isolation.",
+      "attempts": [
+        { "n": 1, "rule": "Edit the source-of-truth doc and propagate; never a downstream copy.", "adopted": "2026-07-14", "outcome": "active" }
+      ],
+      "evidence": {
+        "sessions": 1,
+        "projects": ["litectx"],
+        "quotes": ["hamr0 is the origin and your updates should have landed there cleanly, addition no ommision. this feeds all other projects"],
+        "last_seen": "2026-07-14"
+      },
+      "recurred_while_hot": 0,
+      "history": [
+        { "date": "2026-07-14", "event": "candidate (1 session) — low; episode only" }
+      ]
+    }
+  ]
+}

@@ -68,6 +68,13 @@ function run(cwd, sessionsDir) {
   return { out: (r.stdout || '') + (r.stderr || ''), code: r.status == null ? -1 : r.status };
 }
 
+/** Run a friction.cjs subcommand (count/render/check/migrate-attempts) with the
+ *  given args, no cwd pinning needed since these subcommands take explicit paths. */
+function runSub(args) {
+  const r = spawnSync('node', [FRICTION, ...args], { encoding: 'utf8' });
+  return { out: (r.stdout || '') + (r.stderr || ''), code: r.status == null ? -1 : r.status };
+}
+
 function clustersOf(cwd) {
   const p = path.join(cwd, '.claude', 'remember', 'friction', 'antigen_clusters.json');
   return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -565,6 +572,11 @@ function main() {
     return bad;
   }
 
+  // OLD BEHAVIOUR (kept): bareagent/privcloud/zkagent's MEMORY.md fixtures were
+  // hand-written or captured pre-classify-then-count, so none is byte-equal to
+  // what friction.cjs's own render() would produce -- id-matching (does an id
+  // MEMORY.md cites resolve to a hot ledger entry) is the check that still
+  // applies to them.
   for (const proj of ['bareagent', 'privcloud', 'zkagent']) {
     const ledgerPath = path.join(FIXTURES, proj, 'ledger.json');
     if (!fs.existsSync(ledgerPath)) continue;
@@ -585,6 +597,19 @@ function main() {
     }
   }
 
+  // NEW BEHAVIOUR (I6-new): fixtures/zkagent/ledger.rendered.json + MEMORY.rendered.md
+  // ARE a genuine script-rendered pair (ledger.rendered.json's Antigens section was
+  // produced by `friction.cjs render` and spliced verbatim into MEMORY.rendered.md) --
+  // for this pair the check is byte-equality, not id-matching: render(ledger) must
+  // equal MEMORY.rendered.md's "## Antigens" section exactly.
+  {
+    const ledgerPath = path.join(FIXTURES, 'zkagent', 'ledger.rendered.json');
+    const memPath = path.join(FIXTURES, 'zkagent', 'MEMORY.rendered.md');
+    const r = runSub(['check', ledgerPath, memPath]);
+    okTrue('I6-new (zkagent rendered pair) render(ledger) byte-equal to MEMORY.rendered.md Antigens',
+      r.out.includes('I6-new (render(ledger) byte-equal to MEMORY.md Antigens): EQUAL'));
+  }
+
   // ---- I6 DETECTION: tamper an in-memory copy of zkagent's ledger (ag-001, born hot at
   // 6 sessions on 2026-08-25 -- the case that surfaced the 4b/4c contradiction) by flipping
   // status to "observing" without touching its session count, and confirm checkLedgerStatus
@@ -596,6 +621,145 @@ function main() {
     const bad = checkLedgerStatus(tampered);
     ok('I6 DETECTS tampered zkagent ag-001 (flipped to observing at 6 sessions)',
       JSON.stringify(bad), JSON.stringify(['ag-001']));
+  }
+
+  // ---------------------------------------------------------------- classify-then-count subcommands
+  // `count`/`render`/`check`/`migrate-attempts` (see remember-4a-4c-5.md): count
+  // merges classifier labels into a ledger and applies the promotion rules
+  // mechanically; render prints the MEMORY.md Antigens section; check verifies I6-new
+  // and I7; migrate-attempts is a one-time fix for drifted rule text. Validated
+  // against 15 real ledgers before porting; these pin the same real-data results.
+  group('friction.cjs count/render/check/migrate-attempts — classify-then-count');
+
+  const CC = path.join(FIXTURES, 'classify-count');
+
+  // ---- 8een: every ledger entry is missing evidence.session_ids ENTIRELY (not an
+  // empty array) -- a pre-session_ids-scheme ledger. Must not crash, and every
+  // matched entry must land in the TRUE first-time migration state: sessions
+  // unchanged, session_ids seeded, an "identity migration" history line written.
+  {
+    const eightBefore = JSON.parse(fs.readFileSync(path.join(FIXTURES, '8een', 'ledger.json'), 'utf8'));
+    okTrue('8een setup: every entry is missing session_ids entirely',
+      eightBefore.entries.every(e => e.evidence.session_ids === undefined));
+
+    const outPath = path.join(tmpDir('friction-8een-'), 'ledger.out.json');
+    const r = runSub(['count', path.join(FIXTURES, '8een', 'labels.json'),
+      path.join(FIXTURES, '8een', 'ledger.json'), path.join(CC, 'antigen_clusters.json'),
+      '2026-08-25', outPath]);
+    ok('8een count does not crash on missing session_ids', r.code, 0);
+
+    const report = JSON.parse(r.out);
+    const eightAfter = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+    const beforeById = new Map(eightBefore.entries.map(e => [e.id, e]));
+    const sessionsUnchanged = eightAfter.entries.every(e =>
+      beforeById.get(e.id).evidence.sessions === e.evidence.sessions);
+    okTrue('8een all entries: sessions unchanged (true migration = seed only, no count)', sessionsUnchanged);
+
+    const matchedIds = report.matched.map(m => m.label);
+    const allSeeded = matchedIds.every(id => {
+      const e = eightAfter.entries.find(x => x.id === id);
+      return e.evidence.session_ids && e.evidence.session_ids.length > 0;
+    });
+    const allHaveMigrationLine = matchedIds.every(id => {
+      const e = eightAfter.entries.find(x => x.id === id);
+      return (e.history || []).some(h => h.event.startsWith('identity migration'));
+    });
+    okTrue('8een all matched entries: session_ids populated (seeded)', allSeeded);
+    okTrue('8een all matched entries: "identity migration" history line written', allHaveMigrationLine);
+    okTrue('8een all matches classified as isTrueMigration', report.matched.every(m => m.isTrueMigration));
+  }
+
+  // ---- liteagents replay: reconstructed pre-2026-08-25 ledger + real classifier
+  // labels reproduce the same per-entry sessions deltas as the live /remember run,
+  // including the ag-007 migration-fill case and (with the adopted-date gate) the
+  // real ledger's own hand-computed recurred_while_hot for ag-001 exactly.
+  {
+    const outPath = path.join(tmpDir('friction-replay-'), 'ledger.out.json');
+    const r = runSub(['count', path.join(CC, 'modal_fresh.json'), path.join(CC, 'ledger.prerun.json'),
+      path.join(CC, 'antigen_clusters.json'), '2026-08-25', outPath]);
+    const report = JSON.parse(r.out);
+    const byLabel = Object.fromEntries(report.matched.map(m => [m.label, m]));
+    ok('replay ag-001 sessions 5 -> 6 (only cluster1 matched by classifier)',
+      JSON.stringify([byLabel['ag-001'].before, byLabel['ag-001'].after]), JSON.stringify([5, 6]));
+    ok('replay ag-012 sessions 1 -> 2',
+      JSON.stringify([byLabel['ag-012'].before, byLabel['ag-012'].after]), JSON.stringify([1, 2]));
+    ok('replay ag-007 migration-fill: sessions 1 -> 1, isMigrationFill true',
+      JSON.stringify([byLabel['ag-007'].before, byLabel['ag-007'].after, byLabel['ag-007'].isMigrationFill]),
+      JSON.stringify([1, 1, true]));
+    ok('replay ag-003/005/006/011 unchanged',
+      JSON.stringify([byLabel['ag-003'].after, byLabel['ag-005'].after, byLabel['ag-006'].after, byLabel['ag-011'].after]),
+      JSON.stringify([2, 1, 1, 1]));
+    ok('replay 0 malformed labels', report.malformed.length, 0);
+  }
+
+  // Part 2: the real historical grouping (clusters 1+16+18+20+23+29 -> ag-001, as the
+  // actual /remember run classified it) reproduces this repo's own live ledger's
+  // hand-computed recurred_while_hot exactly, once the adopted-date gate applies:
+  // cluster16's session (2026-08-03) predates ag-001's adopted date (2026-08-24), so
+  // it counts as evidence only, not recurred_while_hot.
+  {
+    const realLabels = {};
+    for (let i = 0; i < 31; i++) realLabels[String(i)] = 'drop';
+    for (const i of [1, 16, 18, 20, 23, 29]) realLabels[String(i)] = 'ag-001';
+    const realLabelsPath = path.join(tmpDir('friction-replay2-'), 'labels.json');
+    fs.writeFileSync(realLabelsPath, JSON.stringify(realLabels));
+    const outPath = path.join(tmpDir('friction-replay2-out-'), 'ledger.out.json');
+    const r = runSub(['count', realLabelsPath, path.join(CC, 'ledger.prerun.json'),
+      path.join(CC, 'antigen_clusters.json'), '2026-08-25', outPath]);
+    const report = JSON.parse(r.out);
+    const m = report.matched[0];
+    ok('replay real grouping: sessions 5 -> 7 (both real contributing hashes)',
+      JSON.stringify([m.before, m.after]), JSON.stringify([5, 7]));
+    ok('replay real grouping: recurred_while_hot += 1 (only cluster1, date == adopted)',
+      m.recurredWhileHotCount, 1);
+    ok('replay real grouping: cluster16 gated out (date 2026-08-03 < adopted 2026-08-24)',
+      JSON.stringify(m.gatedOutClusterIdxs.map(g => g.index)), JSON.stringify([16]));
+  }
+
+  // ---- adopted-date gate: zkagent ag-001 (single attempt, adopted 2026-08-25).
+  // Cluster 16's session (bareloop/0803-2305-6945178a, date 2026-08-03) predates that
+  // adopted date -- still counts as evidence (sessions, hash) but must NOT count
+  // toward recurred_while_hot, since the mistake predates this rule phrasing.
+  {
+    const zkBefore = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'zkagent', 'ledger.json'), 'utf8'));
+    const entry0 = zkBefore.entries[0];
+    ok('adopted-gate setup: zkagent ag-001 before sessions', entry0.evidence.sessions, 6);
+    ok('adopted-gate setup: zkagent ag-001 before recurred_while_hot', entry0.recurred_while_hot, 0);
+    ok('adopted-gate setup: zkagent ag-001 attempt adopted date',
+      entry0.attempts[entry0.attempts.length - 1].adopted, '2026-08-25');
+
+    const gateLabels = { '16': 'ag-001' };
+    for (let i = 0; i < 31; i++) if (i !== 16) gateLabels[String(i)] = 'drop';
+    const gateLabelsPath = path.join(tmpDir('friction-gate-'), 'labels.json');
+    fs.writeFileSync(gateLabelsPath, JSON.stringify(gateLabels));
+    const outPath = path.join(tmpDir('friction-gate-out-'), 'ledger.out.json');
+    runSub(['count', gateLabelsPath, path.join(FIXTURES, 'zkagent', 'ledger.json'),
+      path.join(CC, 'antigen_clusters.json'), '2026-08-25', outPath]);
+    const zkAfter = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+    const afterEntry = zkAfter.entries.find(e => e.id === 'ag-001');
+    ok('adopted-gate ag-001 sessions after (still counts as evidence)', afterEntry.evidence.sessions, 7);
+    okTrue('adopted-gate ag-001 has cluster16 hash added',
+      afterEntry.evidence.session_ids.some(s => s.id.endsWith('6945178a')));
+    ok('adopted-gate ag-001 recurred_while_hot after (GATED: predates adopted date, must NOT count)',
+      afterEntry.recurred_while_hot, 0);
+  }
+
+  // ---- I7: rule == attempts[last].rule, over every ledger fixture. Applying
+  // migrate-attempts to a COPY first must bring every fixture to 0 mismatches --
+  // proves migrate-attempts is a correct, idempotent fix for drifted rule text.
+  for (const [label, ledgerPath] of [
+    ['bareagent', path.join(FIXTURES, 'bareagent', 'ledger.json')],
+    ['privcloud', path.join(FIXTURES, 'privcloud', 'ledger.json')],
+    ['zkagent', path.join(FIXTURES, 'zkagent', 'ledger.json')],
+    ['zkagent-rendered', path.join(FIXTURES, 'zkagent', 'ledger.rendered.json')],
+    ['8een', path.join(FIXTURES, '8een', 'ledger.json')],
+    ['liteagents-prerun', path.join(CC, 'ledger.prerun.json')],
+  ]) {
+    const migratedPath = path.join(tmpDir('friction-i7-'), 'ledger.migrated.json');
+    runSub(['migrate-attempts', ledgerPath, migratedPath, '2026-08-25']);
+    const r = runSub(['check', migratedPath]);
+    const m = /I7 \(rule == last attempt's rule\): (\d+) mismatch/.exec(r.out);
+    ok(`I7 (${label}) after migrate-attempts: 0 mismatches`, m ? m[1] : r.out, '0');
   }
 
   // ---------------------------------------------------------------- summary

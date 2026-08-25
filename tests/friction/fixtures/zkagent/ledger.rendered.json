@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ag-001",
+      "class": "claimed-done-not-verified",
+      "class_hints": [
+        "validate not assert",
+        "said finished then found",
+        "havent tested yet",
+        "full of shit lately verify",
+        "burning money for no fucking use"
+      ],
+      "status": "hot",
+      "rule": "Never claim code is 'done', 'validated', 'tested', 'fixed', or 'verified' without having actually run real verification (tests/regression/smoke run/end-to-end); state explicitly when something is unverified instead of asserting success.",
+      "attempts": [
+        {
+          "n": 1,
+          "rule": "Never claim code is 'done', 'validated', 'tested', 'fixed', or 'verified' without having actually run real verification (tests/regression/smoke run/end-to-end); state explicitly when something is unverified instead of asserting success.",
+          "adopted": "2026-08-25",
+          "outcome": "active"
+        }
+      ],
+      "evidence": {
+        "sessions": 7,
+        "session_ids": [
+          {
+            "id": "PycharmProjects-liteagents/0824-0328-6494cd28",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-bareloop/0813-2012-e86e9a0e",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-bareloop/0714-0842-ddc47175",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-bareguard/0812-1905-994a213b",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-bareagent/0612-2311-9b38119e",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-8een/0714-1011-08ac495c",
+            "seen": "2026-08-25"
+          },
+          {
+            "id": "PycharmProjects-bareloop/0803-2305-6945178a",
+            "seen": "2026-08-25"
+          }
+        ],
+        "projects": [
+          "PycharmProjects-liteagents",
+          "PycharmProjects-bareloop",
+          "PycharmProjects-bareguard",
+          "PycharmProjects-bareagent",
+          "PycharmProjects-8een"
+        ],
+        "quotes": [
+          "poc first as you have been full of shit lately, verify that it works",
+          "did you validate all fixes and confirmed that no regression? btw, this is by far one of the worst sessions of zero trust of the amount of times you said you finished and validated then found shit",
+          "you will fucking validate this after correction with fucking tests and regression and smoke test",
+          "did you validate not asseert?",
+          "i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet and coming back complaining",
+          "i need to fucking run a whole run end to end to get a fucking feel for it ... you are handrolling shit"
+        ],
+        "last_seen": "2026-08-25"
+      },
+      "recurred_while_hot": 1,
+      "history": [
+        {
+          "date": "2026-08-25",
+          "event": "candidate (6 sessions, 5 projects) — first /remember run for this project's ledger"
+        },
+        {
+          "date": "2026-08-25",
+          "event": "promoted to hot (6 sessions >= 5-session threshold)"
+        }
+      ]
+    }
+  ]
+}
