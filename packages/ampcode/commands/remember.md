@@ -172,11 +172,14 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        not paraphrase noise.
 
      Output is strictly `{cluster_index: label}` for every cluster in the batch.
-   - **4b. Route + tier by recurrence.** For each cluster and each LLM-merged group:
-     - `suggested_artifact: antigen` (recurring + severe) or an LLM-merged group → an
+   - **4b. Route + tier by recurrence.** For each cluster and each same-label group
+     (the clusters 4a gave the same label) — its tier comes from the distinct-
+     conversation count `friction.cjs count` (4c) computes for it, the union of the
+     group's hashes deduped against the ledger:
+     - `suggested_artifact: antigen` (recurring + severe) or a same-label group → an
        **antigen** (a "do/don't" behavioral rule), with its verbatim evidence quotes.
      - `suggested_artifact: fact` (recurring + mild) → a **Fact**.
-     - `suggested_artifact: episode` that did **not** merge into a recurring group → **not
+     - `suggested_artifact: episode` that did **not** land in a recurring group → **not
        an Episode, and at 1 session not written anywhere.** The Episodes section is stash-fed
        and capped at 10; friction's one-offs are cross-project and arrive by the dozen, so
        filing them there would flush the stash episodes. Nothing is lost: friction re-scans
@@ -188,9 +191,9 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        - **High** (5+ sessions) → loaded hot via `@MEMORY.md`
        - **Medium** (3-4 sessions) → recorded under Antigens, *not* loaded hot
        - **Low** (<3 sessions) → ledger `observing` only at 2 sessions; nothing at 1
-   - **Recurrence tiers bind everything, including LLM-merged groups:** merging consolidates
-     evidence, it never elevates it — a merged group's tier comes from its combined
-     distinct-session count (e.g. a 2-session merged group is still Low → ledger
+   - **Recurrence tiers bind everything, including same-label groups:** grouping consolidates
+     evidence, it never elevates it — a same-label group's tier comes from its combined
+     distinct-session count (e.g. a 2-session same-label group is still Low → ledger
      `observing` only, not an antigen entry in MEMORY.md).
    - **Never auto-promote.** Only High-confidence (5+ sessions) antigens load hot. A
      single dramatic correction is recorded nowhere yet, not an antigen.
@@ -262,19 +265,16 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        share a session hash). `sessions < 2` → writes nothing. `sessions >= 2` → new entry,
        `status` follows the same >=5-hot / else-observing rule.
 
-     **Open item 1 — `new:` label collisions (not resolved, needs a human decision):**
-     grouping by exact label-string equality can fuse two DIFFERENT mistakes if the
-     classifier (or two different classifier runs) independently produces the same `new:`
-     string for unrelated clusters. Two guards were POC'd on real cluster content, neither
-     adopted: **Guard A** (only merge same-labeled clusters if `top_keywords` overlap by
-     >=1) correctly rejects a reproduced collision but measurably allows a false merge on
-     real data (two unrelated mistakes sharing the generic keyword "fucking validate").
-     **Guard B** (only merge when the classifier's own output names which cluster indices
-     are being merged) has zero false positives but, since the current one-label-per-cluster
-     schema has no such field, also zero ability to consolidate a genuinely recurring new
-     mistake within one classify pass. `friction.cjs count` currently implements neither —
-     every `new:`-labeled cluster stands alone (Guard B's zero-merge behavior) until this
-     is explicitly decided.
+     **Open item 1 — `new:` label collisions: resolved (Guard B).** `new:` clusters never
+     merge in-batch, regardless of whether two cluster indices share the same `new:` string
+     — each `new:` cluster with `sessions >= 2` creates its own ledger entry, and a genuine
+     recurrence of the same new mistake is matched on a later run by `class_hints`, like any
+     other entry. Measured against the alternative (merge same-labeled `new:` clusters when
+     their `top_keywords` overlap by >=1): a synthetic new entry was correctly re-matched by
+     a fresh classifier on 5/5 runs under Guard B, while the keyword-overlap guard wrongly
+     merged two real, distinct mistakes on real data (clusters 21/23 — unrelated mistakes
+     sharing the generic keyword "fucking validate"). `friction.cjs count` implements Guard
+     B: every `new:`-labeled cluster stands alone.
 
      **Open item 2 — a generic one-line `rule` under-specifies the class for matching:**
      the ledger's `class_hints`+`rule` alone can be too broad for the LLM classifier (4a)
