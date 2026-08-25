@@ -102,6 +102,9 @@ read-only — no model cost, no interview, nothing moves.
    to split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
    `cleanup` itself prints the estimated split cost for that one file, then a mechanical
    shape report, then stops for its own interview (Mode 1, step 1b) before anything else runs.
+   Before that first commit, add `docs/.docs-builder/` to `.gitignore` if it is not already
+   ignored: it is machine state, regenerated every run, and the ledger stamp is per-clone by
+   design — it must never ride into history on a later `git add -A`.
    Once the moves are committed, run `node $DB ledger` — nothing in steps 1-3 stamps the
    ledger, and without the stamp `due` stays NOT due, the picker's verdict stays uninformed,
    and `/remember`'s docs nudge never fires.

@@ -87,3 +87,6 @@ validation-results.json
 # chasing each new scratch dir with its own line.
 .*/
 !.github/
+
+# docs-builder machine state — regenerated every run; ledger stamp is per-clone
+/docs/.docs-builder/
