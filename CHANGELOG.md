@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Community marketplace submissions
+- Additional skills for data analysis
+- Enhanced testing capabilities
+- Performance optimizations
+
+## [2.18.0] - 2026-08-26
+
 ### Changed
 - **`/remember`'s antigen step redesigned to classify-then-count.** A 15-repo audit found
   MEMORY.md's Antigens section hand-drifted from the ledger in 14/15 repos and rule-text
@@ -21,10 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `attempts[last].rule`), Guard B (`new:` clusters never merge with each other in the same
   classify batch), and an adopted-date gate so pre-fix evidence can't count toward
   `recurred_while_hot`. `remember.md` rewritten as literal commands to run, not prose to
-  interpret. Validated live on 3 real repos; 930 tests passing, mirrored to all
+  interpret. Validated live on 3 real repos; 947 tests passing, mirrored to all
   four packages with 0 non-path diffs.
 
 ### Fixed
+- **`friction.cjs check` exited 0 when I6-new was NOT EQUAL** — only I7 could fail it, so an
+  automated caller saw a pass while MEMORY.md was hand-drifted from the ledger. Now exits 1 on
+  either invariant failing. Validated on real backups (zkagent NOT EQUAL → 1, bareloop 8 I7
+  mismatches → 1, liteagents EQUAL → 0).
+- **`observing`→`hot` promotion in `friction.cjs count` wrote no history line and left
+  `attempts[last].adopted` at the candidate date**, so on the next run a conversation from
+  before the rule went hot counted toward `recurred_while_hot` — the adopted-date gate was
+  comparing against the wrong date. Promotion now appends `promoted to hot (N sessions)` and
+  re-stamps `adopted` to the run date. Reproduced and fixed on liteagents' real ag-003
+  (unfixed: rwh=1; fixed: rwh=0, gated).
 - **`/remember` could append near-duplicate episodes when re-processing already-filed
   stashes.** The Episodes section only ever appended; nothing checked whether a new episode
   covered the same work as one already in the section. Step 4b's episode rule now dedups
@@ -42,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this shape and the old bare-string shape (bare stays valid for `drop`/`ag-NNN`, and for
   `new:` clusters with `sessions < 2`, which never create an entry). A `new:` cluster with
   `sessions >= 2` and no rule is reported as malformed and creates nothing — never falls back
-  to placeholder text. All four packages; 930 tests passing.
+  to placeholder text. All four packages; 947 tests passing.
 - **friction's severity axis was degenerate — every cluster it ever emitted was severe.**
   Clusters are seeded only on an observed reaction (`user_correction`, `user_curse`,
   `interrupt_cascade`), and the severe test accepted all three of those same signals, so the
@@ -101,12 +119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   too — measured on bareloop at steady state (273 facts, mean 131 chars, 0 near-duplicates)
   the compressor correctly shortens nothing, and the old wording invited forced merges.
   All four packages.
-
-### Planned
-- Community marketplace submissions
-- Additional skills for data analysis
-- Enhanced testing capabilities
-- Performance optimizations
 
 ## [2.17.1] - 2026-08-25
 

@@ -185,7 +185,8 @@ quote.
      `friction.cjs count`'s distinct-session count: High (5+, loads hot), Medium (3-4,
      recorded), Low (2, ledger `observing` only).
   3. **4c. Count** — `friction.cjs count` is a deterministic script, not the LLM: session
-     identity, promotion (`observing`→`hot` at sessions >= 5), the adopted-date gate, and
+     identity, promotion (`observing`→`hot` at sessions >= 5, which appends a history line
+     and re-stamps `attempts[last].adopted` to the run date), the adopted-date gate, and
      decay all happen mechanically against `ledger.json`.
 - Step 5 renders the Antigens section with `friction.cjs render` — byte-for-byte from the
   ledger, no LLM paraphrase. `friction.cjs check` validates the ledger/MEMORY.md invariants
