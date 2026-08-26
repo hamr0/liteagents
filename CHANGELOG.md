@@ -21,10 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `attempts[last].rule`), Guard B (`new:` clusters never merge with each other in the same
   classify batch), and an adopted-date gate so pre-fix evidence can't count toward
   `recurred_while_hot`. `remember.md` rewritten as literal commands to run, not prose to
-  interpret. Validated live on 3 real repos; 918 tests passing at the time, mirrored to all
+  interpret. Validated live on 3 real repos; 930 tests passing, mirrored to all
   four packages with 0 non-path diffs.
 
 ### Fixed
+- **`/remember` could append near-duplicate episodes when re-processing already-filed
+  stashes.** The Episodes section only ever appended; nothing checked whether a new episode
+  covered the same work as one already in the section. Step 4b's episode rule now dedups
+  before appending — merge into the existing entry (judged by content, not title) instead of
+  adding a second copy. Validated on the exact data that surfaced it: with the old rule, 4/5
+  duplicate pairs survived across 5 isolated runs; with dedup, 0/5, and the 10-most-recent cap
+  still held. All four packages.
 - **A newly-created antigen entry's `rule` text was a literal placeholder string,
   not real content.** `friction.cjs count` wrote
   a hardcoded placeholder string into `rule` and
