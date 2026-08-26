@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Task, AskUserQuestion, Bash(node:*
 # docs-builder
 
 Keep project docs **current, complete and findable**, and split a file when it outgrows
-its row in `docs/README.md`.
+its row in `docs/index.md`.
 
 > **The honest label: this does NOT make docs cheaper to read.**
 > Measured four ways; best case is a tie with doing nothing. Cost tracks *findings*, not
@@ -35,6 +35,21 @@ carry over, the absolute prices do not.
 ---
 
 ## Invocation
+
+**Locate the script first.** `docs-builder.cjs` is bundled next to this command at
+`docs-builder/docs-builder.cjs` — the same directory as this file, whether installed or run
+from the package. Never search the target repo for it, never reconstruct it from this spec,
+and if it truly exists nowhere say so and stop. Set `DB` to its ABSOLUTE path, then `cd` to
+the target repo's root:
+
+```
+DB=<absolute path to docs-builder.cjs>
+cd <target repo root>
+```
+
+Every command below is `node $DB …`; everything the script writes (`docs/.docs-builder/*`
+JSON state, `docs/index.md`, the ledger, the log, the config pointer) lands under the target
+repo. `REPO=` is optional and only needed when not running from the repo root.
 
 **With an argument** (`reorg`, `cleanup <file>`, or `search <query words...>`) — run that mode
 directly, no question asked.
@@ -82,10 +97,17 @@ read-only — no model cost, no interview, nothing moves.
 3. `apply-reorg` moves every row, **oversized included** — size only decides whether a doc is
    *splittable*, not whether it gets sorted. It refuses outright if any row's `bucket` is
    still empty. Afterward it prints the oversized docs it just moved as a follow-up list,
-   `cleanup <NEW path>  (N lines)`, `logs/` entries last. Show that list, then **ask which to
-   split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
+   `cleanup <NEW path>  (N lines)`, `logs/` entries last. If the list is empty (nothing
+   oversized), say so and skip the split question; otherwise show the list, then **ask which
+   to split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
    `cleanup` itself prints the estimated split cost for that one file, then a mechanical
    shape report, then stops for its own interview (Mode 1, step 1b) before anything else runs.
+   Before that first commit, add `docs/.docs-builder/` to `.gitignore` if it is not already
+   ignored: it is machine state, regenerated every run, and the ledger stamp is per-clone by
+   design — it must never ride into history on a later `git add -A`.
+   Once the moves are committed, run `node $DB ledger` — nothing in steps 1-3 stamps the
+   ledger, and without the stamp `due` stays NOT due, the picker's verdict stays uninformed,
+   and `/remember`'s docs nudge never fires.
 
 The two stops are deliberate and different. Step 2 guards *correctness* — the interview and
 the user's approval, before a single file moves. Step 3's follow-up guards *cost* — splitting
@@ -96,7 +118,8 @@ when they pick "First run". Never split N files in one shot on an unseen list.
 first, if a ledger stamp exists, then it runs `discover`. If any row's `bucket` is still
 empty (true on a genuine first run, or when new files appeared since the last classification),
 `reorg` **stops right there** and prints what to do next — it never silently proceeds past an
-unclassified plan. Once the plan is fully classified (an already-sorted corpus's re-run
+unclassified plan. Commit what it changed, then run `node $DB ledger` to move the stamp. Once
+the plan is fully classified (an already-sorted corpus's re-run
 carries its prior classifications forward automatically — see "Discover is idempotent"
 below), `reorg` continues straight through `apply-reorg` → `lint`, no further stop, so
 `index.md` and `lint.json` stay current. This is the common, cheap case for a corpus that is
@@ -109,7 +132,7 @@ already sorted: nothing new to classify, so the interview gate never fires.
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
 | `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
-| `/docs-builder cleanup <file>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
+| `/docs-builder cleanup <file>` | *First run*, step 3's split question | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
 | `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | due's drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
 | `/docs-builder search <query words...>` | *(none — explicit-argument mode only, never offered in the bare picker)* | BM25-rank sections of `docs/.docs-builder/outline.json` against the query, read-only | no |
 
@@ -206,7 +229,7 @@ purpose, not silently dropped.
 ### 1. Discover (script) — enriches and PROPOSES, never classifies, never moves
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs discover        # defaults to docs/
+node $DB discover        # defaults to docs/
 ```
 
 Recursively finds every `*.md` under the root (skipping `wiki/`, `logs/`, `archive/`,
@@ -317,7 +340,7 @@ files with no gate at all.
 ### 3. Apply (script) — an ALREADY-CLASSIFIED plan, verified moves, survives a bad file
 
 ```bash
-CONFIG=AGENTS.md node docs-builder/docs-builder.cjs apply-reorg   # defaults to the plan above
+CONFIG=AGENTS.md node $DB apply-reorg   # defaults to the plan above
 ```
 
 **Refuses outright if any row's `bucket` is still empty** — the interview-has-not-happened
@@ -455,7 +478,7 @@ real page count isn't known until the model groups sections in step 2), runs ste
 below for you, then measures the document's heading shape and **stops**:
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs cleanup docs/BIG.md
+node $DB cleanup docs/BIG.md
 ```
 
 **Nothing past this command runs until a human has answered the interview (step 1b) below.**
@@ -468,8 +491,8 @@ choosing to continue, and confirming, the themes.
 ### 1. Scan (script) — run automatically by `cleanup`, shown here for what it produces
 
 ```bash
-REPO=<repo> OUT=docs/.docs-builder/outline.json \
-  node docs-builder/docs-builder.cjs scan docs/BIG.md
+OUT=docs/.docs-builder/outline.json \
+  node $DB scan docs/BIG.md
 ```
 
 One record per H2, each carrying the doc's H1 identity, a 2-line snippet, every H3 **with
@@ -560,7 +583,7 @@ it `false`) on every other theme.
 ### 3. Validate (script) — **hard gate, exits 1 on failure**
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs validate \
+node $DB validate \
   docs/.docs-builder/{outline,labels}.json
 ```
 
@@ -586,7 +609,7 @@ index, which is gone — on the one whole-corpus index it would silently skip mo
 ### 4. Plan + apply (script) — `cleanup-apply`, the door back in after the interview
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs cleanup-apply docs/BIG.md \
+node $DB cleanup-apply docs/BIG.md \
   docs/.docs-builder/outline.json docs/.docs-builder/labels.json
 ```
 
@@ -616,7 +639,7 @@ the checkpoint; there is no separate state file to go stale. It is also still ru
 own:
 
 ```bash
-REPO=<repo> OUT=docs/.docs-builder/tasks node docs-builder/docs-builder.cjs plan \
+OUT=docs/.docs-builder/tasks node $DB plan \
   docs/.docs-builder/{outline,labels}.json
 ```
 
@@ -653,7 +676,7 @@ Each agent reads **only its own line ranges**. The value is context isolation.
 ### 6. Archive the original (script) — run for you by `cleanup-apply` once all pages exist
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs archive docs/BIG.md
+node $DB archive docs/BIG.md
 ```
 
 A **verified move**, not a copy: hash → `git mv` (so history follows) → hash again →
@@ -697,7 +720,7 @@ which defaults the outline path and takes only the query. The underlying script 
 works directly, and is what the slash command runs:
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs search docs/.docs-builder/outline.json <query words...>
+node $DB search docs/.docs-builder/outline.json <query words...>
 ```
 
 BM25 over each section's real text (no deps, no separate index to build — it reads
@@ -717,7 +740,7 @@ reorg, not only whichever ones a split happened to touch.
 some archived docs).
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs index-flat
+node $DB index-flat
 ```
 
 Writes **one** `docs/index.md` covering the whole corpus, in three sections: `## Product`
@@ -745,7 +768,7 @@ v3 folds the old `reconcile` and `due` commands into one: "first run" (nothing s
 state, and two separate commands only made users guess which one to run.
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs reorg
+node $DB reorg
 ```
 
 If a ledger stamp exists (see "Knowing when reorg is due" below), its `due`-style drift
@@ -773,7 +796,7 @@ still runnable by hand once a `labels.json` exists.
 `lint` is also runnable standalone, on any file list, not only as part of `reorg`:
 
 ```bash
-REPO=<repo> node docs-builder/docs-builder.cjs lint <file.md...>
+node $DB lint <file.md...>
 ```
 
 -> `lint.json`. Every check below is declared-only (see the governing rule further down) —
@@ -812,8 +835,8 @@ git is the diff engine. The ledger stores only the one thing git cannot know —
 last consolidated** — so the two can never drift apart.
 
 ```bash
-node docs-builder/docs-builder.cjs ledger   # stamp the current state (run after a reorg)
-node docs-builder/docs-builder.cjs due      # what changed since, and by how much
+node $DB ledger   # stamp the current state (run after COMMITTING a reorg)
+node $DB due      # what changed since, and by how much
 ```
 
 `due` classifies every doc against the stamped SHA using `git diff --numstat -M`:

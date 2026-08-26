@@ -48,9 +48,27 @@ const group = t => console.log(`\n${colors.bright}${colors.yellow}== ${t} ==${co
 const GIT = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] };
 const git = (cwd, args) => execFileSync('git', ['-C', cwd, ...args], GIT).trim();
 
+/** Every ephemeral tmp dir this suite creates (repo(), bare/shim fixtures, the S5 "elsewhere"
+ *  cwd) is tracked here and removed on exit — regression, 2026-08-25: `mkdtempSync` was never
+ *  cleaned up, ~1,000 leftover db-test- (and sibling) dirs per run, which filled the host's /tmp
+ *  (inode exhaustion, 11,991 dirs found) and broke the tool harness for every session sharing
+ *  it. KEEP_TMP=1 skips the cleanup for debugging a failing fixture by hand. */
+const KEEP_TMP = !!process.env.KEEP_TMP;
+const tmpDirs = [];
+function mkdtemp(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
+if (!KEEP_TMP) {
+  process.on('exit', () => {
+    for (const d of tmpDirs) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
+  });
+}
+
 /** A throwaway git repo with a docs/ tree. Files is a { relpath: contents } map. */
 function repo(files = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'db-test-'));
+  const dir = mkdtemp('db-test-');
   git(dir, ['init', '-q', '.']);
   git(dir, ['config', 'user.email', 't@t']);
   git(dir, ['config', 'user.name', 't']);
@@ -268,7 +286,7 @@ function negativeControls() {
   ok('validate rejects an invented key', invented.code, 1);
 
   // A non-git directory must produce the guarded message, never a Node stack trace.
-  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'db-nogit-'));
+  const bare = mkdtemp('db-nogit-');
   fs.mkdirSync(path.join(bare, 'docs'), { recursive: true });
   const nogit = db(bare, ['ledger']);
   okTrue('non-git repo gives a clean error, not a stack trace',
@@ -437,7 +455,7 @@ function moveFailureIsolation() {
   group('6. a failed follow-up must not look like a failed move');
 
   // A git that fails ONLY on ls-files: the move succeeds, the link repair cannot run.
-  const shim = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim-'));
+  const shim = mkdtemp('db-shim-');
   const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
   fs.writeFileSync(path.join(shim, 'git'),
     `#!/bin/sh\nfor a in "$@"; do [ "$a" = "ls-files" ] && { echo "fatal: simulated" >&2; exit 1; }; done\nexec ${realGit} "$@"\n`);
@@ -858,7 +876,7 @@ function validateArchiveChokepoints() {
 
   // archive: exit 2 (not 1) when the move succeeded but a follow-up failed — 1 means "nothing
   // moved, retry"; re-running `archive` after a successful move would be actively wrong.
-  const shim = fs.mkdtempSync(path.join(os.tmpdir(), 'db-shim2-'));
+  const shim = mkdtemp('db-shim2-');
   const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
   fs.writeFileSync(path.join(shim, 'git'),
     `#!/bin/sh\nfor a in "$@"; do [ "$a" = "ls-files" ] && { echo "fatal: simulated" >&2; exit 1; }; done\nexec ${realGit} "$@"\n`);
@@ -1015,7 +1033,7 @@ function halfFinishedSplitDetection() {
 function archiveStandaloneFollowup() {
   group('19. archive — a standalone (non-git) follow-up is a SKIP, never a failure');
 
-  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'db-archive-nogit-'));
+  const bare = mkdtemp('db-archive-nogit-');
   fs.mkdirSync(path.join(bare, 'docs'), { recursive: true });
   fs.writeFileSync(path.join(bare, 'docs/A.md'), DOC('A'));
   const r = db(bare, ['archive', 'docs/A.md']);
@@ -1028,7 +1046,7 @@ function archiveStandaloneFollowup() {
 
   // A REAL git failure inside a REAL repo must still surface — the fix narrows the catch to
   // "not a git repository" only; it must not have turned every git error into a silent skip.
-  const shim = fs.mkdtempSync(path.join(os.tmpdir(), 'db-archive-realfail-'));
+  const shim = mkdtemp('db-archive-realfail-');
   const realGit = execFileSync('sh', ['-c', 'command -v git'], GIT).trim();
   fs.writeFileSync(path.join(shim, 'git'),
     `#!/bin/sh\nfor a in "$@"; do [ "$a" = "ls-files" ] && { echo "fatal: simulated" >&2; exit 1; }; done\nexec ${realGit} "$@"\n`);
@@ -2010,7 +2028,8 @@ function indexFlatSearchHint() {
 /** apply-reorg writes a marker-wrapped pointer block into repo-root CLAUDE.md, same
  *  convention `/remember` uses for MEMORY.md: a plain path (never `@`-referenced, which
  *  would hot-load the whole index every session), idempotent replace-in-place, and it must
- *  never disturb unrelated existing content. */
+ *  never disturb unrelated existing content. Creating the file when it's absent is intended
+ *  (a project needs one anyway) — see group 12d below for what's actually a bug (S1/S3). */
 function claudeMdDocsPointer() {
   group('12c. apply-reorg — CLAUDE.md docs/index.md pointer block');
 
@@ -2065,6 +2084,11 @@ function claudeMdDocsPointer() {
     okTrue('(c) unrelated marker block survives', cmd.includes('<!-- MEMORY:START -->')
       && cmd.includes('@.claude/remember/MEMORY.md') && cmd.includes('<!-- MEMORY:END -->'));
     okTrue('(c) the docs pointer block was appended', cmd.includes('<!-- DOCS_INDEX:START -->'));
+    okTrue('(c) contains the END marker', cmd.includes('<!-- DOCS_INDEX:END -->'));
+    okTrue('(c) contains a PLAIN path to docs/index.md', cmd.includes('`docs/index.md`'));
+    okTrue('(c) does NOT contain an @-reference to the index', !cmd.includes('@docs/index.md'));
+    okTrue('(c) points at search for large corpora',
+      cmd.includes('/docs-builder search <query words>'));
     okTrue('(c) CLAUDE.md itself was never moved (protected)', exists(d, 'CLAUDE.md'));
   }
 
@@ -2092,6 +2116,52 @@ function claudeMdDocsPointer() {
     okTrue('(e) AGENTS.md contains the START marker', cmd.includes('<!-- DOCS_INDEX:START -->'));
     okTrue('(e) AGENTS.md contains a PLAIN path to docs/index.md', cmd.includes('`docs/index.md`'));
     okTrue('(e) does NOT create a CLAUDE.md', !exists(d, 'CLAUDE.md'));
+  }
+}
+
+// ---------------------------------------------------------------- 12d. config-pointer bugs (S1/S3)
+
+/**
+ * Regression, 2026-08-25. Two bugs in apply-reorg's config-pointer step (a third candidate,
+ * "injectClaudeMdPointer creates the file when absent", was reviewed and rejected — a project
+ * needs a CLAUDE.md/AGENTS.md anyway, so creating it is intended, not a bug):
+ *
+ * S1 — indexFlat()'s early "nothing to index" bail returned undefined, indistinguishable from
+ *      its normal completion, so apply-reorg called injectClaudeMdPointer() unconditionally
+ *      even when no docs/index.md was ever written — a pointer to a file that doesn't exist.
+ *      Fix: the bail returns `false`; apply-reorg skips the pointer step when it sees that.
+ * S3 — the results JSON was printed BEFORE the try/catch that sets `claudeMdUpdated`, so the
+ *      JSON always reported `claudeMdUpdated: false` immediately followed by a contradicting
+ *      "updated CLAUDE.md" line. Fix: the JSON print moved to after the try/catch.
+ */
+function applyReorgConfigPointerBugs() {
+  group('12d. apply-reorg — config-pointer bugs: no dangling pointer, honest JSON');
+
+  // S1: nothing indexable (only a protected doc) -> apply-reorg must not write the pointer,
+  // even into an EXISTING config file — there is no docs/index.md for it to point at.
+  {
+    const d = repo({ 'docs/README.md': DOC('Readme'), 'CLAUDE.md': '# Project\n' });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    const before = read(d, 'CLAUDE.md');
+    const r = db(d, ['apply-reorg']);
+    ok('S1: apply-reorg exits clean', r.code, 0);
+    okTrue('S1: reports nothing to index', /nothing to index/.test(r.out));
+    okTrue('S1: reports the pointer was skipped', /skipped the CLAUDE\.md pointer/.test(r.out));
+    ok('S1: CLAUDE.md left byte-identical (no pointer written)', read(d, 'CLAUDE.md'), before);
+  }
+
+  // S3: the pointer IS written (existing CLAUDE.md, real indexable docs) -> the results JSON
+  // must honestly report claudeMdUpdated: true, not false.
+  {
+    const d = repo({ 'docs/CLEAN.md': DOC('Clean'), 'CLAUDE.md': '# Project\n' });
+    db(d, ['discover']);
+    fillBucketsFromSuggested(d);
+    const r = db(d, ['apply-reorg']);
+    ok('S3: apply-reorg exits clean', r.code, 0);
+    const m = r.out.match(/\{[^{}]*"claudeMdUpdated":\s*(true|false)[^{}]*\}/);
+    okTrue('S3: results JSON found in output', !!m);
+    ok('S3: results JSON reports claudeMdUpdated: true', m && m[1], 'true');
   }
 }
 
@@ -2413,7 +2483,63 @@ function discoverReportsRealBucketState() {
   okTrue('the printed table has a bucket column', /\bbucket\b/.test(header || ''));
 }
 
+// ------------------------------------------------------ 12b. discover on a sorted corpus
+
+/** Regression, 2026-08-25. `walkMd` skips product/, logs/, archive/, so a corpus that is
+ *  already sorted yields rows: [], filled === 0, and the `!filled` branch fired the
+ *  "run the classification interview" message for a ZERO-row plan — telling the operator to
+ *  interview nothing, right before `reorg` proceeds anyway. */
+function discoverEmptyPlanZeroRows() {
+  group('40. discover on an already-sorted corpus reports 0 rows, not the interview message');
+
+  const d = repo({ 'docs/product/a.md': DOC('A'), 'docs/archive/b.md': DOC('B') });
+  const r = db(d, ['discover']);
+  ok('discover exits clean', r.code, 0);
+  const plan = artifact(d, 'reorg-plan.json');
+  ok('plan has 0 rows', plan.rows.length, 0);
+  okTrue('it reports the 0-row / already-sorted state', /0 rows/.test(r.out) && /already sorted/.test(r.out));
+  okTrue('it does NOT print the classification-interview message for an empty plan',
+    !/Run the classification interview/.test(r.out));
+
+  // control: an unsorted corpus still gets the original "bucket is empty" message
+  const d2 = repo({ 'docs/a.md': DOC('A') });
+  const r2 = db(d2, ['discover']);
+  okTrue('control: unsorted corpus still shows the bucket-is-empty message', /`bucket` is empty/.test(r2.out));
+}
+
 // ---------------------------------------------------------------- 13. packaging
+
+/** Regression, 2026-08-25. The dispatch switch's `default: die('usage: ...')` block lists
+ *  every subcommand except `cleanup-apply`, which the switch does implement. */
+function usageListsCleanupApply() {
+  group('41. usage message lists cleanup-apply');
+
+  const d = repo();
+  const r = db(d, ['bogus-subcommand']);
+  okTrue('usage output mentions cleanup-apply', /cleanup-apply/.test(r.out));
+}
+
+// -------------------------------------------------- 13b. default artifacts resolve under REPO
+
+/** Regression, 2026-08-25. Default artifact paths (ARTIFACTS = 'docs/.docs-builder', used
+ *  bare) resolved against process.cwd() even when REPO pointed elsewhere, splitting state
+ *  between the cwd and REPO. Running from outside the repo with REPO set must still land
+ *  every default artifact under REPO. Explicit OUT/INDEX/TASKS/PAGES overrides and explicit
+ *  CLI path arguments are untouched by this fix (see docs-builder.cjs's own comment on
+ *  repoPath() above ARTIFACTS). */
+function artifactsDefaultUnderRepo() {
+  group('42. default artifact paths resolve under REPO, not the caller\'s cwd');
+
+  const d = repo({ 'docs/A.md': DOC('A') });
+  const elsewhere = mkdtemp('db-elsewhere-');
+  const r = db(elsewhere, ['discover'], { REPO: d });
+  ok('discover exits clean', r.code, 0);
+  okTrue('reorg-plan.json was written under REPO', exists(d, 'docs/.docs-builder/reorg-plan.json'));
+  okTrue('nothing was written under the cwd it was invoked from',
+    !fs.existsSync(path.join(elsewhere, 'docs')));
+}
+
+
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
 function packageParity() {
@@ -2454,7 +2580,7 @@ function main() {
     reorgCorpusStability, reorgOutIgnored,
     archiveStandaloneFollowup,
     indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
-    indexFlatSearchHint, claudeMdDocsPointer,
+    indexFlatSearchHint, claudeMdDocsPointer, applyReorgConfigPointerBugs,
     relativeInboundLinks, relativeLinksBothMove, archiveIsFrozen, archiveOrderingBug,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
     cleanupCmd, cleanupRefusesConcurrentSplit, applyReorgNamesCleanup,
@@ -2464,6 +2590,7 @@ function main() {
     commitAdvisoryNamesOutsideDocsPaths, commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork,
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
+    discoverEmptyPlanZeroRows, usageListsCleanupApply, artifactsDefaultUnderRepo,
     packageParity];
 
   for (const g of groups) {

@@ -761,7 +761,7 @@ function indexFlat() {
 
   if (!productFiles.length && !logsFiles.length && !archiveFiles.length && !pageFiles.length) {
     console.log('nothing to index — run `discover` + `apply-reorg` first.');
-    return;
+    return false; // caller (applyReorg) uses this to skip the config pointer — no index.md was written
   }
 
   const outRel = process.env.OUT || 'docs/index.md';
@@ -1748,7 +1748,11 @@ function discover(root) {
   // writes had persisted. Carry-forward (above) is exactly why a re-run can arrive here with
   // buckets already set, so this has to report what is actually in the plan.
   const filled = rows.filter(r => r.bucket).length;
-  if (!filled) {
+  if (!rows.length) {
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — 0 rows. Nothing outside `
+      + 'product/, logs/ and archive/ is left to classify — the corpus is already sorted. '
+      + '`apply-reorg` will only rescan and rebuild the index.');
+  } else if (!filled) {
     console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
       + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
       + '(docs-builder.md): feed the model the plan, get bucket+reason per row, get the user\'s '
@@ -1880,7 +1884,7 @@ const DOCS_INDEX_END = '<!-- DOCS_INDEX:END -->';
 function docsIndexBlock() {
   return `${DOCS_INDEX_START}\n`
     + 'Docs map: `docs/index.md` — every doc in this project, with line counts.\n'
-    + 'Too many rows to read whole? Search instead: `/docs-builder search <query words>`\n'
+    + 'Search this corpus instead of reading it whole: `/docs-builder search <query words>`\n'
     + `${DOCS_INDEX_END}`;
 }
 function injectClaudeMdPointer() {
@@ -1969,7 +1973,6 @@ function applyReorg(planFile) {
   // (re)builds outline.json for a corpus that already sat in docs/product/docs/archive/docs/logs
   // from a previous run, e.g. after a manual git mv or a re-run with nothing left to do.
   scanWholeCorpus();
-  console.log(JSON.stringify(results, null, 1));
   if (splitCandidates.length) {
     // Ranked, logs last (spec §5): a prereg is a legitimate split target but rarely the best
     // NEXT one. Array.prototype.sort is stable in Node, so this only reorders logs to the
@@ -1982,18 +1985,23 @@ function applyReorg(planFile) {
   // v3: apply-reorg writes docs/index.md itself — a reorg-only corpus ends up indexed
   // without a second command. Runs unconditionally — oversized docs are sorted like anything
   // else now, so this was never conditional on them.
-  indexFlat();
-  // Crash-isolated, same spirit as the moveDoc() follow-up failures collected above: a
-  // failure to write the config file is a WARN, never a thrown error — it must not make an
-  // already-moved file look unmoved or fail the run.
+  const indexed = indexFlat() !== false;
   const configName = process.env.CONFIG || 'CLAUDE.md';
-  try {
-    injectClaudeMdPointer();
-    results.claudeMdUpdated = true;
-    console.log(`  updated ${configName} with the docs/index.md pointer`);
-  } catch (e) {
-    console.error(`  WARN could not update ${configName} with the docs/index.md pointer: ${e.message}`);
+  if (!indexed) {
+    console.log(`  skipped the ${configName} pointer — no docs/index.md was written`);
+  } else {
+    // Crash-isolated, same spirit as the moveDoc() follow-up failures collected above: a
+    // failure to write the config file is a WARN, never a thrown error — it must not make an
+    // already-moved file look unmoved or fail the run.
+    try {
+      injectClaudeMdPointer();
+      results.claudeMdUpdated = true;
+      console.log(`  updated ${configName} with the docs/index.md pointer`);
+    } catch (e) {
+      console.error(`  WARN could not update ${configName} with the docs/index.md pointer: ${e.message}`);
+    }
   }
+  console.log(JSON.stringify(results, null, 1));
   logOp('apply-reorg', `moved ${results.moved}, skipped ${results.skipped}, `
     + `${splitCandidates.length} oversized split candidate(s), `
     + `${results.linksRewritten} link(s) rewritten, ${results.syncFailed} sync failure(s), `
@@ -2327,7 +2335,7 @@ function cleanupApply(file, outlineF, labelsF) {
 
 // Machine state has one home. Callers can override with OUT, but the default must never
 // scatter JSON into whatever directory the user happened to be standing in.
-const ARTIFACTS = 'docs/.docs-builder';
+const ARTIFACTS = path.join(REPO, 'docs/.docs-builder');
 function write(obj, fallback) {
   const dest = process.env.OUT || path.join(ARTIFACTS, fallback);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -2352,7 +2360,7 @@ switch (cmd) {
   case 'cleanup-apply': cleanupApply(rest[0], rest[1], rest[2]); break;
   default:
     die('usage: docs-builder.cjs <scan|validate|plan|index-flat|search|archive|ledger|due|lint|'
-      + 'discover|apply-reorg|reorg|cleanup> [args]\n'
+      + 'discover|apply-reorg|reorg|cleanup|cleanup-apply> [args]\n'
       + '  scan        <file.md...>                 -> outline.json\n'
       + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
       + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
@@ -2368,6 +2376,7 @@ switch (cmd) {
       + 'drift summary if a ledger stamp exists (the single front door)\n'
       + '  cleanup     <file.md>                     -> ONE named file: cost estimate, then scan\n'
       + '                                                 (the ONLY entry point to the split pipeline)\n'
+      + '  cleanup-apply <file.md> [outline] [labels] -> plan + pages + archive, after the cleanup interview\n'
       + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
       + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
       + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');

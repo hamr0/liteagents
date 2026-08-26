@@ -9,7 +9,7 @@ Run friction analysis, then consolidate session stashes + friction antigens into
 **Guardrails**
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
 - Keep changes tightly scoped to the requested outcome.
-- **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, record as a low-confidence episode — do not promote.
+- **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, do not promote — leave it to recurrence (a ledger `observing` entry at 2 sessions, nothing at 1).
 - **Mid-tier model, not hardcoded.** Steps 2/3/4a delegate to a mid-tier model — capable of
   semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's Sonnet vs
   Opus). Use whatever your tool designates as that balanced default; never hardcode a
@@ -39,7 +39,9 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
-     exists and contains `.jsonl` files (recursively). **Never prompt the user.**
+     exists and contains `.jsonl` files directly, or one level down in per-project
+     subdirectories (friction.cjs scans exactly those two levels, not a deep recursive walk).
+     **Never prompt the user.**
      ```
      # ── Add your own global sessions root at the TOP so it is checked first ──
      ~/.claude/projects/                 # Claude Code
@@ -76,15 +78,17 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      already exists, leave it untouched — never overwrite, even if the bundled template
      changes in a later version; it becomes user-owned the moment it lands in the project.
    - Read all `.opencode/stash/*.md` files in the current project
-   - Read friction output written in step 0: `.opencode/remember/friction/antigen_clusters.json` (preferred) or `.opencode/remember/friction/antigen_review.md` (fallback)
+   - Read friction output written in step 0: `.opencode/remember/friction/antigen_clusters.json` (preferred) or `.opencode/remember/friction/antigen_review.md` (fallback). On the fallback path, step 4c does NO counting — merge quotes into
+     matching entries only; never change `sessions`, `last_seen`, or `recurred_while_hot` (the
+     fallback carries no `session_ids`, so identity matching cannot run on it).
    - Read existing `.opencode/remember/MEMORY.md` if it exists — create dir if missing
    - Read processed manifest at `.opencode/remember/.processed` — skip already-processed stashes
-   - If no unprocessed stashes AND friction produced no new antigens, run the step-8 mechanical
-     length check (the same awk: over 180 chars with no >100-char backtick literal) against the
-     existing `.opencode/remember/MEMORY.md`. If it returns 0 lines, report "nothing to
-     consolidate" and stop. If it returns any lines, "no new input" is not a reason to leave
-     gate debt in place — do NOT stop: proceed to step 3 and run the Facts rewrite + pre-write
-     gate on the existing content with no new input, then continue through step 8 as normal.
+   - **No unprocessed stashes → skip steps 2-3 (extraction and the Facts rewrite)
+     entirely — facts are never rewritten with zero new input**, not even to clear existing
+     length-gate debt on `.opencode/remember/MEMORY.md`. Steps 4-5 (friction → ledger count →
+     Antigens render) are stash-independent and still run whenever friction produced output
+     (see step 4's own guard). If there is also no friction
+     output, report "nothing to consolidate" and stop after step 1.
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
@@ -123,10 +127,14 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
        history — never exempted. Only a draft that passes the gate (or has its overruns
        exempted under the 100-char backtick rule) is written to `.opencode/remember/MEMORY.md`.
    - **Episodes section**: append new episode entries, keep only the **10 most recent**.
-     Every older episode is **folded, then deleted**: its lesson becomes a fact (handed to
-     the rewrite above); the narrative is removed. No archive — git has the history.
+     **Dedup before appending**: if a new episode covers the same work as one already in the
+     section (same goal or same session's work under different wording — judge by content, not
+     title), merge the new detail into the existing entry instead of appending a second copy.
+     Re-processing a stash whose episode is already filed must not create a near-duplicate
+     pair. Every older episode is **folded, then deleted**: its lesson becomes a fact (handed
+     to the rewrite above); the narrative is removed. No archive — git has the history.
    - **Antigens section**: only update from friction output (step 4)
-   - Write merged result to `.opencode/remember/MEMORY.md` in the format under step 6.
+   - Write merged result to `.opencode/remember/MEMORY.md` in the format under step 5.
 
 4. **Distill friction into antigens** (only if friction output exists)
 
@@ -141,48 +149,72 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    > logs.** Friction's lexical grouping and flags are hints, not the verdict.
 
    - Read `.opencode/remember/friction/antigen_clusters.json`.
-   - **4a. Classify target, then semantically consolidate** (the parts lexical matching can't do).
-     Call the mid-tier model with the cluster quotes + their `preceding`/`projects`/`sessions`/`self_suspect`
-     (NOT the logs), and have it:
-     1. **Decide the target of each reaction — agent or self.** Drop *self/context*
-        corrections where the user redirected themselves ("wrong project", "wrong window",
-        "nevermind") — the agent did nothing wrong. `self_suspect` and an empty `preceding`
-        (no agent action) are strong cues. Keep only **agent-directed** reactions.
-     2. **Merge same-complaint paraphrases** that friction left split because they share no
-        words (e.g. "nothing landed, fuck you" + "it says pushed but none got it" → one antigen).
-     Output one object per surviving antigen:
-     ```json
-     {
-       "rule": "Verify the artifact is actually live after publish; a clean exit code ≠ done",
-       "target": "agent",
-       "evidence": ["both say pushed... none got it", "notng landed in live-claude, fuck you"],
-       "errors": ["Exit code 0 (claimed success)"],
-       "sessions": 2,
-       "confidence": "medium"
-     }
-     ```
-   - **4b. Route + tier by recurrence.** For each cluster and each LLM-merged group:
-     - `suggested_artifact: antigen` (recurring + severe) or an LLM-merged group → an
+   - **4a. Classify** (the LLM classifies only — no merging, no arithmetic; counting
+     and rendering are mechanical, see 4c and step 5). Call the mid-tier model once per
+     cluster batch with each cluster's `contexts`, `preceding`, `errors`,
+     `self_suspect`, `projects`, `sessions`, `top_keywords`, and the ledger's existing
+     entries (`id`, `class_hints`, `rule`, `evidence.quotes`). For EACH cluster, output
+     exactly one label — nothing else:
+     - `drop` — self-directed correction, agent's own prose captured as context, or a
+       real reaction too short/ambiguous to name a specific mistake (`self_suspect` and
+       an empty `preceding` — no agent action — are strong self-directed cues). Don't
+       force a match on one overlapping word.
+     - an existing ledger id (`ag-NNN`) — only if the cluster is narrowly the SAME
+       mistake class as that entry's `class_hints`+`rule`+`evidence.quotes`, not just
+       similar sentiment. State the entry's specific claim precisely in the prompt (a
+       generic one-liner rule is not enough to bound the match — see 4c Open item 2) and
+       give the classifier a negative example, not just the positive claim, e.g. for
+       ag-001 (validate, don't assert): "did you test it?" matches; "we're burning money,
+       why is it failing?" does NOT — cost/outcome complaints are not validation claims.
+     - `new:<theme>` — a real, agent-directed mistake matching no existing entry.
+       `<theme>` is NOT freeform LLM prose: derive it mechanically from the cluster's
+       own `top_keywords[0]` and `top_keywords[1]` (lowercase, hyphen-joined). This
+       alone raised measured 5-run exact-label agreement from 0.884 to ~0.97-0.99 by
+       removing wording variance as a source of disagreement — the remaining variance
+       is genuine classification disagreement (drop vs. new:, or which existing id),
+       not paraphrase noise. Also output a `rule`: one line stating the behavioral
+       rule this cluster's evidence supports, same do/don't imperative style as an
+       existing ledger entry's `rule` (e.g. "Never say work is validated... without an
+       actual run behind it"). This is the only LLM-authored field here — `<theme>`
+       naming stays mechanical. `friction.cjs count` requires it whenever the cluster's
+       own `sessions >= 2` (it will create a ledger entry); below that it's unused.
+
+     Output is `{cluster_index: label}` for `drop`/`ag-NNN`; for `new:<theme>`, output
+     `{cluster_index: {label: "new:<theme>", rule: "<one-line rule>"}}`.
+   - **4b. Route + tier by recurrence.** For each cluster and each same-label group
+     (the clusters 4a gave the same label) — its tier comes from the distinct-
+     conversation count `friction.cjs count` (4c) computes for it, the union of the
+     group's hashes deduped against the ledger:
+     - `suggested_artifact: antigen` (recurring + severe) or a same-label group → an
        **antigen** (a "do/don't" behavioral rule), with its verbatim evidence quotes.
      - `suggested_artifact: fact` (recurring + mild) → a **Fact**.
-     - `suggested_artifact: episode` that did **not** merge into a recurring group → an
-       **Episode** (one-off; recorded, not a rule).
+     - `suggested_artifact: episode` that did **not** land in a recurring group → **not
+       an Episode, and at 1 session not written anywhere.** The Episodes section is stash-fed
+       and capped at 10; friction's one-offs are cross-project and arrive by the dozen, so
+       filing them there would flush the stash episodes. Nothing is lost: friction re-scans
+       every session log on every run, so the cluster re-surfaces until it recurs — and at 2
+       sessions it gets its home, a ledger `observing` entry (4c), which step 5 renders under
+       Low Confidence. `suggested_artifact` is friction's structural proposal, not a filing
+       decision; the filing rule is this list.
      - Confidence by distinct-session recurrence:
        - **High** (5+ sessions) → loaded hot via `@MEMORY.md`
        - **Medium** (3-4 sessions) → recorded under Antigens, *not* loaded hot
-       - **Low** (<3 sessions) → keep as Episode only
-   - **Recurrence tiers bind everything, including LLM-merged groups:** merging consolidates
-     evidence, it never elevates it — a merged group's tier comes from its combined
-     distinct-session count (e.g. a 2-session merged group is still Low → Episode + ledger
-     `observing`, not an antigen entry in MEMORY.md).
+       - **Low** (<3 sessions) → ledger `observing` only at 2 sessions; nothing at 1
+   - **Recurrence tiers bind everything, including same-label groups:** grouping consolidates
+     evidence, it never elevates it — a same-label group's tier comes from its combined
+     distinct-session count (e.g. a 2-session same-label group is still Low → ledger
+     `observing` only, not an antigen entry in MEMORY.md).
    - **Never auto-promote.** Only High-confidence (5+ sessions) antigens load hot. A
-     single dramatic correction is an Episode, not an antigen.
-   - Update the Antigens section in MEMORY.md (promote/demote based on new recurrence).
-   - **4c. Update the antigen ledger** (`.opencode/remember/ledger.json`) — the evidence trail
-     linking each rule to the mistake it targets and whether it is working. Create it as
-     `{"version": 1, "entries": []}` if missing. It is JSON for exact matching — bookkeeping
-     only, never injected into context as guidance (MEMORY.md is what gets read; the ledger
-     is what gets checked).
+     single dramatic correction is recorded nowhere yet, not an antigen.
+   - **4c. Count** (`.opencode/remember/ledger.json`, the evidence trail linking each rule
+     to the mistake it targets and whether it is working — replaces the old evidence-merge
+     arithmetic; a script now does every count, not the LLM). **This is a literal command
+     you run, not a description you reason from.** The LLM's job ended at 4a — do not
+     hand-compute session counts, do not decide by inspection which entries changed, even
+     if you are confident you can do it correctly. Create `ledger.json` as `{"version": 1,
+     "entries": []}` if missing. It is JSON for exact matching — bookkeeping only, never
+     injected into context as guidance (MEMORY.md is what gets read; the ledger is what
+     gets checked).
 
      Entry shape:
      ```json
@@ -196,96 +228,90 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
        "history": [{ "date": "YYYY-MM-DD", "event": "<transition>" }] }
      ```
 
-     **Evidence merges by session identity, not by re-counting a re-scan.** Friction re-scans
-     the entire corpus every run, so the same old session matches its cluster again on every
-     run; without an identity check, that re-detection would masquerade as new recurrence and
-     could promote a one-off to hot — the exact false-preference failure the observed-signal
-     redesign exists to prevent. Friction's clusters already carry `session_ids`. Identity is
-     the **trailing 8-char hash** — the part after the last `-` in the id — because project
-     labels can be renamed while the hash, derived from the session filename, is stable. Two
-     ids with the same hash are the same session, full stop.
+     Immediately after 4a produces `labels.json`, run these exact commands as real shell
+     invocations, in order. First:
+     ```bash
+     node <path-to-friction.cjs> migrate-attempts .opencode/remember/ledger.json .opencode/remember/ledger.json
+     ```
+     This records any hand-drifted `rule` text as a new attempt so I7 (`rule` == the last
+     attempt's `rule`) holds before counting runs; it is a no-op on an already-consistent
+     ledger, so always run it regardless of whether drift is suspected. Then:
+     ```bash
+     node <path-to-friction.cjs> count <labels.json> <ledger.json> <clusters.json> <today's-date> <ledger.json>.new .opencode/remember/friction/count_report.json
+     ```
+     Then **overwrite `ledger.json` with `<ledger.json>.new`'s contents** (e.g. `mv
+     ledger.json.new ledger.json`). Do not stop after `labels.json` — producing labels is
+     4a, not the deliverable of this step. `friction.cjs count <labels.json> <ledger.json>
+     [clusters.json] [runDate] [outLedgerPath] [reportPath]` is deterministic, no LLM
+     involved, so it can't drift between repos or runs; the count report is also written to
+     `.opencode/remember/friction/count_report.json` for step 8 to read back. It implements,
+     mechanically, everything the old
+     prose reasoning here used to require by hand:
 
-     Two ids with DIFFERENT hashes can also be one session. A fork or resume writes the same
-     conversation to a second session file with its own filename, so the hash alone would
-     count one reaction twice. `friction.cjs` collapses these before it emits clusters —
-     sessions sharing at least one message `uuid` are one conversation, and the group is
-     reported under a single canonical id (the lexicographically smallest). So the ids
-     reaching this step are already canonical; do not attempt to re-derive fork identity
-     here. Measured on a real 3,158-session corpus: 6 such groups exist, and of ~5M possible
-     session pairs only 9 share any uuid at all — every one a genuine duplicate.
+     - **Session identity** — the trailing 8-char hash of a session id (stable across
+       project-label renames) — with the same fork/resume canonicalization friction.cjs
+       already applies before clusters are emitted (sessions sharing >=1 message `uuid`
+       collapse to one canonical id; do not re-derive fork identity yourself).
+     - **Migration (one-time, grandfathered): SEED, DO NOT COUNT** — an entry whose
+       `session_ids` is empty going in AND carries no prior "identity migration" history
+       line has that line's first match seed `session_ids` from this run's matches WITHOUT
+       incrementing `sessions`/`last_seen`/`recurred_while_hot`. The **migration-fill
+       sub-case** — `session_ids` still empty but an "identity migration" line already
+       exists — fills `session_ids` on the first post-migration match, still without
+       incrementing; counting resumes only once `session_ids` is non-empty.
+     - **Counting is per CLUSTER INDEX, never per hash and never once per label-group.**
+       For each cluster index in a matched group: if none of that cluster's own hashes are
+       already in the entry's stored set, it is one genuinely new conversation — `sessions`
+       += 1 (never by hash count), `last_seen` refreshed, and — if the entry is `hot` and
+       the session's own date is on/after the current attempt's `adopted` date (the
+       **adopted-date gate**: a mistake that predates the rule's current phrasing isn't a
+       phrasing failure of it) — `recurred_while_hot` += 1. A gated-out (predates-adopted)
+       new conversation still counts as evidence (sessions, hash) but not toward
+       `recurred_while_hot`. A hash already present is a re-scan of an already-counted
+       conversation: only missing alias hashes are added, nothing else changes.
+     - Promotes `observing`→`hot` at `sessions >= 5` (a fresh ledger on a project with
+       mature global evidence can hit the hot case on its very first run: new entry born
+       `hot` directly if `sessions >= 5` on arrival).
+     - **No match, cluster `sessions` == 1** → writes nothing. The ledger tracks
+       recurrence; a single occurrence has none to track yet. Friction re-scans every
+       session log every run, so a later run matches it back to 2+ sessions and seeds it
+       then — this does not change matching against an EXISTING entry, which is recurrence
+       regardless of the matching cluster's own session count.
+     - For `new:<theme>` groups with no ledger match: distinct conversations = distinct
+       cluster indices in the group (within one classify batch, no two cluster indices
+       share a session hash). `sessions < 2` → writes nothing. `sessions >= 2` → new entry,
+       `status` follows the same >=5-hot / else-observing rule.
 
-     **Migration (one-time, grandfathered): SEED, DO NOT COUNT.** Existing entries predate
-     `session_ids` and carry only a bare `sessions` count with an empty `session_ids` set. This
-     is mechanical — do not resolve it by judgment. On the run that first populates such an
-     entry's `session_ids` (i.e. `session_ids` is empty going in), do exactly these two things
-     and nothing else:
-     1. Write `session_ids` to this run's matched ids (NOT an empty set — the empty set is the
-        pre-migration state you are migrating FROM, not what you write).
-     2. Append the history line "identity migration — legacy count grandfathered, growth
-        requires new hashes".
+     **Open item 1 — `new:` label collisions: resolved (Guard B).** `new:` clusters never
+     merge in-batch, regardless of whether two cluster indices share the same `new:` string
+     — each `new:` cluster with `sessions >= 2` creates its own ledger entry, and a genuine
+     recurrence of the same new mistake is matched on a later run by `class_hints`, like any
+     other entry. Measured against the alternative (merge same-labeled `new:` clusters when
+     their `top_keywords` overlap by >=1): a synthetic new entry was correctly re-matched by
+     a fresh classifier on 5/5 runs under Guard B, while the keyword-overlap guard wrongly
+     merged two real, distinct mistakes on real data (clusters 21/23 — unrelated mistakes
+     sharing the generic keyword "fucking validate"). `friction.cjs count` implements Guard
+     B: every `new:`-labeled cluster stands alone.
 
-     Change NOTHING else on this run — not `sessions`, not `last_seen`, not
-     `recurred_while_hot`, not `status`. In particular, do NOT apply the "no hashes present →
-     new conversation" rule here: `session_ids` was empty, so every hash looks absent, and
-     counting would treat the entry's own already-counted history as fresh recurrence — on a
-     `hot` entry that also fires `recurred_while_hot`, which at 2 marks the phrasing failed and
-     rewrites a rule that never actually failed. Counting resumes on the NEXT run, once
-     `session_ids` is non-empty and an absent hash set is genuinely new evidence.
+     **Open item 2 — a generic one-line `rule` under-specifies the class for matching:**
+     the ledger's `class_hints`+`rule` alone can be too broad for the LLM classifier (4a)
+     to reliably tell two different mistakes apart, as the "fucking validate" false-merge
+     case above shows. Consider requiring a short negative example ("NOT X, even though it
+     sounds similar") on ledger entries whose `class_hints` are single generic words/phrases.
 
-     Observed for real: bareloop's first migration run carried two `hot` entries, each already
-     at `recurred_while_hot: 1`. Counting on migration would have taken both to 2 and force-
-     rephrased two working rules from re-detected pre-existing sessions. Two separate runs
-     avoided it only because whoever ran them noticed and overrode the text — which is the
-     definition of a rule that needs to be mechanical rather than prose.
-
-     For each surviving antigen from 4a/4b, match against existing entries by `class_hints`
-     (the mistake class, not the rule wording — rules change, the class doesn't). A matched
-     cluster represents exactly ONE conversation, no matter how many hashes its `session_ids`
-     holds — a fork/resume group deliberately carries every member file's hash so the cluster
-     can be matched under any of the conversation's filenames.
-
-     **`sessions` is the authoritative conversation count. `session_ids` is evidence detail —
-     a list of the FILES one conversation was written to. NEVER derive a count from
-     `len(session_ids)`; a fork or resume makes that number larger than the conversation
-     count.** This is mechanical — do not resolve it by judgment. Compare the cluster's hashes
-     against the entry's stored hash set as a set, not one at a time, and count per
-     conversation, never per hash:
-     - **None of the cluster's hashes present** → a genuinely new conversation: add ALL of the
-       cluster's hashes to `session_ids`, increment `sessions` by exactly 1 (never by the
-       number of hashes in the cluster), refresh `last_seen` to today's run date (session ids
-       carry no year), and count it once toward the 4b promotion threshold.
-     - **Any of the cluster's hashes already present** → this conversation is already counted:
-       add whichever of its hashes are still missing from `session_ids` (they are aliases of
-       the same conversation, and storing them keeps future matching robust under any of its
-       filenames), but change NOTHING else — not `sessions`, not `last_seen`, not history, not
-       `recurred_while_hot`. It is a re-scan re-detecting a conversation already counted, not
-       new evidence.
-     - **No match, cluster `sessions` >= 2** → new entry, `status: "observing"`, attempt 1,
-       history "candidate (N sessions)".
-     - **No match, cluster `sessions` == 1** → do NOT create a ledger entry. The ledger tracks
-       recurrence, and a single occurrence has no recurrence to track yet — seeding singletons
-       grows the ledger by dozens of never-recurring entries per run. Friction re-scans every
-       session log on every run, so if this mistake recurs, a later run will match it back to
-       2+ sessions and seed it then. This does not change the Match bullets below — a
-       1-session cluster can still merge into an EXISTING entry; that is recurrence.
-     - **Match, `observing`** → apply the new-conversation / already-counted rule above
-       (sessions, session_ids, quotes, projects, last_seen). Crosses the 4b hot threshold on a
-       genuinely new conversation → `status: "hot"`, history "promoted to hot (N sessions)".
-     - **Match, `hot`** → the mistake happened *while its rule was loaded*, and only when the
-       match is a genuinely new conversation (per the rule above, not a re-scan of an
-       already-present hash): `recurred_while_hot += 1` once per conversation, merge evidence,
-       history "recurred while hot (count)".
-       - At `recurred_while_hot >= 2`: the phrasing failed. Mark the current attempt
-         `outcome: "failed"`, draft attempt n+1 — it must differ from **every** prior
-         attempt's text in this entry (failed attempts are the rejected-edit buffer: never
-         re-propose one verbatim) — replace `rule`, update MEMORY.md's Antigens section,
-         reset `recurred_while_hot` to 0.
-       - If 2 attempts have already failed and the antigen persists → `status: "escalated"`:
-         remove the rule from MEMORY.md's hot section, record a Fact instead ("persistent
-         failure mode: <class> — no phrasing reduces it"), and flag it in the step-7 report.
-         **Flag, don't act** — the user decides: enforcement (a hook, where the tool has
-         them) or accepted limit.
-     - **Match, `escalated`/`rejected`** (rejected = user veto) → merge evidence only; never re-propose.
+     **After `friction.cjs count` returns**, resume the parts it does not do:
+     - **Escalation.** For any `hot` entry the count run left with `recurred_while_hot >=
+       2`: the phrasing failed. Mark the current attempt `outcome: "failed"`, draft
+       attempt n+1 — it must differ from **every** prior attempt's text in this entry
+       (failed attempts are the rejected-edit buffer: never re-propose one verbatim) —
+       replace `rule`, update MEMORY.md's Antigens section (step 5), reset
+       `recurred_while_hot` to 0. If 2 attempts have already failed and the antigen
+       persists → `status: "escalated"`: remove the rule from MEMORY.md's hot section,
+       record a Fact instead ("persistent failure mode: <class> — no phrasing reduces
+       it"), and flag it in the step-8 report. **Flag, don't act** — the user decides:
+       enforcement (a hook, where the tool has them) or accepted limit.
+     - **`escalated`/`rejected` entries** (rejected = user veto) never get a new attempt
+       proposed, count run or not.
 
      **Decay (observing only).** Antigens are the fastest-decaying artifact and, until now,
      had no exit. This is meaningful *because* of the identity fix above — without it,
@@ -344,18 +370,43 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    - [bullet narrative]
 
    ## Antigens
+   [rendered — see below, do not hand-write]
+   ```
+   **The `## Antigens` section is rendered, not hand-written — run this too, as a literal
+   command, do not hand-write it even to match the format shown above.** After 4c has
+   overwritten `ledger.json`, run:
+   ```bash
+   node <path-to-friction.cjs> render <ledger.json>
+   ```
+   Take that command's stdout **verbatim** and replace MEMORY.md's entire `## Antigens`
+   section with it (from the `## Antigens` line up to, but not including, the next `## `
+   heading, or to end of file if Antigens is the last section — it usually is). This step's
+   output IS the correctness check for itself: after replacing, `node
+   <path-to-friction.cjs> check <ledger.json> <MEMORY.md>` must report `I6-new: EQUAL` — if
+   it doesn't, something was edited by hand instead of pasted from the script's stdout; redo
+   it from the script's stdout exactly, never patch MEMORY.md manually to make it match.
+
+   `friction.cjs render` prints the section byte-for-byte, no LLM paraphrase, no manual
+   template filling:
+   ```
+   ## Antigens
    ### High Confidence (loaded — applies every session)
-   - [behavioral rule] (evidence: [N] sessions — "[verbatim quote]")
+   - [behavioral rule] (evidence: [N] sessions, [P] projects — "[quote1]", "[quote2]") — ag-NNN
 
    ### Medium Confidence (observing — not loaded)
-   - [behavioral rule] (evidence: [N] sessions)
+   - [behavioral rule] (evidence: [N] sessions) — ag-NNN
 
    ### Low Confidence (needs more data)
-   - [pattern] (evidence: [N] sessions)
+   - [pattern] (evidence: [N] sessions) — ag-NNN
    ```
-   The Medium/Low lists render only entries whose ledger `status` is `observing` (or `hot`
-   for High) — an entry marked `expired` by the decay rule (step 4c) is skipped here even
-   though it stays in `ledger.json`.
+   Tiers: High = `status == "hot" && sessions >= 5` (the only tier that prints quotes — the
+   first 2 of `evidence.quotes`, verbatim, capped at 2 — and `evidence.projects.length`).
+   Medium = `status == "observing" && 3 <= sessions <= 4`. Low = `status == "observing" &&
+   sessions == 2`. `expired`/`escalated`/`rejected`/`sessions < 2` never render, same as
+   before — an entry marked `expired` by the decay rule (4c) is skipped here even though it
+   stays in `ledger.json`. A legacy 1-session `observing` entry (see 4b) stays in the ledger
+   and grows or expires like any other, but is not rendered. An empty tier prints `- (none —
+   <why>)`, one line, never an empty section.
 
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.opencode/remember/.processed`
@@ -367,7 +418,9 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    write that already happened in steps 3-6.
 
    - **Locate `docs-builder.cjs`** — bundled next to this command at
-     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`).
+     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`). Call it by
+     its **absolute path** in the command below — the cwd here is the target repo, not this
+     package, so a cwd-relative path fails everywhere except the liteagents repo itself.
    - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
      saying anything. Most projects have no doc corpus and a nudge every run is noise.
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
@@ -382,12 +435,15 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      below.
    - Otherwise run it and pass through its verdict:
      ```bash
-     node docs-builder/docs-builder.cjs due
+     node <docs-builder.cjs> due
      ```
      `due` compares `docs/` against the SHA stamped in `docs/.docs-builder/ledger.json`
      using `git diff --numstat -M`, classifying each doc as new / moved / moved+changed /
      changed (with the line delta and rough percentage) / deleted. It is **due at >=5
      changed docs** — the same derived-not-counted shape as `/stash`'s nudge.
+   - If `due` prints "no ledger yet" (no `docs/.docs-builder/ledger.json` to compare against),
+     do NOT relay it — print the same `/docs-builder reorg` line as the no-`docs/.docs-builder/`
+     case above, for the same reason: `ledger` would stamp an unsorted pile as correct.
    - If DUE, end with one line and nothing more:
      ```
      docs: 7 changed since 991f72d3 — run /docs-builder reorg
@@ -396,7 +452,10 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
 8. **Report to user** — print it AND write the same content to `.opencode/remember/report.md`
    (overwritten each run; the ledger keeps history — the report is just the latest snapshot)
    - Number of stashes processed
-   - Facts count (before → after the rewrite; the number should not grow by the number of new facts)
+   - Facts count (before → after the rewrite) plus how many existing lines were merged or
+     shortened. At steady state — lines already ≤160, no near-duplicates — a run that grows by
+     exactly its new facts and shortens nothing is correct; say so rather than forcing merges
+     to hit a number. The bound on facts is the write-bar at entrance, not a count.
    - **Mechanical length check** — run, don't estimate. This confirms the step-3 gate rather
      than being the first check to catch an overrun. It implements the SAME mechanical
      exemption as the gate (a line whose longest backtick literal exceeds 100 chars is not
@@ -418,7 +477,9 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      — every remaining overrun already had its chance to be exempted (100-char backtick
      literal) inside the step-3 gate, so anything printed here should not exist.
    - Episodes count (new, kept hot, folded + deleted)
-   - Antigens count by confidence tier, with how many newly promoted to hot
+   - Antigens count by confidence tier, with how many newly promoted to hot — sourced
+     from `.opencode/remember/friction/count_report.json` (4c's count report), not
+     recomputed by hand
    - Ledger lines — one per non-observing entry: id, short rule, status, recurrences since
      adoption. Highlight rephrased (RECURRED) and ESCALATED entries; escalations need a
      user decision, e.g.:
@@ -435,7 +496,7 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
 - Memory file: `.opencode/remember/MEMORY.md` (single source of truth, referenced as `@.opencode/remember/MEMORY.md`)
 - Rules template: `.opencode/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced as `@.opencode/remember/AGENT_RULES.md`)
 - Antigen ledger: `.opencode/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
-- Consolidation report: `.opencode/remember/report.md` (latest step-7 report, overwritten each run)
+- Consolidation report: `.opencode/remember/report.md` (latest step-8 report, overwritten each run)
 - Processed manifest: `.opencode/remember/.processed`
 - Docs ledger (READ ONLY from here — owned by `/docs-builder`): `docs/.docs-builder/ledger.json`
 - Friction output (transient, regenerated each run): `.opencode/remember/friction/` — `antigen_clusters.json` (preferred input), `antigen_review.md` (fallback), plus raw analysis files

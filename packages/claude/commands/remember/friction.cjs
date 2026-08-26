@@ -1412,7 +1412,7 @@ function analyzeMain(sessionsDir) {
     stat = fs.statSync(inputPath);
   } catch {
     console.log(`No sessions found in ${inputPath}`);
-    return 1;
+    return 2; // 2 = no input; 1 is reserved for the verdict below
   }
 
   if (stat.isFile()) {
@@ -1444,7 +1444,7 @@ function analyzeMain(sessionsDir) {
 
   if (sessionFiles.length === 0) {
     console.log(`No sessions found in ${inputPath}`);
-    return 1;
+    return 2; // 2 = no input; 1 is reserved for the verdict below
   }
 
   // Create output dir
@@ -2213,9 +2213,17 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     const SELF_RE = /\b(wrong (project|window|repo|directory|folder)|never ?mind|nvm|scratch that|ignore (that|this)|disregard|my bad|oops)\b/i;
     const hasContext = cl.contexts.length > 0;
     const allSelf = hasContext && cl.contexts.every(q => SELF_RE.test(q || ''));
-    const severe = signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
-      || (hasContext && signalNames.includes('user_correction') && !allSelf)
-      || cl.errors.length > 0;
+    // Severity is INTENSITY, distinct from existence. Every cluster already
+    // exists only because of an observed reaction (ANCHOR_SIGNALS), so a plain
+    // user_correction must NOT by itself qualify as severe — that made every
+    // cluster severe by construction and collapsed the 2x2 below into
+    // recurrence alone (fact/drop were unreachable; measured 69/69 severe on
+    // the real corpus). Severe = a curse, an interrupt cascade, or a tool
+    // error corroborating the reaction. A self-correction ("wrong repo") is
+    // never severe even with an error attached.
+    const severe = !allSelf && (
+      signalNames.some(s => s === 'user_curse' || s === 'interrupt_cascade')
+      || cl.errors.length > 0);
     const recurring = nSessions >= 3;   // recurrence × severity → artifact (the 2×2)
     let artifact;
     if (recurring && severe) artifact = 'antigen';
@@ -2458,6 +2466,387 @@ function extractMain(sessionsDir) {
 }
 
 // =============================================================================
+// CLASSIFY-THEN-COUNT SUBCOMMANDS -- count/render/check/migrate-attempts (see remember.md steps 4a-4c/5)
+// =============================================================================
+
+function antigenHash(id) { return id.split('-').pop(); }
+
+/** Extracts a session's date (YYYY-MM-DD) from its id's "MMDD-HHMM-hash" suffix.
+ * Session ids carry no year, so the run's own year is assumed; if that would put
+ * the date in the future relative to runDate, the year is rolled back by one
+ * (handles a session from late in the prior year being replayed early in a new
+ * one). Returns null if the id doesn't match the expected shape. */
+function sessionDateFromId(id, runDate) {
+  const tail = id.split('/').pop() || '';
+  const m = /^(\d{2})(\d{2})-\d{4}-/.exec(tail);
+  if (!m) return null;
+  const [, mm, dd] = m;
+  const runYear = parseInt(runDate.slice(0, 4), 10);
+  let dateStr = `${runYear}-${mm}-${dd}`;
+  if (dateStr > runDate) dateStr = `${runYear - 1}-${mm}-${dd}`;
+  return dateStr;
+}
+
+/**
+ * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
+ * Merges classifier labels (index -> "drop" | "ag-NNN" | "new:theme" | {label:
+ * "new:theme", rule: "<one-line rule>"}) by label, counts distinct new conversations
+ * (one per cluster INDEX, never per hash or per group), and applies the ledger rules
+ * mechanically. Prints the count report to stdout; writes the updated ledger to
+ * outLedgerPath if given, else also to stdout.
+ */
+function nextAntigenId(ledger) {
+  let max = 0;
+  for (const e of ledger.entries) {
+    const m = /^ag-(\d+)$/.exec(e.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `ag-${String(max + 1).padStart(3, '0')}`;
+}
+
+/** Builds class_hints for a freshly-created `new:` entry from the cluster's own
+ * top_keywords (mechanical, matches how the theme label itself is derived) plus
+ * short quote snippets, so a LATER run's classifier has real material to match a
+ * recurrence against via class_hints -- required by Decision 1c. */
+function buildClassHints(cluster) {
+  const hints = [];
+  for (const kw of (cluster.top_keywords || []).slice(0, 4)) hints.push(kw);
+  for (const q of (cluster.contexts || []).slice(0, 2)) hints.push(q.slice(0, 80));
+  return hints;
+}
+
+/**
+ * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
+ *
+ * Decision 1 (Guard B, adopted after the guard-choice escalation): `new:` labels
+ * NEVER merge in-batch, regardless of whether two cluster indices share the same
+ * label string. Each `new:`-labeled cluster is evaluated on its own: if the
+ * cluster's OWN `sessions` count (friction's pre-existing lexical recurrence, not
+ * anything from this batch's grouping) is >=2, it creates its own new ledger entry
+ * directly; if ==1, it is written nowhere. A genuine cross-cluster recurrence of
+ * the same mistake is instead caught on a LATER run, once the first occurrence's
+ * entry exists and its class_hints let the classifier match the next occurrence to
+ * it like any other existing entry -- this is the intentional recall cost of
+ * Guard B (measured in the Decision 1b validation, not tuned around).
+ */
+/** Default run date used wherever a `runDate` arg is optional (count, migrate-attempts). */
+function defaultRunDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Pure core of `count`: merges classifier labels into the ledger and produces the
+ * count report. Throws on malformed input (bad ledger/clusters/labels shape); does
+ * no IO -- callers own reading/writing files.
+ */
+function countLedger(ledger, labels, clusters, runDate) {
+  if (!ledger || !Array.isArray(ledger.entries)) throw new Error('countLedger: ledger.entries must be an array');
+  if (!Array.isArray(clusters)) throw new Error('countLedger: clusters must be an array');
+  if (!labels || typeof labels !== 'object') throw new Error('countLedger: labels must be an object');
+
+  const VALID_ID = /^ag-\d+$/;
+  const malformed = [];
+  const agGroups = new Map(); // ag-NNN label -> [cluster indices] (matching still merges)
+  const newClusterIdxs = []; // `new:` clusters -- Guard B: never grouped, each stands alone
+  for (let i = 0; i < clusters.length; i++) {
+    // Label shape: a bare string ("drop"|"ag-NNN"|"new:theme") for drop/ag-NNN, or
+    // {label, rule} for "new:" -- the 4a classifier now emits the one-line rule text
+    // for a brand-new theme in the same judgment (no separate LLM pass). Both shapes
+    // are accepted so pre-existing bare-string labels.json fixtures keep working.
+    const raw = labels[String(i)];
+    const isObjLabel = raw && typeof raw === 'object';
+    const lbl = isObjLabel ? raw.label : raw;
+    const rule = isObjLabel ? raw.rule : undefined;
+    const isNewLabel = typeof lbl === 'string' && lbl.startsWith('new:');
+    const known = lbl === 'drop' || VALID_ID.test(lbl) || isNewLabel;
+    if (!known) { malformed.push({ index: i, label: lbl }); continue; }
+    if (lbl === 'drop') continue;
+    if (isNewLabel) { newClusterIdxs.push({ index: i, label: lbl, rule }); continue; }
+    if (!agGroups.has(lbl)) agGroups.set(lbl, []);
+    agGroups.get(lbl).push(i);
+  }
+
+  const byId = new Map(ledger.entries.map(e => [e.id, e]));
+  const report = { matched: [], newEntries: [], droppedNew1session: [], malformed, badLedgerRef: [] };
+
+  for (const [label, idxs] of agGroups.entries()) {
+    const entry = byId.get(label);
+    if (!entry) { report.badLedgerRef.push({ label, idxs }); continue; }
+    // Defensive: a ledger that predates the session_ids scheme entirely can be missing
+    // the key outright (observed on a real repo, 8een -- every entry lacked it, not just
+    // an empty array). Treat missing the same as an empty array.
+    if (!entry.evidence.session_ids) entry.evidence.session_ids = [];
+    const existing = new Set(entry.evidence.session_ids.map(s => antigenHash(s.id)));
+    const before = entry.evidence.sessions;
+    const statusBefore = entry.status;
+    const wasEmpty = entry.evidence.session_ids.length === 0;
+    const hadMigrationLine = (entry.history || []).some(h => h.event.startsWith('identity migration'));
+    // TRUE first-time migration (remember.md 4c "SEED, DO NOT COUNT"): session_ids empty
+    // going in AND no "identity migration" history line yet at all -- the entry's bare
+    // `sessions` count predates hash tracking entirely. Seed hashes, count nothing, write
+    // ONE "identity migration" line (not per-cluster) even if several clusters match.
+    const isTrueMigration = wasEmpty && !hadMigrationLine;
+    // Migration-fill sub-case: session_ids still empty going in, but an "identity
+    // migration" line ALREADY exists (a prior run migrated with 0 matches) -> first match
+    // after that fills session_ids without counting; counting resumes once non-empty.
+    const isMigrationFill = wasEmpty && hadMigrationLine;
+    const isMigrationRun = isTrueMigration || isMigrationFill;
+
+    let newConversations = 0;
+    const newConvClusterIdxs = [];
+    let recurredWhileHotCount = 0;
+    const gatedOutClusterIdxs = [];
+    const currentAttempt = (entry.attempts || [])[(entry.attempts || []).length - 1];
+    for (const i of idxs) {
+      const clusterHashes = clusters[i].session_ids.map(antigenHash);
+      const isNew = clusterHashes.every(h => !existing.has(h));
+      if (isNew && !isMigrationRun) {
+        newConversations += 1;
+        newConvClusterIdxs.push(i);
+        // Adopted-date gate: a new conversation still counts as evidence (sessions,
+        // hashes) regardless of date, but only counts toward recurred_while_hot if its
+        // OWN session date is on/after the CURRENT attempt's adopted date -- a mistake
+        // that predates the rule's current phrasing isn't a phrasing failure of it.
+        if (entry.status === 'hot' && currentAttempt) {
+          const sessionDate = sessionDateFromId(clusters[i].session_ids[0], runDate);
+          if (sessionDate && sessionDate >= currentAttempt.adopted) {
+            recurredWhileHotCount += 1;
+          } else {
+            gatedOutClusterIdxs.push({ index: i, sessionDate, adopted: currentAttempt.adopted });
+          }
+        }
+      }
+      for (const sid of clusters[i].session_ids) {
+        const h = antigenHash(sid);
+        if (!existing.has(h)) { entry.evidence.session_ids.push({ id: sid, seen: runDate }); existing.add(h); }
+      }
+    }
+    if (isTrueMigration) {
+      entry.history.push({ date: runDate, event: 'identity migration — legacy count grandfathered, growth requires new hashes' });
+    } else if (isMigrationFill) {
+      entry.history.push({ date: runDate, event: `identity migration fill — first matching hash(es) seeded (${idxs.map(i => clusters[i].session_ids.map(antigenHash).join(',')).join(', ')}), count unchanged` });
+    } else if (newConversations > 0) {
+      entry.evidence.sessions += newConversations;
+      entry.evidence.last_seen = runDate;
+      if (entry.status === 'hot' && recurredWhileHotCount > 0) {
+        entry.recurred_while_hot = (entry.recurred_while_hot || 0) + recurredWhileHotCount;
+      }
+      if (gatedOutClusterIdxs.length > 0) {
+        entry.history.push({ date: runDate, event: `${gatedOutClusterIdxs.length} new conversation(s) counted as evidence only, not recurred_while_hot -- session date predates current attempt's adopted date (${gatedOutClusterIdxs.map(g => `${g.sessionDate} < ${g.adopted}`).join(', ')})` });
+      }
+      if (entry.status === 'observing' && entry.evidence.sessions >= 5) {
+        entry.status = 'hot';
+        entry.history.push({ date: runDate, event: `promoted to hot (${entry.evidence.sessions} sessions)` });
+        if (entry.attempts && entry.attempts.length > 0) {
+          entry.attempts[entry.attempts.length - 1].adopted = runDate;
+        }
+      }
+    }
+    report.matched.push({ label, clusters: idxs, before, after: entry.evidence.sessions, newConversations, newConvClusterIdxs, isTrueMigration, isMigrationFill, recurredWhileHotCount, gatedOutClusterIdxs, promoted: statusBefore === 'observing' && entry.status === 'hot' });
+  }
+
+  for (const { index: i, label, rule } of newClusterIdxs) {
+    const cluster = clusters[i];
+    const combinedSessions = cluster.sessions;
+    const hashes = cluster.session_ids.map(antigenHash);
+    if (combinedSessions < 2) { report.droppedNew1session.push({ label, idxs: [i], sessions: combinedSessions }); continue; }
+    // A `new:` cluster that will actually create a ledger entry requires the
+    // classifier-authored rule text -- no placeholder fallback. Missing/empty is
+    // reported as malformed and the entry is NOT created (see friction.cjs BUG fix).
+    if (!rule || typeof rule !== 'string' || rule.trim() === '') {
+      malformed.push({ index: i, label, reason: 'new: label creating an entry (sessions>=2) requires a non-empty rule' });
+      continue;
+    }
+    const status = combinedSessions >= 5 ? 'hot' : 'observing';
+    const id = nextAntigenId(ledger);
+    const newEntry = {
+      id,
+      class: label.slice(4),
+      class_hints: buildClassHints(cluster),
+      status,
+      rule,
+      attempts: [{ n: 1, rule, adopted: runDate, outcome: 'active' }],
+      evidence: {
+        sessions: combinedSessions,
+        session_ids: cluster.session_ids.map(sid => ({ id: sid, seen: runDate })),
+        projects: cluster.projects || [],
+        quotes: (cluster.contexts || []).slice(0, 2),
+        last_seen: runDate,
+      },
+      recurred_while_hot: 0,
+      history: [{ date: runDate, event: `candidate (${combinedSessions} sessions)${status === 'hot' ? ' — born hot' : ''}` }],
+    };
+    ledger.entries.push(newEntry);
+    byId.set(id, newEntry);
+    report.newEntries.push({ label, idxs: [i], sessions: combinedSessions, status, hashes, createdId: id });
+  }
+
+  return { ledger, report };
+}
+
+/**
+ * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
+ * Thin IO wrapper: reads files, calls countLedger, prints the report, writes/prints
+ * the updated ledger.
+ */
+function countMain(argv) {
+  const [labelsPath, ledgerPath, clustersPathArg, runDateArg, outLedgerPath, reportPath] = argv;
+  if (!labelsPath || !ledgerPath) {
+    console.log('Usage: node friction.cjs count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath] [reportPath]');
+    return 1;
+  }
+  const clustersPath = clustersPathArg || './antigen_clusters.json';
+  const runDate = runDateArg || defaultRunDate();
+
+  const labels = JSON.parse(fs.readFileSync(labelsPath, 'utf8'));
+  const clusters = JSON.parse(fs.readFileSync(clustersPath, 'utf8'));
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+
+  const { ledger: updatedLedger, report } = countLedger(ledger, labels, clusters, runDate);
+
+  console.log(JSON.stringify(report, null, 2));
+  if (reportPath) {
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+  }
+  if (outLedgerPath) {
+    fs.writeFileSync(outLedgerPath, JSON.stringify(updatedLedger, null, 2));
+  } else {
+    console.log(JSON.stringify(updatedLedger, null, 2));
+  }
+  return 0;
+}
+
+/**
+ * `render <ledger.json>` -- prints the MEMORY.md "## Antigens" section from a ledger.
+ * High = hot && sessions>=5 (quotes shown). Medium = observing && sessions 3-4.
+ * Low = observing && sessions==2. expired/rejected/escalated/sessions<2 never render.
+ */
+function renderTier(entries, quotesShown, noneText) {
+  if (entries.length === 0) return [`- (none — ${noneText})`];
+  return entries.map(e => {
+    const n = e.evidence.sessions;
+    const p = e.evidence.projects ? e.evidence.projects.length : 0;
+    let evidence = `${n} session${n === 1 ? '' : 's'}`;
+    if (quotesShown && p > 0) evidence += `, ${p} project${p === 1 ? '' : 's'}`;
+    if (quotesShown && e.evidence.quotes && e.evidence.quotes.length > 0) {
+      evidence += ' — ' + e.evidence.quotes.slice(0, 2).map(q => `"${q}"`).join(', ');
+    }
+    return `- ${e.rule} (evidence: ${evidence}) — ${e.id}`;
+  });
+}
+
+function renderMain(argv) {
+  const [ledgerPath] = argv;
+  if (!ledgerPath) { console.log('Usage: node friction.cjs render <ledger.json>'); return 1; }
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+  console.log(renderLedgerText(ledger));
+  return 0;
+}
+
+/**
+ * I7: does `rule` equal the LAST attempt's rule (array order)? Decision 2 -- resolves
+ * the earlier "which attempt counts as current" ambiguity by dropping the `outcome`
+ * field from the comparison entirely: whichever attempt is last in the array IS the
+ * current phrasing, full stop. Returns the list of mismatching entry ids.
+ */
+function checkRuleAttempt(ledger) {
+  const bad = [];
+  for (const entry of ledger.entries) {
+    const attempts = entry.attempts || [];
+    if (attempts.length === 0) continue;
+    const last = attempts[attempts.length - 1];
+    if (entry.rule !== last.rule) bad.push(entry.id);
+  }
+  return bad;
+}
+
+/** I6-new: is render(ledger) byte-equal to a MEMORY.md's "## Antigens" section? */
+function checkRenderEquality(ledger, memoryMdText) {
+  const rendered = renderLedgerText(ledger);
+  const start = memoryMdText.indexOf('## Antigens');
+  if (start === -1) return { equal: false, reason: 'no ## Antigens section in MEMORY.md' };
+  let end = memoryMdText.indexOf('\n## ', start + 1);
+  if (end === -1) end = memoryMdText.length;
+  const actual = memoryMdText.slice(start, end).trimEnd();
+  return { equal: actual === rendered, rendered, actual };
+}
+
+/** Shared by renderMain and checkRenderEquality so both use the exact same bytes. */
+function renderLedgerText(ledger) {
+  const high = ledger.entries.filter(e => e.status === 'hot' && e.evidence.sessions >= 5);
+  const medium = ledger.entries.filter(e => e.status === 'observing' && e.evidence.sessions >= 3 && e.evidence.sessions <= 4);
+  const low = ledger.entries.filter(e => e.status === 'observing' && e.evidence.sessions === 2);
+  const lines = [];
+  lines.push('## Antigens');
+  lines.push('### High Confidence (loaded — applies every session)');
+  lines.push(...renderTier(high, true, 'no class currently sits at 5+ sessions'));
+  lines.push('');
+  lines.push('### Medium Confidence (observing — not loaded)');
+  lines.push(...renderTier(medium, false, 'no class currently sits at 3-4 distinct sessions'));
+  lines.push('');
+  lines.push('### Low Confidence (needs more data)');
+  lines.push(...renderTier(low, false, 'no class currently sits at exactly 2 sessions'));
+  return lines.join('\n');
+}
+
+/** `check <ledger.json> [memory.md]` -- prints I7 (always) and I6-new (if a MEMORY.md
+ * path is given) results. */
+function checkMain(argv) {
+  const [ledgerPath, memoryMdPath] = argv;
+  if (!ledgerPath) { console.log('Usage: node friction.cjs check <ledger.json> [memory.md]'); return 1; }
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+
+  const i7bad = checkRuleAttempt(ledger);
+  console.log(`I7 (rule == last attempt's rule): ${i7bad.length} mismatch(es)${i7bad.length ? ': ' + i7bad.join(', ') : ''}`);
+
+  let i6newBad = false;
+  if (memoryMdPath) {
+    const memText = fs.readFileSync(memoryMdPath, 'utf8');
+    const r = checkRenderEquality(ledger, memText);
+    i6newBad = !r.equal;
+    console.log(`I6-new (render(ledger) byte-equal to MEMORY.md Antigens): ${r.equal ? 'EQUAL' : 'NOT EQUAL' + (r.reason ? ' (' + r.reason + ')' : '')}`);
+  } else {
+    console.log('I6-new: skipped (no MEMORY.md path given)');
+  }
+  return (i7bad.length > 0 || i6newBad) ? 1 : 0;
+}
+
+/**
+ * `migrate-attempts <ledger.json> <outPath> [runDate]` -- one-time migration (Decision
+ * 2): for every entry checkRuleAttempt flags, append a new attempt recording the
+ * drifted rule text as the new current attempt, and mark the former-last attempt
+ * "superseded" (was whatever it was before -- typically "active"). Idempotent: an
+ * entry already satisfying I7 is untouched, so a second run is a no-op.
+ */
+function migrateAttemptsMain(argv) {
+  const [ledgerPath, outPath, runDateArg] = argv;
+  if (!ledgerPath || !outPath) { console.log('Usage: node friction.cjs migrate-attempts <ledger.json> <outPath> [runDate]'); return 1; }
+  const runDate = runDateArg || defaultRunDate();
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+
+  let migrated = 0;
+  for (const entry of ledger.entries) {
+    const attempts = entry.attempts || [];
+    if (attempts.length === 0) continue;
+    const last = attempts[attempts.length - 1];
+    if (entry.rule === last.rule) continue; // already consistent -- no-op for this entry
+    last.outcome = 'superseded';
+    attempts.push({
+      n: last.n + 1,
+      rule: entry.rule,
+      adopted: runDate,
+      outcome: 'active',
+      note: 'migration: rule text had drifted from attempt log',
+    });
+    migrated++;
+  }
+
+  fs.writeFileSync(outPath, JSON.stringify(ledger, null, 2));
+  console.log(`migrate-attempts: ${migrated} entr${migrated === 1 ? 'y' : 'ies'} migrated, wrote ${outPath}`);
+  return 0;
+}
+
+// =============================================================================
 // PIPELINE ENTRY POINT
 // =============================================================================
 
@@ -2494,7 +2883,8 @@ Outputs (all in .claude/remember/friction/):
 
   // Step 1: Analyze sessions
   console.log('\n[1/2] Analyzing sessions...\n');
-  analyzeMain(sessionsDir);
+  const rc = analyzeMain(sessionsDir);
+  if (rc === 2) return rc; // no sessions found -- stop before extractMain touches antigen_clusters.json
 
   // Check if analysis produced output
   const analysisFile = '.claude/remember/friction/friction_analysis.json';
@@ -2524,4 +2914,14 @@ Outputs (all in .claude/remember/friction/):
   return 0;
 }
 
-process.exit(main());
+if (process.argv[2] === 'count') {
+  process.exit(countMain(process.argv.slice(3)));
+} else if (process.argv[2] === 'render') {
+  process.exit(renderMain(process.argv.slice(3)));
+} else if (process.argv[2] === 'check') {
+  process.exit(checkMain(process.argv.slice(3)));
+} else if (process.argv[2] === 'migrate-attempts') {
+  process.exit(migrateAttemptsMain(process.argv.slice(3)));
+} else {
+  process.exit(main());
+}
