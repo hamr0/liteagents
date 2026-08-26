@@ -2634,7 +2634,13 @@ function countLedger(ledger, labels, clusters, runDate) {
       if (gatedOutClusterIdxs.length > 0) {
         entry.history.push({ date: runDate, event: `${gatedOutClusterIdxs.length} new conversation(s) counted as evidence only, not recurred_while_hot -- session date predates current attempt's adopted date (${gatedOutClusterIdxs.map(g => `${g.sessionDate} < ${g.adopted}`).join(', ')})` });
       }
-      if (entry.status === 'observing' && entry.evidence.sessions >= 5) entry.status = 'hot';
+      if (entry.status === 'observing' && entry.evidence.sessions >= 5) {
+        entry.status = 'hot';
+        entry.history.push({ date: runDate, event: `promoted to hot (${entry.evidence.sessions} sessions)` });
+        if (entry.attempts && entry.attempts.length > 0) {
+          entry.attempts[entry.attempts.length - 1].adopted = runDate;
+        }
+      }
     }
     report.matched.push({ label, clusters: idxs, before, after: entry.evidence.sessions, newConversations, newConvClusterIdxs, isTrueMigration, isMigrationFill, recurredWhileHotCount, gatedOutClusterIdxs, promoted: statusBefore === 'observing' && entry.status === 'hot' });
   }
@@ -2793,14 +2799,16 @@ function checkMain(argv) {
   const i7bad = checkRuleAttempt(ledger);
   console.log(`I7 (rule == last attempt's rule): ${i7bad.length} mismatch(es)${i7bad.length ? ': ' + i7bad.join(', ') : ''}`);
 
+  let i6newBad = false;
   if (memoryMdPath) {
     const memText = fs.readFileSync(memoryMdPath, 'utf8');
     const r = checkRenderEquality(ledger, memText);
+    i6newBad = !r.equal;
     console.log(`I6-new (render(ledger) byte-equal to MEMORY.md Antigens): ${r.equal ? 'EQUAL' : 'NOT EQUAL' + (r.reason ? ' (' + r.reason + ')' : '')}`);
   } else {
     console.log('I6-new: skipped (no MEMORY.md path given)');
   }
-  return (i7bad.length > 0) ? 1 : 0;
+  return (i7bad.length > 0 || i6newBad) ? 1 : 0;
 }
 
 /**

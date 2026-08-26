@@ -873,6 +873,121 @@ function main() {
     ok('git grep placeholder literal: 0 files in repo', grep.status === 1 ? 0 : (grep.stdout || '').split('\n').filter(Boolean).length, 0);
   }
 
+  // ---- BUG 1: checkMain's exit code ignored I6-new. When a MEMORY.md path is given
+  // and checkRenderEquality returns equal:false, the process must exit 1 -- pre-fix it
+  // exited 0 regardless, silencing a real render/ledger mismatch in CI.
+  group('friction.cjs check — exit code reflects I6-new (BUG 1)');
+  {
+    // Clean pair (zkagent's genuine script-rendered ledger/MEMORY.md, already I7-clean)
+    // must still exit 0 -- this must NOT regress.
+    const cleanLedger = path.join(FIXTURES, 'zkagent', 'ledger.rendered.json');
+    const cleanMem = path.join(FIXTURES, 'zkagent', 'MEMORY.rendered.md');
+    const rClean = runSub(['check', cleanLedger, cleanMem]);
+    okTrue('check exit 0: clean I7 + I6-new EQUAL pair (zkagent rendered)',
+      rClean.out.includes('EQUAL') && !rClean.out.includes('NOT EQUAL'));
+    ok('check exit 0: clean I7 + I6-new EQUAL pair (zkagent rendered) -- exit code', rClean.code, 0);
+
+    // No-memory-path behaviour must be unchanged: I7-clean ledger, no MEMORY.md arg
+    // given -> I6-new skipped, exit still driven by I7 alone (0 here).
+    const rNoMem = runSub(['check', cleanLedger]);
+    okTrue('check no-memory-path: I6-new skipped', rNoMem.out.includes('I6-new: skipped'));
+    ok('check no-memory-path: exit 0 (I7 clean, I6-new not evaluated)', rNoMem.code, 0);
+
+    // Tamper a COPY of MEMORY.rendered.md's Antigens section (flip one char inside it,
+    // outside the section left untouched) -- I7 stays 0 mismatches (ledger untouched),
+    // but I6-new must go NOT EQUAL, and the process must now exit 1.
+    const dir = tmpDir('friction-i6exit-');
+    const memText = fs.readFileSync(cleanMem, 'utf8');
+    const start = memText.indexOf('## Antigens');
+    const end = memText.indexOf('\n## ', start + 1);
+    const sectionEnd = end === -1 ? memText.length : end;
+    // pick an offset a few chars into the section body, safely inside [start, sectionEnd)
+    const flipIdx = start + 20;
+    okTrue('BUG1 setup: flip offset lands inside the Antigens section', flipIdx < sectionEnd);
+    const chars = memText.split('');
+    chars[flipIdx] = chars[flipIdx] === 'x' ? 'y' : 'x';
+    const tamperedMemPath = path.join(dir, 'MEMORY.tampered.md');
+    fs.writeFileSync(tamperedMemPath, chars.join(''));
+
+    const rTampered = runSub(['check', cleanLedger, tamperedMemPath]);
+    okTrue('BUG1 tampered case: I7 still 0 mismatches (ledger untouched)',
+      rTampered.out.includes("I7 (rule == last attempt's rule): 0 mismatch"));
+    okTrue('BUG1 tampered case: I6-new reports NOT EQUAL', rTampered.out.includes('NOT EQUAL'));
+    ok('BUG1 tampered case: exit code is 1 (I6-new NOT EQUAL must fail check)', rTampered.code, 1);
+  }
+
+  // ---- BUG 2: observing->hot promotion wrote no history line and left the current
+  // attempt's `adopted` date stale. Fix (at the exact promotion point in countMain's
+  // matched-entry loop): push a "promoted to hot (<N> sessions)" history line, and
+  // re-stamp attempts[last].adopted to runDate (guarded for a missing/empty attempts
+  // array). Must not touch `rule` or add a new attempt -- I7 stays satisfied.
+  group('friction.cjs count — observing->hot promotion writes history + re-stamps adopted (BUG 2)');
+  {
+    const dir = tmpDir('friction-promote-');
+    const OLD_ADOPTED = '2020-01-01';
+    const RUN_DATE = '2026-08-26';
+    const RULE_TEXT = 'Test rule text.';
+    const ledger = {
+      entries: [{
+        id: 'ag-999',
+        class: 'test-class',
+        class_hints: ['hint'],
+        status: 'observing',
+        rule: RULE_TEXT,
+        attempts: [{ n: 1, rule: RULE_TEXT, adopted: OLD_ADOPTED, outcome: 'active' }],
+        evidence: {
+          sessions: 4,
+          session_ids: [
+            { id: 'proj/fake-0001', seen: OLD_ADOPTED },
+            { id: 'proj/fake-0002', seen: OLD_ADOPTED },
+            { id: 'proj/fake-0003', seen: OLD_ADOPTED },
+            { id: 'proj/fake-0004', seen: OLD_ADOPTED },
+          ],
+          projects: ['proj'],
+          quotes: ['q'],
+          last_seen: OLD_ADOPTED,
+        },
+        recurred_while_hot: 0,
+        history: [{ date: OLD_ADOPTED, event: 'candidate (1 session)' }],
+      }],
+    };
+    const ledgerPath = path.join(dir, 'ledger.json');
+    fs.writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
+    const clusters = [{
+      sessions: 1,
+      session_ids: ['proj/0101-0000-eeeeeeee'],
+      projects: ['proj'], contexts: ['a real quote here'], top_keywords: ['kw1'],
+    }];
+    const clustersPath = path.join(dir, 'clusters.json');
+    fs.writeFileSync(clustersPath, JSON.stringify(clusters));
+    const labelsPath = path.join(dir, 'labels.json');
+    fs.writeFileSync(labelsPath, JSON.stringify({ '0': 'ag-999' }));
+    const outPath = path.join(dir, 'ledger.out.json');
+
+    const r = runSub(['count', labelsPath, ledgerPath, clustersPath, RUN_DATE, outPath]);
+    const report = JSON.parse(r.out);
+    const m = report.matched.find(x => x.label === 'ag-999');
+    okTrue('BUG2 report: promoted true', m && m.promoted === true);
+
+    const after = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+    const entry = after.entries.find(e => e.id === 'ag-999');
+    ok('BUG2 entry: status hot after promotion', entry.status, 'hot');
+    const lastHistory = entry.history[entry.history.length - 1];
+    okTrue('BUG2 entry: last history event mentions "promoted to hot (5 sessions)"',
+      lastHistory && lastHistory.event.includes('promoted to hot (5 sessions)'));
+    ok('BUG2 entry: last history date == runDate', lastHistory && lastHistory.date, RUN_DATE);
+    ok('BUG2 entry: attempts[last].adopted re-stamped to runDate',
+      entry.attempts[entry.attempts.length - 1].adopted, RUN_DATE);
+    ok('BUG2 entry: rule unchanged', entry.rule, RULE_TEXT);
+    ok('BUG2 entry: attempts[last].rule unchanged (I7 still satisfied by construction)',
+      entry.attempts[entry.attempts.length - 1].rule, RULE_TEXT);
+    ok('BUG2 entry: still exactly 1 attempt (no new attempt added)', entry.attempts.length, 1);
+
+    const rCheck = runSub(['check', outPath]);
+    okTrue('BUG2: check on promoted ledger reports I7 0 mismatches',
+      rCheck.out.includes("I7 (rule == last attempt's rule): 0 mismatch"));
+  }
+
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
   console.log(`Total tests: ${passed + failed}`);
