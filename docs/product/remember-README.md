@@ -149,9 +149,13 @@ quote.
   fact that can be shorter is made shorter. The output is normally *shorter* than the input.
   A fact is **one line, ≤160 chars, stating a rule that changes future behaviour** — current
   truth only, no version history, no `supersedes`, no narrative. Events are episodes, not facts.
-- **Episodes: keep the 10 most recent; older ones are folded, then deleted.** An aging episode's
-  *lesson* is handed to the fact rewrite; the narrative is removed. There is no episode archive —
-  git already holds the history, and an archive that is never loaded is not memory.
+- **Episodes: dedup before appending, keep the 10 most recent; older ones are folded, then
+  deleted.** A new episode covering the same work as one already in the section (same goal or
+  session, judged by content not title) merges into the existing entry instead of appending a
+  second copy — re-processing an already-filed stash must not create a near-duplicate pair. An
+  aging episode's *lesson* is handed to the fact rewrite; the narrative is removed. There is no
+  episode archive — git already holds the history, and an archive that is never loaded is not
+  memory.
 - **A pre-write length gate runs BEFORE `MEMORY.md` is written, not after** — a check that
   only runs post-write can merely describe damage already on disk. Every line in the draft
   Facts section must be ≤180 chars, including lines carried over unchanged from the previous
@@ -277,11 +281,13 @@ sorts ahead of quieter ones. Rarity still gates what becomes a rule; intensity o
 within it.
 
 **Where the LLM lives:** lexical matching catches verbatim repetition ("wrong project" ×3)
-but cannot merge paraphrases ("nothing landed" vs "says pushed but none got it") — that's a
-semantic judgment. So the split is: **friction detects + cheaply pre-groups (precise); the
-LLM in `/remember` does the final merge + target-classification (on the short quotes only).**
-This keeps friction dependency-free and fast, and puts the semantic call where an LLM
-already runs.
+but cannot judge which existing class a paraphrase belongs to ("nothing landed" vs "says
+pushed but none got it") — that's a semantic judgment. So the split is: **friction detects +
+cheaply pre-groups (precise); the LLM in `/remember` makes one classification judgment per
+cluster (`drop` / existing `ag-NNN` / `new:<theme>`, on the short quotes only) — no merging,
+no arithmetic. `friction.cjs count` then owns hash union, dedup, and promotion mechanically.**
+This keeps friction dependency-free and fast, and puts the one semantic call where an LLM
+already runs while everything mechanical lives in code.
 
 ---
 
