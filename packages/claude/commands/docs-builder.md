@@ -747,7 +747,13 @@ Writes **one** `docs/index.md` covering the whole corpus, in three sections: `##
 (one row per file under `docs/product/`, plus any pages under `PAGES` — default `docs/wiki/`
 — if they exist, plus any doc still sitting in place elsewhere), `## Logs` (one row per file
 under `docs/logs/`), and `## Archive` (one row per file under `docs/archive/`). Each row is
-an H1 title, a line count, and a link. No theme grouping, no `labels.json`, no model call.
+an H1 title, a line count, and a link, plus one indented line per H2 heading (in document
+order) so an agent can find and slice-read a section without opening the doc — each H2
+line carries its own `(Lstart–end)` line range, reusing the SAME `headings()`+`fenceMask()`
+boundaries `scan` already writes to `outline.json` (no second parser). Omitted when the doc
+has no H2s. `## Archive` rows are H1-only, never H2 lines — an archived doc is frozen
+history, not a live section to route into. No theme grouping, no `labels.json`, no model
+call.
 Default destination `docs/index.md` — **the only writer of that default path** in this whole
 pipeline (nothing else writes an index at all).
 `search` reads `outline.json`, never `index.md`. Prints the row counts and records a `log.md`

@@ -45,8 +45,8 @@ your repo.
   moments you had to correct the agent), then consolidates stashes + friction antigens into
   `MEMORY.md` and wires up `@MEMORY.md`. On first run only, it also bootstraps a bundled
   `AGENT_RULES.md` standards template into `.claude/remember/` and wires up a second,
-  independent `@`-reference — a guide to consult when building something new, not hot
-  context (see §2).
+  independent section using a plain path pointer, not an `@`-reference — a guide to consult
+  when building something new, not hot context (see §2).
 
 The two sources complement each other by **source and trust**: stashes are what *you
 deliberately wrote down*; friction is what the agent *did wrong that you reacted to*,
@@ -229,9 +229,14 @@ quote.
 - **Bootstraps `AGENT_RULES.md` once.** If `.claude/remember/AGENT_RULES.md` doesn't exist,
   it's copied from the bundled template next to `friction.cjs`; if it already exists, it's
   left alone — user-owned from that point on. When present, `/remember` injects a second,
-  independent `<!-- AGENT_RULES:START -->…<!-- AGENT_RULES:END -->` section into CLAUDE.md
-  (`@.claude/remember/AGENT_RULES.md`), framed as a standards guide for new-feature work —
-  not hot context loaded every session like MEMORY.md.
+  independent `<!-- AGENT_RULES:START -->…<!-- AGENT_RULES:END -->` section into CLAUDE.md as
+  a plain path pointer (not `@`-referenced — it's a standards guide read when designing
+  something new, not hot context loaded every session like MEMORY.md).
+- **Step 7: docs reconcile check.** Best-effort, crash-isolated: runs `docs-builder.cjs due`
+  against `docs/.docs-builder/ledger.json`, and on ANY drift it prints (new/moved/changed/
+  deleted, not just crossing the >=5-doc DUE threshold) it also re-runs `index-flat` right
+  there — script-only, no model call — so `docs/index.md` self-heals every `/remember` run
+  instead of waiting for the next full `/docs-builder reorg`.
 
 ---
 

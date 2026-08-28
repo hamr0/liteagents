@@ -728,14 +728,33 @@ function plan(outlineF, labelsF) {
 // tripwire, never a prune, never a collapse, never a delete.
 const ARCHIVE_WARN_ROWS = 100; // stated default, not measured — see docs-builder-v3-spec.md
 
-function indexRow(rel, dest) {
+// `includeH2` is false for archive rows: an archived doc is frozen history, not a live
+// section a reader is being routed into, so its row stays H1 + line count + link only.
+function indexRow(rel, dest, includeH2) {
   const text = read(rel);
-  const h1 = (text.split('\n').find(l => l.startsWith('# ')) || '').slice(2).trim();
-  const lines = text.split('\n').length;
+  const lines = text.split('\n');
+  // Same headings()+fenceMask() path scan() uses -- no second parser -- so an H2 inside a
+  // ``` fence is masked out here exactly as it is there.
+  const mask = fenceMask(lines);
+  const { h1, heads } = headings(lines, mask);
   // Read from INSIDE index.md, so the link must resolve relative to index.md's own
   // directory, not the repo root.
   const relLink = path.relative(path.dirname(dest), repoPath(rel)).split(path.sep).join('/');
-  return `- [${h1 || path.basename(rel)}](${relLink}) — ${lines} lines\n`;
+  let row = `- [${h1 || path.basename(rel)}](${relLink}) — ${lines.length} lines\n`;
+  if (!includeH2) return row;
+  // One line per H2, each with its own line range: from the `## ` heading's own 1-based
+  // line through the line before the next heading of level <= 2 (H1 or H2), or EOF for the
+  // last one -- the SAME boundary scan() uses to write s/e into outline.json, re-derived
+  // here from the same heads array rather than duplicated as a second computation. Lets an
+  // agent jump straight to (and slice-read) a section without opening the doc at all.
+  const boundaries = heads.filter(h => h.lvl <= 2);
+  boundaries.forEach((h, i) => {
+    if (h.lvl !== 2) return;
+    const start = h.line;
+    const end = i + 1 < boundaries.length ? boundaries[i + 1].line - 1 : lines.length;
+    row += `  - ${h.text} (L${start}–${end})\n`;
+  });
+  return row;
 }
 
 function renderSection(title, rows) {
@@ -767,9 +786,10 @@ function indexFlat() {
   const outRel = process.env.OUT || 'docs/index.md';
   const dest = repoPath(outRel);
   const productRows = [...productFiles, ...pageFiles].sort()
-    .map(f => ({ file: f, row: indexRow(f, dest) }));
-  const logsRows = logsFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
-  const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest) }));
+    .map(f => ({ file: f, row: indexRow(f, dest, true) }));
+  const logsRows = logsFiles.sort().map(f => ({ file: f, row: indexRow(f, dest, true) }));
+  // Archive rows are deliberately H1-only -- frozen history, not a live section to route into.
+  const archiveRows = archiveFiles.sort().map(f => ({ file: f, row: indexRow(f, dest, false) }));
 
   let s = '# Index\n\n';
   // Unconditional — not gated on row count, unlike ARCHIVE_WARN_ROWS below: a reader should

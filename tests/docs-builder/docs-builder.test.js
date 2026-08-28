@@ -1117,6 +1117,78 @@ function indexFlatCmd() {
   okTrue('no index.md is written for an empty corpus', !exists(empty, 'docs/index.md'));
 }
 
+/** Each row must also carry the doc's H2s as one indented continuation line, so an agent can
+ *  find a section without opening the doc. Must reuse the SAME headings()/fenceMask() path
+ *  scan() uses -- no second parser -- so a heading inside a ``` fence must not appear, and a
+ *  doc with zero H2s must emit no continuation line at all. */
+function indexFlatH2Continuation() {
+  group('22a. index-flat — H2 lines under each row, with line ranges');
+
+  const threeH2 = '# Three\n\nintro\n\n## Section A\n\nbody a\n\n## Section B\n\nbody b\n\n'
+    + '## Section C\n\nbody c\n';
+  const fencedH2 = '# Fenced\n\nintro\n\n## Real Section\n\nbody\n\n```\n## Not A Heading\n```\n';
+  const noH2 = '# NoHeadings\n\njust prose, no H2 at all\n';
+  const twoH2 = '# Two\n\n## First\n\nfirst body\n\n## Second\n\nsecond body\n';
+  const archivedWithH2 = '# Archived\n\n## Old Section\n\nstale body\n';
+
+  const d = repo({
+    'docs/product/Three.md': threeH2,
+    'docs/product/Fenced.md': fencedH2,
+    'docs/product/NoHeadings.md': noH2,
+    'docs/product/Two.md': twoH2,
+    'docs/archive/Archived.md': archivedWithH2,
+  });
+  const r = db(d, ['index-flat'], { OUT: 'docs/index.md' });
+  ok('index-flat exits clean', r.code, 0);
+  const md = read(d, 'docs/index.md');
+  const lines = md.split('\n');
+
+  // (1) a doc with 3 H2s -> one indented line per H2, in order, with `Ls–e` ranges computed
+  // from the SAME line indices headings() returns (reused, not re-derived): the `## `
+  // heading's own 1-based line through the line before the next heading of level <= 2, or
+  // EOF for the last one. Blank lines in the fixture below are load-bearing for these exact
+  // numbers -- verified against a plain node split('\n') of the fixture string.
+  const threeIdx = lines.findIndex(l => l.includes('[Three]'));
+  okTrue('Three row found', threeIdx >= 0);
+  ok('Three: 3 H2 lines with correct ranges, in order', threeIdx >= 0
+    ? [lines[threeIdx + 1], lines[threeIdx + 2], lines[threeIdx + 3]].join('|') : '(row not found)',
+    ['  - Section A (L5–8)', '  - Section B (L9–12)', '  - Section C (L13–16)'].join('|'));
+
+  // (a) a doc with 2 H2s where the 2nd runs to EOF -> its range's end is the file's last line.
+  const twoIdx = lines.findIndex(l => l.includes('[Two]'));
+  okTrue('Two row found', twoIdx >= 0);
+  ok('Two: 2nd H2 range runs to EOF', twoIdx >= 0
+    ? [lines[twoIdx + 1], lines[twoIdx + 2]].join('|') : '(row not found)',
+    ['  - First (L3–6)', '  - Second (L7–10)'].join('|'));
+
+  // (2) a doc with an H2 inside a ``` fence -> that heading is absent, only the real one
+  // shows, and its range runs to EOF (the fenced "heading" is masked, so nothing bounds it).
+  const fencedIdx = lines.findIndex(l => l.includes('[Fenced]'));
+  okTrue('Fenced row found', fencedIdx >= 0);
+  ok('Fenced: only the real H2 shows, fenced one absent, range to EOF',
+    fencedIdx >= 0 ? lines[fencedIdx + 1] : '(row not found)',
+    '  - Real Section (L5–12)');
+  okTrue('fenced "Not A Heading" never appears anywhere in index.md',
+    !md.includes('Not A Heading'));
+
+  // (3) a doc with no H2s -> no continuation line at all.
+  const noH2Idx = lines.findIndex(l => l.includes('[NoHeadings]'));
+  okTrue('NoHeadings row found', noH2Idx >= 0);
+  okTrue('NoHeadings row: no continuation line follows (next line is not "  - " indented)',
+    noH2Idx >= 0 && !lines[noH2Idx + 1].startsWith('  - '));
+
+  // (b) an archived doc WITH H2s -> the row still appears under ## Archive, but gets NO H2
+  // lines at all (H1 + line count + link only) -- archive rows are deliberately H1-only.
+  const archiveSection = md.split(/^## /m).find(s => s.startsWith('Archive')) || '';
+  const archiveLines = archiveSection.split('\n');
+  const archivedIdx = archiveLines.findIndex(l => l.includes('[Archived]'));
+  okTrue('Archived row found under ## Archive', archivedIdx >= 0);
+  okTrue('Archived row: no H2 continuation line, despite having an H2',
+    archivedIdx >= 0 && !archiveLines[archivedIdx + 1].startsWith('  - '));
+  okTrue('"Old Section" heading text never appears anywhere in index.md (archive rows are H1-only)',
+    !md.includes('Old Section'));
+}
+
 /** Regression test that matters most: every link index-flat writes must resolve to a real
  *  file on disk, for every section, walked and stat'd — not spot-checked. */
 function indexFlatLinksResolve() {
@@ -2579,7 +2651,7 @@ function main() {
     tasksDirChokepoint, halfFinishedSplitDetection,
     reorgCorpusStability, reorgOutIgnored,
     archiveStandaloneFollowup,
-    indexFlatCmd, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
+    indexFlatCmd, indexFlatH2Continuation, indexFlatLinksResolve, indexArchiveWarnFlag, applyReorgAutoIndexes,
     indexFlatSearchHint, claudeMdDocsPointer, applyReorgConfigPointerBugs,
     relativeInboundLinks, relativeLinksBothMove, archiveIsFrozen, archiveOrderingBug,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
