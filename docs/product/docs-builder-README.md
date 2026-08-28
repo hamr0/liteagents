@@ -136,6 +136,10 @@ captures the split's new shape: the archived original, the core page back at the
 path, and the remaining pages under `PAGES`. Run automatically as the last step of
 `cleanup-apply`; `apply-reorg`/`reorg` call the same thing (see Mode 2 below).
 
+Each row is `[H1](path) — N lines`, followed by one indented line per H2 heading with its
+`(L<start>–<end>)` range, so an agent can slice-read a section without opening the doc.
+Archive rows stay H1-only (that bucket is frozen and unbounded).
+
 ```bash
 REPO=<repo> node docs-builder.cjs index-flat                # -> docs/index.md
 ```
