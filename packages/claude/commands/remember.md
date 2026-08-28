@@ -346,12 +346,13 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      inline duplication is needed
    - If `.claude/remember/AGENT_RULES.md` exists (bootstrapped in step 1), compose a second,
      independent section between `<!-- AGENT_RULES:START -->` and `<!-- AGENT_RULES:END -->`
-     markers:
+     markers. Unlike MEMORY.md above, this is a **plain path pointer, never `@`-referenced**
+     — an `@`-reference hot-loads the whole file into every session, and this is a standards
+     guide to consult when designing/building something new, not hot context:
      ```
      <!-- AGENT_RULES:START -->
-     Consult when building something new or adding a feature — a standards guide, not hot
-     context like MEMORY.md above:
-     @.claude/remember/AGENT_RULES.md
+     Standards guide (read when designing/building something new, not hot context):
+     .claude/remember/AGENT_RULES.md
      <!-- AGENT_RULES:END -->
      ```
    - Each marker pair is independent: if CLAUDE.md already has a given pair, replace the
@@ -411,11 +412,12 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
 6. **Update processed manifest**
    - Append paths of newly processed stashes to `.claude/remember/.processed`
 
-7. **Docs reconcile check — DETECT ONLY** (best-effort, crash-isolated like step 0)
+7. **Docs reconcile check + auto re-index** (best-effort, crash-isolated like step 0)
 
-   `/remember` never reconciles docs, never writes frontmatter, never edits a page. It
-   prints at most one nudge line. Wrapped so any failure here can never block the memory
-   write that already happened in steps 3-6.
+   `/remember` never reconciles doc CONTENT, never writes frontmatter, never edits a page —
+   the only write here is the generated `docs/index.md` itself, via the same deterministic
+   `index-flat` script `/docs-builder` already uses, never a model call. Wrapped so any
+   failure here can never block the memory write that already happened in steps 3-6.
 
    - **Locate `docs-builder.cjs`** — bundled next to this command at
      `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`). Call it by
@@ -444,7 +446,19 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
    - If `due` prints "no ledger yet" (no `docs/.docs-builder/ledger.json` to compare against),
      do NOT relay it — print the same `/docs-builder reorg` line as the no-`docs/.docs-builder/`
      case above, for the same reason: `ledger` would stamp an unsorted pile as correct.
-   - If DUE, end with one line and nothing more:
+   - **Auto re-index — script only, no model, in addition to the DUE advisory below, not a
+     replacement for it.** If `due`'s output was NOT `docs unchanged since <sha>. NOT due.`
+     (i.e. it printed a row table -- any new/moved/moved+changed/changed/deleted doc, whether
+     or not the >=5 threshold below was crossed), the index has drifted and self-heals right
+     here, unconditionally:
+     ```bash
+     node <docs-builder.cjs> index-flat
+     ```
+     Same script `/docs-builder reorg` already calls, run standalone — no model call, no
+     interview, nothing moves. Note in the step-8 report that `docs/index.md` (and
+     `docs/log.md`, if `index-flat` touched it) were regenerated, so they are included
+     alongside whatever step 3-6 already changed when this run is committed.
+   - If DUE (the row count crossed the >=5 threshold), ALSO end with one line:
      ```
      docs: 7 changed since 991f72d3 — run /docs-builder reorg
      ```
@@ -489,12 +503,14 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      ledger: ag-002 "literal scoped ask"         ESCALATED → Fact; 2 phrasings failed. Hook or accept?
      ```
    - If AGENT_RULES.md was bootstrapped this run, say so (one line)
+   - If step 7 ran the auto re-index, say so and name the regenerated files
+     (`docs/index.md`, plus `docs/log.md` if touched) so they are staged with this run
    - Confirm MEMORY.md and CLAUDE.md updated
 
 **File locations (all project-local — two dirs: `/stash` owns `.claude/stash/`, `/remember` owns `.claude/remember/`)**
 - Stash files: `.claude/stash/*.md`
 - Memory file: `.claude/remember/MEMORY.md` (single source of truth, referenced as `@.claude/remember/MEMORY.md`)
-- Rules template: `.claude/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced as `@.claude/remember/AGENT_RULES.md`)
+- Rules template: `.claude/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced by a plain path pointer, not `@`-referenced — see step 5)
 - Antigen ledger: `.claude/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.claude/remember/report.md` (latest step-8 report, overwritten each run)
 - Processed manifest: `.claude/remember/.processed`
