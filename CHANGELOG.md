@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.19.0] - 2026-08-26
+
+### Changed
+- **`docs/index.md` rows now list each doc's H2 headings, one per line, with a line range.**
+  The index is meant to let an agent find and slice-read a section without opening the doc —
+  previously each row carried only an H1, a line count, and a link, so an agent still had to
+  open the file to find anything inside it. Each H2 line reuses the exact `headings()` +
+  `fenceMask()` boundaries `scan` already writes to `outline.json` (no second parser), so a
+  heading inside a fenced code block still never appears. Archive rows stay H1-only — an
+  archived doc is frozen history, not a live section to route into.
+- **`/remember` step 7 self-heals `docs/index.md` every run, not just at reorg time.** Any
+  drift `due` reports (new/moved/changed/deleted, not only the >=5-doc DUE threshold) now
+  also re-runs `index-flat` — script-only, no model call — so the index stays current between
+  full `/docs-builder reorg` passes instead of silently drifting until the next one.
+- **`AGENT_RULES.md` demoted from an `@`-include to a plain path pointer.** It was wired into
+  CLAUDE.md as `@.claude/remember/AGENT_RULES.md`, which hot-loads the whole file into every
+  session even though it's documented as "not hot context" — measured at ~6.5k tokens/session
+  of standards prose loaded despite the file's own claim otherwise. `MEMORY.md` stays
+  `@`-referenced (it is hot); `AGENT_RULES.md` is now a plain path line, read only when
+  designing or building something new.
+
 ## [2.18.0] - 2026-08-26
 
 ### Changed
