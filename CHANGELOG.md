@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced testing capabilities
 - Performance optimizations
 
+## [2.20.0] - 2026-08-29
+
+### Changed
+- **`AGENT_RULES.md` template (all 4 kits): the spec layer now requires the interview to
+  happen but leaves its shape free.** PRD is defined as a portal with 5 minimum fields
+  (problem & goal, go/no-go, out of scope, modules, open questions) that every POC refines.
+- **Four one-sentence execution-order rules (Sequence / Selection / Iteration / Verify) added
+  to Operating Flow.**
+- **"Build incrementally" replaced by "One module at a time"** (works alone, then connects,
+  both proven) and a separate "No fitting to pass" rule, with a matching Red Flag.
+- **New safeguard: never commit to `main`** — branch, then propose `/code-review` followed by
+  `/release`; merge/release only on a named go.
+- **Removed restated content**: the "AI Agent Instructions" section, the "Safety First"
+  bullet, the "POC scope" bullet, and duplicated spec/POC prose in the Communication Protocol
+  and the CLAUDE.md stub.
+
 ## [2.19.0] - 2026-08-26
 
 ### Changed
