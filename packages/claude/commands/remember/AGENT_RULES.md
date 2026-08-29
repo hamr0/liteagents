@@ -10,13 +10,12 @@
 7. [Development Workflow](#development-workflow)
 8. [Twelve-Factor Checklist](#twelve-factor-checklist)
 9. [CLAUDE.md Stub](#claudemd-stub)
-10. [AI Agent Instructions](#ai-agent-instructions)
 
 ---
 
 ## Operating Flow
 
-Every task runs through three layers. Do not skip ahead to code. Build the way a program runs: **sequence** — modules in order; **selection** — each POC is the branch (pass → next, fail → back to spec); **iteration** — POC → PRD → POC; **invariant** — everything built so far still works on its own, checked before every step.
+Every task runs through three layers. Do not skip ahead to code.
 
 1. **Spec — the interview must happen; its shape is yours.** Before touching anything, surface the *decision I'm actually making*, not the literal task I typed. Ask what you need to know — no more; how you ask is your call. Restate what you heard and get my explicit sign-off on the load-bearing decisions *before* you execute. A wrong assumption caught here costs a sentence; caught after building costs the build.
 
@@ -24,12 +23,18 @@ Every task runs through three layers. Do not skip ahead to code. Build the way a
    - **Problem & goal** — what we're solving and why now
    - **Go / no-go** — the 1–2 capabilities the product stands or falls on; usually module 0's riskiest assumption (e.g. "can a phone camera read the ID?"). Fails → stop
    - **Out of scope** — what we're explicitly not doing
-   - **Modules** — the standalone blocks, in build order, each with its own riskiest assumption (see [*Validate Before You Build*](#validate-before-you-build))
+   - **Modules** — the pieces to build, in order (see [*One module at a time*](#validate-before-you-build))
    - **Open questions** — unknowns that don't block; never silently assumed
 
    Every POC result updates the PRD; one that flips the go/no-go or a module's assumption is a spec change, not a footnote.
-2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). Gate security-sensitive work with `/security` and pre-deploy with `/ship`; a second-model pass (`/code-review`) on non-trivial output is worth the round-trip. External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
+2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). Gate security-sensitive work with `/security` and pre-deploy with `/ship`. When the work is done, propose `/code-review` and then `/release` — you never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
 3. **Environment — the standing context.** This file primes every session. Critical-path protections (secrets, auth, schema, CI) are stated as **Always / Ask / Never** below and bind you as written. Where your tool offers a permission allow/ask/deny list, mirror them there so they are enforced and not merely requested.
+
+**Execution order — work the way a program runs, in this order, nothing skipped:**
+1. **Sequence** — do the PRD's modules in the order listed; never start module N+1 while module N is unproven.
+2. **Selection** — every POC is a branch: pass → next module, fail → back to the PRD as a spec change.
+3. **Iteration** — repeat POC → update PRD → next POC until the go/no-go is answered; the loop invariant is *everything built so far still works on its own*.
+4. **Verify** — assert before you move: a step is done when you ran the proof and saw it pass, not when you wrote that it did.
 
 > The model is brilliant at execution and blind to intent. You can outsource the typing; you cannot outsource the understanding. Surface assumptions — don't bury them.
 
@@ -41,12 +46,11 @@ Every task runs through three layers. Do not skip ahead to code. Build the way a
 - **Spec first, then checkpoint**: see [Operating Flow §1](#operating-flow). Never run ahead on an unverified assumption — flag it and stop
 - **Fact-Based**: Base all recommendations on verified, current information. Prefer external signal (a real run, a real source) over a confident guess
 - **Simplicity Advocate**: Call out overcomplications and suggest simpler alternatives
-- **Safety First**: Never modify critical systems without explicit understanding and approval
 
 ### User Profile
 - **Technical Level**: Non-coder but technically savvy
 - **Learning Style**: Understands concepts, needs executable instructions
-- **Expects**: Step-by-step guidance with clear explanations
+- **Expects**: Step-by-step guidance, ready-to-run commands, and the *why* behind each recommendation
 - **Comfortable with**: Command-line operations and scripts
 - **Builds a lot of web apps** — assume any UI work will be consumed on phones as well as desktop
 
@@ -57,6 +61,7 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
 - **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
+- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/code-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
 ---
 
@@ -69,7 +74,8 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **Aim the POC at the load-bearing claim — not the easy part.** Cover the happy path and 2-3 common edges, but name the riskiest assumption first (does the cheap path actually run cheap? does the library really do X? does the perf hold?), then point the spike straight at *that*. A POC that confirms the happy-path shape while hand-waving the risky mechanism is theater. If you catch yourself writing "production would do X" instead of *doing* X in the spike, the POC has not validated X — go do X
 - **Prove, don't assert — a POC's output is evidence you ran, not prose you wrote.** Every claim the design rests on must be something the spike actually exercised and you actually observed. **Measure anything you call "cheap," "fast," "constant," or "negligible"** — never state a cost you didn't time; a guessed number is a bug with a confident voice. State conclusions only at the confidence the evidence supports: if you didn't test it, say so plainly instead of rounding up to "it works." Better a small honest finding than a big-mouthed claim that measurement later falsifies
 - **The test must be able to FAIL — pre-flight check, not an afterthought.** Before trusting a POC's numbers, confirm three things: **(1) Can the test produce the negative?** A fixture you authored to contain the phenomenon you're testing can only confirm it — prefer real, uncrafted data over synthetic inputs; if synthetic is unavoidable, construct it so it *could* show no effect. **(2) Is the harness free of confounds?** A surprising or degenerate result is often an artifact of the setup, not a real finding — when output looks wrong, debug the test before believing it. **(3) Did the test actually exercise the variable?** If two conditions that should differ produce identical output, the variable isn't wired in — that's a finding, not noise. Run this checklist every time, especially when a result confirms what you hoped
-- **Build like Lego — one module at a time.** The PRD lists the modules; build them in order, never several at once. Every module gets its own POC aimed at *its* riskiest assumption (module 0's is the go/no-go). A module is done in two steps, both proven: **(1) it works on its own**, in isolation, POC passed honestly — **no fitting to pass** (no narrowing the input, moving the threshold, or shrinking the scope until it goes green); **(2) it plugs into what's already built and the assembled whole still works.** Only then start the next module. A POC that fails goes back to the PRD as a spec change, not routed around
+- **One module at a time.** Build the PRD's modules in order, never several at once. Each module gets its own POC aimed at *its* riskiest assumption (module 0's is the go/no-go). A module is done when **(1)** it works on its own and **(2)** it connects to what's already built and the whole still works — both proven, not assumed. Only then start the next
+- **No fitting to pass.** Never narrow the input, move the threshold, or shrink the scope until a POC goes green. Report the failure and take it back to the PRD
 
 ### Dependency Hierarchy
 
@@ -113,7 +119,7 @@ Before adding any external dependency, all of these must be true:
 - Skipping POC validation for unproven ideas
 - POC-ing only the easy part while hand-waving the risky mechanism, or claiming a cost ("cheap"/"fast"/"constant") you never measured
 - Authoring a fixture/corpus that *guarantees* the result (a test that can't return the negative), or trusting a degenerate-looking number without auditing the harness for confounds — use real uncrafted data; the test must be able to fail
-- Fitting a POC to pass (narrowed input, moved threshold, shrunk scope) instead of reporting the failure; starting module N+1 while module N doesn't stand on its own
+- Fitting a POC to pass (narrowed input, moved threshold, shrunk scope) instead of reporting the failure; starting module N+1 while module N is unproven
 
 ---
 
@@ -279,7 +285,7 @@ Copy this to any project's CLAUDE.md. These are mandatory rules, not suggestions
 
 **Spec first.** Interview to find the decision, not the task; write a PRD with problem/goal, go/no-go, out-of-scope, modules, open questions. POCs refine it.
 
-**POC first, one module at a time.** Each module's POC targets its riskiest assumption (module 0 = go/no-go); the test must be able to fail; prove, don't assert — measure anything you call cheap/fast/constant. No fitting to pass. A module works on its own, then plugs into what's built, before the next starts. Never ship the POC.
+**POC first, one module at a time.** Each module's POC targets its riskiest assumption (module 0 = go/no-go); the test must be able to fail; prove, don't assert — measure anything you call cheap/fast/constant. No fitting to pass. A module works on its own, then connects to what's built, before the next starts. Never ship the POC.
 
 **Dependency hierarchy — follow strictly:** vanilla language → standard library → external (only when stdlib can't do it in <100 lines). External deps must be maintained, lightweight, and widely adopted. Exception: always use vetted libraries for security-critical code (crypto, auth, sanitization).
 
@@ -291,17 +297,3 @@ Copy this to any project's CLAUDE.md. These are mandatory rules, not suggestions
 
 For full development and testing standards, see `.claude/remember/AGENT_RULES.md`.
 ```
-
----
-
-## AI Agent Instructions
-
-When working with this user:
-1. **Interview before building** — extract the real goal and surface load-bearing decisions for sign-off before you execute (see [Operating Flow](#operating-flow))
-2. **Provide step-by-step** instructions with clear explanations
-3. **Include ready-to-run** scripts and commands
-4. **Explain the "why"** behind technical recommendations
-5. **Flag potential issues** before they become problems — name the assumption, don't bury it
-6. **Suggest simpler alternatives** when appropriate
-7. **Ask first** before touching auth, DB schema/migrations, CI, or settings; **never** commit secrets
-8. **Always identify** which files will be affected by changes
