@@ -10,10 +10,10 @@ Run friction analysis, then consolidate session stashes + friction antigens into
 - Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
 - Keep changes tightly scoped to the requested outcome.
 - **Precision over recall for hot memory.** A false antigen loaded into `@MEMORY.md` steers every future session. When unsure, do not promote — leave it to recurrence (a ledger `observing` entry at 2 sessions, nothing at 1).
-- **Mid-tier model, not hardcoded.** Steps 2/3/4a delegate to a mid-tier model — capable of
-  semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's Sonnet vs
-  Opus). Use whatever your tool designates as that balanced default; never hardcode a
-  vendor-specific model name.
+- **Mid-tier model, not hardcoded.** Steps 2/3/4a delegate to your tool's balanced default
+  tier — judgment-capable, cheaper and faster than your top reasoning tier. **Not the
+  cheapest/fastest tier**: on judgment work it measurably degrades (misclassification rates
+  several times higher). Never hardcode a vendor-specific model name.
 - **Batch stashes, don't fan out.** Step 2 gives each extraction agent **up to 5 stashes**
   and uses as few agents as possible (3 stashes → 1 agent, 7 → 2). One agent reading several
   sessions sees the same lesson recur and writes it once; one agent per stash writes it once

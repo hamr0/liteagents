@@ -56,7 +56,7 @@ Install for your platform:
 - brainstorming, debug-method, live-canvas, skill-creator, trace-back
 
 **10 Commands** - Workflow helpers
-- docs-builder, optimize, refactor, remember, diff-review, security, ship, release, stash, test-generate
+- docs-builder, optimize, refactor, remember, branch-review, security, ship, release, stash, test-generate
 
 **Orchestration System**
 - Automatic intent matching to 9 workflow patterns
@@ -123,10 +123,10 @@ Install for your platform:
 - `optimize` - Performance analysis
 - `refactor` - Maintain behavior while improving code
 - `remember` - Consolidate stashes + friction into project memory
-- `diff-review` - Review a file, branch, or range; verifies findings before fixing
+- `branch-review` - Review a branch + full security audit; verifies findings, reports without fixing
 - `security` - Vulnerability scanning
 - `ship` - Pre-deployment checklist
-- `release` - Deliver a feature end-to-end: verify → docs → merge → tag (publish stays manual)
+- `release` - Prepare a release: verify → docs → bump → commit, then report the merge/tag/publish sequence for you to authorize
 - `stash` - Save session context for compaction recovery or handoffs
 - `test-generate` - Test suite generation
 
@@ -139,7 +139,7 @@ Same functionality as skills+commands, but:
 
 **Command Categories**:
 - **Development & Testing (6)**: tdd-flow, test-traps, test-generate, debug-method, trace-back, verify-done
-- **Code Operations (6)**: refactor, optimize, diff-review, security, ship, release
+- **Code Operations (6)**: refactor, optimize, branch-review, security, ship, release
 - **Session & Memory (5)**: brainstorming, skill-creator, docs-builder, stash, remember
 - **Design (1)**: live-canvas
 
@@ -236,7 +236,7 @@ Each pattern includes conditional decision points requiring user approval.
 ### Droid/OpenCode: Direct Command Invocation
 
 No orchestrator - invoke commands directly:
-- `/diff-review <file-or-branch>`
+- `/branch-review <file-or-branch> [level]`
 - `/refactor <code-section>`
 - `/tdd-flow <feature>`
 

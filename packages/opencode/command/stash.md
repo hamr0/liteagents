@@ -8,12 +8,18 @@ argument-hint: [optional stash name]
 Save session context for compaction recovery or handoffs.
 
 **Guardrails**
-- Favor straightforward, minimal implementations first and add complexity only when requested or clearly required.
-- Keep changes tightly scoped to the requested outcome.
-- **Mid-tier model, not hardcoded.** The write-up subagent (step 2) uses a mid-tier model —
-  capable of semantic judgment, cheaper/faster than your top reasoning tier (e.g. Claude's
-  Sonnet vs Opus). Use whatever your tool designates as that balanced default; never hardcode
-  a vendor-specific model name.
+- **Write only what the brief contains.** The subagent expands the brief into a file; it does
+  not research, re-derive, or infer. Every fact, number, SHA, path, and identifier in the
+  stash comes from the brief verbatim — never invent, never round, never fill a gap with a
+  plausible guess. Missing detail stays missing.
+- **Escalate, never assume.** Anything the subagent cannot do, cannot verify, or that this
+  spec does not cover → report it back to the orchestrator (the main session) rather than
+  improvising. Never widen scope beyond writing the file and counting the backlog.
+- **Mid-tier model, not hardcoded.** Run the worker on your tool's balanced default tier —
+  judgment-capable, cheaper and faster than your top reasoning tier. **Not the
+  cheapest/fastest tier**: on judgment work it measurably degrades (misclassification rates
+  several times higher). Never hardcode a vendor-specific model name; use whatever your tool
+  designates as that default.
 - **Background dispatch where supported.** Run the write-up subagent in the background
   (non-blocking) so the session isn't held up waiting on formatting/file I/O. Fall back to
   writing inline (today's behavior) if your tool has no subagent or background-dispatch

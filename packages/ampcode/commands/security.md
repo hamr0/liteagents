@@ -1,12 +1,20 @@
 ---
 name: security
-description: Scan security [target]
+description: Security audit — recurring six, injection, auth, trust boundaries
 usage: /security
 argument-hint: [file, directory, or leave empty for full scan]
-allowed-tools: Read, Edit, Grep, Glob, Bash(git log *), Bash(git grep *), Bash(rg *)
+allowed-tools: Read, Grep, Glob, Bash(git log *), Bash(git grep *), Bash(rg *)
 ---
-Audit $ARGUMENTS for security vulnerabilities. Adapt scope to what the target
-actually is — a library, CLI, web app, and service won't all have every
+Audit $ARGUMENTS for security vulnerabilities. **Reports, never edits** — it
+verifies every claim, then hands the findings to whoever asked.
+
+**Runs identically standalone or as stage 2 of `/branch-review`.** The only
+difference is where the report goes: to the orchestrator when called as a
+stage, to you when you run it directly. Same checks, same verify pass, same
+escalation. It does **not** spawn a worker of its own — run it inline; when
+`/branch-review` calls it, it is already inside that command's worker.
+
+Adapt scope to what the target actually is — a library, CLI, web app, and service won't all have every
 category. Skip what genuinely doesn't apply; never invent findings to fill a
 section.
 
@@ -58,22 +66,23 @@ End with: which of the six classes were checked and found **clean**, and any
 marked **N/A** for this target — so the scan's coverage is auditable, not just
 its hits.
 
-## After the scan — verify, then fix
+## After the scan — verify, then escalate
 
-Findings are claims, not facts. Validate before acting; validate again after.
+Findings are claims, not facts. Validate every one before reporting it; an
+unverified finding wastes more time than a missed one.
 
-**Verify each claim.** Re-read the cited `file:line` in context. Confirm the
-risk actually holds here — not in the abstract. Mark each **confirmed**, **false
-positive** (with reason), or **uncertain**.
+**Verify each claim — adversarially.** Re-read the cited `file:line` in full
+context and **try to break the claim, not to confirm it**: is there a gate
+upstream, a framework default, a caller that already validates? A pass that
+sets out to confirm reliably misses what an adversarial pass finds. Mark each
+**confirmed**, **false positive** (with reason), or **uncertain** (with what
+would settle it).
 
-**Fix what's confirmed and unambiguous** — minimal shape, one obvious way, no
-change to a public API / response / caller contract. Apply directly. After
-each edit, re-read the changed region and confirm it closes the gap without
-breaking nearby logic. A fix isn't done until you've grounded it the same way
-you grounded the claim.
+**Never fix.** Not even a confirmed, one-line, obvious fix. Describe the
+minimal remediation and hand it back — applying it is a separate, separately
+authorized action.
 
-**Stop and ask** when any of these hold (HITL gates — not all the time, only
-here):
+**Flag these explicitly** — they need a human decision, not a recommendation:
 - the finding is **uncertain** after grounding (you'd need info you don't have),
 - the fix has **multiple reasonable shapes** (e.g. reject-vs-sanitize,
   index-vs-paginate) — present options with tradeoffs, not a chosen path,
@@ -82,5 +91,12 @@ here):
 - it touches **auth / crypto / session / token** primitives — even an "obvious"
   fix here warrants confirmation.
 
-Final report: **confirmed-and-fixed** · **confirmed-but-asking** (why + options)
-· **false-positive** (why) · **uncertain** (what's needed to decide).
+Final report: **confirmed** (with remediation described) · **needs a decision**
+(why + the options and their tradeoffs) · **false positive** (why) ·
+**uncertain** (what is needed to decide).
+
+**Escalate, never assume.** Anything you cannot decide, cannot verify, or that
+this spec does not cover → say so plainly in the report rather than guessing.
+When running as a stage of `/branch-review`, that report goes to the
+orchestrator; standalone, it goes to the user. Never widen scope, never fix a
+side issue you noticed along the way.

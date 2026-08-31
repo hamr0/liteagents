@@ -32,11 +32,11 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
-| diff-review | Comprehensive code review including quality, tests, and architecture | /diff-review | - |
+| branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] | - |
 | trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
-| security | Security vulnerability scan and analysis | /security | - |
-| ship | Pre-deployment verification checklist | /ship | - |
-| release | Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual) | /release [branch] | - |
+| security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] | - |
+| ship | Mechanical pre-deploy gate — tests, build, tree state | /ship | - |
+| release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release | - |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
 | debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
