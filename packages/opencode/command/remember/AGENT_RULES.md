@@ -27,7 +27,7 @@ Every task runs through three layers. Do not skip ahead to code.
    - **Open questions** — unknowns that don't block; never silently assumed
 
    Every POC result updates the PRD; one that flips the go/no-go or a module's assumption is a spec change, not a footnote.
-2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). Gate security-sensitive work with `/security` and pre-deploy with `/ship`. When the work is done, propose `/code-review` and then `/release` — you never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
+2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). When the work is done, propose `/branch-review` — a general review plus a full `/security` audit, which reports findings and never fixes them — and then `/release`, which runs `/ship` as the mechanical pre-deploy gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
 3. **Environment — the standing context.** This file primes every session. Critical-path protections (secrets, auth, schema, CI) are stated as **Always / Ask / Never** below and bind you as written. Where your tool offers a permission allow/ask/deny list, mirror them there so they are enforced and not merely requested.
 
 **Execution order — work the way a program runs, in this order, nothing skipped:**
@@ -61,7 +61,7 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.opencode/settings.json`
 - **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
-- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/code-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
+- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/branch-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
 ---
 
@@ -229,7 +229,7 @@ Also hold the line on: input validation at every trust boundary (untrusted uploa
 
 **Verify at two moments, not one.**
 - **While building** — this list shapes the code as it's written.
-- **Before deploy/merge** — run **`/security`** on security-sensitive changes and **`/ship`** as the pre-deploy gate. A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run them whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
+- **Before deploy/merge** — run **`/branch-review`**, whose second stage runs **`/security`** in full; `/release` then runs **`/ship`** as the mechanical pre-deploy gate. A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run them whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
 
 ---
 

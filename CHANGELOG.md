@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.1] - 2026-08-30
+
+### Changed
+- **`AGENT_RULES.md` template points at `/branch-review`, in all four kits.** Three sites
+  still described the pre-2.21.0 topology: Operating Flow §2 and the Security invariants both
+  told the agent to run `/security` separately and lean on `/ship` as the security gate, and
+  the never-commit-to-`main` safeguard named `/code-review`. They now say: propose
+  `/branch-review` (general review plus a full `/security` audit, reports and never fixes),
+  then `/release` (which runs `/ship` as the mechanical pre-deploy gate).
+
 ## [2.21.0] - 2026-08-30
 
 ### Changed
