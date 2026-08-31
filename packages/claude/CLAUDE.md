@@ -43,10 +43,10 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
-| diff-review | Comprehensive code review including quality, tests, and architecture | /diff-review |
-| security | Security vulnerability scan and analysis | /security |
-| ship | Pre-deployment verification checklist | /ship |
-| release | Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual) | /release [branch] |
+| branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] |
+| security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] |
+| ship | Mechanical pre-deploy gate — tests, build, tree state | /ship |
+| release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
 

@@ -148,10 +148,10 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 - **debug-method** - Four-phase debugging framework
 - **optimize** - Performance analysis
 - **refactor** - Safe refactoring with behavior preservation
-- **diff-review** - Review a file, branch, or range; verifies findings, fixes confirmed/unambiguous ones, asks on ambiguous or downstream-affecting ones
-- **security** - Vulnerability scan; same verify→fix→ask flow as `/diff-review`
+- **branch-review** - Pre-merge gate: general review at a chosen effort level plus a full security audit, adversarial verify pass; reports findings, never fixes
+- **security** - Standalone vulnerability scan; also runs as stage 2 of `/branch-review`
 - **ship** - Pre-deployment checklist
-- **release** - Deliver a feature end-to-end: verify → docs → merge → tag (publish stays manual)
+- **release** - Prepare a release on the current branch: verify → docs sweep → version bump → local commit, then hand back the merge/tag/publish sequence (never pushes)
 - **test-generate** - Generate test suites
 
 > **Claude-only plugin:** `live-canvas-channel` is a bundled Claude Code MCP channel plugin that ships under `~/.claude/plugins/live-canvas-marketplace/`. One-time `/plugin install` + a session started with `--dangerously-load-development-channels` unlocks live mode. Skill probes for the channel on each invocation and handholds setup when missing. See [`packages/claude/skills/live-canvas/README.md`](packages/claude/skills/live-canvas/README.md) for the full walkthrough.
@@ -184,7 +184,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 **Code Quality:**
 ```
 @quality-assurance Review this PR before merge
-/diff-review main  # review branch vs main, fixes confirmed issues, asks on ambiguous ones
+/branch-review main medium  # review branch vs main + security audit; reports, never fixes
 /debug-method Investigate this race condition
 ```
 

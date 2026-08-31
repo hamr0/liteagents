@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-08-30
+
+### Changed
+- **`/diff-review` renamed to `/branch-review`, in all four kits.** The command's subject is
+  the branch, not a diff — it reads whole files around each hunk, skims `git log` for intent,
+  and now runs a repo- and history-scoped security audit — so the old name described neither
+  its input nor its output. No command-count change; `/code-review` (Anthropic's plugin
+  skill) is untouched.
+- **`/branch-review` gains effort levels and a second stage.** `low | medium | high | max`
+  (default `medium`) governs the general review's breadth. Stage 2 delegates to `/security`
+  and **always runs it in full at every level** — a shallow security pass reads as coverage
+  while missing the class of bug that costs the most. Stage 3 verifies adversarially (try to
+  break each claim, not confirm it), and **every surviving finding must carry a concrete
+  failure scenario** — inputs/state → wrong output, crash, or exposure — or it is dropped.
+- **`/branch-review` and `/security` never edit code.** Both previously applied "confirmed and
+  unambiguous" fixes directly, which contradicted the gate they are meant to be; `/security`
+  also lost `Edit` from its tool list. They report and escalate; fixing is a separate,
+  separately authorized action. `/security` behaves identically standalone or as stage 2 —
+  only the report's recipient changes.
+- **`/release` no longer reviews, and no longer touches the remote.** Review moved out
+  entirely (anything that returns a work-list forks into fix→re-review and does not belong
+  inside a linear release run). It now gates on a **review precondition**: a review must have
+  run at the current HEAD SHA, which makes "all findings fixed" mechanically checkable, since
+  a fix commit moves HEAD and staleness forces a re-review. It releases the **current branch**
+  only — no branch argument, no branch creation, and on `main` it stops and asks. It runs
+  `/ship`, sweeps the docs, bumps the version, commits locally, then **stops and reports the
+  remaining push → PR → merge → tag → publish sequence** for a human to authorize.
+- **`/ship` is now purely mechanical.** Every item is answerable by running a command and
+  reading an exit code. Dropped four code-judgment checks (error handling, authorization,
+  rate limiting, data-access scoping) that duplicated `/security` in weaker form, plus the
+  "run `/security` before shipping" line. The secrets grep stays, deliberately and with the
+  reason stated inline. New evidence rule: record the exact command and exit code; a check you
+  did not run is a fail, and **N/A requires a stated reason**.
+- **Worker guardrails, in `/branch-review`, `/release`, `/stash` and `/remember`.** The
+  mid-tier model rule no longer names vendor models (they drift, and these kits ship to four
+  tools); it now says "your tool's balanced default tier" and explicitly excludes the
+  cheapest/fastest tier, which measurably degrades on judgment work. All four also carry an
+  "escalate, never assume" rule, and `/stash` gains a "write only what the brief contains"
+  rule — its subagent expands a brief, which is exactly where fabrication happens.
+
+### Fixed
+- `/stash` carried two guardrails about writing minimal code, in a command that writes one
+  markdown file.
+
 ### Planned
 - Community marketplace submissions
 - Additional skills for data analysis

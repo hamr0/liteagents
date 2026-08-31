@@ -157,21 +157,21 @@
       "template": "{file:./command/refactor.md}",
       "description": "Refactor code while maintaining behavior and tests"
     },
-    "diff-review": {
-      "template": "{file:./command/diff-review.md}",
-      "description": "Comprehensive code review including quality, tests, and architecture"
+    "branch-review": {
+      "template": "{file:./command/branch-review.md}",
+      "description": "Pre-merge review: general review + full security audit, verify pass, no fixes"
     },
     "security": {
       "template": "{file:./command/security.md}",
-      "description": "Security vulnerability scan and analysis"
+      "description": "Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes"
     },
     "ship": {
       "template": "{file:./command/ship.md}",
-      "description": "Pre-deployment verification checklist"
+      "description": "Mechanical pre-deploy gate — tests, build, tree state"
     },
     "release": {
       "template": "{file:./command/release.md}",
-      "description": "Deliver a feature end-to-end: verify, docs, merge, tag (publish stays manual)"
+      "description": "Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence"
     },
     "remember": {
       "template": "{file:./command/remember.md}",

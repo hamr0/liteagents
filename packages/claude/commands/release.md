@@ -1,90 +1,119 @@
 ---
 name: release
-description: Deliver a feature end-to-end — verify, docs, merge, tag (publish stays manual)
-usage: /release [branch]
-argument-hint: [branch — new or existing; else current]
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash(git:*), Bash(gh:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(pytest:*), Bash(python:*), Bash(go:*), Bash(cargo:*), Bash(make:*)
+description: Verify, sweep docs, cut a version — then hand the release sequence back
+usage: /release
+allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git fetch:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(pytest:*), Bash(python:*), Bash(go:*), Bash(cargo:*), Bash(make:*)
 ---
-End-to-end feature-delivery **orchestrator**. It does **not** re-implement
-checks — it runs your existing gates (`/ship`, `/security`, `/diff-review`)
-under `/verify-done` discipline, then performs the release actions. Two halves
-split by a hard gate: everything **before** the gate is safe and read-only;
-everything **after** rewrites history and is confirmed step by step.
+Release **preparation** orchestrator for the **current branch**. It runs your
+existing pre-deploy gate, sweeps the docs, bumps the version and commits —
+then **stops and reports**. It never pushes, opens a PR, merges, tags, or
+publishes: those are yours to authorize by name.
 
-**A feature branch is required — `main` is only the merge target.** `$ARGUMENTS`
-names the branch to release. Omit it only if you are already on a feature
-branch. If you are on `main` with nothing named, a branch is created for you —
-but you should be releasing a deliberately-named feature branch.
+It does not re-implement checks, and it does not review code. Review is a
+separate command that must have run first.
 
-## Phase 0 — Preflight (resolve a feature branch — never `main`)
-- **Resolve the release branch** — whatever gets merged into `main`:
-  - `$ARGUMENTS` given → `git switch` to it (create it if it does not exist).
-  - else not on `main` → release the **current** branch.
-  - else on `main` with no arg → **create** `feat/<slug>` (named for the
-    change) and carry your working changes onto it. **Never release `main`.**
-- **Land the feature on the branch** — if the working tree still has
-  uncommitted feature changes, commit them now; the gates must review a real
-  diff, not a dirty tree.
-- `git fetch origin`; the release diff is `origin/main...HEAD` (now guaranteed
-  to be the resolved branch). If it is empty, **stop** — nothing to release.
-- Print a one-line plan: branch · commit count · files changed.
+## Guardrails
+- **Spawn a worker on a mid-tier model, not hardcoded.** The run happens in a
+  subagent on your tool's balanced default tier — judgment-capable, cheaper and
+  faster than your top reasoning tier. **Not the cheapest/fastest tier**: on
+  judgment work it measurably degrades (misclassification rates several times
+  higher). Never hardcode a vendor-specific model name. Fall back to running
+  inline if your tool has no subagent mechanism.
+- **Escalate, never assume.** Anything you cannot decide, cannot verify, or
+  that this spec does not cover → **stop and report it to the orchestrator**
+  (the main session). Never improvise, never widen scope, never fix a finding
+  you noticed along the way.
+- **Nothing leaves the machine.** No `git push`, no `gh`, no `npm publish`,
+  under any circumstance — not even if every gate is green. You report the
+  sequence; a human authorizes it.
 
-## Phase 1 — VERIFY (delegate; no hand-waving)
-**First, load the real checklists.** Locate and **read** the sibling command
-definitions so you apply their exact checks, not an approximation — glob your
-installed commands/skills for `ship.md`, `security.md`, `diff-review.md`, and
-`verify-done` (a skill or command). If one cannot be found, run that check from
-its name and **flag that its full checklist was unavailable** — never pretend
-it passed.
+## Phase 0 — Preflight (current branch, always)
+- **Release the branch you are on.** No branch argument, no branch creation.
+- **On `main` → stop and ask** what should be released. `main` is only ever
+  the merge target; never release it, never commit to it.
+- If the working tree still has uncommitted feature changes, commit them to
+  the branch now — the gate must see a real diff, not a dirty tree.
+- `git fetch origin`; the release diff is `origin/main...HEAD`. Empty →
+  **stop**, nothing to release.
+- Print a one-line plan: branch · commit count · files changed · HEAD SHA.
 
-Then run each gate and capture **fresh evidence** — the exact command, its exit
-code, and the result. Per `/verify-done`: a check you did **not** actually run
-is a **FAIL**, never an assumed pass.
-- **`/ship`** — pre-deploy gate (tests, lint, build, secrets, authz, rate
-  limit, data scope, migrations, docs-sync).
-- **`/security`** — on the changed files.
-- **`/diff-review`** — on `origin/main...HEAD`.
+## Phase 0.5 — Review precondition (do not skip)
+Ask the orchestrator: **has `/branch-review` or `/code-review` run on this
+branch at the current HEAD SHA?**
 
-Emit a coverage table, one row per gate: `ran? ✓/✗` · evidence · verdict. If
-any row is ✗ (could not run), the run is **Blocked 🛑** — do not continue.
+- **No review** → **stop**: "No review at `<sha>`. Run `/branch-review medium`
+  (or `/code-review medium`) first."
+- **Stale** — the review ran at an earlier SHA, i.e. commits landed after it
+  (including fix commits) → **stop** and ask for a re-review. This is what
+  makes "all findings fixed" checkable instead of promised.
+- **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
+  resolved before a release is cut.
+
+This is the only thing guaranteeing the branch was reviewed *and* security
+scanned, so treat a missing answer as a **stop**, never as a pass.
+
+## Phase 1 — Verify
+**Load the real checklist**: locate and **read** the installed `ship.md` so
+you apply its exact checks, not an approximation. If it cannot be found, run
+what you can from its name and **flag that the full checklist was
+unavailable** — never pretend it passed.
+
+- **`/ship`** — mechanical pre-deploy gate (tests, lint, build, debug
+  leftovers, secrets grep, migrations, docs/config sync, tree state).
+
+Capture **fresh evidence**: the exact command, its exit code, and the result.
+A check you did not actually run is a **FAIL**, never an assumed pass. Emit a
+coverage row: `ran? ✓/✗` · evidence · verdict. A ✗ is **Blocked 🛑**.
+
+Security is **not** re-run here — it is stage 2 of the review, already
+confirmed in Phase 0.5.
 
 ## 🚦 Gate
-- **Any Critical** (failing tests/build, a Critical security or diff-review
-  finding) → **stop**, report, ask how to proceed. Touch no history.
+- **Any Critical** (failing tests, broken build) → **stop**, report, escalate.
 - **Warnings, or anything you cannot confidently decide** → **stop**,
-  summarize, ask.
-- **All clean** → continue to Phase 2.
+  summarize, escalate. Do not weigh it yourself.
+- **All clean** → continue.
 
-## Phase 2 — DOCS (only what the feature changed)
-Update as needed, matching each file's existing format; touch nothing
-unrelated. If a doc needs no change, **say so** rather than editing for its
-own sake.
+## Phase 2 — Docs sweep
+Update what this feature actually changed, wherever those docs live in this
+project — match each file's existing format, touch nothing unrelated. Use
+`docs/index.md` when the project has one to find what exists.
+
 - **CHANGELOG.md** — new entry.
-- **PRD** — the feature's PRD entry / status.
-- **context / guide** — the project's context or guide doc.
 - **README.md** — only if user-facing usage changed.
+- **PRD** — the feature's entry / status.
+- **Guide / context docs** — the project's standing context.
+- **Findings / learnings** — where the project keeps them.
+- **Any other frequently-updated doc** this change makes stale.
 
-## Phase 3 — RELEASE (irreversible — confirm each step)
+If a doc needs no change, **say so** rather than editing it for its own sake.
+
+## Phase 3 — Cut (local only)
 1. **Version bump** — pick the semver level from the change (patch / minor /
-   major; ask if ambiguous) and update `package.json`.
-2. **Commit** — `release: vX.Y.Z — <summary>`, including the docs + bump.
-3. **Push** the branch.
-4. **Open PR** — `gh pr create` into `main` (main is PR-protected: 1 approving
-   review).
-5. **Merge** — `gh pr merge --delete-branch`. If the review requirement blocks
-   it, **stop** and ask — never force or silently bypass. On a **solo repo** you
-   cannot approve your own PR, so the expected path is an owner-authorized
-   admin-merge (`gh pr merge --admin`), run only on the user's explicit say-so.
-6. **Tag** — after the merge, `git tag vX.Y.Z` on `main` and push it. Keep
-   cut→tag tight — one frozen step.
+   major; **ask if ambiguous**) and update `package.json`. The bump must land
+   on the branch, before any merge — a version committed to `main` directly,
+   or added after the merge, breaks the tag/package match.
+2. **Commit** — `release: vX.Y.Z — <summary>`, including the docs and the
+   bump.
 
-## Stop here — publish is your call
-Do **not** publish. `publish.yml` is manual `workflow_dispatch` **by design**.
-Print the handoff:
-> Merged, branch deleted, tagged **vX.Y.Z**. To publish, run it yourself:
-> `gh workflow run publish.yml`
-> Then confirm the version is actually live (`npm view <pkg> versions`) and
-> validate the **installed** artifact, not the working tree.
+Then **stop.** Nothing else.
 
-Final report: **Delivered ✅ (vX.Y.Z — publish pending)** or **Blocked 🛑**
-with the specific reason.
+## Report — the sequence, for a human to authorize
+Print the evidence, then hand back the exact remaining steps so the
+orchestrator can run them on the user's named go:
+
+> **Cut ✅ vX.Y.Z on `<branch>`** — `/ship` green, docs updated, release commit
+> made locally. Reviewed at `<sha>`.
+> Ready when you are:
+> 1. `git push -u origin <branch>`
+> 2. `gh pr create` into `main`
+> 3. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
+>    owner-authorized admin merge on a solo repo)
+> 4. `git tag vX.Y.Z` on `main` and push the tag
+> 5. Publish **if this project has a publish path** (e.g.
+>    `gh workflow run publish.yml`) — manual by design
+> 6. Verify it is actually live (`npm view <pkg> version`, and the published
+>    tarball's contents), not the working tree
+
+Final line: **Cut ✅ (vX.Y.Z — ready to push)** or **Blocked 🛑** with the
+specific reason.
