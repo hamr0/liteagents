@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-09-01
+
+### Fixed
+- **`/branch-review` — dirty tree is now a hard stop, not a silent partial review.** The
+  staged/working-tree fallback only fired when the earlier step was empty, so a branch with
+  both committed and uncommitted changes reviewed the commits and silently skipped the
+  uncommitted lines. It now reports the resolved review target and re-checks
+  `git status --porcelain` at exit as well as at start, in all four kits.
+- **`/release` — Phase 0 no longer commits a dirty tree for the user.** Committing on the
+  user's behalf produced a commit made *after* the review, which Phase 0.5 then had no way to
+  accept — a dirty tree is now a stop, with the fix pushed back to the user
+  (`git add`/`git commit`, re-run `/branch-review`, then `/release`), in all four kits.
+- **`/release` Phase 0.5 compares SHAs mechanically instead of asking the orchestrator to
+  judge it.** The worker now runs `git rev-parse HEAD` itself and compares it against the
+  review's recorded SHA — no recorded SHA, or a mismatch, is a stop, never a "looks close
+  enough" pass.
+
+### Changed
+- **`/branch-review` — test quality is a stage-1 item.** A test's ability to fail is proven by
+  reverting the *source* change outside the repo, not by reverting the test itself; commit
+  messages are treated as claims to re-verify, never as evidence on their own.
+- **`/branch-review` — the review worker may not spawn sub-workers**, and the verdict line is
+  now printed at both the top and the bottom of the report.
+- **`/release` — records local vs. published version in Phase 0**, and Phase 3 treats a gap
+  between them as the ask-if-ambiguous trigger for picking a version. The release commit made
+  in Phase 3 is documented as the one commit `/release` is permitted to make post-review.
+  Documents that `gh pr merge` requires an explicit merge-method flag (`--squash` /
+  `--merge` / `--rebase`) or it will not merge.
+- **`/branch-review`, `/release`, `/stash` — tier guidance no longer self-contradicts.**
+  "Balanced default tier" plus "never hardcode a vendor name" resolved, in practice, to
+  whatever tier the parent session happened to be running at. All three now say: explicitly
+  select your tool's mid tier and state it on the spawn.
+
 ## [2.21.1] - 2026-08-30
 
 ### Changed
