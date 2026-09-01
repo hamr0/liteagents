@@ -142,9 +142,9 @@ orchestrator can run them on the user's named go:
 > 1. `git push -u origin <branch>`
 > 2. `gh pr create` into `main`
 > 3. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
->    owner-authorized admin merge on a solo repo). **Keep `--squash`** — with
->    no merge-method flag `gh` prints its help text and merges nothing,
->    silently.
+>    owner-authorized admin merge on a solo repo). **Keep `--squash`** — `gh`
+>    requires an explicit merge-method flag (`--squash` / `--merge` /
+>    `--rebase`); drop it and the command will not squash-merge.
 > 4. `git tag vX.Y.Z` on `main` and push the tag
 > 5. Publish **if this project has a publish path** (e.g.
 >    `gh workflow run publish.yml`) — manual by design
