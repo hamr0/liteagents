@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.1] - 2026-09-01
+
+### Fixed
+- **`/docs-builder` — the trailing-newline phantom line is dropped from every line count.**
+  `text.split('\n')` returns a trailing empty element for any file ending in a newline, so
+  `lines.length` was one over the real count. That phantom line reached the index row's "N
+  lines" (every row +1), the last H2's line range (one line past EOF), `scan`'s outline.json
+  `s`/`e`/`lines`, the ledger's per-file line count, the cleanup cost estimate, and the PARTIAL
+  guard (a page one line short of `MIN_PAGE_LINES` passed as complete). Fixed with a
+  `splitLines()` helper applied at the 7 counting/bounding sites, deliberately not at the sites
+  that map-and-rejoin file text. `docs/index.md` regenerated. Mirrored across all four kits.
+- **`/docs-builder` — an empty page now reports PARTIAL instead of crashing `plan`.** A
+  regression from the fix above: `splitLines()` returns `[]` for a 0-byte file where the raw
+  split returned `['']`, so `pageStatus`'s unguarded `lines[0].trim()` threw a `TypeError` and
+  took `plan` down with it. An empty `.md` page is reachable (a touched placeholder, or
+  page-writing interrupted). Fixed at the indexing site — 0 lines is the correct count for an
+  empty file — so `pageStatus` guards on `lines.length` instead. Mirrored across all four kits.
+
 ## [2.22.0] - 2026-09-01
 
 ### Fixed
