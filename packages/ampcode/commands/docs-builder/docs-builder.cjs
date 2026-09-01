@@ -103,6 +103,18 @@ function fenceMask(lines) {
 // prose), sentences()'s own regex strip, and checkCitations/checkLinks doing none at all — so
 // a page documenting the citation/link syntax INSIDE a fence got its own example flagged as
 // a real violation. One mechanism: mask with fenceMask(), drop the masked lines.
+// `text.split('\n')` returns a trailing EMPTY element for any file ending in a newline —
+// which is nearly every file — so `lines.length` is real_lines + 1. That phantom line reached
+// the index row's "N lines", the last H2's range (one line past EOF) and scan()'s outline.json.
+// Use this wherever lines are COUNTED or a range is BOUNDED. The raw `.split('\n')` is still
+// correct where the array is mapped and re-joined back into file text (stripFences,
+// replaceOutsideFences): dropping the element there would strip the file's final newline.
+function splitLines(text) {
+  const lines = text.split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
 function stripFences(text) {
   const lines = text.split('\n');
   const mask = fenceMask(lines);
@@ -229,7 +241,7 @@ function scan(files) {
   if (!files.length) die('usage: docs-builder.cjs scan <file.md...>');
   const records = [];
   for (const f of files) {
-    const lines = read(f).split('\n');
+    const lines = splitLines(read(f));
     const mask = fenceMask(lines);
     const { h1, heads } = headings(lines, mask);
     const h2s = heads.filter(h => h.lvl === 2);
@@ -522,8 +534,13 @@ const MIN_PAGE_LINES = 10;
 function pageStatus(file) {
   if (!fs.existsSync(file)) return 'TODO';
   const txt = fs.readFileSync(file, 'utf8');
-  const lines = txt.split('\n');
-  const hasFrontmatter = lines[0].trim() === '---' && lines.slice(1).some(l => l.trim() === '---');
+  const lines = splitLines(txt);
+  // splitLines() returns [] for a 0-byte file — 0 lines is the right COUNT, but it means
+  // lines[0] can be undefined, where the old raw split('\n') always yielded ['']. An empty
+  // page is reachable (a touched placeholder, or page-writing interrupted before it wrote
+  // anything) and must read as PARTIAL, not throw and take `plan` down with it.
+  const hasFrontmatter = lines.length > 0 && lines[0].trim() === '---'
+    && lines.slice(1).some(l => l.trim() === '---');
   return hasFrontmatter && lines.length >= MIN_PAGE_LINES ? 'done' : 'PARTIAL';
 }
 
@@ -732,7 +749,7 @@ const ARCHIVE_WARN_ROWS = 100; // stated default, not measured — see docs-buil
 // section a reader is being routed into, so its row stays H1 + line count + link only.
 function indexRow(rel, dest, includeH2) {
   const text = read(rel);
-  const lines = text.split('\n');
+  const lines = splitLines(text);
   // Same headings()+fenceMask() path scan() uses -- no second parser -- so an H2 inside a
   // ``` fence is masked out here exactly as it is there.
   const mask = fenceMask(lines);
@@ -1398,7 +1415,7 @@ function ledger() {
   const head = git(['rev-parse', 'HEAD'], 'reading HEAD (is this a git repo?)');
   const docs = docFiles().map(f => ({
     path: f,
-    lines: read(f).split('\n').length,
+    lines: splitLines(read(f)).length,
     sha256: sha(path.join(REPO, f)).slice(0, 16)
   }));
   const out = { sha: head, at: new Date().toISOString(),
@@ -1492,7 +1509,7 @@ function lint(files) {
   if (!files.length) die('usage: docs-builder.cjs lint <file.md...>');
   const sections = [];
   for (const f of files) {
-    const lines = read(f).split('\n');
+    const lines = splitLines(read(f));
     const mask = fenceMask(lines);
     let cur = null;
     const close = i => { if (cur) { cur.e = i; cur.body = lines.slice(cur.s, i).join('\n'); } };
@@ -1665,7 +1682,7 @@ function isIncludeStub(lines) {
 // but its size. Oversized is now orthogonal to sorting: a product doc that's too big is
 // still a product doc.
 function classifyDoc(rel, text) {
-  const lines = text.split('\n');
+  const lines = splitLines(text);
   const mask = fenceMask(lines);
   const { h1 } = headings(lines, mask);
   const snip = snippet(lines, mask, 0, lines.length, 200);
@@ -2214,7 +2231,7 @@ function cleanup(files) {
       + `would overwrite that split's still-in-flight outline.json/labels.json. Finish it `
       + `first: write its remaining pages, then re-run \`cleanup-apply ${inFlight} ...\` until `
       + `it archives — THEN run \`cleanup ${file}\`.`);
-  const lines = read(file).split('\n').length;
+  const lines = splitLines(read(file)).length;
   const est = writeCostEstimate(1, lines);
   console.log(`${file}: ${lines} lines`);
   console.log(`est. write cost: $${est.toFixed(2)} (mid tier, floor assuming 1 page — the `

@@ -66,6 +66,12 @@ if (!KEEP_TMP) {
   });
 }
 
+/** Real line count: `split('\n')` leaves a trailing empty element for a file ending in a
+ *  newline, so it over-counts by one. The tests must not measure with the same broken
+ *  primitive the code under test was fixed for — that is how the +1 got asserted as correct
+ *  in the first place. */
+const realLineCount = s => { const l = s.split('\n'); if (l.length && l[l.length - 1] === '') l.pop(); return l.length; };
+
 /** A throwaway git repo with a docs/ tree. Files is a { relpath: contents } map. */
 function repo(files = {}) {
   const dir = mkdtemp('db-test-');
@@ -1147,19 +1153,20 @@ function indexFlatH2Continuation() {
   // from the SAME line indices headings() returns (reused, not re-derived): the `## `
   // heading's own 1-based line through the line before the next heading of level <= 2, or
   // EOF for the last one. Blank lines in the fixture below are load-bearing for these exact
-  // numbers -- verified against a plain node split('\n') of the fixture string.
+  // numbers -- verified against the fixture's REAL line count (split('\n') minus the
+  // trailing empty element it leaves for a newline-terminated file).
   const threeIdx = lines.findIndex(l => l.includes('[Three]'));
   okTrue('Three row found', threeIdx >= 0);
   ok('Three: 3 H2 lines with correct ranges, in order', threeIdx >= 0
     ? [lines[threeIdx + 1], lines[threeIdx + 2], lines[threeIdx + 3]].join('|') : '(row not found)',
-    ['  - Section A (L5–8)', '  - Section B (L9–12)', '  - Section C (L13–16)'].join('|'));
+    ['  - Section A (L5–8)', '  - Section B (L9–12)', '  - Section C (L13–15)'].join('|'));
 
   // (a) a doc with 2 H2s where the 2nd runs to EOF -> its range's end is the file's last line.
   const twoIdx = lines.findIndex(l => l.includes('[Two]'));
   okTrue('Two row found', twoIdx >= 0);
   ok('Two: 2nd H2 range runs to EOF', twoIdx >= 0
     ? [lines[twoIdx + 1], lines[twoIdx + 2]].join('|') : '(row not found)',
-    ['  - First (L3–6)', '  - Second (L7–10)'].join('|'));
+    ['  - First (L3–6)', '  - Second (L7–9)'].join('|'));
 
   // (2) a doc with an H2 inside a ``` fence -> that heading is absent, only the real one
   // shows, and its range runs to EOF (the fenced "heading" is masked, so nothing bounds it).
@@ -1167,7 +1174,7 @@ function indexFlatH2Continuation() {
   okTrue('Fenced row found', fencedIdx >= 0);
   ok('Fenced: only the real H2 shows, fenced one absent, range to EOF',
     fencedIdx >= 0 ? lines[fencedIdx + 1] : '(row not found)',
-    '  - Real Section (L5–12)');
+    '  - Real Section (L5–11)');
   okTrue('fenced "Not A Heading" never appears anywhere in index.md',
     !md.includes('Not A Heading'));
 
@@ -1636,7 +1643,7 @@ function cleanupCmd() {
   okTrue('protected-file message is clear', /protected/i.test(protectedRun.out));
 
   // (c) a valid oversized file: cost estimate + line count, BEFORE any page-writing work.
-  const bigLines = fs.readFileSync(path.join(d, 'docs/BIG.md'), 'utf8').split('\n').length;
+  const bigLines = realLineCount(fs.readFileSync(path.join(d, 'docs/BIG.md'), 'utf8'));
   const clean = db(d, ['cleanup', 'docs/BIG.md']);
   ok('cleanup on a valid file exits clean', clean.code, 0);
   okTrue('cleanup prints the file\'s real line count',
@@ -1719,8 +1726,8 @@ function applyReorgNamesCleanup() {
     'docs/AAA-PREREG.md': `# Aaa Prereg\n\n## S\n\n${'line\n'.repeat(600)}`,
     'docs/CLEAN.md': DOC('Clean'),
   });
-  const bigLines = fs.readFileSync(path.join(d, 'docs/00-context/BIG.md'), 'utf8').split('\n').length;
-  const preregLines = fs.readFileSync(path.join(d, 'docs/AAA-PREREG.md'), 'utf8').split('\n').length;
+  const bigLines = realLineCount(fs.readFileSync(path.join(d, 'docs/00-context/BIG.md'), 'utf8'));
+  const preregLines = realLineCount(fs.readFileSync(path.join(d, 'docs/AAA-PREREG.md'), 'utf8'));
   db(d, ['discover']);
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
@@ -2644,6 +2651,88 @@ function main() {
   console.log(`${colors.bright}${colors.cyan}docs-builder behavioural tests${colors.reset}`);
   console.log(`script under test: ${path.relative(process.cwd(), DB)}`);
 
+/** Regression, 2026-09-01: `text.split('\n')` returns a trailing empty element for any file
+ *  ending in a newline (which is nearly every file), so `lines.length` was real_lines + 1.
+ *  That phantom line reached three outputs: the index row's "N lines", the LAST H2's line
+ *  range (which pointed one line past EOF), and scan()'s outline.json s/e/lines.
+ *  The negative control is the same document WITHOUT a trailing newline: it must show no
+ *  offset either before or after the fix, which is what proves the trailing newline is the
+ *  variable and not the counting itself. Found by a peer session comparing an index row
+ *  against `wc -l`. */
+function trailingNewlineLineCount() {
+  group('line counts ignore the trailing-newline phantom line');
+
+  const body = '# Doc\n\n## Alpha\n\naaa\n\n## Beta\n\nbbb';
+  const dir = repo({
+    'docs/product/with-nl.md': body + '\n',      // trailing newline: the bug case
+    'docs/product/without-nl.md': body           // no trailing newline: the control
+  });
+  const realLines = body.split('\n').length;     // 9 in both files
+
+  db(dir, ['index-flat']);
+  const idx = read(dir, 'docs/index.md');
+
+  // The index row's stated count must equal the real line count for BOTH files.
+  for (const [file, label] of [['with-nl.md', 'trailing newline'], ['without-nl.md', 'control']]) {
+    const row = idx.split('\n').find(l => l.includes(file) && / — \d+ lines/.test(l));
+    okTrue(`index row present (${label})`, !!row);
+    const stated = row ? Number(row.match(/ — (\d+) lines/)[1]) : -1;
+    ok(`index row line count is real, not +1 (${label})`, stated, realLines);
+  }
+
+  // The LAST H2's range must not run past the end of the file.
+  const lastRanges = idx.split('\n').filter(l => /- Beta \(L\d+–\d+\)/.test(l));
+  ok('both files emitted a Beta range', lastRanges.length, 2);
+  for (const r of lastRanges) {
+    const end = Number(r.match(/–(\d+)\)/)[1]);
+    okTrue(`last H2 range ends at or before EOF (got L…–${end}, file has ${realLines})`,
+      end <= realLines);
+  }
+
+  // scan()'s outline.json carries the same boundary — assert it too, so a fix applied to
+  // indexRow alone (one call site) cannot pass this test while scan stays wrong.
+  db(dir, ['scan', 'docs/product/with-nl.md', 'docs/product/without-nl.md']);
+  const recs = artifact(dir, 'outline.json').records;
+  const betas = recs.filter(r => r.h2 === 'Beta');
+  ok('scan produced a Beta record per file', betas.length, 2);
+  for (const b of betas) {
+    okTrue(`scan e is within the file (${b.file}: e=${b.e}, real=${realLines})`, b.e <= realLines);
+    ok(`scan lines matches e - s + 1 (${b.file})`, b.lines, b.e - b.s + 1);
+  }
+}
+
+/** Regression, 2026-09-01 (found by review of the splitLines fix itself): an EMPTY page file
+ *  must still report PARTIAL, not crash. `''.split('\n')` is `['']`, so the pre-splitLines
+ *  code always had a lines[0] to read; splitLines pops that trailing empty element and returns
+ *  `[]`, so pageStatus's unguarded `lines[0].trim()` threw a TypeError and took `plan` down
+ *  with it. An empty .md page is a reachable state — a touched placeholder, or a page-writing
+ *  step interrupted before it wrote anything. Counting 0 lines for an empty file is correct;
+ *  indexing into the result unguarded is not. */
+function emptyPageIsPartialNotACrash() {
+  group('an empty page file reports PARTIAL instead of crashing plan');
+
+  const d = repo({ 'docs/A.md': DOC('A', 'Sec', 'line body text') });
+  db(d, ['scan', 'docs/A.md']);
+  const key = artifact(d, 'outline.json').records[0].key;
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
+
+  // The page exists but is 0 bytes — the state that used to crash.
+  write(d, { 'docs/wiki/t.md': '' });
+
+  const p = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('plan exits clean on a 0-byte page', p.code, 0);
+  okTrue('plan does not throw a TypeError', !/TypeError/.test(p.out));
+  okTrue('the empty page is reported as PARTIAL', /PARTIAL/.test(p.out));
+
+  // A file containing only a newline is the adjacent edge case: splitLines gives [''] there,
+  // so it never crashed — assert it stays PARTIAL rather than being mistaken for done.
+  write(d, { 'docs/wiki/t.md': '\n' });
+  const p2 = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('plan exits clean on a newline-only page', p2.code, 0);
+  okTrue('a newline-only page is PARTIAL too', /PARTIAL/.test(p2.out));
+}
+
   const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
     negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
@@ -2663,7 +2752,7 @@ function main() {
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
     discoverEmptyPlanZeroRows, usageListsCleanupApply, artifactsDefaultUnderRepo,
-    packageParity];
+    packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
 
   for (const g of groups) {
     try { g(); }
