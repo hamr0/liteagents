@@ -15,11 +15,12 @@ Save session context for compaction recovery or handoffs.
 - **Escalate, never assume.** Anything the subagent cannot do, cannot verify, or that this
   spec does not cover → report it back to the orchestrator (the main session) rather than
   improvising. Never widen scope beyond writing the file and counting the backlog.
-- **Mid-tier model, not hardcoded.** Run the worker on your tool's balanced default tier —
-  judgment-capable, cheaper and faster than your top reasoning tier. **Not the
-  cheapest/fastest tier**: on judgment work it measurably degrades (misclassification rates
-  several times higher). Never hardcode a vendor-specific model name; use whatever your tool
-  designates as that default.
+- **Explicitly select your tool's mid tier.** State the tier on the spawn — do not omit it
+  and rely on a default. An omitted tier inherits the *parent's* tier, which is not the same
+  thing as the balanced one. Pick the judgment-capable tier that is cheaper and faster than
+  your top reasoning tier. **Not the cheapest/fastest tier**: on judgment work it measurably
+  degrades (misclassification rates several times higher). Choose by tier, not by a vendor
+  model name copied from this file — names drift, and this command ships to several tools.
 - **Background dispatch where supported.** Run the write-up subagent in the background
   (non-blocking) so the session isn't held up waiting on formatting/file I/O. Fall back to
   writing inline (today's behavior) if your tool has no subagent or background-dispatch
