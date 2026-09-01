@@ -535,7 +535,12 @@ function pageStatus(file) {
   if (!fs.existsSync(file)) return 'TODO';
   const txt = fs.readFileSync(file, 'utf8');
   const lines = splitLines(txt);
-  const hasFrontmatter = lines[0].trim() === '---' && lines.slice(1).some(l => l.trim() === '---');
+  // splitLines() returns [] for a 0-byte file — 0 lines is the right COUNT, but it means
+  // lines[0] can be undefined, where the old raw split('\n') always yielded ['']. An empty
+  // page is reachable (a touched placeholder, or page-writing interrupted before it wrote
+  // anything) and must read as PARTIAL, not throw and take `plan` down with it.
+  const hasFrontmatter = lines.length > 0 && lines[0].trim() === '---'
+    && lines.slice(1).some(l => l.trim() === '---');
   return hasFrontmatter && lines.length >= MIN_PAGE_LINES ? 'done' : 'PARTIAL';
 }
 

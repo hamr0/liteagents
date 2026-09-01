@@ -2701,6 +2701,38 @@ function trailingNewlineLineCount() {
   }
 }
 
+/** Regression, 2026-09-01 (found by review of the splitLines fix itself): an EMPTY page file
+ *  must still report PARTIAL, not crash. `''.split('\n')` is `['']`, so the pre-splitLines
+ *  code always had a lines[0] to read; splitLines pops that trailing empty element and returns
+ *  `[]`, so pageStatus's unguarded `lines[0].trim()` threw a TypeError and took `plan` down
+ *  with it. An empty .md page is a reachable state — a touched placeholder, or a page-writing
+ *  step interrupted before it wrote anything. Counting 0 lines for an empty file is correct;
+ *  indexing into the result unguarded is not. */
+function emptyPageIsPartialNotACrash() {
+  group('an empty page file reports PARTIAL instead of crashing plan');
+
+  const d = repo({ 'docs/A.md': DOC('A', 'Sec', 'line body text') });
+  db(d, ['scan', 'docs/A.md']);
+  const key = artifact(d, 'outline.json').records[0].key;
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 't', gloss: 'g' }], labels: [{ key, theme: 't' }] }) });
+
+  // The page exists but is 0 bytes — the state that used to crash.
+  write(d, { 'docs/wiki/t.md': '' });
+
+  const p = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('plan exits clean on a 0-byte page', p.code, 0);
+  okTrue('plan does not throw a TypeError', !/TypeError/.test(p.out));
+  okTrue('the empty page is reported as PARTIAL', /PARTIAL/.test(p.out));
+
+  // A file containing only a newline is the adjacent edge case: splitLines gives [''] there,
+  // so it never crashed — assert it stays PARTIAL rather than being mistaken for done.
+  write(d, { 'docs/wiki/t.md': '\n' });
+  const p2 = db(d, ['plan', 'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('plan exits clean on a newline-only page', p2.code, 0);
+  okTrue('a newline-only page is PARTIAL too', /PARTIAL/.test(p2.out));
+}
+
   const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
     negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
@@ -2720,7 +2752,7 @@ function trailingNewlineLineCount() {
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
     discoverEmptyPlanZeroRows, usageListsCleanupApply, artifactsDefaultUnderRepo,
-    packageParity, trailingNewlineLineCount];
+    packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
 
   for (const g of groups) {
     try { g(); }
