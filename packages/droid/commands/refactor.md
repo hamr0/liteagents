@@ -7,6 +7,50 @@ allowed-tools: Read, Edit, Grep, Glob, Bash(npm test *), Bash(npx jest *), Bash(
 ---
 Refactor $ARGUMENTS.
 
+## Guardrails
+- **Spawn a worker and explicitly select your tool's mid tier.** State the
+  tier on the spawn — do not omit it and rely on a default. An omitted tier
+  inherits the *parent's* tier, which is not the same thing as the balanced
+  one. Pick the judgment-capable tier that is cheaper and faster than your top
+  reasoning tier. **Not the cheapest/fastest tier**: on judgment work it
+  measurably degrades (misclassification rates several times higher). Choose by
+  tier, not by a vendor model name copied from this file — names drift, and
+  this command ships to several tools. Fall back to running inline if your tool
+  has no subagent mechanism.
+- **Escalate, never assume.** Anything you cannot decide, cannot verify, or
+  that this spec does not cover → **stop and report it to the orchestrator**
+  (the main session). Never improvise, never widen scope, never fix a side
+  issue you noticed along the way.
+- **The worker does the work itself — no delegation.** The fixer must **not**
+  spawn subagents of its own. Every edit it reports, and every test run it
+  cites, has to be one it made or ran with its own tool calls: a relayed "I
+  fixed it and the suite is green" from a sub-worker is hearsay, and this
+  command's whole output is the claim that a change landed and the tests still
+  pass. A fix that delegates its work is a report about a report.
+- **The HITL gates below belong to the orchestrator, not the worker.** A
+  subagent cannot hold a conversation with the user, so it cannot run a gate
+  that ends in *stop and ask*. When one trips — a failing test, a crossed
+  public API boundary, a change bigger than the bullet asked for — the worker
+  **stops there and hands the situation back**, with the options and its
+  reasoning but no choice made. The orchestrator asks. A worker that picks
+  revert / patch / update-test on the user's behalf has answered a question it
+  was never allowed to ask.
+- **Edit only what a surviving bullet names.** Ledger mode's scope is the
+  bullets that survive revalidation, one change per bullet — not the
+  neighbouring code, not the formatting, not a second finding noticed on the
+  way past. Anything else goes back to the orchestrator to become a new
+  bullet.
+- **Prove the blast radius with two checks, because neither sees what the
+  other does.** `git status --porcelain` at exit must list only files a
+  surviving bullet named — that is this command's scope guarantee, and unlike
+  `/branch-review` it is not expected to be empty. It cannot police the
+  memory directory: `.claude/` is normally gitignored, so porcelain stays
+  empty whether you deleted a fixed bullet, wrote nothing, or overwrote
+  `MEMORY.md`. So also take `md5sum .claude/remember/*` before you start and
+  again before you report, and show the comparison: only `fix-ledger.md` may
+  differ. `last-review.md` in particular is `/branch-review`'s to write —
+  a fixer that touches it forges the gate that judges its own work.
+
 ## Ledger mode — `$ARGUMENTS` empty
 Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
 `/branch-review` has accumulated. Everything below (goals, constraints,
