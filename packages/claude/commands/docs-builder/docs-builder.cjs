@@ -1308,8 +1308,12 @@ function flushCommitAdvisory() {
     const outsideDocs = Array.from(new Set(outsideFiles.map(f => f.split('/')[0]))).sort();
     console.log(`\n${moveSet.length} rename(s) this run (git mv stages these automatically; `
       + 'the copy+unlink fallback used outside a git repo does not)');
+    // Unit, stated: linkSet holds FILE paths, so this is a file count. cleanup-apply's
+    // restore pass just below reports OCCURRENCES, and a real run printed "33" here next to
+    // "restored 38" — same-sounding nouns, two different units, and the reader has no way to
+    // tell they are not a discrepancy. Name the unit in both places.
     console.log(linkSet.length
-      ? `${linkSet.length} link rewrite(s) UNSTAGED` + (outsideFiles.length
+      ? `${linkSet.length} file(s) with link rewrites UNSTAGED` + (outsideFiles.length
         ? `, ${outsideFiles.length} outside docs/: ${outsideDocs.join(', ')}`
         : ' (all inside docs/)')
       : 'no inbound-link rewrites this run.');
