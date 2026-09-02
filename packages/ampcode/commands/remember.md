@@ -133,6 +133,14 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      Re-processing a stash whose episode is already filed must not create a near-duplicate
      pair. Every older episode is **folded, then deleted**: its lesson becomes a fact (handed
      to the rewrite above); the narrative is removed. No archive — git has the history.
+     **Specify the operation once.** The keep-10 rule is the rule; the set to remove is
+     *derived* from it, never supplied alongside it as a second list. Given both, an agent
+     applies both and removes their union — observed in the field: a run told to keep 10 and
+     handed a 5-entry delete list removed 7, and the 2 extras were never folded, so one
+     lesson left memory with nothing carrying it. **No episode is removed whose lesson has
+     not been folded into a fact first**, and the two sets must match: state the count
+     before, the count after, and name each episode removed. Removed-but-not-folded is a
+     defect to report, not a tidy-up.
    - **Antigens section**: only update from friction output (step 4)
    - Write merged result to `.amp/remember/MEMORY.md` in the format under step 5.
 
@@ -276,7 +284,11 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
        recurrence; a single occurrence has none to track yet. Friction re-scans every
        session log every run, so a later run matches it back to 2+ sessions and seeds it
        then — this does not change matching against an EXISTING entry, which is recurrence
-       regardless of the matching cluster's own session count.
+       regardless of the matching cluster's own session count. **A match is not an
+       increment.** Whether it counts as a new conversation is decided in 4c by
+       `friction.cjs count`, which is a no-op when that session hash is already stored — so
+       several matches against one entry routinely produce zero increments, and that is
+       correct, not a miscount.
      - For `new:<theme>` groups with no ledger match: distinct conversations = distinct
        cluster indices in the group (within one classify batch, no two cluster indices
        share a session hash). `sessions < 2` → writes nothing. `sessions >= 2` → new entry,
@@ -367,9 +379,17 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
      .amp/remember/AGENT_RULES.md
      <!-- AGENT_RULES:END -->
      ```
-   - Each marker pair is independent: if AGENT.md already has a given pair, replace the
-     section between them; if not, append it at the end; if no AGENT.md exists, create one
-     containing whichever section(s) apply
+   - Each marker pair is independent: if AGENT.md lacks a given pair, append it at the
+     end; if no AGENT.md exists, create one containing whichever section(s) apply.
+   - **An existing AGENT_RULES pair is left alone — bootstrap once, never overwrite.** The
+     block above is what to write when creating it, not a template to re-impose every run.
+     Users trim this section deliberately (a pointer-only variant is common), and rewriting
+     it silently re-adds text they removed, on every single run, forever. Observed in the
+     field: a run restored the inline rules into a AGENT.md whose owner had cut them, and
+     the edit had to be reverted by hand. This matches how `AGENT_RULES.md` itself is
+     handled — bootstrapped once, never overwritten after.
+   - If an existing pair is present but its **path pointer** is missing or wrong, that is
+     load-bearing: **report it and stop**, do not silently rewrite the section around it.
 
    ```markdown
    # Project Memory
