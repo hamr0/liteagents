@@ -200,6 +200,9 @@ missing):
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists. Written by /branch-review;
 > consumed by /refactor (ledger mode).
+>
+> A bullet's path may be a glob when the same finding exists in every kit —
+> `git grep -F "<snippet>" -- <path>` accepts one.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha>
@@ -208,8 +211,12 @@ missing):
 The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
 numbers, no TODO comments in code — the ledger is the single writer. Before
-appending, `git grep -F` the snippet in the ledger itself; if it is already
-there, skip it. Do not touch existing bullets.
+appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
+if it is already there, skip it. Do not touch existing bullets. Use plain
+`grep`, never `git grep`, on the ledger: the ledger is normally gitignored,
+and `git grep` searches tracked content only, so it reports "not found" for a
+snippet that is sitting right there — the dedupe would pass every time and
+the same finding would be appended on every run.
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·

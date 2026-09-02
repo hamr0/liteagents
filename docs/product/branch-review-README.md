@@ -196,6 +196,9 @@ from a review run lands here as one bullet:
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists. Written by /branch-review;
 > consumed by /refactor (ledger mode).
+>
+> A bullet's path may be a glob when the same finding exists in every kit —
+> `git grep -F "<snippet>" -- <path>` accepts one.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha>
@@ -212,7 +215,11 @@ worth a second look. One string serves both jobs instead of the ledger needing a
 validity check.
 
 Before appending, `/branch-review` greps the ledger itself for the snippet — a duplicate
-is skipped rather than appended twice.
+is skipped rather than appended twice. That one grep must be plain `grep -F`, never `git
+grep`: `git grep` searches tracked content only, and the ledger is normally gitignored, so
+it would answer "not found" for a snippet that is present and the dedupe would silently
+pass on every run. The anchor lookups against source files above are `git grep`, correctly
+— those files are tracked. Same flag, two different targets, only one of them in git.
 
 ### One writer per operation
 `/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
