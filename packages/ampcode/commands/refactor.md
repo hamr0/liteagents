@@ -57,7 +57,9 @@ Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
 
-1. **Tree must be clean and not on `main`.** `git status --porcelain` non-empty
+1. **Tree must be clean and not on `main`.** The orchestrator runs this check
+   before spawning the worker, so a dirty tree costs no worker; the worker
+   then re-runs it as its own first act. `git status --porcelain` non-empty
    → stop, say what is uncommitted. On `main` → `git switch -c chore/fix-ledger`.
 2. **Ledger missing or has zero bullets** → say so and stop. Nothing to do.
 3. **Revalidate every bullet first, fix nothing yet.** For each: `git grep -F

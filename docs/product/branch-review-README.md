@@ -382,7 +382,7 @@ are actually gone. That's what lets the loop terminate instead of running foreve
 SHA. It does not ask the orchestrator whether a review happened — asking puts the question
 to the one party with an incentive to say yes. Instead it runs `git rev-parse HEAD` and
 compares that string, mechanically, against the `sha:` line in
-`.claude/remember/last-review.md`, the five-line record `/branch-review` overwrites at the
+`.claude/remember/last-review.md`, the record `/branch-review` overwrites at the
 end of every run. That record exists because a SHA quoted in a chat message is the same
 claim in another costume: it does not survive a compaction or a handover, and what remains
 is the orchestrator's word, which this gate exists precisely not to take.

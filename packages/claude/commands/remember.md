@@ -380,7 +380,8 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      <!-- AGENT_RULES:END -->
      ```
    - Each marker pair is independent: if CLAUDE.md lacks a given pair, append it at the
-     end; if no CLAUDE.md exists, create one containing whichever section(s) apply.
+     end; if a given pair already exists, replace its content in place; if no CLAUDE.md
+     exists, create one containing whichever section(s) apply.
    - **An existing AGENT_RULES pair is left alone — bootstrap once, never overwrite.** The
      block above is what to write when creating it, not a template to re-impose every run.
      Users trim this section deliberately (a pointer-only variant is common), and rewriting
