@@ -13,7 +13,7 @@ them. It is a **slash command**: `commands/branch-review.md`, no bundled script 
 check is a worker reading, running, and grepping the repo itself, the same shape as
 `/security`.
 
-**It never edits code.** Its one write is an append to a fix ledger. Fixing findings is a
+**It never edits code.** Its only writes are the fix ledger and the review record. Fixing findings is a
 separate, separately authorized action, handled by `/refactor` in ledger mode.
 
 ```
@@ -30,6 +30,16 @@ commit  ──►  /branch-review [target] [level]  ──►  fix ledger + bloc
 ---
 
 ## 1. What it guarantees
+
+**Two files, and proving it wrote nothing else.** The review's only writes are the fix
+ledger (§5) and the review record (§5b). Proving that takes two checks, because neither
+sees what the other does. `git status --porcelain`, at start and at exit, proves no
+*tracked* file changed — the never-edits-code guarantee, and the one that matters. It
+cannot see the review's own two writes: `.claude/` is normally gitignored, so porcelain
+stays empty whether the reviewer wrote the allowed files, wrote nothing, or overwrote
+`MEMORY.md`. `git status --ignored` does not close it either, collapsing to the directory
+rather than the files. An `md5sum` comparison over `.claude/remember/` before and after
+does, and only those two files may differ.
 
 - **Reports, never fixes.** The command may write exactly one file —
   `.claude/remember/fix-ledger.md` — and only by appending. Everything else it finds is
@@ -214,7 +224,24 @@ from a review run lands here as one bullet:
   scenario · YYYY-MM-DD @ <short sha>
 ```
 
-### The review record
+---
+
+### One writer per operation
+`/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
+bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
+their fixes land or their anchors go stale, but it never adds one. Each command has
+exactly one write shape on this file, and no third command has any — `/release`'s docs
+sweep may well correct a line a bullet names, since that doc changed with the feature, but
+it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
+readable as a log: an append is always new evidence from a review, a deletion is always a
+closed or invalidated item, and neither command can silently second-guess what the other
+recorded. If both could edit freely, a bug in either command could corrupt the other's
+half of the record with no way to tell which write did it.
+
+---
+
+
+## 5b. The review record
 
 `.claude/remember/last-review.md`, written at the end of every run and overwritten whole:
 
@@ -268,20 +295,6 @@ it would answer "not found" for a snippet that is present and the dedupe would s
 pass on every run. The anchor lookups against source files above are `git grep`, correctly
 — those files are tracked. Same flag, two different targets, only one of them in git.
 
-### One writer per operation
-`/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
-bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
-their fixes land or their anchors go stale, but it never adds one. Each command has
-exactly one write shape on this file, and no third command has any — `/release`'s docs
-sweep may well correct a line a bullet names, since that doc changed with the feature, but
-it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
-readable as a log: an append is always new evidence from a review, a deletion is always a
-closed or invalidated item, and neither command can silently second-guess what the other
-recorded. If both could edit freely, a bug in either command could corrupt the other's
-half of the record with no way to tell which write did it.
-
----
-
 ## 6. `/refactor` with no arguments — ledger mode
 
 Bare `/refactor` (no code-section argument) works through the ledger instead of taking a
@@ -325,7 +338,17 @@ on its own report isn't.
 
 ## 8. Convergence — re-review without re-judging the whole branch
 
-**Re-review after fixes passes the range `<previously-reviewed-sha>..HEAD`.** Stage 1 then
+**A re-review reads the record first** (§5b) and branches on its `sha:` line — that line is
+where the previously-reviewed commit comes from, and its `blockers:` list is what stage 3
+owes an answer on. Taking either from whoever invoked the command would reintroduce the
+recollection problem the record exists to end.
+
+- **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
+- **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
+  tree. A recorded `blocked` verdict means its blockers are unfixed by definition.
+- **no file** → no prior review to build on; read the whole branch.
+
+**The range is `<previously-reviewed-sha>..HEAD`.** Stage 1 then
 reads only the fix commits; stage 3 re-verifies the prior report's blockers (fixed /
 unfixed / dismissed, with reason); the rest of the branch is **not** re-judged. The range
 form still ends at HEAD, so `/release`'s precondition is still satisfied.
@@ -361,6 +384,9 @@ whatever state the ledger file happens to be in.
   this commit; the verdict is what it concluded, and only `ready` plus a matching hash is a
   pass. Both lines are read mechanically, for the same reason: the alternative is trusting
   someone's memory of the outcome.
+- **`coverage:` naming any stage `NOT RUN`** → stop. A `ready` from a run whose security
+  stage never executed is not the same fact as one where it did, and this line is the only
+  place the difference is visible.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** (commits landed after the review, including fix
@@ -376,6 +402,15 @@ whatever state the ledger file happens to be in.
 
 This is the only thing guaranteeing the branch was reviewed *and* security-scanned before
 release, so a missing answer is always treated as a stop, never as a pass.
+
+**One gap the gate cannot close.** Every check in this chain runs on one machine:
+`/branch-review` reads locally, `/ship` runs the suite locally, `/release` never pushes. CI
+is the only differently-configured instrument, and it sees the branch for the first time
+*after* both gates pass. A test that is green locally because of a path, fixture or tool
+that exists only on the author's box fails there and nowhere earlier. `/release`'s hand-back
+sequence therefore puts `gh pr checks --watch` between opening the PR and merging, and
+merges only on green — read off the bare command, like every other exit code in that
+sequence, including the ones typed by hand.
 
 ---
 
