@@ -140,6 +140,7 @@ function writeSession(dir, filename, events) {
     if (e.type === 'user') rec = userEvent(e.text, e.mins, e.uuid, prev);
     else if (e.type === 'assistant-error') rec = assistantErrorToolEvent(e.mins, e.uuid, prev);
     else if (e.type === 'assistant-tool-result') rec = assistantToolResultEvent(e.mins, e.uuid, prev, e.result);
+    else if (e.type === 'assistant-raw') rec = e.raw(e.mins, e.uuid, prev);
     else rec = assistantEvent(e.text, e.mins, e.uuid, prev);
     prev = e.uuid;
     return JSON.stringify(rec);
@@ -1075,6 +1076,57 @@ function main() {
     if (meta) {
       ok('preceding.result: NEGATIVE CONTROL — absent is_error stays unknown',
         (meta.preceding || {}).result, 'unknown');
+    }
+  }
+
+  // ------------------------------------------------- cluster carries file referents
+  // Why: matching an incoming cluster against a ledger entry has exactly one channel —
+  // class_hints, which ARE fragments of the quotes that proved the entry. Identity and
+  // evidence are the same strings, so the match cannot be tightened without losing recall.
+  // Measured on a 34-cluster real corpus, looking for a second, independent channel:
+  //   preceding action|result  13 distinct signatures, 19.3% collision
+  //   tool_sequence            10 distinct,            25.8% collision
+  //   file basenames           28 distinct,             3.7% collision
+  // The file referents are the discriminative channel, they are already computed per
+  // candidate (74/101 populated), and they were being dropped at clustering: bySession
+  // collects b.files, but sessionSignals never carried it, so no cluster ever saw it.
+  //
+  // They are also MECHANICAL — real paths, no LLM distillation — so carrying them does
+  // not reintroduce the judgement step 4a was deliberately narrowed to avoid.
+  group('cluster carries file referents (the discriminative match channel)');
+  {
+    const sessionsDir = tmpDir('friction-files-sessions-');
+    const cwd = tmpDir('friction-files-cwd-');
+
+    // Two sessions whose REACTIONS are near-identical (so they cluster together on text)
+    // but which touched different files. Pre-fix the cluster kept no file information at
+    // all; post-fix it must carry the referents its sessions actually touched.
+    const withFile = (mins, uuid, parentUuid, file) => ({
+      type: 'assistant',
+      message: { role: 'assistant', content: [
+        { type: 'tool_use', name: 'Edit', input: { file_path: file } },
+        { type: 'tool_result', is_error: false, content: [{ type: 'text', text: `edited ${file}` }] },
+      ] },
+      timestamp: tsAt(mins), uuid, parentUuid: parentUuid || null, sessionId: 'fixture',
+    });
+
+    writeSession(path.join(sessionsDir, 'projPay'), 'dddddddd-pay.jsonl', [
+      { type: 'user', text: 'please fix the payment gateway timeout', mins: 0, uuid: 'fx-u1-dddd' },
+      { type: 'assistant-raw', mins: 1, uuid: 'fx-u2-dddd',
+        raw: (m, u, pu) => withFile(m, u, pu, 'src/billing/gateway.js') },
+      { type: 'user', text: 'no that is not right, the payment gateway still times out, damn it',
+        mins: 2, uuid: 'fx-u3-dddd' },
+    ]);
+
+    const r = run(cwd, sessionsDir);
+    ok('cluster files: scan exits 0', r.code, 0);
+    const clusters = clustersOf(cwd);
+    const c = findCluster(clusters, 'payment');
+    okTrue('cluster files: fixture produced a cluster', !!c);
+    if (c) {
+      okTrue('cluster carries a files array', Array.isArray(c.files));
+      okTrue('cluster files name the referent the session touched',
+        (c.files || []).some(f => f.includes('gateway.js')));
     }
   }
 

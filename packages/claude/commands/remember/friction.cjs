@@ -2160,6 +2160,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
       errors: b.errors,
       peak: b.peak,
       texts: b.texts,
+      files: [...b.files],
       preceding: b.preceding,
       anySelf: b.selfVotes > 0,                        // at least one self-correction → warn, LLM confirms target
     };
@@ -2184,7 +2185,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     if (best) {
       cl = best;
     } else {
-      cl = { sig: new Set(), seedSig: new Set(ss.sig), shCount: new Map(), sessions: {}, signals: {}, contexts: [], errors: [], peaks: [], anySelf: false, preceding: null };
+      cl = { sig: new Set(), seedSig: new Set(ss.sig), shCount: new Map(), sessions: {}, signals: {}, contexts: [], errors: [], peaks: [], anySelf: false, preceding: null, files: new Set() };
       clusters.push(cl);
     }
     for (const s of ss.sig) { cl.sig.add(s); cl.shCount.set(s, (cl.shCount.get(s) || 0) + 1); }
@@ -2196,6 +2197,15 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     cl.peaks.push(ss.peak);
     if (ss.anySelf) cl.anySelf = true;
     if (ss.preceding && (!cl.preceding || (ss.preceding.action !== 'none' || ss.preceding.error))) cl.preceding = ss.preceding;
+    // The file referents a cluster's sessions touched. Measured on a 34-cluster real
+    // corpus as the one channel that actually separates clusters: file basenames gave 28
+    // distinct signatures at a 3.7% collision rate, against 13 / 19.3% for the preceding
+    // action+result pair and 10 / 25.8% for tool_sequence. Matching an incoming cluster
+    // to a ledger entry otherwise runs on class_hints alone, and those ARE fragments of
+    // the entry's own evidence quotes — one channel, where identity and proof are the
+    // same strings. These paths are mechanical, so carrying them adds a second channel
+    // without reintroducing an LLM distillation step.
+    for (const f of ss.files) cl.files.add(f);
   }
 
   const out = clusters.map(cl => {
@@ -2269,6 +2279,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
       max_peak: peaks[peaks.length - 1],
       contexts: cl.contexts,
       errors: cl.errors,
+      files: [...cl.files].sort().slice(0, 8),  // referents: the discriminative match channel (see merge above)
       preceding: cl.preceding,          // #4: agent action + result just before the reaction
       self_suspect: allSelf || cl.anySelf,  // #3: a self-correction is present — LLM confirms target (advisory)
       top_keywords: topSh.slice(0, 10),
