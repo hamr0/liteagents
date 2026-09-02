@@ -346,11 +346,23 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      inline duplication is needed
    - If `.claude/remember/AGENT_RULES.md` exists (bootstrapped in step 1), compose a second,
      independent section between `<!-- AGENT_RULES:START -->` and `<!-- AGENT_RULES:END -->`
-     markers. Unlike MEMORY.md above, this is a **plain path pointer, never `@`-referenced**
-     — an `@`-reference hot-loads the whole file into every session, and this is a standards
-     guide to consult when designing/building something new, not hot context:
+     markers. Unlike MEMORY.md above, the file itself is **never `@`-referenced** — an
+     `@`-reference hot-loads all ~300 lines into every session, and it is a standards guide
+     to consult when designing/building something new, not hot context. The section carries
+     a path pointer plus exactly two inline rules: the ones that change what you TYPE, which
+     you cannot look up because you do not know you need them. Everything else stays behind
+     the pointer. Write the section verbatim, rules first:
      ```
      <!-- AGENT_RULES:START -->
+     **One writer per piece of state.** One function assigns each field; everything else
+     calls it. Grep who writes it before you write it — and if a write can land from a
+     callback, thread, or lifecycle, the reader must tell stale from fresh.
+
+     **Surgical changes only.** Touch what the task requires. Dead code, nits, bugs you
+     pass: if it's inside or affects the code you're already changing and the fix changes
+     no behavior, fix it and say so — otherwise report it and say what it costs to leave
+     it. A problem you don't fix goes in the report, never in a comment.
+
      Standards guide (read when designing/building something new, not hot context):
      .claude/remember/AGENT_RULES.md
      <!-- AGENT_RULES:END -->
