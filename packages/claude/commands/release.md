@@ -67,6 +67,10 @@ not evidence: obtain the review's own recorded SHA and match the two strings.
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD`, i.e. commits landed after
   the review (including fix commits) → **stop** and ask for a re-review. This
   is what makes "all findings fixed" checkable instead of promised.
+  **One carve-out, checked mechanically:** if `git diff --name-only
+  <recorded-sha>..HEAD` prints exactly `.claude/remember/fix-ledger.md` and
+  nothing else, the review stands — the ledger is the review's own output,
+  committed after it by design. Any other path in that list → stale.
 - **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
   resolved before a release is cut.
 

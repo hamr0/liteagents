@@ -10,6 +10,13 @@ audit** — followed by an adversarial verify pass. It **never edits code**: it
 reports findings and hands them back. Fixing is a separate, separately
 authorized action.
 
+Only **Critical** and **High** findings block the merge. Everything else is
+appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a
+committed, cumulative list that `/refactor` (no arguments) works through
+between features. The report is blockers plus the ledger count, so a review
+converges instead of surfacing fresh nits every run. This command never runs
+`/refactor` itself — it nudges, the way `/stash` nudges `/remember`.
+
 Run this **before** `/release`. `/release` will refuse to run without a review
 at the current HEAD SHA.
 
@@ -33,9 +40,11 @@ at the current HEAD SHA.
   executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
   is the entire point of this command. A review that delegates its work is a
   review of a report. (Same rule `/security` carries inside stage 2.)
-- **No edits.** You have no authorization to change code, even for a finding
-  you are certain about. Report it. Re-run `git status --porcelain` before you
-  report and confirm it is still empty — if it is not, say what changed. That
+- **No edits — one exception.** You have no authorization to change code,
+  even for a finding you are certain about. Report it. The **only** file you
+  may write is `.claude/remember/fix-ledger.md` (append bullets; never rewrite
+  or delete). Re-run `git status --porcelain` before you report: it must be
+  empty or list exactly that one path — anything else, say what changed. That
   turns "it never edits" from a claim into a checked fact.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
@@ -69,6 +78,13 @@ With a clean tree, interpret `$ARGUMENTS` in this order:
 Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 (the literal range or path) in your output, so the orchestrator can see what
 was actually read rather than assuming.
+
+**Re-review after fixes: pass the range `<previously-reviewed-sha>..HEAD`.**
+Stage 1 reads only the fix commits; stage 3 re-verifies the prior report's
+blockers (fixed / unfixed / dismissed — with reason); the rest of the branch is
+**not** re-judged. A full re-read of an already-reviewed branch produces fresh
+findings every time and never converges. The range form still ends at HEAD,
+so `/release`'s precondition is satisfied.
 
 ## Effort level
 `low | medium | high | max` — default **medium** if not given. The level
@@ -164,21 +180,50 @@ verdict first, then repeat it at the end.
 
 Then the findings, ordered most severe first.
 
-### 🚨 Critical (blocks merge)
-### ⚠️ Warnings (should fix)
-### 💡 Suggestions (nice to have)
+### 🚨 Critical / High (blocks merge)
+A **reproduced** failure only: a failing test, a broken build, a security
+exposure, or a bug with a written failure scenario you confirmed in stage 3.
+A finding about a spec's or doc's own prose, structure, or style is **never**
+a blocker. A finding already dismissed with evidence in this project's stash
+or memory cannot come back at a higher severity without **new** evidence —
+check before escalating.
 
-Each finding: **Location** (`file:line`) · **What's wrong** · **Failure
-scenario** (inputs/state → result) · **Why it matters** · **Suggested fix**
-(described, not applied) · **Verdict** (confirmed / uncertain).
+### Ledger (non-blocking — medium / low)
+Not in the report. **Append** each one as a single bullet to
+`.claude/remember/fix-ledger.md` (create the file with the header below if
+missing):
 
-Then a coverage line: stage 1 at level `<level>`, stage 2 full — each `ran ✓/✗`
-with its evidence. A stage you did not actually run is a **✗**, never an
+```
+# Fix ledger
+> Non-blocking review findings. One bullet per item. Delete the bullet when
+> fixed, or when its anchor no longer exists. Written by /branch-review;
+> consumed by /refactor (ledger mode).
+
+- `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
+  scenario · YYYY-MM-DD @ <short sha>
+```
+
+The **snippet is the anchor**: 20–60 verbatim characters from the line,
+unique enough for `git grep -F` to find it after lines shift. No line
+numbers, no TODO comments in code — the ledger is the single writer. Before
+appending, `git grep -F` the snippet in the ledger itself; if it is already
+there, skip it. Do not touch existing bullets.
+
+Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
+**Failure scenario** (inputs/state → result) · **Why it matters** ·
+**Suggested fix** (described, not applied) · **Verdict** (confirmed /
+uncertain).
+
+Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
+each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
 assumed pass.
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
-  tree clean at start and at exit.**
+  tree clean at start; at exit clean or `fix-ledger.md` only.**
+- **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
+  add: "N fixes waiting — run `/refactor` between features." The orchestrator
+  commits the ledger; `/release` accepts a ledger-only commit after the review.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **Escalate to the orchestrator** with the findings. It decides what gets
   fixed and by whom. Say plainly what you could not verify.

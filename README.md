@@ -148,7 +148,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 - **debug-method** - Four-phase debugging framework
 - **optimize** - Performance analysis
 - **refactor** - Safe refactoring with behavior preservation
-- **branch-review** - Pre-merge gate: general review at a chosen effort level plus a full security audit, adversarial verify pass; reports findings, never fixes
+- **branch-review** - Pre-merge gate: general review at a chosen effort level plus a full security audit, adversarial verify pass; only Critical/High block, the rest goes to a fix ledger; reports findings, never fixes, nudges `/refactor` when fixes are waiting
 - **security** - Standalone vulnerability scan; also runs as stage 2 of `/branch-review`
 - **ship** - Pre-deployment checklist
 - **release** - Prepare a release on the current branch: verify → docs sweep → version bump → local commit, then hand back the merge/tag/publish sequence (never pushes)
@@ -185,6 +185,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 ```
 @quality-assurance Review this PR before merge
 /branch-review main medium  # review branch vs main + security audit; reports, never fixes
+/refactor                   # no args: work through the fix ledger branch-review accumulated, between features
 /debug-method Investigate this race condition
 ```
 
