@@ -169,7 +169,13 @@ failure scenario confirmed in stage 3.
   the actual exemption, not "prose": where the deliverable *is* a specification, a
   normative requirement stated two incompatible ways is a reproduced defect, because
   two conforming implementations built from it diverge. The test is whether a
-  behaviour changes, not whether the file holds code.
+  behaviour changes, not whether the file holds code — judged per finding, not per repo,
+  since a diff mixing code and specification is the normal case.
+
+  Expect a medium review of a few hundred lines to take on the order of ten to fifteen
+  minutes. The falsifiability proofs and the repo-wide security history scan dominate that,
+  and both are the parts worth paying for. A run that looks stalled at five minutes is
+  working.
 
 The report opens with the one-line verdict **before any section**: *Ready to merge? Yes /
 No / Not until these are fixed.* A report that opens with "Critical: none found" reads as

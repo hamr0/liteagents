@@ -78,6 +78,12 @@ that predates this file's introduction has no record, so it does not count.
 - **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
   resolved before a release is cut.
 
+This phase runs **before** `/release` writes anything, so the docs-and-bump
+commit it makes later cannot invalidate the review it just checked. That
+commit is also where a doc-only ledger item is cheapest to close: correcting
+a stale line during the docs sweep costs nothing, where fixing it on its own
+means a commit, a stale review, and a re-review for one word.
+
 Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
 match yes/no.
 

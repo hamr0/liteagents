@@ -46,12 +46,24 @@ at the current HEAD SHA.
   even for a finding you are certain about. Report it. The only files you may
   write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or
   delete) and `.claude/remember/last-review.md` (overwrite; the review record
-  described at the end of this file). Re-run `git status --porcelain` before
-  you report: it must be empty or list only those paths — anything else, say
-  what changed. That turns "it never edits" from a claim into a checked
-  fact.
+  described at the end of this file).
+- **Prove it with two checks, because neither sees what the other does.**
+  `git status --porcelain`, at start and again before you report, proves no
+  **tracked** file changed — that is the "never edits code" guarantee, and it
+  is the one that matters. It cannot police your own two writes: `.claude/`
+  is normally gitignored, so porcelain stays empty whether you wrote the
+  allowed files, wrote nothing, or overwrote `MEMORY.md`. `git status
+  --ignored` does not close it either — it collapses to `!! .claude/`, the
+  directory, not the files. So also take `md5sum .claude/remember/*` before
+  you start and again before you report, and show the comparison: only
+  `fix-ledger.md` and `last-review.md` may differ.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
+
+**The orchestrator runs this check before spawning anyone**, so a dirty tree
+costs no worker; the worker then re-runs it as its own first act, because a
+review that takes the tree's state on trust is the thing this command exists
+not to do. Both, not either.
 
 **Before resolving anything, run `git status --porcelain`.** If it prints any
 line — modified, staged, or untracked — **stop and report it**. Say all three
@@ -201,7 +213,8 @@ including in a doc or spec. But prose is not automatically harmless: in a repo
 whose deliverable *is* a specification, a **normative requirement stated two
 incompatible ways** is a reproduced defect, because two conforming
 implementations built from it diverge. Judge by whether a behaviour changes,
-not by whether the file holds code. A finding already dismissed with evidence in this project's stash
+not by whether the file holds code — and judge it **per finding, not per
+repo**, since a diff mixing code and specification is the normal case. A finding already dismissed with evidence in this project's stash
 or memory cannot come back at a higher severity without **new** evidence —
 check before escalating.
 
