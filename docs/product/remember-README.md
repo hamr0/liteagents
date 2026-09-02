@@ -505,11 +505,48 @@ Two consequences follow, and they pull in opposite directions:
   `remember.md`, and it is why 4a requires a negative example ("`we're burning money,
   why is it failing?` does NOT match") rather than the positive claim alone.
 
-Decoupling either way makes the other worse. Narrow matching to the `rule` and genuine
-recurrence phrased differently stops counting — recall gaps are the failure this
-pipeline exists to avoid. Widen it back onto the quotes and generic entries swallow
-unrelated clusters, which is the failure precision was chosen over recall to prevent.
-The negative-example requirement is the mitigation; there is no fix that is not a trade.
+**Within a single matching channel, decoupling either way makes the other worse.**
+Narrow matching to the `rule` and genuine recurrence phrased differently stops counting
+— recall gaps are the failure this pipeline exists to avoid. Widen it back onto the
+quotes and generic entries swallow unrelated clusters, which is the failure precision
+was chosen over recall to prevent. The negative-example requirement is the mitigation
+for that trade.
+
+The qualifier matters, because the trade is a property of having one channel rather
+than a law about the problem.
+
+**Open direction — match on the antecedent, not only the reaction.** `friction.cjs`
+already computes `preceding` for every cluster: the agent action, its result, and any
+error, immediately before the reaction. Step 4a is given it for the *incoming* cluster.
+A stored ledger entry has no equivalent — its keys are `id`, `class`, `class_hints`,
+`status`, `rule`, `attempts`, `evidence`, `recurred_while_hot`, `history`, and
+`evidence` holds only `sessions`, `session_ids`, `projects`, `quotes`, `last_seen`.
+
+So the comparison is lopsided by construction. The incoming side carries the reaction
+*and* what provoked it; the stored side carries reactions alone, and the classifier is
+forced onto the one channel that is generic. `"fuck"` against `"fuck"` is a coin flip.
+*"deleted a file I didn't ask about"* against *"claimed tests passed without running
+them"* is not.
+
+Storing antecedents alongside `class_hints` would give matching a second axis that is
+independent of the quotes — which is what the trade above assumes does not exist.
+**This is a candidate, not a conclusion.** It needs a POC against a frozen corpus with
+exact-label agreement measured with and without the antecedent, the way the
+`top_keywords` change was measured (0.884 → ~0.97) before it shipped. Two things could
+sink it: raw antecedent text may drift and bloat, while a distilled one reintroduces an
+LLM judgement that 4a was deliberately narrowed to avoid.
+
+A related limit sits underneath all of this and is not addressed by any of it: the
+seed signal assumes a reaction indicates an agent mistake. In practice a share of them
+are over-prompting, thin context, or impatience — mistakes on both sides, in degrees
+that are never balanced. Since seed evidence becomes `class_hints`, that noise is what
+later matching runs *against*, so it compounds. `self_suspect` and
+`preceding.action === 'none'` (a reaction with no agent action before it) are the two
+mechanical cues that gesture at this, and both are currently only drop cues, never
+attributions. Deliberately so: asking *whether there was an agent action* is
+classification and is safe, while asking *whose fault it was* is scoring — and this
+pipeline uses the model as a classifier, never a scorer. Severity already degenerated
+once by being seeded and rated on the same signal; blame attribution would repeat it.
 
 ### A run cannot tell that its own work invalidated a standing fact
 
