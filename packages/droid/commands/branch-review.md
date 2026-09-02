@@ -42,12 +42,14 @@ at the current HEAD SHA.
   executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
   is the entire point of this command. A review that delegates its work is a
   review of a report. (Same rule `/security` carries inside stage 2.)
-- **No edits — one exception.** You have no authorization to change code,
-  even for a finding you are certain about. Report it. The **only** file you
-  may write is `.claude/remember/fix-ledger.md` (append bullets; never rewrite
-  or delete). Re-run `git status --porcelain` before you report: it must be
-  empty or list exactly that one path — anything else, say what changed. That
-  turns "it never edits" from a claim into a checked fact.
+- **No edits — two exceptions.** You have no authorization to change code,
+  even for a finding you are certain about. Report it. The only files you may
+  write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or
+  delete) and `.claude/remember/last-review.md` (overwrite; the review record
+  described at the end of this file). Re-run `git status --porcelain` before
+  you report: it must be empty or list only those paths — anything else, say
+  what changed. That turns "it never edits" from a claim into a checked
+  fact.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
@@ -87,6 +89,12 @@ blockers (fixed / unfixed / dismissed — with reason); the rest of the branch i
 **not** re-judged. A full re-read of an already-reviewed branch produces fresh
 findings every time and never converges. The range form still ends at HEAD,
 so `/release`'s precondition is satisfied.
+
+**On a re-review, sweep the open ledger bullets for liveness first.** Their
+anchors may sit in the part of the branch you are no longer reading, and the
+fix commits you *are* reading can invalidate them. `grep -F` each open
+snippet against its path; report any whose anchor is gone so `/refactor` can
+drop them. Cheap, and it stops dead bullets accumulating unseen.
 
 ## Effort level
 `low | medium | high | max` — default **medium** if not given. The level
@@ -185,8 +193,12 @@ Then the findings, ordered most severe first.
 ### 🚨 Critical / High (blocks merge)
 A **reproduced** failure only: a failing test, a broken build, a security
 exposure, or a bug with a written failure scenario you confirmed in stage 3.
-A finding about a spec's or doc's own prose, structure, or style is **never**
-a blocker. A finding already dismissed with evidence in this project's stash
+A finding about **style, wording or structure** is **never** a blocker —
+including in a doc or spec. But prose is not automatically harmless: in a repo
+whose deliverable *is* a specification, a **normative requirement stated two
+incompatible ways** is a reproduced defect, because two conforming
+implementations built from it diverge. Judge by whether a behaviour changes,
+not by whether the file holds code. A finding already dismissed with evidence in this project's stash
 or memory cannot come back at a higher severity without **new** evidence —
 check before escalating.
 
@@ -208,6 +220,12 @@ missing):
   scenario · YYYY-MM-DD @ <short sha>
 ```
 
+**A ledger bullet's failure scenario is subject to stage 3 like any other.**
+Ledger items skip the report, so they are easy to skip verifying too, and an
+unverified consequence written in the bullet's voice reads as established
+fact to whoever fixes it later. Either confirm it, or prefix the scenario
+with `UNVERIFIED:` so `/refactor` retests before acting.
+
 The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
 numbers, no TODO comments in code — the ledger is the single writer. Before
@@ -227,9 +245,24 @@ Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
 assumed pass.
 
+**Write the review record** to `.claude/remember/last-review.md`, overwriting
+it. `/release` reads this file; a SHA that lives only in a chat message is
+gone after a compaction or a handover, and the only remaining source is the
+orchestrator — the one party this command already refuses to take a review's
+word from. Exactly these five lines:
+
+```
+sha: <full HEAD sha>
+branch: <branch>
+target: <resolved range or path>
+verdict: <ready | blocked>
+date: <YYYY-MM-DD>
+```
+
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
-  tree clean at start; at exit clean or `fix-ledger.md` only.**
+  tree clean at start; at exit clean or the two `.claude/remember/` paths
+  only.**
 - **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
   add: "N fixes waiting — run `/refactor` between features." The ledger is a
   local artifact; in the usual case it is gitignored, so writing it moves

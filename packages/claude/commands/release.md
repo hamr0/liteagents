@@ -56,11 +56,14 @@ separate command that must have run first.
 A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
-HEAD` and compare it against the SHA the review recorded — `/branch-review`
-ends with `Reviewed at HEAD <sha>`. Asking the orchestrator "did a review run?"
-puts the question to the one party with an incentive to say yes, so its word is
-not evidence: obtain the review's own recorded SHA and match the two strings.
-**No recorded SHA to compare = no review**, never a pass.
+HEAD` and compare it against the `sha:` line in
+`.claude/remember/last-review.md`, which `/branch-review` writes. Asking the
+orchestrator "did a review run?" puts the question to the one party with an
+incentive to say yes, so its word is not evidence — and neither is a SHA
+quoted from a chat message, which is the same claim in another costume and is
+gone after a compaction or a handover. Read the file; match the two strings.
+**No such file, or no `sha:` line in it = no review**, never a pass. A review
+that predates this file's introduction has no record, so it does not count.
 
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."

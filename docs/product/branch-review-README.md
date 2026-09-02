@@ -165,7 +165,11 @@ failure scenario confirmed in stage 3.
   without new evidence.** The worker checks this project's stash or memory before
   escalating something that was already grounded and rejected.
 - Everything below Critical/High — medium and low — never appears in the blocking report.
-  It goes straight to the fix ledger instead (§5).
+  It goes straight to the fix ledger instead (§5). "Style, wording or structure" is
+  the actual exemption, not "prose": where the deliverable *is* a specification, a
+  normative requirement stated two incompatible ways is a reproduced defect, because
+  two conforming implementations built from it diverge. The test is whether a
+  behaviour changes, not whether the file holds code.
 
 The report opens with the one-line verdict **before any section**: *Ready to merge? Yes /
 No / Not until these are fixed.* A report that opens with "Critical: none found" reads as
@@ -213,6 +217,13 @@ deliberately — it does double duty: the same string that anchors the bullet is
 gone and the bullet is dead weight; if it hits, the finding might still be live and is
 worth a second look. One string serves both jobs instead of the ledger needing a separate
 validity check.
+
+A bullet's failure scenario is subject to stage 3 like any other finding. Ledger items
+skip the report, which makes them easy to skip verifying, and an unverified consequence
+written in the bullet's voice reads as established fact to whoever fixes it later — a
+real field run produced exactly that, a true finding whose stated consequence was false.
+Either confirm the scenario or prefix it with `UNVERIFIED:`, which tells `/refactor` to
+retest before acting.
 
 Before appending, `/branch-review` greps the ledger itself for the snippet — a duplicate
 is skipped rather than appended twice. That one grep must be plain `grep -F`, never `git
@@ -299,13 +310,17 @@ are actually gone. That's what lets the loop terminate instead of running foreve
 `/release` refuses to run past its own Phase 0.5 without a review at the *current* HEAD
 SHA. It does not ask the orchestrator whether a review happened — asking puts the question
 to the one party with an incentive to say yes. Instead it runs `git rev-parse HEAD` and
-compares that string, mechanically, against the SHA `/branch-review` recorded in its
-closing line (`Reviewed at HEAD <sha>`). **The SHA comparison is the gate** — it is what
+compares that string, mechanically, against the `sha:` line in
+`.claude/remember/last-review.md`, the five-line record `/branch-review` overwrites at the
+end of every run. That record exists because a SHA quoted in a chat message is the same
+claim in another costume: it does not survive a compaction or a handover, and what remains
+is the orchestrator's word, which this gate exists precisely not to take.
+**The SHA comparison is the gate** — it is what
 makes "this branch was reviewed" a checked fact instead of a claim, independent of
 whatever state the ledger file happens to be in.
 
-- **No recorded SHA at all** → no review, full stop: *"No review at `<sha>`. Run
-  `/branch-review medium` (or `/code-review medium`) first."*
+- **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
+  `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** (commits landed after the review, including fix
   commits) → **stale**, stop and ask for a re-review.
 - **The fix ledger is not an exception.** Where `.claude/` is gitignored (as here), an
