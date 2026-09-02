@@ -515,26 +515,42 @@ for that trade.
 The qualifier matters, because the trade is a property of having one channel rather
 than a law about the problem.
 
-**Open direction — match on the antecedent, not only the reaction.** `friction.cjs`
-already computes `preceding` for every cluster: the agent action, its result, and any
-error, immediately before the reaction. Step 4a is given it for the *incoming* cluster.
-A stored ledger entry has no equivalent — its keys are `id`, `class`, `class_hints`,
-`status`, `rule`, `attempts`, `evidence`, `recurred_while_hot`, `history`, and
-`evidence` holds only `sessions`, `session_ids`, `projects`, `quotes`, `last_seen`.
+**Open direction — match on the antecedent, not only the reaction.** Measured on a
+frozen 34-cluster corpus (2026-09-02), and half-built: the cheap version of this idea
+is dead, the real one is carried but not yet used.
 
-So the comparison is lopsided by construction. The incoming side carries the reaction
-*and* what provoked it; the stored side carries reactions alone, and the classifier is
-forced onto the one channel that is generic. `"fuck"` against `"fuck"` is a coin flip.
-*"deleted a file I didn't ask about"* against *"claimed tests passed without running
-them"* is not.
+The first plan was to store a cluster's `preceding` — the agent action, its result and
+any error immediately before the reaction — on the ledger entry, so the stored side
+carried an antecedent too. That fails on content, not on plumbing. `preceding.action`
+is a tool-*name* sequence (`calls.slice(-2).join(' → ')`); `Bash` or `none` covers 21
+of 34 clusters. As a matching signature it gives 13 distinct values over 34 clusters, a
+19.3% collision rate — `Bash` against `Bash` is the same coin flip the quote channel
+already is. Repairing `preceding.result` first (it read result text for `Exit code 0`
+instead of the `is_error` boolean; fixed in `6e4a5e6`) was an honest fix with zero
+matching benefit: 14 → 13 distinct, 19.1% → 19.3%, because `result` is nearly
+determined by `action`, so the repair renamed the biggest bucket instead of splitting
+it. `tool_sequence` is no better: 10 distinct, 25.8%.
 
-Storing antecedents alongside `class_hints` would give matching a second axis that is
-independent of the quotes — which is what the trade above assumes does not exist.
-**This is a candidate, not a conclusion.** It needs a POC against a frozen corpus with
-exact-label agreement measured with and without the antecedent, the way the
-`top_keywords` change was measured (0.884 → ~0.97) before it shipped. Two things could
-sink it: raw antecedent text may drift and bloat, while a distilled one reintroduces an
-LLM judgement that 4a was deliberately narrowed to avoid.
+The discriminative material is the **file referents** — the paths a cluster's sessions
+touched. They were already computed per candidate (74/101 populated) and silently
+dropped at clustering, so no cluster ever saw them. `ecf142c` carries them through and
+unions them per cluster, capped at 8 sorted. On the same corpus: **30 distinct
+signatures over 34 clusters at a 1.8% collision rate, 29/34 populated** — a 10×
+reduction against `preceding`, and better than the 28 / 3.7% a candidate-level join
+predicted, because the cluster union is richer than any single candidate.
+
+That result also corrects a prediction made here: the trade above assumed a richer
+antecedent would have to be *distilled*, reintroducing the LLM judgement 4a was
+narrowed to avoid. It does not. File paths are mechanical, so the second channel costs
+no judgement step at all.
+
+**What is not done.** Nothing stores `files` on a ledger entry and nothing shows it to
+the classifier at step 4a — the channel exists on the incoming side only, so matching
+today still runs on the single quote channel described above. Shipping the ledger half
+is gated on the same bar the `top_keywords` change had to clear: exact-label agreement
+measured on a frozen corpus with and without the antecedent (0.884 → ~0.97 was that
+change's number). Until that number exists, the collision-rate table is evidence the
+channel *can* discriminate, not evidence that matching improves.
 
 A related limit sits underneath all of this and is not addressed by any of it: the
 seed signal assumes a reaction indicates an agent mistake. In practice a share of them

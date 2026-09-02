@@ -325,8 +325,9 @@ The ON/OFF gate design (§4–5) stays specced here, DEFERRED per §9's POC resu
 
 ## 13. Notes — antecedent matching (2026-09-02, measured, not decided)
 
-Working notes from a measurement session. Nothing here is DECIDED; recorded so the
-next attempt starts from the numbers rather than from the idea.
+Working notes from a measurement session. Half of it shipped (the incoming side, in
+`ecf142c`); the ledger half is still not DECIDED. Recorded so the next attempt starts
+from the numbers rather than from the idea.
 
 **The observation.** An entry's `class_hints` are fragments of the quotes that proved
 it, and step 4a matches an incoming cluster against `class_hints` + `rule` +
@@ -351,16 +352,30 @@ stores no equivalent (`id`, `class`, `class_hints`, `status`, `rule`, `attempts`
   error, 12 unknown. Cluster hashes unchanged.
 - The discriminative material exists one layer down, on **candidates**, and is dropped
   at clustering: `files` 74/101 populated, `tool_sequence` 65/101, `user_context`
-  98/101.
+  98/101. As a matching signature, candidate-level file basenames gave 28 distinct /
+  3.7% collision, against 13 / 19.3% for `preceding` and 10 / 25.8% for
+  `tool_sequence`.
 
-**Where that leaves it.** Storing `preceding` on ledger entries — the plan as first
-written — would ship a weak channel, not a decoupled one. A real antecedent channel
-would have to carry file/tool detail through clustering, which is a larger change and
-runs straight into the trade §6 of `remember-README.md` names: a distilled antecedent
-reintroduces exactly the LLM judgement 4a was narrowed to avoid. Un-defer condition for
-building it: a measured improvement in exact-label agreement on a frozen corpus, the
-way the `top_keywords` change was measured (0.884 → ~0.97) before it shipped. Absent
-that number, this stays a note.
+**What shipped (`ecf142c`).** The file referents are now carried through clustering and
+unioned per cluster, capped at 8 sorted — they were collected on the session bucket and
+never read by `sessionSignals`, so no cluster had ever seen them. On the frozen corpus:
+**30 distinct signatures over 34 clusters at 1.8% collision, 29/34 populated** — a 10×
+reduction against `preceding`, and better than the 28 / 3.7% the candidate-level join
+predicted, because a cluster's union is richer than any single candidate's list.
+
+**One prediction here was wrong, in the favourable direction.** This note and §6 of
+`remember-README.md` both said a richer antecedent would have to be *distilled*, and
+would therefore reintroduce the LLM judgement step 4a was narrowed to avoid. File paths
+are mechanical text, so the second channel costs no judgement step at all. That
+objection is withdrawn.
+
+**Where that leaves it — still not DECIDED.** The channel exists on the *incoming* side
+only. No ledger entry stores `files`, and step 4a is not shown it, so matching today
+still runs on the single quote channel. The un-defer condition is unchanged and is what
+the remaining half is gated on: a measured improvement in exact-label agreement on a
+frozen corpus with and without the antecedent, the way the `top_keywords` change was
+measured (0.884 → ~0.97) before it shipped. A collision-rate table shows the channel
+*can* discriminate; it is not evidence that matching improves.
 
 **A limit underneath all of it.** The seed signal assumes a reaction indicates an agent
 mistake. A share of them are over-prompting, thin context, or impatience — mistakes on
