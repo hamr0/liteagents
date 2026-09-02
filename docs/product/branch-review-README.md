@@ -301,15 +301,12 @@ whatever state the ledger file happens to be in.
   `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** (commits landed after the review, including fix
   commits) → **stale**, stop and ask for a re-review.
-- **A carve-out applies in a repo where the ledger happens to be tracked by git**: if
-  `git diff --name-only <recorded-sha>..HEAD` prints exactly
-  `.claude/remember/fix-ledger.md` and nothing else, the review still stands — the ledger
-  is the review's own output, and appending to it doesn't change any reviewed code. In a
-  repo where `.claude/` is gitignored (as here), the ledger never appears in a commit
-  diff at all, so this carve-out simply never fires there — every commit after the review
-  is judged purely on whether it touches tracked files, and an untracked ledger append
-  can't be the thing that makes a diff non-empty in the first place. Any other tracked
-  path in that diff means stale.
+- **The fix ledger is not an exception.** Where `.claude/` is gitignored (as here), an
+  append never reaches a commit, HEAD does not move, and the recorded SHA still matches —
+  so the question never arises. A repo that tracks `.claude/` instead will see a ledger
+  commit land after the review and make it stale. That is the gate working as designed,
+  not a case to special-case: re-review, or leave the ledger uncommitted until the
+  release is cut. One rule, no branches in it.
 - **Reviewed at this SHA with findings still outstanding** → stop; findings are resolved
   before a release is cut.
 
@@ -356,6 +353,6 @@ release, so a missing answer is always treated as a stop, never as a pass.
 `packages/claude/commands/branch-review.md` (the command spec — target resolution, the
 three stages, severity rules, ledger format, report shape), `packages/claude/commands/
 refactor.md` (ledger mode), `packages/claude/commands/release.md` (Phase 0.5, the
-ledger-only carve-out), `packages/claude/commands/security.md` (stage 2 delegation),
+SHA gate), `packages/claude/commands/security.md` (stage 2 delegation),
 `packages/claude/commands/stash.md` (the nudge pattern `/branch-review`'s own nudge
 mirrors).
