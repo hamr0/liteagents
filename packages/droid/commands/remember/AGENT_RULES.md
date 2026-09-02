@@ -105,11 +105,14 @@ Before adding any external dependency, all of these must be true:
 
 - **Open-source only.** Always use open-source solutions. No vendor lock-in
 - **Lightweight over complex.** If two solutions solve the same problem, use the one with fewer moving parts, fewer dependencies, and less configuration
-- **Every line must have a purpose.** No speculative code, no "might need this later", no abstractions for one use case
+- **Every line earns its place.** If you can't say what breaks when it's deleted, delete it. No speculative code, no "might need this later", no abstractions for one use case. One function, one concern, one owner — small blocks beat spaghetti
 - **Simple > clever.** Readable code that a junior can follow beats elegant code that requires a PhD to debug
+- **One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it. Ownership says *where*, not *when* — if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh
+- **Split the decision from the machinery.** A branch whose outcome matters, tangled with a framework, IO, or UI object, moves into a pure function; the framework class applies the result. Extract to pin a branch, not to raise coverage — a one-line delegation in its own file buys a test that cannot fail
+- **Claims in comments must be checkable.** "The only place that writes X" is a claim — run the grep first, and expect the next reader to re-run it. A name search proves an edge exists, never that one doesn't
 - **Containerize only when necessary.** Start with a virtualenv or bare metal. Docker adds value for deployment parity and isolation — not for running a script
 - **Responsive web UI is mandatory in dev projects.** Any web UI must be usable on mobile by default — fluid layouts, viewport meta tag, breakpoints for narrow screens, no horizontal scroll. Test in DevTools device emulation before declaring a UI task done. POCs are exempt (validate the idea first), but the moment a POC graduates to a real project this becomes a hard requirement
-- **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created — leave pre-existing dead code alone unless asked. Every changed line should trace directly to the request
+- **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created. Dead code, nits, bugs you pass on the way: if it's inside or affects the code you're already changing, and the fix changes no behavior, fix it and say so. Otherwise report it — say what it costs to leave it. "It would be nicer" is not a cost. Every changed line traces to the request or to a fix you named
 
 ### Red Flags — Stop and Flag These
 - Over-engineering simple problems
@@ -120,6 +123,8 @@ Before adding any external dependency, all of these must be true:
 - POC-ing only the easy part while hand-waving the risky mechanism, or claiming a cost ("cheap"/"fast"/"constant") you never measured
 - Authoring a fixture/corpus that *guarantees* the result (a test that can't return the negative), or trusting a degenerate-looking number without auditing the harness for confounds — use real uncrafted data; the test must be able to fail
 - Fitting a POC to pass (narrowed input, moved threshold, shrunk scope) instead of reporting the failure; starting module N+1 while module N is unproven
+
+A problem you see and don't fix goes in the report, never in a comment. Comments are where findings go to be forgotten.
 
 ---
 
@@ -291,7 +296,11 @@ Copy this to any project's AGENTS.md. These are mandatory rules, not suggestions
 
 **Lightweight over complex.** Fewer moving parts, fewer deps, less config. Express over NestJS, Flask over Django, unless the project genuinely needs the framework. Simple > clever. Readable > elegant.
 
-**Open-source only.** No vendor lock-in. Every line of code must have a purpose — no speculative code, no premature abstractions.
+**Open-source only.** No vendor lock-in. Every line of code earns its place — if you can't say what breaks when it's deleted, delete it. No speculative code, no premature abstractions.
+
+**One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it — and if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh.
+
+**Surgical changes only.** Touch what the task requires. Dead code, nits, bugs you pass: if it's inside or affects the code you're already changing and the fix changes no behavior, fix it and say so — otherwise report it and say what it costs to leave it. A problem you don't fix goes in the report, never in a comment.
 
 **Responsive web UI is mandatory.** Any web UI must work on mobile by default — fluid layouts, viewport meta, breakpoints, no horizontal scroll. Verify in DevTools device emulation before claiming a UI task is done. POCs exempt; real projects are not.
 
