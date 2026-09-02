@@ -11,9 +11,11 @@ reports findings and hands them back. Fixing is a separate, separately
 authorized action.
 
 Only **Critical** and **High** findings block the merge. Everything else is
-appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a
-committed, cumulative list that `/refactor` (no arguments) works through
-between features. The report is blockers plus the ledger count, so a review
+appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local,
+cumulative list, living beside `MEMORY.md`, that `/refactor` (no arguments)
+works through between features. Like its neighbours it is a private working
+artifact, usually gitignored; it persists across reviews, it is not a
+deliverable. The report is blockers plus the ledger count, so a review
 converges instead of surfacing fresh nits every run. This command never runs
 `/refactor` itself — it nudges, the way `/stash` nudges `/remember`.
 
@@ -222,8 +224,9 @@ End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
   tree clean at start; at exit clean or `fix-ledger.md` only.**
 - **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
-  add: "N fixes waiting — run `/refactor` between features." The orchestrator
-  commits the ledger; `/release` accepts a ledger-only commit after the review.
+  add: "N fixes waiting — run `/refactor` between features." The ledger is a
+  local artifact; in the usual case it is gitignored, so writing it moves
+  nothing and leaves HEAD untouched.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **Escalate to the orchestrator** with the findings. It decides what gets
   fixed and by whom. Say plainly what you could not verify.
