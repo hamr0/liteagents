@@ -160,15 +160,27 @@ orchestrator can run them on the user's named go:
 > Ready when you are:
 > 1. `git push -u origin <branch>`
 > 2. `gh pr create` into `main`
-> 3. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
+> 3. `gh pr checks <pr> --watch` — **merge only on green.** Every gate before
+>    this one ran on the same machine; CI is the only differently-configured
+>    instrument in the chain, and this is the first time it sees the branch.
+>    A test that passes locally because of a path, a fixture, or a tool that
+>    exists only on your box fails here and nowhere earlier. Read the exit
+>    code off the bare command. Red → stop, fix, re-review, and start again.
+> 4. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
 >    owner-authorized admin merge on a solo repo). **Keep `--squash`** — `gh`
 >    requires an explicit merge-method flag (`--squash` / `--merge` /
 >    `--rebase`); drop it and the command will not squash-merge.
-> 4. `git tag vX.Y.Z` on `main` and push the tag
-> 5. Publish **if this project has a publish path** (e.g.
+> 5. `git tag vX.Y.Z` on `main` and push the tag
+> 6. Publish **if this project has a publish path** (e.g.
 >    `gh workflow run publish.yml`) — manual by design
-> 6. Verify it is actually live (`npm view <pkg> version`, and the published
+> 7. Verify it is actually live (`npm view <pkg> version`, and the published
 >    tarball's contents), not the working tree
+
+**Every exit code in this sequence is read off the bare command, including
+the ones you type yourself.** `/ship`'s rule is not just for the worker: a
+pipeline reports its last element's status, so `gh run watch --exit-status |
+tail -2; echo $?` prints `0` for a failed run. That has already turned a red
+CI into a green reading in a real release.
 
 Final line: **Cut ✅ (vX.Y.Z — ready to push)** or **Blocked 🛑** with the
 specific reason.

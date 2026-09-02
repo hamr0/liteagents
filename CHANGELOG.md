@@ -68,6 +68,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is cut.
 
 ### Fixed
+- **`/release` — the handoff sequence went from `gh pr create` straight to `gh pr merge`,
+  with no wait for CI.** Every gate in the chain runs on one machine: `/branch-review`
+  reviews locally, `/ship` runs the suite locally, and `/release` never pushes. CI is the
+  only differently-configured instrument, and under this flow it sees the branch for the
+  first time *after* both gates have passed. Found in the field: a release merged and
+  tagged on green local gates, then failed CI on a test asserting against a path that
+  exists only on the author's machine, leaving a tag cut but never published — the exact
+  "local ahead of published" state Phase 0 warns about. The sequence now has a
+  `gh pr checks --watch` step between create and merge, and merges only on green.
+- **`/release` — the exit-code rule applies to the orchestrator's own shell too.** `/ship`
+  carried it for the worker, but the handoff steps are typed by hand and were not covered.
+  In the same field run, `gh run watch --exit-status | tail -2; echo $?` printed `0` for a
+  failed run, turning a red CI into a green reading.
+- **`/release` — the docs sweep may fix a line a ledger bullet names, but must not delete
+  the bullet.** Calling the sweep the place to "close" a doc-only item made `/release` a
+  second deleter of state with exactly one owner, contradicting both the ledger's
+  one-append-one-delete split and the one-writer-per-state build rule this release adds.
+  The sweep still fixes the line; `/refactor`'s next revalidation drops the bullet.
+- **`/branch-review` — the exit-cleanliness check could not see its own target.** The
+  guardrail said porcelain must be empty or list only the two allowed paths, but `.claude/`
+  is gitignored, so porcelain is empty whether the reviewer wrote those files, wrote
+  nothing, or overwrote `MEMORY.md`. `git status --ignored` does not close it either — it
+  collapses to the directory, not the files. Porcelain keeps its real job (no tracked file
+  changed); an `md5sum` comparison over `.claude/remember/` now covers the two writes.
 - **`/ship` and `/branch-review` — exit codes must be read off the bare command, not a
   pipeline.** `$?` after a pipe is the last element's status, so the natural multi-suite
   shape `out=$(cmd 2>&1 | tail -1); echo "exit=$?"` records `tail`'s success for a suite
