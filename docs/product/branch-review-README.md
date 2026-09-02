@@ -226,6 +226,12 @@ from a review run lands here as one bullet:
 
 ---
 
+**Disproving a bullet deletes it.** The append-only rule stops a reviewer rewriting
+history, not from correcting the record: if you establish a bullet's finding no longer
+holds, the line goes and the reason goes in the report. The ledger is a work list, not an
+archive — an annotated bullet still reads as work, and a bullet arguing with itself is
+worse than none.
+
 ### One writer per operation
 `/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
 bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
@@ -262,6 +268,10 @@ latest answer can be true, which is why it is overwritten rather than appended. 
 blockers list exists so a session that never saw the report can act on a `blocked` verdict
 instead of re-reviewing the branch to rediscover why, and it carries claims only: scenarios
 and fixes stay in the report, non-blocking findings stay in the ledger.
+
+**A run that produces no record is not a review.** A review that dies mid-flight — rate
+limit, crash, cancelled turn — writes nothing, and the gate treats a missing record as no
+review. Silence is never a pass.
 
 **Nothing clears it.** The `sha:` line expires it: commit a fix and the recorded hash stops
 matching HEAD, so the gate reports *stale* and asks for a re-review rather than *blocked*.

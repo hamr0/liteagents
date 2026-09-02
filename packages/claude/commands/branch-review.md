@@ -257,7 +257,15 @@ The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
 numbers, no TODO comments in code — the ledger is the single writer. Before
 appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
-if it is already there, skip it. Do not touch existing bullets. Use plain
+if it is already there, skip it. Do not touch existing bullets.
+
+**A bullet you disprove is deleted, not annotated.** If you establish that an
+existing bullet's finding no longer holds — or never did — remove the line and
+say why in your report. The ledger is a work list, not an archive: an
+annotated bullet still reads as work, and a bullet arguing with itself is
+worse than none. Deleting on disproof is the one case where a reviewer may
+remove a line, and it is the same judgement `/refactor` makes at
+revalidation. Use plain
 `grep`, never `git grep`, on the ledger: the ledger is normally gitignored,
 and `git grep` searches tracked content only, so it reports "not found" for a
 snippet that is sitting right there — the dedupe would pass every time and
@@ -325,5 +333,10 @@ End with:
   local artifact; in the usual case it is gitignored, so writing it moves
   nothing and leaves HEAD untouched.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
+- **A run that produces no record is not a review.** If you die mid-flight —
+  a rate limit, a crash, a cancelled turn — there is no report and no
+  `last-review.md`, and silence must never be read as a pass. `/release`
+  already treats a missing record as no review; state it here too so nobody
+  fills the gap from memory of a run that never finished.
 - **Escalate to the orchestrator** with the findings. It decides what gets
   fixed and by whom. Say plainly what you could not verify.

@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is cut.
 
 ### Fixed
+- **`/branch-review` — a disproved ledger bullet is deleted, and a dead run is not a
+  pass.** The append-only rule left nowhere to record that a bullet's stated consequence
+  was wrong: editing it broke the rule, and a second bullet read as a second finding. A
+  field session hit this and invented an indented sub-bullet. Disproof now deletes the
+  line, with the reason going in the report — the ledger is a work list, not an archive.
+  Separately, a review that dies mid-flight writes no record, and nothing said whether that
+  silence counted as a pass; it does not.
 - **`/branch-review` — the review record carries blockers, level and coverage.** Five lines
   proved that a review ran and what it concluded, but not *what* was blocked, so a session
   inheriting a `blocked` verdict had to re-review the branch to rediscover why — the
