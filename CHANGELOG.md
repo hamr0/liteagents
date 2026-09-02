@@ -7,7 +7,158 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [2.23.0] - 2026-09-02
+
+### Added
+- **`/refactor` gains a no-argument ledger mode.** Bare `/refactor` works through
+  `.claude/remember/fix-ledger.md` instead of taking a target: it requires a clean tree and
+  a non-`main` branch, revalidates every bullet before fixing anything, drops the ones
+  whose anchor no longer resolves, fixes the survivors one at a time under the existing
+  no-behaviour-change constraints, and deletes each bullet as its fix lands — so the fix
+  commit is the done record and there is no second place to keep it in sync.
+- **`/branch-review` gains State ownership as a stage-1 finding category.** Two or more
+  functions assigning the same field, flag or view property is a finding on its own, with
+  no failing case required. Both writers must be named with `file:line`, since an unnamed
+  second writer is a hunch. Ordering counts as well as writers: a write arriving from a
+  callback, thread or lifecycle event is the dangerous one, and one app writer racing a
+  framework writer still counts as two.
+- **`AGENT_RULES.md` — four Build Rules, each naming something observable.** One writer per
+  piece of state; split the decision from the machinery, extracting a branch into a pure
+  function to pin it with a test rather than to raise coverage; claims in comments must be
+  checkable, because a name search proves an edge exists and never that one does not; and
+  every line earns its place, meaning if you cannot say what breaks when it is deleted,
+  delete it. "Surgical changes only" was rewritten to say what to do with a problem you
+  pass on the way: fix it if it is in the code you are already changing and the fix changes
+  no behaviour, otherwise report it with what it costs to leave. A problem you do not fix
+  goes in the report, never in a comment.
+- **`/remember` writes two hot rules inline into the `AGENT_RULES.md` section.** The file
+  stays a plain pointer and is never `@`-referenced, since that hot-loads roughly 300 lines
+  of standards guide into every session. The section now carries the path plus exactly the
+  two rules that change what you type — the ones you cannot look up because you do not know
+  you need them.
+- **`docs/product/branch-review-README.md`** — reference for the pre-merge gate: the three
+  stages, what blocks a merge, the ledger's anchor design, and the review → ledger →
+  `/refactor` loop. Follows the existing `remember` and `docs-builder` product-doc pattern.
+- **`/refactor` gains a `## Guardrails` block, ported from `/branch-review`.** Spawn a
+  worker at your tool's mid tier, stated explicitly on the spawn; escalate anything you
+  cannot decide rather than assuming; the worker never sub-delegates; edit only what a
+  surviving ledger bullet names, one change per bullet. The three parts that do not
+  transfer verbatim were rewritten: "no edits" inverts into a scope rule since `/refactor`
+  edits by design, and **the three HITL gates belong to the orchestrator, not the
+  worker** — a subagent cannot hold a conversation, so it stops and hands back the options
+  with no choice made rather than picking revert/patch/update-test on the user's behalf.
+  The blast-radius proof is now two checks: `git status --porcelain` at exit must list
+  only bullet-named files, and `md5sum .claude/remember/*` must show only `fix-ledger.md`
+  differing — `last-review.md` is off-limits to the fixer, since writing it would forge
+  the gate that judges its own work.
+- **`docs/product/remember-README.md`** gains a `## 6. Known limitations` section.
+  Matching semantics and evidence are the same channel — an entry's `class_hints` are
+  fragments of the quotes that proved it, so its identity and its proof of recurrence are
+  the same strings — with two consequences pulling in opposite directions: tautological
+  matching (bounded, not removed, by session-hash dedup) and over-matching on thin
+  ledgers (`Open item 2`). Separately: a run cannot tell that its own work invalidated a
+  standing fact, since detecting that would mean re-checking every fact against the
+  working tree on every run, which trades a stale fact for a confidently wrong one.
+
+### Changed
+- **`/branch-review` writes a durable review record; `/release` reads it.** The reviewed
+  SHA previously existed only as prose in a chat message, so `/release`'s Phase 0.5
+  precondition resolved to the orchestrator's word — the one party the same paragraph
+  declares inadmissible — and vanished on a compaction or a handover. The review now
+  overwrites `.claude/remember/last-review.md` with sha/branch/target/verdict/date, and
+  Phase 0.5 matches against its `sha:` line. No record, or no `sha:` line, is no review.
+
+  **Migration:** a branch reviewed before this change has no record file, so the new
+  Phase 0.5 will correctly refuse it. That is migration, not a bug. Re-run
+  `/branch-review`; do **not** hand-write the record, which would turn the durable
+  artifact back into the unverified claim it exists to replace.
+
+- **Only reproduced Critical/High failures block a merge.** Everything else is appended
+  to a local fix ledger at `.claude/remember/fix-ledger.md`, consumed by bare `/refactor`.
+  Re-review after fixes reads `<previously-reviewed-sha>..HEAD` rather than re-judging the
+  whole branch, which is what makes a review converge instead of surfacing a fresh nit
+  list every run. Style, wording and structure never block; a normative requirement stated
+  two incompatible ways still does, since conforming implementations built from it diverge.
+
+- **`/release` Phase 0.5 is the SHA comparison alone.** A ledger-only exception was removed
+  rather than kept and narrowed: the ledger is gitignored, so it never reaches a commit
+  diff, and scoping a rule to a condition that cannot occur is how dead branches survive
+  review. A repo that does track `.claude/` will see a ledger commit make the review stale,
+  which is the gate working — re-review, or leave the ledger uncommitted until the release
+  is cut.
+
+### Fixed
+- **`/branch-review` — a disproved ledger bullet is deleted, and a dead run is not a
+  pass.** The append-only rule left nowhere to record that a bullet's stated consequence
+  was wrong: editing it broke the rule, and a second bullet read as a second finding. A
+  field session hit this and invented an indented sub-bullet. Disproof now deletes the
+  line, with the reason going in the report — the ledger is a work list, not an archive.
+  Separately, a review that dies mid-flight writes no record, and nothing said whether that
+  silence counted as a pass; it does not.
+- **`/branch-review` — the review record carries blockers, level and coverage.** Five lines
+  proved that a review ran and what it concluded, but not *what* was blocked, so a session
+  inheriting a `blocked` verdict had to re-review the branch to rediscover why — the
+  non-convergence this command exists to stop, displaced one level up. The record now lists
+  one line per blocker (claim only; scenarios stay in the report, non-blocking findings stay
+  in the ledger), the effort level, and per-stage coverage. `/release` stops on any stage
+  marked `NOT RUN`, since a `ready` from a run that skipped the security stage is a
+  different fact. Deliberately absent: any override field — a hash is checkable by anyone
+  and consent is not, so a consent line would be forgeable by whatever writes the file, and
+  a persisted override would silently cover the next release too.
+- **`/release` Phase 0.5 wrote a `verdict:` line nobody read.** The record carried the
+  review's conclusion, but the gate compared only the `sha:` line, so a record saying
+  `verdict: blocked` passed the mechanical check whenever the hash still matched — leaving
+  the conclusion to the orchestrator's recollection, which is the unverified claim the
+  record was created to replace. Both lines are now read mechanically; only `ready` plus a
+  matching hash is a pass.
+- **`/release` — the handoff sequence went from `gh pr create` straight to `gh pr merge`,
+  with no wait for CI.** Every gate in the chain runs on one machine: `/branch-review`
+  reviews locally, `/ship` runs the suite locally, and `/release` never pushes. CI is the
+  only differently-configured instrument, and under this flow it sees the branch for the
+  first time *after* both gates have passed. Found in the field: a release merged and
+  tagged on green local gates, then failed CI on a test asserting against a path that
+  exists only on the author's machine, leaving a tag cut but never published — the exact
+  "local ahead of published" state Phase 0 warns about. The sequence now has a
+  `gh pr checks --watch` step between create and merge, and merges only on green.
+- **`/release` — the exit-code rule applies to the orchestrator's own shell too.** `/ship`
+  carried it for the worker, but the handoff steps are typed by hand and were not covered.
+  In the same field run, `gh run watch --exit-status | tail -2; echo $?` printed `0` for a
+  failed run, turning a red CI into a green reading.
+- **`/release` — the docs sweep may fix a line a ledger bullet names, but must not delete
+  the bullet.** Calling the sweep the place to "close" a doc-only item made `/release` a
+  second deleter of state with exactly one owner, contradicting both the ledger's
+  one-append-one-delete split and the one-writer-per-state build rule this release adds.
+  The sweep still fixes the line; `/refactor`'s next revalidation drops the bullet.
+- **`/branch-review` — the exit-cleanliness check could not see its own target.** The
+  guardrail said porcelain must be empty or list only the two allowed paths, but `.claude/`
+  is gitignored, so porcelain is empty whether the reviewer wrote those files, wrote
+  nothing, or overwrote `MEMORY.md`. `git status --ignored` does not close it either — it
+  collapses to the directory, not the files. Porcelain keeps its real job (no tracked file
+  changed); an `md5sum` comparison over `.claude/remember/` now covers the two writes.
+- **`/ship` and `/branch-review` — exit codes must be read off the bare command, not a
+  pipeline.** `$?` after a pipe is the last element's status, so the natural multi-suite
+  shape `out=$(cmd 2>&1 | tail -1); echo "exit=$?"` records `tail`'s success for a suite
+  that exited non-zero. Found in the field: a check printing "exit 2: prerequisites
+  missing" entered the gate as a pass. `${PIPESTATUS[0]}` does not rescue it inside a
+  command substitution either.
+- **`/branch-review` — ledger dedupe uses plain `grep`, not `git grep`.** The ledger is
+  deliberately gitignored and `git grep` searches tracked content only, so the dedupe
+  check reported "not found" for snippets sitting in the file and would have re-appended
+  every finding on every run.
+- **`/branch-review` — ledger bullets are subject to stage 3.** A field run produced a true
+  finding whose stated consequence was false. Bullets must now be verified or carry an
+  `UNVERIFIED:` prefix so `/refactor` retests before acting.
+- **`/remember` — a marker pair already present in `CLAUDE.md` had no rule.** The clause
+  covered a missing pair (append it) and the AGENT_RULES exception (leave it alone) but
+  said nothing for an already-present MEMORY pair, which is the common case on every run
+  after the first. Now: replace its content in place; the AGENT_RULES bootstrap-once
+  exception directly below still overrides.
+- **`docs/product/branch-review-README.md`** — dropped a stale "five-line record" count.
+  The record stopped being five lines once level, coverage and blockers were added.
+- **`/refactor` — ledger mode's step 1 caught a dirty tree only after a worker already
+  existed.** Step 1 now documents the split: the orchestrator runs the tree check before
+  spawning, and the worker re-runs it as its own first act, matching `/branch-review`'s
+  Target section.
 
 ## [2.22.1] - 2026-09-01
 

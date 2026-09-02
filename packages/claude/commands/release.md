@@ -56,19 +56,47 @@ separate command that must have run first.
 A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
-HEAD` and compare it against the SHA the review recorded — `/branch-review`
-ends with `Reviewed at HEAD <sha>`. Asking the orchestrator "did a review run?"
-puts the question to the one party with an incentive to say yes, so its word is
-not evidence: obtain the review's own recorded SHA and match the two strings.
-**No recorded SHA to compare = no review**, never a pass.
+HEAD` and compare it against the `sha:` line in
+`.claude/remember/last-review.md`, which `/branch-review` writes. Asking the
+orchestrator "did a review run?" puts the question to the one party with an
+incentive to say yes, so its word is not evidence — and neither is a SHA
+quoted from a chat message, which is the same claim in another costume and is
+gone after a compaction or a handover. Read the file; match the two strings.
+**No such file, or no `sha:` line in it = no review**, never a pass. A review
+that predates this file's introduction has no record, so it does not count.
 
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD`, i.e. commits landed after
   the review (including fix commits) → **stop** and ask for a re-review. This
   is what makes "all findings fixed" checkable instead of promised.
+  **No exceptions — including the fix ledger.** It is normally gitignored, so
+  appending to it moves nothing and this never comes up. A repo that tracks
+  `.claude/` instead will see a ledger commit land after the review and make
+  it stale. That is the rule working, not a case to carve out: re-review, or
+  leave the ledger uncommitted until after the release.
+- **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
+  that skipped the security stage is not the same fact as one that did not,
+  and this line is the only place the difference is visible to you.
+- **`verdict: blocked` in the record** → **stop**, even when the SHA matches.
+  Read that line as mechanically as the `sha:` one. A matching SHA proves a
+  review ran here; it says nothing about what the review concluded, and
+  leaving the conclusion to the orchestrator's recollection restores exactly
+  the unverified claim this file replaced. Only `verdict: ready` with a
+  matching SHA is a pass.
 - **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
   resolved before a release is cut.
+
+This phase runs **before** `/release` writes anything, so the docs-and-bump
+commit it makes later cannot invalidate the review it just checked. That
+If Phase 2's docs sweep happens to correct a line that a fix-ledger bullet
+also names, that is ordinary sweep work — the doc changed with the feature,
+so it was already yours to update. **Do not delete the bullet.** `/refactor`
+is the only deleter, and its revalidation will drop that bullet on its next
+run when it finds the finding no longer holds. Deleting it here would make
+`/release` a second writer on state that has exactly one owner, and the whole
+value of the ledger's one-append-one-delete split is that it stays readable
+as a log.
 
 Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
 match yes/no.
@@ -141,15 +169,27 @@ orchestrator can run them on the user's named go:
 > Ready when you are:
 > 1. `git push -u origin <branch>`
 > 2. `gh pr create` into `main`
-> 3. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
+> 3. `gh pr checks <pr> --watch` — **merge only on green.** Every gate before
+>    this one ran on the same machine; CI is the only differently-configured
+>    instrument in the chain, and this is the first time it sees the branch.
+>    A test that passes locally because of a path, a fixture, or a tool that
+>    exists only on your box fails here and nowhere earlier. Read the exit
+>    code off the bare command. Red → stop, fix, re-review, and start again.
+> 4. `gh pr merge --admin --squash --delete-branch` (main is PR-protected;
 >    owner-authorized admin merge on a solo repo). **Keep `--squash`** — `gh`
 >    requires an explicit merge-method flag (`--squash` / `--merge` /
 >    `--rebase`); drop it and the command will not squash-merge.
-> 4. `git tag vX.Y.Z` on `main` and push the tag
-> 5. Publish **if this project has a publish path** (e.g.
+> 5. `git tag vX.Y.Z` on `main` and push the tag
+> 6. Publish **if this project has a publish path** (e.g.
 >    `gh workflow run publish.yml`) — manual by design
-> 6. Verify it is actually live (`npm view <pkg> version`, and the published
+> 7. Verify it is actually live (`npm view <pkg> version`, and the published
 >    tarball's contents), not the working tree
+
+**Every exit code in this sequence is read off the bare command, including
+the ones you type yourself.** `/ship`'s rule is not just for the worker: a
+pipeline reports its last element's status, so `gh run watch --exit-status |
+tail -2; echo $?` prints `0` for a failed run. That has already turned a red
+CI into a green reading in a real release.
 
 Final line: **Cut ✅ (vX.Y.Z — ready to push)** or **Blocked 🛑** with the
 specific reason.

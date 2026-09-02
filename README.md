@@ -147,11 +147,11 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 - **skill-creator** - Guide for creating new skills
 - **debug-method** - Four-phase debugging framework
 - **optimize** - Performance analysis
-- **refactor** - Safe refactoring with behavior preservation
-- **branch-review** - Pre-merge gate: general review at a chosen effort level plus a full security audit, adversarial verify pass; reports findings, never fixes
+- **refactor** - Safe refactoring with behavior preservation; with no arguments, works through the fix ledger `/branch-review` accumulated
+- **branch-review** - Pre-merge gate that reports and never fixes: general review at a chosen effort level, a full security audit that runs at full depth regardless of level, then an adversarial verify pass. Needs a clean tree. Only reproduced Critical/High failures block; everything else lands in the fix ledger for `/refactor`
 - **security** - Standalone vulnerability scan; also runs as stage 2 of `/branch-review`
-- **ship** - Pre-deployment checklist
-- **release** - Prepare a release on the current branch: verify → docs sweep → version bump → local commit, then hand back the merge/tag/publish sequence (never pushes)
+- **ship** - Mechanical pre-deploy gate: every item is answerable by running a command and reading its exit code, recorded as pass/fail/N/A. A check not run is a fail, and N/A needs a stated reason
+- **release** - Prepare a release on the current branch: verify → docs sweep → version bump → local commit, then hand back the merge/tag/publish sequence (never pushes). Refuses without a review recorded at the current HEAD SHA
 - **test-generate** - Generate test suites
 
 > **Claude-only plugin:** `live-canvas-channel` is a bundled Claude Code MCP channel plugin that ships under `~/.claude/plugins/live-canvas-marketplace/`. One-time `/plugin install` + a session started with `--dangerously-load-development-channels` unlocks live mode. Skill probes for the channel on each invocation and handholds setup when missing. See [`packages/claude/skills/live-canvas/README.md`](packages/claude/skills/live-canvas/README.md) for the full walkthrough.
@@ -166,6 +166,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 | **[subagentic-manual.md](packages/subagentic-manual.md)** | Detailed agent/command reference |
 | **[remember-README.md](docs/product/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
 | **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/cleanup modes, what it measurably costs, and the ledger that tracks doc drift |
+| **[branch-review-README.md](docs/product/branch-review-README.md)** | How the pre-merge gate works — the three stages, what blocks a merge, and the `/branch-review` → fix ledger → `/refactor` loop |
 
 ---
 
@@ -184,7 +185,8 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 **Code Quality:**
 ```
 @quality-assurance Review this PR before merge
-/branch-review main medium  # review branch vs main + security audit; reports, never fixes
+/branch-review main medium  # review + security audit; blockers reported, the rest to the fix ledger
+/refactor                   # no args: work through the fix ledger branch-review accumulated, between features
 /debug-method Investigate this race condition
 ```
 

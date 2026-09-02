@@ -477,3 +477,47 @@ cat .claude/remember/friction/antigen_clusters.json
 # human-readable:
 cat .claude/remember/friction/antigen_review.md
 ```
+
+## 6. Known limitations
+
+These are structural, not bugs on a backlog. Each one is a place where closing the
+gap costs more than the gap does — recorded here so the next person does not spend a
+session rediscovering that.
+
+### Matching semantics and evidence are the same channel
+
+A ledger entry's `class_hints` **are** fragments of the quotes that proved it. `ag-001`
+carries `"did you ground your check"` and `"fucking validate this after correction"`.
+Step 4a then hands the classifier `class_hints` + `rule` + `evidence.quotes` and asks
+whether a new cluster is that same mistake class. So an entry's *identity* — what
+distinguishes it from every other entry — is made of the same strings as its *evidence*
+that the mistake recurs. The two are coupled by construction.
+
+Two consequences follow, and they pull in opposite directions:
+
+- **Tautological matching.** A cluster can match an entry on the strength of the very
+  quotes that seeded it, which is a match against itself rather than against a new
+  occurrence. Session-hash dedup neutralises the common case — the same session cannot
+  be counted twice — but the identity is per session, not per quote, so it bounds the
+  damage rather than removing the cause.
+- **Over-matching on thin ledgers.** Where `class_hints` are short generic phrases,
+  they match ordinary frustration that shares a word. This is `Open item 2` in
+  `remember.md`, and it is why 4a requires a negative example ("`we're burning money,
+  why is it failing?` does NOT match") rather than the positive claim alone.
+
+Decoupling either way makes the other worse. Narrow matching to the `rule` and genuine
+recurrence phrased differently stops counting — recall gaps are the failure this
+pipeline exists to avoid. Widen it back onto the quotes and generic entries swallow
+unrelated clusters, which is the failure precision was chosen over recall to prevent.
+The negative-example requirement is the mitigation; there is no fix that is not a trade.
+
+### A run cannot tell that its own work invalidated a standing fact
+
+`/remember` writes facts from stashes and friction output. It has no way to notice that
+work done *in the same session* has just falsified a fact already in `MEMORY.md` — a
+fact asserting two files stay tracked survives a commit, in that same session, that
+gitignores them. Detecting this would mean re-checking every standing fact against the
+working tree on every run, and rewriting facts on that evidence is worse than leaving a
+stale one: the heuristic would be confidently wrong about facts it half-understood.
+Stale facts are corrected the way they were written — by a human noticing, or by the
+next run's extraction contradicting them outright.
