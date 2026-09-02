@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [2.23.0] - 2026-09-02
 
 ### Added
 - **`/refactor` gains a no-argument ledger mode.** Bare `/refactor` works through
@@ -39,6 +39,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`docs/product/branch-review-README.md`** — reference for the pre-merge gate: the three
   stages, what blocks a merge, the ledger's anchor design, and the review → ledger →
   `/refactor` loop. Follows the existing `remember` and `docs-builder` product-doc pattern.
+- **`/refactor` gains a `## Guardrails` block, ported from `/branch-review`.** Spawn a
+  worker at your tool's mid tier, stated explicitly on the spawn; escalate anything you
+  cannot decide rather than assuming; the worker never sub-delegates; edit only what a
+  surviving ledger bullet names, one change per bullet. The three parts that do not
+  transfer verbatim were rewritten: "no edits" inverts into a scope rule since `/refactor`
+  edits by design, and **the three HITL gates belong to the orchestrator, not the
+  worker** — a subagent cannot hold a conversation, so it stops and hands back the options
+  with no choice made rather than picking revert/patch/update-test on the user's behalf.
+  The blast-radius proof is now two checks: `git status --porcelain` at exit must list
+  only bullet-named files, and `md5sum .claude/remember/*` must show only `fix-ledger.md`
+  differing — `last-review.md` is off-limits to the fixer, since writing it would forge
+  the gate that judges its own work.
+- **`docs/product/remember-README.md`** gains a `## 6. Known limitations` section.
+  Matching semantics and evidence are the same channel — an entry's `class_hints` are
+  fragments of the quotes that proved it, so its identity and its proof of recurrence are
+  the same strings — with two consequences pulling in opposite directions: tautological
+  matching (bounded, not removed, by session-hash dedup) and over-matching on thin
+  ledgers (`Open item 2`). Separately: a run cannot tell that its own work invalidated a
+  standing fact, since detecting that would mean re-checking every fact against the
+  working tree on every run, which trades a stale fact for a confidently wrong one.
 
 ### Changed
 - **`/branch-review` writes a durable review record; `/release` reads it.** The reviewed
@@ -128,6 +148,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/branch-review` — ledger bullets are subject to stage 3.** A field run produced a true
   finding whose stated consequence was false. Bullets must now be verified or carry an
   `UNVERIFIED:` prefix so `/refactor` retests before acting.
+- **`/remember` — a marker pair already present in `CLAUDE.md` had no rule.** The clause
+  covered a missing pair (append it) and the AGENT_RULES exception (leave it alone) but
+  said nothing for an already-present MEMORY pair, which is the common case on every run
+  after the first. Now: replace its content in place; the AGENT_RULES bootstrap-once
+  exception directly below still overrides.
+- **`docs/product/branch-review-README.md`** — dropped a stale "five-line record" count.
+  The record stopped being five lines once level, coverage and blockers were added.
+- **`/refactor` — ledger mode's step 1 caught a dirty tree only after a worker already
+  existed.** Step 1 now documents the split: the orchestrator runs the tree check before
+  spawning, and the worker re-runs it as its own first act, matching `/branch-review`'s
+  Target section.
 
 ## [2.22.1] - 2026-09-01
 
