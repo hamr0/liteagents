@@ -104,6 +104,14 @@ its exit code.
   "temporary" names, abandoned feature flags.
 - **Correctness.** Edge cases, error handling, type / contract violations,
   broken invariants.
+- **State ownership.** Two or more functions assigning the same field, flag, or
+  view property. A finding on its own — no failing case required. `git grep`
+  every assignment to that name repo-wide, not just in the diff; the second
+  writer is usually in a file the diff never touched. Name both writers with
+  `file:line` — an unnamed second writer is a hunch, not a finding. Count
+  ordering, not just writers: a write arriving from a callback, thread, or
+  lifecycle event is the dangerous one, and one app writer racing a framework
+  one still counts as two.
 - **Performance.** N+1, blocking calls in hot paths, unbounded loops, indexes
   the diff actually touches.
 - **Test quality, not just test presence.** For every test the diff adds or
