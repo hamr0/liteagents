@@ -95,12 +95,23 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 (the literal range or path) in your output, so the orchestrator can see what
 was actually read rather than assuming.
 
-**Re-review after fixes: pass the range `<previously-reviewed-sha>..HEAD`.**
-Stage 1 reads only the fix commits; stage 3 re-verifies the prior report's
-blockers (fixed / unfixed / dismissed — with reason); the rest of the branch is
-**not** re-judged. A full re-read of an already-reviewed branch produces fresh
-findings every time and never converges. The range form still ends at HEAD,
-so `/release`'s precondition is satisfied.
+**Re-review after fixes: read `.claude/remember/last-review.md` first.** Its
+`sha:` line is the previously-reviewed commit and its `blockers:` list is what
+you owe an answer on — take both from the file, never from the orchestrator's
+recollection, for the same reason `/release` does. Then:
+
+- **`sha:` ≠ HEAD** → this is a re-review. Target the range
+  `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
+  re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
+  reason. The rest of the branch is **not** re-judged: a full re-read of an
+  already-reviewed branch produces fresh findings every run and never
+  converges. The range still ends at HEAD, so `/release`'s precondition is
+  satisfied and the new record replaces the old one.
+- **`sha:` = HEAD** → nothing has changed since the last review. Say so and
+  stop; re-running against an identical tree can only produce noise. If the
+  recorded verdict was `blocked`, its blockers are still unfixed by
+  definition — repeat them rather than re-deriving them.
+- **No file** → no prior review to build on. Review the whole branch.
 
 **On a re-review, sweep the open ledger bullets for liveness first.** Their
 anchors may sit in the part of the branch you are no longer reading, and the
