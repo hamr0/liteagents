@@ -1765,8 +1765,26 @@ function extractToolsFromTurn(event) {
           const toolName = block.name || 'unknown';
           tools.push({ tool: toolName, action: 'call' });
         } else if (block.type === 'tool_result') {
-          const result = String(block.content || '');
-          if (result.includes('Exit code 0')) {
+          // The transcript marks a failed tool call with `is_error`; a success
+          // carries no sentinel in the result text. Reading the text for
+          // 'Exit code 0' matched 1 block in 2623 sampled from the real
+          // corpus, so `result` was 'unknown' on 31 of 34 clusters — and the
+          // case this field exists for is a CLAIMED success the user is
+          // contradicting, which is the one that never fired. Content is also
+          // sometimes an array of blocks (403/2623), which String() turned
+          // into "[object Object]" so no pattern could match it.
+          //
+          // A block with no `is_error` stays unknown on purpose: those are
+          // harness meta-results (skill/agent launches, question answers —
+          // 560/2624 sampled) and calling them success would inflate the very
+          // signal this field is here to detect.
+          const raw = block.content;
+          const result = Array.isArray(raw)
+            ? raw.map(b => (b && typeof b === 'object' ? (b.text || '') : String(b || ''))).join('\n')
+            : String(raw || '');
+          if (block.is_error === true) {
+            tools.push({ tool: 'result', action: 'error' });
+          } else if (typeof block.is_error === 'boolean') {
             tools.push({ tool: 'result', action: 'success' });
           } else if (/Exit code [1-9]|Traceback|Error/.test(result)) {
             tools.push({ tool: 'result', action: 'error' });
