@@ -20,6 +20,22 @@ its exit code**. A check you did not run is a **fail**, never a pass. **N/A
 requires a stated reason** ("no build script in `package.json`") — N/A must
 never stand in for "didn't get to it."
 
+**Capture the exit code of the command itself, never of a pipeline.** Run the
+bare command, then read `$?` on the next line:
+
+```
+node "$f" > /tmp/out 2>&1; e=$?
+```
+
+`$?` after a pipe is the *last element's* status, so the common shape
+`out=$(cmd 2>&1 | tail -1); echo "exit=$?"` reports `tail`'s success — `0` —
+for a suite that exited `2`. Reproduced: a check printing "exit 2:
+prerequisites missing" was recorded as a pass by exactly that loop. Nor does
+`${PIPESTATUS[0]}` rescue it inside a command substitution; it is empty by
+the time you read it. This is the rule the whole gate rests on, and the
+piped form is the natural way to write a multi-suite loop, so it fails
+silently and in the unsafe direction.
+
 ## Checklist
 - [ ] **Tests pass** — run the project's real test command (`npm test`,
       `pytest`, `go test ./...`, `cargo test`, `make test`).

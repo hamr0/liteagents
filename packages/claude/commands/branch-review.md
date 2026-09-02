@@ -118,7 +118,10 @@ judging.
 not a fact to accept. Branches are commonly AI-authored now — including the
 fixes to the fixes — so a review that trusts the message is reviewing prose.
 Run the test suite and the typecheck/build yourself and cite the command and
-its exit code.
+its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
+e=$?`), never off a pipeline — `$?` after a pipe is the last element's
+status, so piping into `tail` reports `0` for a suite that failed. `/ship`
+carries the reproduction.
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.

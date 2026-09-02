@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`/branch-review` writes a durable review record; `/release` reads it.** The reviewed
+  SHA previously existed only as prose in a chat message, so `/release`'s Phase 0.5
+  precondition resolved to the orchestrator's word — the one party the same paragraph
+  declares inadmissible — and vanished on a compaction or a handover. The review now
+  overwrites `.claude/remember/last-review.md` with sha/branch/target/verdict/date, and
+  Phase 0.5 matches against its `sha:` line. No record, or no `sha:` line, is no review.
+
+  **Migration:** a branch reviewed before this change has no record file, so the new
+  Phase 0.5 will correctly refuse it. That is migration, not a bug. Re-run
+  `/branch-review`; do **not** hand-write the record, which would turn the durable
+  artifact back into the unverified claim it exists to replace.
+
+- **Only reproduced Critical/High failures block a merge.** Everything else is appended
+  to a local fix ledger at `.claude/remember/fix-ledger.md`, consumed by bare `/refactor`.
+  Re-review after fixes reads `<previously-reviewed-sha>..HEAD` rather than re-judging the
+  whole branch, which is what makes a review converge instead of surfacing a fresh nit
+  list every run. Style, wording and structure never block; a normative requirement stated
+  two incompatible ways still does, since conforming implementations built from it diverge.
+
+### Fixed
+- **`/ship` and `/branch-review` — exit codes must be read off the bare command, not a
+  pipeline.** `$?` after a pipe is the last element's status, so the natural multi-suite
+  shape `out=$(cmd 2>&1 | tail -1); echo "exit=$?"` records `tail`'s success for a suite
+  that exited non-zero. Found in the field: a check printing "exit 2: prerequisites
+  missing" entered the gate as a pass. `${PIPESTATUS[0]}` does not rescue it inside a
+  command substitution either.
+- **`/branch-review` — ledger dedupe uses plain `grep`, not `git grep`.** The ledger is
+  deliberately gitignored and `git grep` searches tracked content only, so the dedupe
+  check reported "not found" for snippets sitting in the file and would have re-appended
+  every finding on every run.
+- **`/branch-review` — ledger bullets are subject to stage 3.** A field run produced a true
+  finding whose stated consequence was false. Bullets must now be verified or carry an
+  `UNVERIFIED:` prefix so `/refactor` retests before acting.
+
 ## [2.22.1] - 2026-09-01
 
 ### Fixed
