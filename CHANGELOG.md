@@ -68,6 +68,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is cut.
 
 ### Fixed
+- **`/branch-review` — the review record carries blockers, level and coverage.** Five lines
+  proved that a review ran and what it concluded, but not *what* was blocked, so a session
+  inheriting a `blocked` verdict had to re-review the branch to rediscover why — the
+  non-convergence this command exists to stop, displaced one level up. The record now lists
+  one line per blocker (claim only; scenarios stay in the report, non-blocking findings stay
+  in the ledger), the effort level, and per-stage coverage. `/release` stops on any stage
+  marked `NOT RUN`, since a `ready` from a run that skipped the security stage is a
+  different fact. Deliberately absent: any override field — a hash is checkable by anyone
+  and consent is not, so a consent line would be forgeable by whatever writes the file, and
+  a persisted override would silently cover the next release too.
 - **`/release` Phase 0.5 wrote a `verdict:` line nobody read.** The record carried the
   review's conclusion, but the gate compared only the `sha:` line, so a record saying
   `verdict: blocked` passed the mechanical check whenever the hash still matched — leaving

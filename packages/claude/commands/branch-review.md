@@ -265,15 +265,45 @@ assumed pass.
 it. `/release` reads this file; a SHA that lives only in a chat message is
 gone after a compaction or a handover, and the only remaining source is the
 orchestrator — the one party this command already refuses to take a review's
-word from. Exactly these five lines:
+word from. **Write it at the end of every run, unconditionally** — not after
+someone decides what to do about it. The information exists now, and the file
+earns its keep only by surviving a compaction, an abandoned session, or a
+handover to someone who never saw the report.
 
 ```
 sha: <full HEAD sha>
 branch: <branch>
 target: <resolved range or path>
+level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
+coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
+blockers:
+- <file:line> · <one-sentence claim, no scenario, no suggested fix>
 ```
+
+`blockers: none` when the verdict is ready. One line per blocker and nothing
+more: the reasoning belongs in the report, and the non-blocking findings
+belong in the ledger. This exists so a session that never saw the report can
+learn *what* is blocked, not just *that* something is — otherwise the next
+run rediscovers it by re-reviewing the branch, which is the
+non-convergence this command exists to stop.
+
+`coverage` is recorded because a `ready` from a run whose security stage did
+not execute is not the same fact as one where it did, and the reader of this
+file cannot tell them apart otherwise.
+
+**There is no override field, and no `verdict: overridden`.** A SHA is
+checkable by anyone; consent is not, so a consent line in a file is forgeable
+by whatever writes the file — and a persisted override is reusable, silently
+covering the next release as well as this one. Releasing over a blocked
+review is a live decision made at `/release`'s hand-back, in conversation.
+
+**Nothing clears this file.** It is overwritten whole on the next run, and the
+`sha:` line is what expires it: fix something, commit, and the recorded hash
+no longer matches HEAD, so the gate reports *stale* and asks for a
+re-review rather than *blocked*. A blocked verdict can only persist while HEAD
+does not move — which means nothing was fixed, which is the correct outcome.
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,

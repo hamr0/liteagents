@@ -214,6 +214,36 @@ from a review run lands here as one bullet:
   scenario · YYYY-MM-DD @ <short sha>
 ```
 
+### The review record
+
+`.claude/remember/last-review.md`, written at the end of every run and overwritten whole:
+
+```
+sha: <full HEAD sha>
+branch: <branch>
+target: <resolved range or path>
+level: <low | medium | high | max>
+verdict: <ready | blocked>
+date: <YYYY-MM-DD>
+coverage: stage1 ran, stage2 ran, stage3 ran
+blockers:
+- <file:line> · <one-sentence claim>
+```
+
+It answers one question — was *this commit* reviewed, and what came of it — so only the
+latest answer can be true, which is why it is overwritten rather than appended. The
+blockers list exists so a session that never saw the report can act on a `blocked` verdict
+instead of re-reviewing the branch to rediscover why, and it carries claims only: scenarios
+and fixes stay in the report, non-blocking findings stay in the ledger.
+
+**Nothing clears it.** The `sha:` line expires it: commit a fix and the recorded hash stops
+matching HEAD, so the gate reports *stale* and asks for a re-review rather than *blocked*.
+A blocked verdict persists only while HEAD does not move, meaning nothing was fixed. There
+is no override field either — a hash is checkable by anyone and consent is not, so a
+consent line would be forgeable by whatever writes the file, and a persisted override would
+silently cover the next release too. Releasing over a blocked review is a live decision at
+`/release`'s hand-back.
+
 **The anchor is a path plus a verbatim snippet — 20–60 characters — never a line number or
 a function name.** A line number rots the moment an unrelated edit shifts the file by one
 line; a function name survives a rename or a merge, or matches the wrong overload. The

@@ -75,6 +75,9 @@ that predates this file's introduction has no record, so it does not count.
   `.claude/` instead will see a ledger commit land after the review and make
   it stale. That is the rule working, not a case to carve out: re-review, or
   leave the ledger uncommitted until after the release.
+- **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
+  that skipped the security stage is not the same fact as one that did not,
+  and this line is the only place the difference is visible to you.
 - **`verdict: blocked` in the record** → **stop**, even when the SHA matches.
   Read that line as mechanically as the `sha:` one. A matching SHA proves a
   review ran here; it says nothing about what the review concluded, and
