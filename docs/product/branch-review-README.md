@@ -242,7 +242,9 @@ pass on every run. The anchor lookups against source files above are `git grep`,
 `/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
 bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
 their fixes land or their anchors go stale, but it never adds one. Each command has
-exactly one write shape on this file. That split matters because it makes the ledger
+exactly one write shape on this file, and no third command has any — `/release`'s docs
+sweep may well correct a line a bullet names, since that doc changed with the feature, but
+it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
 readable as a log: an append is always new evidence from a review, a deletion is always a
 closed or invalidated item, and neither command can silently second-guess what the other
 recorded. If both could edit freely, a bug in either command could corrupt the other's

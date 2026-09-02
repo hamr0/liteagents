@@ -80,9 +80,14 @@ that predates this file's introduction has no record, so it does not count.
 
 This phase runs **before** `/release` writes anything, so the docs-and-bump
 commit it makes later cannot invalidate the review it just checked. That
-commit is also where a doc-only ledger item is cheapest to close: correcting
-a stale line during the docs sweep costs nothing, where fixing it on its own
-means a commit, a stale review, and a re-review for one word.
+If Phase 2's docs sweep happens to correct a line that a fix-ledger bullet
+also names, that is ordinary sweep work — the doc changed with the feature,
+so it was already yours to update. **Do not delete the bullet.** `/refactor`
+is the only deleter, and its revalidation will drop that bullet on its next
+run when it finds the finding no longer holds. Deleting it here would make
+`/release` a second writer on state that has exactly one owner, and the whole
+value of the ledger's one-append-one-delete split is that it stays readable
+as a log.
 
 Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
 match yes/no.
