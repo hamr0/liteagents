@@ -327,6 +327,10 @@ is the orchestrator's word, which this gate exists precisely not to take.
 makes "this branch was reviewed" a checked fact instead of a claim, independent of
 whatever state the ledger file happens to be in.
 
+- **`verdict: blocked`** → stop, even on a matching SHA. The hash proves a review ran at
+  this commit; the verdict is what it concluded, and only `ready` plus a matching hash is a
+  pass. Both lines are read mechanically, for the same reason: the alternative is trusting
+  someone's memory of the outcome.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** (commits landed after the review, including fix

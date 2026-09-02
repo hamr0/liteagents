@@ -68,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is cut.
 
 ### Fixed
+- **`/release` Phase 0.5 wrote a `verdict:` line nobody read.** The record carried the
+  review's conclusion, but the gate compared only the `sha:` line, so a record saying
+  `verdict: blocked` passed the mechanical check whenever the hash still matched — leaving
+  the conclusion to the orchestrator's recollection, which is the unverified claim the
+  record was created to replace. Both lines are now read mechanically; only `ready` plus a
+  matching hash is a pass.
 - **`/release` — the handoff sequence went from `gh pr create` straight to `gh pr merge`,
   with no wait for CI.** Every gate in the chain runs on one machine: `/branch-review`
   reviews locally, `/ship` runs the suite locally, and `/release` never pushes. CI is the

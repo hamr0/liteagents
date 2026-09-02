@@ -75,6 +75,12 @@ that predates this file's introduction has no record, so it does not count.
   `.claude/` instead will see a ledger commit land after the review and make
   it stale. That is the rule working, not a case to carve out: re-review, or
   leave the ledger uncommitted until after the release.
+- **`verdict: blocked` in the record** → **stop**, even when the SHA matches.
+  Read that line as mechanically as the `sha:` one. A matching SHA proves a
+  review ran here; it says nothing about what the review concluded, and
+  leaving the conclusion to the orchestrator's recollection restores exactly
+  the unverified claim this file replaced. Only `verdict: ready` with a
+  matching SHA is a pass.
 - **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
   resolved before a release is cut.
 
