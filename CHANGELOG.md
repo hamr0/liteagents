@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`/refactor` gains a no-argument ledger mode.** Bare `/refactor` works through
+  `.claude/remember/fix-ledger.md` instead of taking a target: it requires a clean tree and
+  a non-`main` branch, revalidates every bullet before fixing anything, drops the ones
+  whose anchor no longer resolves, fixes the survivors one at a time under the existing
+  no-behaviour-change constraints, and deletes each bullet as its fix lands — so the fix
+  commit is the done record and there is no second place to keep it in sync.
+- **`/branch-review` gains State ownership as a stage-1 finding category.** Two or more
+  functions assigning the same field, flag or view property is a finding on its own, with
+  no failing case required. Both writers must be named with `file:line`, since an unnamed
+  second writer is a hunch. Ordering counts as well as writers: a write arriving from a
+  callback, thread or lifecycle event is the dangerous one, and one app writer racing a
+  framework writer still counts as two.
+- **`AGENT_RULES.md` — four Build Rules, each naming something observable.** One writer per
+  piece of state; split the decision from the machinery, extracting a branch into a pure
+  function to pin it with a test rather than to raise coverage; claims in comments must be
+  checkable, because a name search proves an edge exists and never that one does not; and
+  every line earns its place, meaning if you cannot say what breaks when it is deleted,
+  delete it. "Surgical changes only" was rewritten to say what to do with a problem you
+  pass on the way: fix it if it is in the code you are already changing and the fix changes
+  no behaviour, otherwise report it with what it costs to leave. A problem you do not fix
+  goes in the report, never in a comment.
+- **`/remember` writes two hot rules inline into the `AGENT_RULES.md` section.** The file
+  stays a plain pointer and is never `@`-referenced, since that hot-loads roughly 300 lines
+  of standards guide into every session. The section now carries the path plus exactly the
+  two rules that change what you type — the ones you cannot look up because you do not know
+  you need them.
+- **`docs/product/branch-review-README.md`** — reference for the pre-merge gate: the three
+  stages, what blocks a merge, the ledger's anchor design, and the review → ledger →
+  `/refactor` loop. Follows the existing `remember` and `docs-builder` product-doc pattern.
+
 ### Changed
 - **`/branch-review` writes a durable review record; `/release` reads it.** The reviewed
   SHA previously existed only as prose in a chat message, so `/release`'s Phase 0.5
@@ -28,6 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole branch, which is what makes a review converge instead of surfacing a fresh nit
   list every run. Style, wording and structure never block; a normative requirement stated
   two incompatible ways still does, since conforming implementations built from it diverge.
+
+- **`/release` Phase 0.5 is the SHA comparison alone.** A ledger-only exception was removed
+  rather than kept and narrowed: the ledger is gitignored, so it never reaches a commit
+  diff, and scoping a rule to a condition that cannot occur is how dead branches survive
+  review. A repo that does track `.claude/` will see a ledger commit make the review stale,
+  which is the gate working — re-review, or leave the ledger uncommitted until the release
+  is cut.
 
 ### Fixed
 - **`/ship` and `/branch-review` — exit codes must be read off the bare command, not a
