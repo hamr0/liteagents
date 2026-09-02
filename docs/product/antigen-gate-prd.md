@@ -320,3 +320,54 @@ packages; no new code, no background agent):
   hot threshold — load-bearing, not just bookkeeping for the deferred gate.
 
 The ON/OFF gate design (§4–5) stays specced here, DEFERRED per §9's POC results.
+
+---
+
+## 13. Notes — antecedent matching (2026-09-02, measured, not decided)
+
+Working notes from a measurement session. Nothing here is DECIDED; recorded so the
+next attempt starts from the numbers rather than from the idea.
+
+**The observation.** An entry's `class_hints` are fragments of the quotes that proved
+it, and step 4a matches an incoming cluster against `class_hints` + `rule` +
+`evidence.quotes`. So an entry's identity and its evidence of recurrence are the same
+strings, and matching has exactly one channel. The proposal was to give it a second,
+independent one: the *antecedent* — what the agent had just done — rather than only the
+reaction. `friction.cjs` already computes `preceding` per cluster; a ledger entry
+stores no equivalent (`id`, `class`, `class_hints`, `status`, `rule`, `attempts`,
+`evidence`, `recurred_while_hot`, `history`; `evidence` holds `sessions`,
+`session_ids`, `projects`, `quotes`, `last_seen`).
+
+**What the measurement found (frozen corpus: 34 clusters / 101 candidates).**
+
+- `preceding.action` is a **tool-name sequence**, not a description of the action —
+  `calls.slice(-2).join(' → ')`. `Bash` or `none` covers 21 of 34 clusters, 12 distinct
+  values in total. Stored on an entry as-is, this adds a channel with very little
+  discriminative content: `Bash` against `Bash` is close to the coin flip the quote
+  channel already is. **This is the part that sinks the cheap version of the idea.**
+- `preceding.result` was `unknown` on 31 of 34 — a defect, since fixed: it read the
+  result text for `'Exit code 0'` (1 match in 2623 sampled blocks) instead of the
+  `is_error` boolean (present on 2065/2624). After the fix: 18 claimed-success, 4
+  error, 12 unknown. Cluster hashes unchanged.
+- The discriminative material exists one layer down, on **candidates**, and is dropped
+  at clustering: `files` 74/101 populated, `tool_sequence` 65/101, `user_context`
+  98/101.
+
+**Where that leaves it.** Storing `preceding` on ledger entries — the plan as first
+written — would ship a weak channel, not a decoupled one. A real antecedent channel
+would have to carry file/tool detail through clustering, which is a larger change and
+runs straight into the trade §6 of `remember-README.md` names: a distilled antecedent
+reintroduces exactly the LLM judgement 4a was narrowed to avoid. Un-defer condition for
+building it: a measured improvement in exact-label agreement on a frozen corpus, the
+way the `top_keywords` change was measured (0.884 → ~0.97) before it shipped. Absent
+that number, this stays a note.
+
+**A limit underneath all of it.** The seed signal assumes a reaction indicates an agent
+mistake. A share of them are over-prompting, thin context, or impatience — mistakes on
+both sides, in degrees that are never balanced. Since seed evidence becomes
+`class_hints`, that noise is what later matching runs against, so it compounds.
+`self_suspect` and `preceding.action === 'none'` are the two mechanical cues that
+gesture at this and both remain drop cues, never attributions — deliberately, under
+invariant 11.5 (**LLM as classifier, never scorer**). Asking *whether there was an
+agent action* is classification; asking *whose fault it was* is scoring, and severity
+already degenerated once from being seeded and rated on the same signal.

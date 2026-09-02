@@ -1085,10 +1085,17 @@ const LINK_SKIP = /(^|\/)(CHANGELOG\.md|log\.md)$/;
 // moves is already covered by the resident check the instant its own git mv lands, before
 // rewriteLinks ever runs for it.
 let plannedArchiveSrc = new Set();
+// Set only for the duration of cleanup-apply's restore pass (see cleanupApply below), which
+// walks inbound references back from the archived copy to the relocated core page. That pass
+// must skip the split's own pages: they cite the original BY LINE NUMBER, so their `sources:`
+// and citations belong on the frozen archive copy, not on the shortened core page. A
+// predicate rather than a Set because the exemption is a directory prefix plus one file.
+let linkRestoreExempt = null;
 // One predicate, called from the one place rewriteLinks() loops over candidate files, so the
 // exemption can never desync across callers the way moveDoc's follow-ups almost did.
 function isRewriteExempt(f) {
-  return LINK_SKIP.test(f) || f.startsWith(REORG_DEST.archive + '/') || plannedArchiveSrc.has(f);
+  return LINK_SKIP.test(f) || f.startsWith(REORG_DEST.archive + '/') || plannedArchiveSrc.has(f)
+    || (linkRestoreExempt !== null && linkRestoreExempt(f));
 }
 
 // A real corpus (astral-sh/uv) cross-links its docs with RELATIVE paths — `../concepts/x.md`,
@@ -2352,6 +2359,40 @@ function cleanupApply(file, outlineF, labelsF) {
         for (const m of r.artifactNotes) console.log(`    ${m}`);
         if (r.failures.length) console.error(`  WARN core page relocated, but ${r.failures.join('; ')}`);
         noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
+
+        // FIELD BUG (real, reproduced): archiveOrThrow above rewrote EVERY inbound reference
+        // to point at docs/archive/, because at that moment the archive genuinely was the
+        // only copy. The relocation on the line above then put a live page back at the
+        // original path — so the corpus now tells readers that "the PRD" lives in the
+        // archive while the live page sits unreferenced. On a real split that was 33
+        // references across 15 files outside docs/, and it is precisely the backwards
+        // outcome this command exists to prevent. Walk them back.
+        //
+        // The ordering itself cannot be swapped: the original must vacate the path before
+        // the core page can occupy it, and rewriting links to a path nothing occupies yet
+        // would be worse. So the restore is a third step, not a reordering.
+        //
+        // EXEMPT, and this is the point of the pass rather than an edge case: the split's
+        // own pages cite the original BY LINE NUMBER, so their `sources:` and citations
+        // must stay on the frozen archive copy — as must the relocated core page's own.
+        // Rewriting those back would be a new bug wearing the old one's clothes.
+        const archivedRel = path.posix.join(REORG_DEST.archive, path.basename(file));
+        const pagesPrefix = pages.replace(/\/*$/, '') + '/';
+        linkRestoreExempt = f => f === r.rel || f.startsWith(pagesPrefix);
+        let restored;
+        try { restored = rewriteLinks(archivedRel, r.rel); }
+        finally { linkRestoreExempt = null; }
+        if (restored.skipped) {
+          console.log(`  ${restored.skipped}`);
+        } else if (restored.total) {
+          console.log(`  restored ${restored.total} inbound reference(s) from ${archivedRel} `
+            + `back to ${r.rel} (the archive step had aimed them at the frozen copy; `
+            + `${pagesPrefix} pages keep theirs, their citations are line-numbered)`);
+          for (const { file: lf, n } of restored.files) console.log(`    ${lf}: ${n}`);
+          noteLinks(restored.files.map(x => x.file));
+        } else {
+          console.log(`  no inbound references to ${archivedRel} needed restoring.`);
+        }
       } catch (e) {
         console.error(`  WARN could not relocate the core page from ${from} to ${to}: `
           + `${e.message} — it remains at ${from}.`);
