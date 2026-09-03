@@ -320,3 +320,69 @@ packages; no new code, no background agent):
   hot threshold — load-bearing, not just bookkeeping for the deferred gate.
 
 The ON/OFF gate design (§4–5) stays specced here, DEFERRED per §9's POC results.
+
+---
+
+## 13. Notes — antecedent matching (2026-09-02, measured, not decided)
+
+Working notes from a measurement session. Half of it shipped (the incoming side, in
+`ecf142c`); the ledger half is still not DECIDED. Recorded so the next attempt starts
+from the numbers rather than from the idea.
+
+**The observation.** An entry's `class_hints` are fragments of the quotes that proved
+it, and step 4a matches an incoming cluster against `class_hints` + `rule` +
+`evidence.quotes`. So an entry's identity and its evidence of recurrence are the same
+strings, and matching has exactly one channel. The proposal was to give it a second,
+independent one: the *antecedent* — what the agent had just done — rather than only the
+reaction. `friction.cjs` already computes `preceding` per cluster; a ledger entry
+stores no equivalent (`id`, `class`, `class_hints`, `status`, `rule`, `attempts`,
+`evidence`, `recurred_while_hot`, `history`; `evidence` holds `sessions`,
+`session_ids`, `projects`, `quotes`, `last_seen`).
+
+**What the measurement found (frozen corpus: 34 clusters / 101 candidates).**
+
+- `preceding.action` is a **tool-name sequence**, not a description of the action —
+  `calls.slice(-2).join(' → ')`. `Bash` or `none` covers 21 of 34 clusters, 12 distinct
+  values in total. Stored on an entry as-is, this adds a channel with very little
+  discriminative content: `Bash` against `Bash` is close to the coin flip the quote
+  channel already is. **This is the part that sinks the cheap version of the idea.**
+- `preceding.result` was `unknown` on 31 of 34 — a defect, since fixed: it read the
+  result text for `'Exit code 0'` (1 match in 2623 sampled blocks) instead of the
+  `is_error` boolean (present on 2065/2624). After the fix: 18 claimed-success, 4
+  error, 12 unknown. Cluster hashes unchanged.
+- The discriminative material exists one layer down, on **candidates**, and is dropped
+  at clustering: `files` 74/101 populated, `tool_sequence` 65/101, `user_context`
+  98/101. As a matching signature, candidate-level file basenames gave 28 distinct /
+  3.7% collision, against 13 / 19.3% for `preceding` and 10 / 25.8% for
+  `tool_sequence`.
+
+**What shipped (`ecf142c`).** The file referents are now carried through clustering and
+unioned per cluster, capped at 8 sorted — they were collected on the session bucket and
+never read by `sessionSignals`, so no cluster had ever seen them. On the frozen corpus:
+**30 distinct signatures over 34 clusters at 1.8% collision, 29/34 populated** — a 10×
+reduction against `preceding`, and better than the 28 / 3.7% the candidate-level join
+predicted, because a cluster's union is richer than any single candidate's list.
+
+**One prediction here was wrong, in the favourable direction.** This note and §6 of
+`remember-README.md` both said a richer antecedent would have to be *distilled*, and
+would therefore reintroduce the LLM judgement step 4a was narrowed to avoid. File paths
+are mechanical text, so the second channel costs no judgement step at all. That
+objection is withdrawn.
+
+**Where that leaves it — still not DECIDED.** The channel exists on the *incoming* side
+only. No ledger entry stores `files`, and step 4a is not shown it, so matching today
+still runs on the single quote channel. The un-defer condition is unchanged and is what
+the remaining half is gated on: a measured improvement in exact-label agreement on a
+frozen corpus with and without the antecedent, the way the `top_keywords` change was
+measured (0.884 → ~0.97) before it shipped. A collision-rate table shows the channel
+*can* discriminate; it is not evidence that matching improves.
+
+**A limit underneath all of it.** The seed signal assumes a reaction indicates an agent
+mistake. A share of them are over-prompting, thin context, or impatience — mistakes on
+both sides, in degrees that are never balanced. Since seed evidence becomes
+`class_hints`, that noise is what later matching runs against, so it compounds.
+`self_suspect` and `preceding.action === 'none'` are the two mechanical cues that
+gesture at this and both remain drop cues, never attributions — deliberately, under
+invariant 11.5 (**LLM as classifier, never scorer**). Asking *whether there was an
+agent action* is classification; asking *whose fault it was* is scoring, and severity
+already degenerated once from being seeded and rated on the same signal.

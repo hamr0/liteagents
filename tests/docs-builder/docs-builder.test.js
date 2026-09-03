@@ -1716,6 +1716,80 @@ function cleanupRefusesConcurrentSplit() {
  * (e) Negative control: `apply-reorg` over a corpus holding an oversized file must never
  * create anything under the pages dir — proof `reorg` itself cannot split.
  */
+/**
+ * (REGRESSION, field-reported from a real PRD split) `cleanup-apply` archives the source
+ * BEFORE relocating the core page back to the original path. The archive step rewrites every
+ * inbound reference to point at docs/archive/, and nothing walks those back once the core
+ * page reoccupies the original path — so the corpus ends up telling readers that "the PRD"
+ * lives in the archive, while the live page sits unreferenced at its original location. The
+ * tool's own spec calls that the backwards outcome it exists to prevent.
+ *
+ * Field evidence (zkagent, 33 rewrites across 15 files outside docs/): every hit was a
+ * backtick-quoted path mention in prose, not markdown link syntax.
+ *
+ * The NEGATIVE CONTROL is the whole design of the fix: the split's wiki pages cite the
+ * original by line number, so their `sources:` MUST stay on the archive path. So must the
+ * relocated core page's own `sources:`. A fix that rewrites everything back is as wrong as
+ * the bug.
+ */
+function cleanupApplyRestoresInboundLinks() {
+  group('25c. cleanup-apply — inbound refs follow the core page back, wiki sources stay archived');
+
+  const d = repo({
+    'docs/BIG.md': `# Big\n\n## One\n\nalpha alpha alpha\n\n## Two\n\nbeta beta beta\n`,
+    // Inbound prose references, the shape the field run actually had.
+    'README.md': '# Readme\n\nSee `docs/BIG.md` — the PRD.\n',
+    'docs/design.md': '# Design\n\n**Companion to** `docs/BIG.md` (v1).\n',
+    // A markdown link too, so the fix is not accidentally prose-only.
+    'docs/logs/notes.md': '# Notes\n\nPer [the doc](docs/BIG.md), we do X.\n',
+  });
+
+  db(d, ['cleanup', 'docs/BIG.md']);
+  const o = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({
+    themes: [{ name: 'Main', gloss: 'g', core: true }, { name: 'Rest', gloss: 'g2' }],
+    labels: [{ key: o.records[0].key, theme: 'Main' }, { key: o.records[1].key, theme: 'Rest' }] }) });
+  db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+
+  // The model's page-writing step: pages cite the source by its PRE-archive path, exactly as
+  // the real flow does — the archive step then rewrites them to docs/archive/BIG.md.
+  const page = (title, body) => `---\ntype: reference\ntitle: ${title}\n`
+    + `sources: [docs/BIG.md]\n---\n\n# ${title}\n\n${body}\n` + 'body line\n'.repeat(10);
+  write(d, {
+    'docs/wiki/BIG.md': page('Big', 'core content, cites (BIG.md:12)'),
+    'docs/wiki/rest.md': page('Rest', 'theme content, cites (BIG.md:40)'),
+  });
+
+  const finish = db(d, ['cleanup-apply', 'docs/BIG.md',
+    'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
+  ok('cleanup-apply exits clean', finish.code, 0);
+  okTrue('setup: the original was archived', exists(d, 'docs/archive/BIG.md'));
+  okTrue('setup: the core page was relocated back to the original path', exists(d, 'docs/BIG.md'));
+
+  // THE REGRESSION: inbound references must name the live core page, not the archive.
+  const readme = read(d, 'README.md');
+  ok('README prose ref points at the live core page', /`docs\/BIG\.md`/.test(readme), true);
+  ok('README prose ref does NOT point at the archive', /docs\/archive\/BIG\.md/.test(readme), false);
+
+  const design = read(d, 'docs/design.md');
+  ok('design doc prose ref points at the live core page', /`docs\/BIG\.md`/.test(design), true);
+  ok('design doc prose ref does NOT point at the archive', /docs\/archive\/BIG\.md/.test(design), false);
+
+  const notes = read(d, 'docs/logs/notes.md');
+  ok('markdown link points at the live core page', /\]\(docs\/BIG\.md\)/.test(notes), true);
+  ok('markdown link does NOT point at the archive', /docs\/archive\/BIG\.md/.test(notes), false);
+
+  // NEGATIVE CONTROL: the split's own pages cite the original BY LINE NUMBER, so their
+  // sources: must remain on the archived copy. Rewriting these back would be a new bug.
+  const restPage = read(d, 'docs/wiki/rest.md');
+  ok('wiki page sources: STAYS on the archive path',
+    /sources: \[docs\/archive\/BIG\.md\]/.test(restPage), true);
+  const corePage = read(d, 'docs/BIG.md');
+  ok('relocated core page sources: STAYS on the archive path',
+    /sources: \[docs\/archive\/BIG\.md\]/.test(corePage), true);
+}
+
 function applyReorgNamesCleanup() {
   group('26. apply-reorg — oversized follow-up names `cleanup <NEW path>`, logs last (and never splits)');
 
@@ -2744,7 +2818,7 @@ function emptyPageIsPartialNotACrash() {
     indexFlatSearchHint, claudeMdDocsPointer, applyReorgConfigPointerBugs,
     relativeInboundLinks, relativeLinksBothMove, archiveIsFrozen, archiveOrderingBug,
     applyReorgScansWholeCorpus, applyReorgScanRespectsPages, applyReorgScansOversizedInPlace,
-    cleanupCmd, cleanupRefusesConcurrentSplit, applyReorgNamesCleanup,
+    cleanupCmd, cleanupRefusesConcurrentSplit, cleanupApplyRestoresInboundLinks, applyReorgNamesCleanup,
     cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
     logsIdempotentAndIndexed, emptyDirCleanup, cleanupPreservesWholeCorpusIndex,
     commitAdvisoryReported, commitAdvisorySkippedOnNoOp, commitAdvisoryOnArchive,

@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.24.0] - 2026-09-03
+
+### Added
+- **Friction clusters carry file referents through as a second matching signature.**
+  `friction.cjs` already computed a `files` list per candidate (74/101 populated on a
+  frozen 34-cluster / 101-candidate corpus) but silently dropped it at clustering, so no
+  cluster ever saw it. It is now unioned per cluster and capped at 8 sorted paths. Measured
+  before building: `preceding` (tool-name sequence + result) gave 13 distinct signatures
+  over 34 clusters at 19.3% collision, `tool_sequence` gave 10 at 25.8% — both close to the
+  coin flip the existing quote channel already is. File basenames gave 28 at 3.7% on a
+  per-candidate join; the per-cluster union does better still: 30 distinct signatures over
+  34 clusters at 1.8% collision, 29/34 populated, a 10× reduction against `preceding`. A
+  prediction from the design notes turned out wrong in the favourable direction: paths are
+  real strings, not a distillation, so the channel needed no LLM judgement step to add.
+  **This channel is carried on the incoming side only.** No ledger entry stores `files` and
+  step 4a is not shown it, so ledger matching still runs on the single quote channel it
+  always has — shipping that half is gated on a future exact-label-agreement measurement,
+  documented in `docs/product/antigen-gate-prd.md` §13 and
+  `docs/product/remember-README.md` §6.
+
+### Fixed
+- **Friction's `preceding.result` read the wrong signal — text-matched `'Exit code 0'`
+  instead of the `is_error` boolean.** The text match hit 1 of 2623 sampled result blocks;
+  `is_error` is present on 2065 of 2624. Before the fix, `preceding.result` was `unknown`
+  on 31 of 34 clusters; after, 18 claimed-success, 4 error, 12 unknown. Cluster hashes are
+  unchanged — this only corrects a field that was already there.
+- **`docs-builder`'s cleanup output named counts ambiguously.** The advisory now says "N
+  file(s) with link rewrites" and the restore step says "restored N inbound reference(s)" —
+  the advisory counts files touched, the restore counts the references inside them, and the
+  two numbers are not the same unit.
+- **`docs-builder` inbound references follow the core page back out of the archive.**
+  `cleanup-apply` archives the source, then relocates the core page back to its original
+  path. The archive step had already rewritten every inbound reference to point at
+  `docs/archive/` — correct at that moment, since the archive was briefly the only copy —
+  but nothing walked them back once the core page reoccupied the original path, leaving the
+  corpus telling readers the doc lived in the archive while the live page sat unreferenced.
+  A third restore step now walks them back. What must *not* be restored is the point of the
+  design rather than an edge case: the split's own pages cite the original by line number,
+  so their `sources:` and citations stay pinned to the frozen archive copy. Field-reported
+  from a real PRD split (33 references across 15 files), reproduced failing-first.
+
+### Security
+- **`fast-uri` bumped 3.1.5 → 3.1.7 and `qs` bumped 6.15.2 → 6.16.0** in the
+  live-canvas-channel plugin lockfile (Dependabot #43/#44, folded into one commit since
+  both edit the same lockfile). `fast-uri` 3.1.7 closes five high-severity advisories:
+  authority injection via an unvalidated port in `serialize()` (GHSA-qw65-cvwx-89v3), host
+  confusion via unbalanced IP-literal brackets (GHSA-58mr-gqgx-xq4g) and skipped IDN
+  canonicalization (GHSA-5jgf-p345-68v8), and SSRF via repeated hostname percent-decoding
+  (GHSA-fph4-wmhf-6fwf) and malformed IPv6 normalization (GHSA-f65p-4m7j-42xc). Both
+  packages are transitive dependencies of `@modelcontextprotocol/sdk`.
+
 ## [2.23.0] - 2026-09-02
 
 ### Added

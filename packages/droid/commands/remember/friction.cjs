@@ -1765,8 +1765,26 @@ function extractToolsFromTurn(event) {
           const toolName = block.name || 'unknown';
           tools.push({ tool: toolName, action: 'call' });
         } else if (block.type === 'tool_result') {
-          const result = String(block.content || '');
-          if (result.includes('Exit code 0')) {
+          // The transcript marks a failed tool call with `is_error`; a success
+          // carries no sentinel in the result text. Reading the text for
+          // 'Exit code 0' matched 1 block in 2623 sampled from the real
+          // corpus, so `result` was 'unknown' on 31 of 34 clusters — and the
+          // case this field exists for is a CLAIMED success the user is
+          // contradicting, which is the one that never fired. Content is also
+          // sometimes an array of blocks (403/2623), which String() turned
+          // into "[object Object]" so no pattern could match it.
+          //
+          // A block with no `is_error` stays unknown on purpose: those are
+          // harness meta-results (skill/agent launches, question answers —
+          // 560/2624 sampled) and calling them success would inflate the very
+          // signal this field is here to detect.
+          const raw = block.content;
+          const result = Array.isArray(raw)
+            ? raw.map(b => (b && typeof b === 'object' ? (b.text || '') : String(b || ''))).join('\n')
+            : String(raw || '');
+          if (block.is_error === true) {
+            tools.push({ tool: 'result', action: 'error' });
+          } else if (typeof block.is_error === 'boolean') {
             tools.push({ tool: 'result', action: 'success' });
           } else if (/Exit code [1-9]|Traceback|Error/.test(result)) {
             tools.push({ tool: 'result', action: 'error' });
@@ -2142,6 +2160,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
       errors: b.errors,
       peak: b.peak,
       texts: b.texts,
+      files: [...b.files],
       preceding: b.preceding,
       anySelf: b.selfVotes > 0,                        // at least one self-correction → warn, LLM confirms target
     };
@@ -2166,7 +2185,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     if (best) {
       cl = best;
     } else {
-      cl = { sig: new Set(), seedSig: new Set(ss.sig), shCount: new Map(), sessions: {}, signals: {}, contexts: [], errors: [], peaks: [], anySelf: false, preceding: null };
+      cl = { sig: new Set(), seedSig: new Set(ss.sig), shCount: new Map(), sessions: {}, signals: {}, contexts: [], errors: [], peaks: [], anySelf: false, preceding: null, files: new Set() };
       clusters.push(cl);
     }
     for (const s of ss.sig) { cl.sig.add(s); cl.shCount.set(s, (cl.shCount.get(s) || 0) + 1); }
@@ -2178,6 +2197,15 @@ function clusterCandidates(allCandidates, canonicalGroups) {
     cl.peaks.push(ss.peak);
     if (ss.anySelf) cl.anySelf = true;
     if (ss.preceding && (!cl.preceding || (ss.preceding.action !== 'none' || ss.preceding.error))) cl.preceding = ss.preceding;
+    // The file referents a cluster's sessions touched. Measured on a 34-cluster real
+    // corpus as the one channel that actually separates clusters: file basenames gave 28
+    // distinct signatures at a 3.7% collision rate, against 13 / 19.3% for the preceding
+    // action+result pair and 10 / 25.8% for tool_sequence. Matching an incoming cluster
+    // to a ledger entry otherwise runs on class_hints alone, and those ARE fragments of
+    // the entry's own evidence quotes — one channel, where identity and proof are the
+    // same strings. These paths are mechanical, so carrying them adds a second channel
+    // without reintroducing an LLM distillation step.
+    for (const f of ss.files) cl.files.add(f);
   }
 
   const out = clusters.map(cl => {
@@ -2251,6 +2279,7 @@ function clusterCandidates(allCandidates, canonicalGroups) {
       max_peak: peaks[peaks.length - 1],
       contexts: cl.contexts,
       errors: cl.errors,
+      files: [...cl.files].sort().slice(0, 8),  // referents: the discriminative match channel (see merge above)
       preceding: cl.preceding,          // #4: agent action + result just before the reaction
       self_suspect: allSelf || cl.anySelf,  // #3: a self-correction is present — LLM confirms target (advisory)
       top_keywords: topSh.slice(0, 10),

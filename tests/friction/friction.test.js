@@ -117,6 +117,20 @@ function assistantErrorToolEvent(mins, uuid, parentUuid) {
   };
 }
 
+// An assistant turn that ran a tool and got back a caller-supplied tool_result
+// block — lets a fixture pin the exact result shape (is_error present/absent,
+// string vs array content) that preceding.result is derived from.
+function assistantToolResultEvent(mins, uuid, parentUuid, resultBlock) {
+  return {
+    type: 'assistant',
+    message: { role: 'assistant', content: [
+      { type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
+      Object.assign({ type: 'tool_result' }, resultBlock),
+    ] },
+    timestamp: tsAt(mins), uuid, parentUuid: parentUuid || null, sessionId: 'fixture',
+  };
+}
+
 /** Write one session file: events is an array of {type, text, mins, uuid}. */
 function writeSession(dir, filename, events) {
   fs.mkdirSync(dir, { recursive: true });
@@ -125,6 +139,8 @@ function writeSession(dir, filename, events) {
     let rec;
     if (e.type === 'user') rec = userEvent(e.text, e.mins, e.uuid, prev);
     else if (e.type === 'assistant-error') rec = assistantErrorToolEvent(e.mins, e.uuid, prev);
+    else if (e.type === 'assistant-tool-result') rec = assistantToolResultEvent(e.mins, e.uuid, prev, e.result);
+    else if (e.type === 'assistant-raw') rec = e.raw(e.mins, e.uuid, prev);
     else rec = assistantEvent(e.text, e.mins, e.uuid, prev);
     prev = e.uuid;
     return JSON.stringify(rec);
@@ -986,6 +1002,132 @@ function main() {
     const rCheck = runSub(['check', outPath]);
     okTrue('BUG2: check on promoted ledger reports I7 0 mismatches',
       rCheck.out.includes("I7 (rule == last attempt's rule): 0 mismatch"));
+  }
+
+  // ------------------------------------------------- preceding.result signal
+  // Why: preceding.result is meant to record whether the agent's last action
+  // CLAIMED success — the comment in friction.cjs says the important case is
+  // "a claimed success (exit 0) the user is contradicting, not a crash".
+  // It was read by text-matching 'Exit code 0' in the tool_result content,
+  // which matched 1 block in 2623 sampled from the real corpus, so `result`
+  // was 'unknown' on 31 of 34 real clusters. The transcript's actual marker is
+  // the tool_result block's `is_error` boolean. Two defects: the sentinel
+  // string is absent from the data, and array-shaped content was stringified
+  // to "[object Object]" (403/2623 blocks) so no pattern could match it.
+  //
+  // Negative control below is load-bearing: a tool_result with NO is_error
+  // field (skill/agent launches and question answers — 560/2624 sampled) must
+  // stay 'unknown', NOT be guessed as success. Those are harness meta-results,
+  // never a claim anyone could contradict, and labelling them success inflates
+  // the very signal this field exists to detect.
+  group('preceding.result reads is_error, not result text');
+  {
+    const sessionsDir = tmpDir('friction-precresult-sessions-');
+    const cwd = tmpDir('friction-precresult-cwd-');
+
+    // Three 3-turn correction sessions, each with a different tool_result shape.
+    const trio = (ask, complain, resultBlock, u) => ([
+      { type: 'user', text: ask, mins: 0, uuid: u[0] },
+      { type: 'assistant-tool-result', mins: 1, uuid: u[1], result: resultBlock },
+      { type: 'user', text: complain, mins: 2, uuid: u[2] },
+    ]);
+
+    // SUCCESS: is_error:false with ARRAY content — the shape that stringified
+    // to "[object Object]" pre-fix, so no pattern could ever match it.
+    writeSession(path.join(sessionsDir, 'projSucc'), 'aaaaaaaa-succ.jsonl',
+      trio('please run the kafka consumer tests',
+           'no that is not right, the kafka consumer is still broken, damn it',
+           { is_error: false, content: [{ type: 'text', text: 'ran 12 tests' }] },
+           ['ps-u1-aaaa', 'ps-u2-aaaa', 'ps-u3-aaaa']));
+
+    // ERROR: is_error:true.
+    writeSession(path.join(sessionsDir, 'projErr'), 'bbbbbbbb-err.jsonl',
+      trio('please fix the redis connection pool',
+           'no that is not right, the redis connection pool still leaks, damn it',
+           { is_error: true, content: [{ type: 'text', text: 'it broke' }] },
+           ['pe-u1-bbbb', 'pe-u2-bbbb', 'pe-u3-bbbb']));
+
+    // NEGATIVE CONTROL: no is_error field, benign non-empty text.
+    writeSession(path.join(sessionsDir, 'projMeta'), 'cccccccc-meta.jsonl',
+      trio('please tidy the graphql resolvers',
+           'no that is not right, the graphql resolvers are still a mess, damn it',
+           { content: 'Launching skill: refactor' },
+           ['pm-u1-cccc', 'pm-u2-cccc', 'pm-u3-cccc']));
+
+    const r = run(cwd, sessionsDir);
+    ok('preceding.result: scan exits 0', r.code, 0);
+    const clusters = clustersOf(cwd);
+
+    const succ = findCluster(clusters, 'kafka');
+    okTrue('preceding.result: success fixture produced a cluster', !!succ);
+    if (succ) {
+      ok('preceding.result: is_error:false + array content => claimed success',
+        (succ.preceding || {}).result, 'claimed success (exit 0)');
+    }
+
+    const err = findCluster(clusters, 'redis');
+    okTrue('preceding.result: error fixture produced a cluster', !!err);
+    if (err) {
+      ok('preceding.result: is_error:true => error', (err.preceding || {}).result, 'error');
+    }
+
+    const meta = findCluster(clusters, 'graphql');
+    okTrue('preceding.result: meta fixture produced a cluster', !!meta);
+    if (meta) {
+      ok('preceding.result: NEGATIVE CONTROL — absent is_error stays unknown',
+        (meta.preceding || {}).result, 'unknown');
+    }
+  }
+
+  // ------------------------------------------------- cluster carries file referents
+  // Why: matching an incoming cluster against a ledger entry has exactly one channel —
+  // class_hints, which ARE fragments of the quotes that proved the entry. Identity and
+  // evidence are the same strings, so the match cannot be tightened without losing recall.
+  // Measured on a 34-cluster real corpus, looking for a second, independent channel:
+  //   preceding action|result  13 distinct signatures, 19.3% collision
+  //   tool_sequence            10 distinct,            25.8% collision
+  //   file basenames           28 distinct,             3.7% collision
+  // The file referents are the discriminative channel, they are already computed per
+  // candidate (74/101 populated), and they were being dropped at clustering: bySession
+  // collects b.files, but sessionSignals never carried it, so no cluster ever saw it.
+  //
+  // They are also MECHANICAL — real paths, no LLM distillation — so carrying them does
+  // not reintroduce the judgement step 4a was deliberately narrowed to avoid.
+  group('cluster carries file referents (the discriminative match channel)');
+  {
+    const sessionsDir = tmpDir('friction-files-sessions-');
+    const cwd = tmpDir('friction-files-cwd-');
+
+    // Two sessions whose REACTIONS are near-identical (so they cluster together on text)
+    // but which touched different files. Pre-fix the cluster kept no file information at
+    // all; post-fix it must carry the referents its sessions actually touched.
+    const withFile = (mins, uuid, parentUuid, file) => ({
+      type: 'assistant',
+      message: { role: 'assistant', content: [
+        { type: 'tool_use', name: 'Edit', input: { file_path: file } },
+        { type: 'tool_result', is_error: false, content: [{ type: 'text', text: `edited ${file}` }] },
+      ] },
+      timestamp: tsAt(mins), uuid, parentUuid: parentUuid || null, sessionId: 'fixture',
+    });
+
+    writeSession(path.join(sessionsDir, 'projPay'), 'dddddddd-pay.jsonl', [
+      { type: 'user', text: 'please fix the payment gateway timeout', mins: 0, uuid: 'fx-u1-dddd' },
+      { type: 'assistant-raw', mins: 1, uuid: 'fx-u2-dddd',
+        raw: (m, u, pu) => withFile(m, u, pu, 'src/billing/gateway.js') },
+      { type: 'user', text: 'no that is not right, the payment gateway still times out, damn it',
+        mins: 2, uuid: 'fx-u3-dddd' },
+    ]);
+
+    const r = run(cwd, sessionsDir);
+    ok('cluster files: scan exits 0', r.code, 0);
+    const clusters = clustersOf(cwd);
+    const c = findCluster(clusters, 'payment');
+    okTrue('cluster files: fixture produced a cluster', !!c);
+    if (c) {
+      okTrue('cluster carries a files array', Array.isArray(c.files));
+      okTrue('cluster files name the referent the session touched',
+        (c.files || []).some(f => f.includes('gateway.js')));
+    }
   }
 
   // ---------------------------------------------------------------- summary
