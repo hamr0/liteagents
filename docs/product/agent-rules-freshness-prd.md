@@ -159,14 +159,39 @@ At bootstrap, `/remember` records what it wrote, next to the file it describes:
 
 One writer, one piece of state. Not in `MEMORY.md`, not in `ledger.json`.
 
+### Module 3.5 — The copy must be scripted, not prompted
+
+**This is the trap that would silently break the whole design.**
+
+`remember.md:75-77` instructs the model to "copy it from the bundled template".
+That is prose executed by an agent, not a `cp`. Hash comparison only works if
+the written copy is **byte-identical** to the template — and a model doing the
+copying can normalise line endings, re-wrap a long line, or drop a trailing
+newline. Any of those and the stamp fails to match the very file we just wrote,
+so every repo takes the `_NEW` path forever, including untouched ones.
+
+**Requirement:** copying the template, hashing it, and writing the stamp are
+**one scripted operation in `friction.cjs`** — already the mechanical arm of
+step 0 — never a model instruction. The model is told that the step ran, not
+asked to perform it. Same reasoning that moved hash arithmetic, dedup and
+promotion out of prose in the classify-then-count redesign, and the same lesson
+as the trailing-newline off-by-one that inflated line counts across 7 sites.
+
+Hash raw bytes. No normalisation on either side.
+
 ### Module 4 — The update path
 
 On each run, compare the on-disk body against the stamp:
 
 | state | meaning | action |
 |---|---|---|
-| sha **matches** stamp | untouched since bootstrap | replace silently with the packaged version; restamp |
+| sha **matches** stamp | untouched since bootstrap | replace silently with the packaged version, then **restamp with the new hash** |
 | sha **differs** | user customised it | write `AGENT_RULES_NEW.md`; leave theirs untouched; say so loudly at the end of the run |
+
+**Restamping is not optional.** After a silent replace, the stamp must be
+rewritten to the new version and hash in the same scripted step. Skip it and the
+next update compares against a stale stamp, finds a mismatch on a file we wrote
+ourselves, and wrongly routes an untouched repo to `_NEW`.
 
 `AGENT_RULES_NEW.md` is always overwritten, so it cannot accumulate, and is
 **never** `@`-included — a stub pointing at it would double hot context every
