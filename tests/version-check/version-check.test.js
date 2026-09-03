@@ -267,6 +267,51 @@ console.log(`\n${colors.bright}${colors.cyan}version-check.cjs${colors.reset}\n`
     `status=${r.status} stdout=${JSON.stringify(r.stdout)}`);
 }
 
+// 10b. the installer's manifest stamp is the fast path, and is PREFERRED over
+//      the slow `npm ls -g` fallback. Laid out like a real install:
+//      <root>/manifest.json + <root>/commands/remember/version-check.cjs
+{
+  const home = tmpDir('vc-manifest-');
+  const root = tmpDir('vc-root-');
+  const dir = path.join(root, 'commands', 'remember');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(SCRIPT, path.join(dir, 'version-check.cjs'));
+  fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify({
+    tool: 'claude',
+    version: '1.1.0',            // manifest SCHEMA version -- must be ignored
+    liteagents_version: '2.20.0' // the one that counts
+  }));
+  const srv = startRegistry('2.25.0');
+  const r = run({ home, registry: srv.url, installed: '',
+    script: path.join(dir, 'version-check.cjs') });
+  srv.close();
+  check('manifest stamp: read as the installed version',
+    r.status === 0 && /2\.20\.0/.test(r.stdout) && /2\.25\.0/.test(r.stdout),
+    `stdout=${JSON.stringify(r.stdout)}`);
+  check('manifest stamp: schema `version` is NOT mistaken for it',
+    !/1\.1\.0/.test(r.stdout),
+    `stdout=${JSON.stringify(r.stdout)}`);
+}
+
+// 10c. a manifest without the stamp falls through rather than guessing
+{
+  const home = tmpDir('vc-manifest-none-');
+  const root = tmpDir('vc-root-none-');
+  const dir = path.join(root, 'commands', 'remember');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(SCRIPT, path.join(dir, 'version-check.cjs'));
+  fs.writeFileSync(path.join(root, 'manifest.json'),
+    JSON.stringify({ tool: 'claude', version: '1.1.0' })); // pre-stamp manifest
+  const srv = startRegistry('2.25.0');
+  const r = run({ home, registry: srv.url, installed: '',
+    script: path.join(dir, 'version-check.cjs'),
+    extraEnv: { LITEAGENTS_SKIP_NPM_LOOKUP: '1' } });
+  srv.close();
+  check('manifest without the stamp: silent, never guesses',
+    r.status === 0 && r.stdout === '',
+    `stdout=${JSON.stringify(r.stdout)}`);
+}
+
 // 11. unwritable cache dir must not crash the run
 {
   const home = tmpDir('vc-nocache-');

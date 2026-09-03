@@ -7,6 +7,11 @@
 const fs = require('fs');
 const path = require('path');
 
+// Same single source of truth as installer/cli.js: UPDATE_VERSION.sh bumps
+// only package.json. Stamped into every manifest so version-check.cjs can read
+// the installed version without shelling out to `npm ls -g` (~500ms per run).
+const LITEAGENTS_VERSION = require('../package.json').version;
+
 class InstallationEngine {
   constructor(pathManager, packageManager) {
     this.pathManager = pathManager;
@@ -448,7 +453,10 @@ class InstallationEngine {
     const manifest = {
       ...template,
       variant,
+      // `version` is the MANIFEST SCHEMA version and always has been; the
+      // liteagents release that wrote it is a separate field. Do not merge them.
       version: '1.1.0',
+      liteagents_version: LITEAGENTS_VERSION,
       installed_at: new Date().toISOString(),
       variantInfo: {
         name: variantMetadata.name,

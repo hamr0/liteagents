@@ -22,6 +22,11 @@
  *   npm_config_registry            registry base (npm sets this; mirrors work)
  *   LITEAGENTS_INSTALLED_VERSION   skip local version discovery
  *   LITEAGENTS_SKIP_NPM_LOOKUP     skip the `npm ls -g` fallback (it is slow)
+ *
+ * Installed version is resolved in cost order: the installer's manifest stamp
+ * (a file read), then our own package.json when run from a checkout, then
+ * `npm ls -g` as a last resort. The last one costs ~500ms on EVERY run, which
+ * is why the installer stamps the manifest at all.
  */
 
 const fs = require('fs');
@@ -73,6 +78,18 @@ function versionFromPackageJson() {
   return null;
 }
 
+// The installer stamps the release it wrote into <install root>/manifest.json.
+// version-check.cjs sits at <root>/<commands|command>/remember/, so the root is
+// two levels up. This is the fast path: reading a file beats spawning npm.
+function versionFromManifest() {
+  try {
+    const m = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '..', '..', 'manifest.json'), 'utf8'));
+    // NOT m.version -- that is the manifest schema version, a different thing.
+    return m && m.liteagents_version ? String(m.liteagents_version) : null;
+  } catch (e) { return null; }
+}
+
 function versionFromNpm() {
   if (process.env.LITEAGENTS_SKIP_NPM_LOOKUP) return null;
   try {
@@ -89,7 +106,7 @@ function versionFromNpm() {
 function installedVersion() {
   const env = (process.env.LITEAGENTS_INSTALLED_VERSION || '').trim();
   if (env) return env;
-  return versionFromPackageJson() || versionFromNpm();
+  return versionFromManifest() || versionFromPackageJson() || versionFromNpm();
 }
 
 // --- cache ---------------------------------------------------------------

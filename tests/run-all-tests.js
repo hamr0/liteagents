@@ -63,8 +63,8 @@ const testSuites = [
   {
     name: 'version-check',
     file: 'version-check/version-check.test.js',
-    description: 'Tests version-check.cjs cache, semver ordering and every failure path against a local registry stub',
-    expectedTests: 13
+    description: 'Tests version-check.cjs cache, semver ordering, the installer manifest stamp and every failure path against a local registry stub',
+    expectedTests: 16
   }
 ];
 
