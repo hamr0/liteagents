@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [2.24.1] - 2026-09-03
 
 ### Changed
 - **The file-referent ledger half is SHELVED — no demonstrated problem.** The v2.24.0
