@@ -1,0 +1,692 @@
+{
+ "version": 1,
+ "entries": [
+  {
+   "id": "ag-001",
+   "class": "unverified-claim",
+   "class_hints": [
+    "did you ground your check",
+    "fucking validate this after correction",
+    "regression and smoke test",
+    "did you validate not asseert",
+    "you said you finished and validated then found shit",
+    "i thought you already tested"
+   ],
+   "status": "hot",
+   "rule": "Never say work is validated, tested, or finished without an actual run behind it \u2014 validate, don't assert.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Don't assert technical facts or claim work is validated/complete without grounding the claim in the actual source or running tests first.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    },
+    {
+     "n": 2,
+     "rule": "Never say work is validated, tested, or finished without an actual run behind it \u2014 validate, don't assert.",
+     "adopted": "2026-08-24",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 8,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-litectx/0622-1108-a01fae47",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-bareagent/0612-2311-9b38119e",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-8een/0714-1011-08ac495c",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-bareloop/0714-0842-ddc47175",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-bareguard/0812-1905-994a213b",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-liteagents/0824-0328-6494cd28",
+      "seen": "2026-08-25"
+     },
+     {
+      "id": "PycharmProjects-bareloop/0803-2305-6945178a",
+      "seen": "2026-08-25"
+     },
+     {
+      "id": "PycharmProjects-bareloop/0817-1743-c0f4cc80",
+      "seen": "2026-08-25"
+     }
+    ],
+    "projects": [
+     "litectx",
+     "bareagent",
+     "8een",
+     "bareloop",
+     "bareguard",
+     "liteagents"
+    ],
+    "quotes": [
+     "so your call is that adverserial eval from agent sdk is just an agent with tools? did you ground your check",
+     "you will fucking validate this after correction with fucking tests and regression and smoke test",
+     "did you validate not asseert?",
+     "i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet",
+     "did you validate all fixes and confirmed that no regression? ... the amount of times you said you finished and validated then found shit",
+     "poc first as you have been full of shit lately, verify that it works"
+    ],
+    "last_seen": "2026-08-25"
+   },
+   "recurred_while_hot": 1,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (2 sessions)"
+    },
+    {
+     "date": "2026-08-21",
+     "event": "recurred (3 sessions) \u2014 promoted Low->Medium confidence in MEMORY.md"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy count grandfathered, growth requires new hashes; the 3 legacy sessions were identified by verbatim quote match and back-filled without incrementing"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "2 new session hashes (bareloop/ddc47175, bareguard/994a213b) \u2014 promoted to hot (5 sessions, 5 projects)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "rule text tightened for hot load (attempt 2); attempt 1 was never marked failed \u2014 rephrased for brevity, not failure"
+    },
+    {
+     "date": "2026-08-25",
+     "event": "2 new session hashes (liteagents/6494cd28 0824-0328, bareloop/6945178a 0803) \u2014 7 sessions; recurred while hot (1): liteagents/0824-0328 postdates the hot adoption (ledger written 0824 02:21); bareloop/0803 predates it \u2014 evidence only, not a phrasing failure"
+    },
+    {
+     "date": "2026-08-25",
+     "event": "1 new conversation(s) counted as evidence only, not recurred_while_hot -- session date predates current attempt's adopted date (2026-08-17 < 2026-08-24)"
+    }
+   ]
+  },
+  {
+   "id": "ag-002",
+   "class": "ignored-provided-spec",
+   "class_hints": [
+    "dont fucking create shit",
+    "did you follow this or not"
+   ],
+   "status": "observing",
+   "rule": "Before creating new files or content, check and follow any spec document the user already provided instead of improvising.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Before creating new files or content, check and follow any spec document the user already provided instead of improvising.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 2,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-gitdone/0602-1433-ccaf5d48",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-liteagents/0823-2336-ed7c0cce",
+      "seen": "2026-08-25"
+     }
+    ],
+    "projects": [
+     "gitdone"
+    ],
+    "quotes": [
+     "dont fucking create shit, ... did you follow this or not, simple fucking ask"
+    ],
+    "last_seen": "2026-08-25"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    }
+   ]
+  },
+  {
+   "id": "ag-003",
+   "class": "patch-over-redesign",
+   "class_hints": [
+    "patching up shit on top of shit",
+    "patches on top of patches",
+    "needs a clean redesign",
+    "script is soup by now",
+    "without checking if functions already existed"
+   ],
+   "status": "observing",
+   "rule": "When code has accumulated ad-hoc patches, stop and propose a clean redesign instead of adding another patch on top.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "When code has accumulated ad-hoc patches, stop and propose a clean redesign instead of adding another patch on top.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 2,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-multis/0624-1659-5a572803",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-liteagents/0821-1747-85ccb808",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "multis",
+     "liteagents"
+    ],
+    "quotes": [
+     "this loop needs a clean resdesign as you are patching up shit on top of shit",
+     "the script is soup by now with so many edits and your tendency to add new shit without checking if functions already existed"
+    ],
+    "last_seen": "2026-08-24"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "1 new session hash (liteagents/cd5f780b) \u2014 2 sessions, stays Low"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity canonicalisation \u2014 cd5f780b and 85ccb808 are one forked conversation (shared message uuids); collapsed to canonical 85ccb808. Count unchanged at 2."
+    }
+   ]
+  },
+  {
+   "id": "ag-004",
+   "class": "papering-over-issues",
+   "class_hints": [
+    "dont paper over it",
+    "give me a full list",
+    "anything outstanding",
+    "no papering over missing capabilities"
+   ],
+   "status": "observing",
+   "rule": "When asked to stop and report status, give a complete, honest accounting of outstanding items instead of glossing over gaps.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "When asked to stop and report status, give a complete, honest accounting of outstanding items instead of glossing over gaps.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 2,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-multis/0706-2318-a7c115e5",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-bareloop/0713-2150-06376a71",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "multis",
+     "bareloop"
+    ],
+    "quotes": [
+     "stop here, and dont paper over it. give me a full list/ask",
+     "no papering over missing capabilities, with litectx recall it just hands you the pointer"
+    ],
+    "last_seen": "2026-08-24"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "1 new session hash (bareloop/06376a71) \u2014 2 sessions, stays Low; 8een/9e521826 was NOT counted here, assigned to ag-012 as its dominant complaint"
+    }
+   ]
+  },
+  {
+   "id": "ag-005",
+   "class": "wrong-doc-content",
+   "class_hints": [
+    "readme is fucked",
+    "not a fucking changelog"
+   ],
+   "status": "observing",
+   "rule": "Keep README content user-facing; never turn it into a changelog or implementation-history dump.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Keep README content user-facing; never turn it into a changelog or implementation-history dump.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-multis/0706-2158-a7db6da2",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "multis"
+    ],
+    "quotes": [
+     "readme is fucked, this is not a fucking changelog to add this shit"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    }
+   ]
+  },
+  {
+   "id": "ag-006",
+   "class": "edited-derived-copy-not-source",
+   "class_hints": [
+    "fucked the doc",
+    "hamr0 is the origin",
+    "rollover suggested changes to hamr0"
+   ],
+   "status": "observing",
+   "rule": "When multiple repos share a doc, edit the canonical origin repo first and propagate from there \u2014 never edit a downstream copy directly.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "When multiple repos share a doc, edit the canonical origin repo first and propagate from there \u2014 never edit a downstream copy directly.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-litectx/0613-1554-a49d63a9",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "litectx"
+    ],
+    "quotes": [
+     "hamr0 is the origin and your updates should have landed there cleanly"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    }
+   ]
+  },
+  {
+   "id": "ag-007",
+   "class": "scope-misjudgment-false-positives",
+   "class_hints": [
+    "over reporting without spamming",
+    "so many false positives",
+    "wasn't 100% detection"
+   ],
+   "status": "observing",
+   "rule": "When building detection features, calibrate to the user's stated recall/noise goal instead of a metric they didn't ask for.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "When building detection features, calibrate to the user's stated recall/noise goal instead of a metric they didn't ask for.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-edgelms/0707-0731-5415b1f4",
+      "seen": "2026-08-25"
+     }
+    ],
+    "projects": [
+     "edgelms"
+    ],
+    "quotes": [
+     "the idea wasn't 100% detection but at least make it close to capturing all"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy count grandfathered, growth requires new hashes"
+    },
+    {
+     "date": "2026-08-25",
+     "event": "identity migration fill \u2014 first matching hash seeded (edgelms/5415b1f4), count unchanged"
+    }
+   ]
+  },
+  {
+   "id": "ag-008",
+   "class": "wrong-domain-model",
+   "class_hints": [
+    "why? every repo is a closed transaction",
+    "one customer one complete transaction"
+   ],
+   "status": "observing",
+   "rule": "Ground data-model decisions in the user's stated business model instead of inventing a different structure.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Ground data-model decisions in the user's stated business model instead of inventing a different structure.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [],
+    "projects": [
+     "dwi"
+    ],
+    "quotes": [
+     "every repo is a story of one customer, one complete transaction"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy count grandfathered, growth requires new hashes"
+    }
+   ]
+  },
+  {
+   "id": "ag-009",
+   "class": "leaked-implementation-metrics",
+   "class_hints": [
+    "don't mention lines",
+    "imply that it's small or nothing at all"
+   ],
+   "status": "observing",
+   "rule": "In user-facing summaries, don't cite line counts or internal metrics unless asked \u2014 describe scope qualitatively.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "In user-facing summaries, don't cite line counts or internal metrics unless asked \u2014 describe scope qualitatively.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-bareguard/0629-2256-d3fed81f",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "bareguard"
+    ],
+    "quotes": [
+     "don't mention lines, just imply that it's small or nothing at all"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    }
+   ]
+  },
+  {
+   "id": "ag-010",
+   "class": "overcomplicated-ux-flow",
+   "class_hints": [
+    "defintely needs redesign",
+    "too long, how can we make it easier"
+   ],
+   "status": "observing",
+   "rule": "Design confirmation/deletion flows for minimal steps \u2014 match prompt depth to risk, don't default to long linear sequences.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Design confirmation/deletion flows for minimal steps \u2014 match prompt depth to risk, don't default to long linear sequences.",
+     "adopted": "2026-07-08",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-multis/0705-0957-fdb97d1f",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "multis"
+    ],
+    "quotes": [
+     "this defintely needs redesign ... too long, how can we make it easier"
+    ],
+    "last_seen": "2026-07-08"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-07-08",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-24",
+     "event": "identity migration \u2014 legacy session identified by verbatim quote match, back-filled without incrementing"
+    }
+   ]
+  },
+  {
+   "id": "ag-011",
+   "class": "built-easiest-not-toughest-assumption",
+   "class_hints": [
+    "toughest assumption not the easiest fit to pass",
+    "each has to fucking work end to end on its own before graduating",
+    "you fucking follow prd and agent_rules"
+   ],
+   "status": "observing",
+   "rule": "Build and validate against the toughest assumption, not the easiest case that passes; each module graduates end-to-end before the next.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Build and validate against the toughest assumption, not the easiest case that passes; each module graduates end-to-end before the next.",
+     "adopted": "2026-08-24",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-justabit/0814-1632-2838339d",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "justabit"
+    ],
+    "quotes": [
+     "you build with toughest assumption not the easiest fit to pass, backroll and start over from g0"
+    ],
+    "last_seen": "2026-08-24"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-08-24",
+     "event": "candidate (1 session)"
+    }
+   ]
+  },
+  {
+   "id": "ag-012",
+   "class": "redundant-serial-reviews-releases",
+   "class_hints": [
+    "3 code-reviews and 3 releases",
+    "why didn't you merge them at one",
+    "if they were all separate work and no cross contaminated"
+   ],
+   "status": "observing",
+   "rule": "Batch related independent work into one review/release instead of splitting it into redundant serial ones.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Batch related independent work into one review/release instead of splitting it into redundant serial ones.",
+     "adopted": "2026-08-24",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 2,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-8een/0714-0912-9e521826",
+      "seen": "2026-08-24"
+     },
+     {
+      "id": "PycharmProjects-bareagent/0823-1557-88782558",
+      "seen": "2026-08-25"
+     }
+    ],
+    "projects": [
+     "8een",
+     "bareagent"
+    ],
+    "quotes": [
+     "we have to run fucking 3 code-reviews and 3 releases on each to merge with main ... why didn't you merge them at one",
+     "work it out and fucking reconcile, tired of one feat a release"
+    ],
+    "last_seen": "2026-08-25"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-08-24",
+     "event": "candidate (1 session)"
+    },
+    {
+     "date": "2026-08-25",
+     "event": "new session hash (bareagent/88782558) \u2014 recurred (2 sessions)"
+    }
+   ]
+  },
+  {
+   "id": "ag-013",
+   "class": "pr-ceremony-per-change",
+   "class_hints": [
+    "stop creating a pr for every change",
+    "you can push to main"
+   ],
+   "status": "observing",
+   "rule": "Don't open a PR for every small change when pushing to main is the established workflow for that repo.",
+   "attempts": [
+    {
+     "n": 1,
+     "rule": "Don't open a PR for every small change when pushing to main is the established workflow for that repo.",
+     "adopted": "2026-08-24",
+     "outcome": "active"
+    }
+   ],
+   "evidence": {
+    "sessions": 1,
+    "session_ids": [
+     {
+      "id": "PycharmProjects-looped/0710-2355-9dcf5560",
+      "seen": "2026-08-24"
+     }
+    ],
+    "projects": [
+     "looped"
+    ],
+    "quotes": [
+     "stop creating a pr for every change, you can push to main"
+    ],
+    "last_seen": "2026-08-24"
+   },
+   "recurred_while_hot": 0,
+   "history": [
+    {
+     "date": "2026-08-24",
+     "event": "candidate (1 session)"
+    }
+   ]
+  }
+ ]
+}

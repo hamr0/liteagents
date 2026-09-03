@@ -1,0 +1,124 @@
+ARM A: quotes + text only (CURRENT PRODUCTION BEHAVIOUR)
+
+LEDGER ENTRIES:
+  ag-001 | rule: Never say work is validated, tested, or finished without an actual run behind it — validate, don't assert.
+      class_hints: ["did you ground your check", "fucking validate this after correction", "regression and smoke test", "did you validate not asseert", "you said you finished and validated then found shit", "i thought you already tested"]
+      quotes: ["so your call is that adverserial eval from agent sdk is just an agent with tools? did you ground your check", "you will fucking validate this after correction with fucking tests and regression and smoke test", "did you validate not asseert?", "i thought you already tested the litctex fucking upstream ask you said would solve your problems and looks like you havent yet"]
+  ag-002 | rule: Before creating new files or content, check and follow any spec document the user already provided instead of improvising.
+      class_hints: ["dont fucking create shit", "did you follow this or not"]
+      quotes: ["dont fucking create shit, ... did you follow this or not, simple fucking ask"]
+  ag-003 | rule: When code has accumulated ad-hoc patches, stop and propose a clean redesign instead of adding another patch on top.
+      class_hints: ["patching up shit on top of shit", "patches on top of patches", "needs a clean redesign", "script is soup by now", "without checking if functions already existed"]
+      quotes: ["this loop needs a clean resdesign as you are patching up shit on top of shit", "the script is soup by now with so many edits and your tendency to add new shit without checking if functions already existed"]
+  ag-004 | rule: When asked to stop and report status, give a complete, honest accounting of outstanding items instead of glossing over gaps.
+      class_hints: ["dont paper over it", "give me a full list", "anything outstanding", "no papering over missing capabilities"]
+      quotes: ["stop here, and dont paper over it. give me a full list/ask", "no papering over missing capabilities, with litectx recall it just hands you the pointer"]
+  ag-005 | rule: Keep README content user-facing; never turn it into a changelog or implementation-history dump.
+      class_hints: ["readme is fucked", "not a fucking changelog"]
+      quotes: ["readme is fucked, this is not a fucking changelog to add this shit"]
+  ag-006 | rule: When multiple repos share a doc, edit the canonical origin repo first and propagate from there — never edit a downstream copy directly.
+      class_hints: ["fucked the doc", "hamr0 is the origin", "rollover suggested changes to hamr0"]
+      quotes: ["hamr0 is the origin and your updates should have landed there cleanly"]
+  ag-007 | rule: When building detection features, calibrate to the user's stated recall/noise goal instead of a metric they didn't ask for.
+      class_hints: ["over reporting without spamming", "so many false positives", "wasn't 100% detection"]
+      quotes: ["the idea wasn't 100% detection but at least make it close to capturing all"]
+  ag-008 | rule: Ground data-model decisions in the user's stated business model instead of inventing a different structure.
+      class_hints: ["why? every repo is a closed transaction", "one customer one complete transaction"]
+      quotes: ["every repo is a story of one customer, one complete transaction"]
+  ag-009 | rule: In user-facing summaries, don't cite line counts or internal metrics unless asked — describe scope qualitatively.
+      class_hints: ["don't mention lines", "imply that it's small or nothing at all"]
+      quotes: ["don't mention lines, just imply that it's small or nothing at all"]
+  ag-010 | rule: Design confirmation/deletion flows for minimal steps — match prompt depth to risk, don't default to long linear sequences.
+      class_hints: ["defintely needs redesign", "too long, how can we make it easier"]
+      quotes: ["this defintely needs redesign ... too long, how can we make it easier"]
+  ag-011 | rule: Build and validate against the toughest assumption, not the easiest case that passes; each module graduates end-to-end before the next.
+      class_hints: ["toughest assumption not the easiest fit to pass", "each has to fucking work end to end on its own before graduating", "you fucking follow prd and agent_rules"]
+      quotes: ["you build with toughest assumption not the easiest fit to pass, backroll and start over from g0"]
+  ag-012 | rule: Batch related independent work into one review/release instead of splitting it into redundant serial ones.
+      class_hints: ["3 code-reviews and 3 releases", "why didn't you merge them at one", "if they were all separate work and no cross contaminated"]
+      quotes: ["we have to run fucking 3 code-reviews and 3 releases on each to merge with main ... why didn't you merge them at one", "work it out and fucking reconcile, tired of one feat a release"]
+  ag-013 | rule: Don't open a PR for every small change when pushing to main is the established workflow for that repo.
+      class_hints: ["stop creating a pr for every change", "you can push to main"]
+      quotes: ["stop creating a pr for every change, you can push to main"]
+
+INCOMING CLUSTERS:
+  [0] sessions=1 projects=["PycharmProjects-8een"]
+      contexts (verbatim user quotes): ["You're missing one thing: a proof is stamped with the nonce it was made for. That changes everything. Here's the whole picture in three cases.\n.claude/stash/2026-07-16-m4-piece2-single-use-nonce-shipped.md.\nThe setup: a \"proof\" = bytes from the wallet, cryptographically welded to the exact nonce we handed out for that session. Reuse the proof = reuse the stamp.\n\nCASE 1 \u2014 stolen BYTES, nonce OFF (today's default = the footgun)\n  Alice proves \u2192 bytes B on the wire \u2192 Mallory copies B \u2192 resends B\n  "]
+      top_keywords: ["wallet cryptographically", "cryptographically welded", "changes everything", "negative scenarios", "cryptographically", "everything here's"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [1] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["poc first as you have been full of shit lately, verify that it works"]
+      top_keywords: ["lately verify", "verify works", "shit lately", "first full", "poc first", "full shit"]
+      preceding: {"action": "Bash \u2192 Read", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [2] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["i never fucking asked for it, you made that shit, only one fucking index that gets rewrittent with every reorg and clean links, it runs after splitting to capture new shape of split docs"]
+      top_keywords: ["splitting capture", "rewrittent every", "gets rewrittent", "runs splitting", "never fucking", "fucking asked"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [3] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["change docs to Gists, and you are missing 1 Hey, I'm Amr \ud83d\udc4b\n\nAI-Native Builder. Local-first AI agents and privacy-first products \u2014 no accounts, no tracking, open rails over rented infrastructure. Standalone docs and playbooks that don't live in a repo. Projects: github.com/hamr0\n\ud83d\udcc4 Gists\n\n    \ud83e\udd16 AI-Native development rules \u2014 POC-first, dependency hierarchy, testing & security invariants for coding agents.\n    \ud83d\ude80 What to build \u2014 YC notes on picking what to work on in the AI era.\n    \ud83d\udd0d Privacy-re"]
+      top_keywords: ["infrastructure standalone", "rented infrastructure", "dependency hierarchy", "security invariants", "native development", "checking functions"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [4] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["\u276f\u00a0generally speaking, the role of friction is simple, always hot/relevant memories. the agent is\n  always learning about two things (user's sessions across, behavrioral, and stashes project based)\n  these two prodict antigen (fastest decay) facts (subtle things learned from both chats and stashes)\n  and episodes (stahes learnings) and it's always HOT. they all have to have cap on old otherwise it\n  will always bloat. with that in mind with that in mind, how would you make this promise stand true"]
+      top_keywords: ["usernames whatsoever", "behavrioral stashes", "hardcode usernames", "generally speaking", "across behavrioral", "whatsoever detect"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [5] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): []
+      top_keywords: ["aeacf23d4128", "3d59a7ec2cc9", "564372b5f623", "0e664aa830fb", "f6e6c4d43cd2", "0b5d222890a4"]
+      preceding: {"action": "Bash \u2192 Read", "result": "error", "error": null}  self_suspect: False
+  [6] sessions=1 projects=["PycharmProjects-bareagent"]
+      contexts (verbatim user quotes): ["ask him what the fuck is wrong with him and why you/him haven't scoped well the last ba23?. work it out and fucking reconcile, tired of one feat a release"]
+      top_keywords: ["fucking reconcile", "reconcile tired", "haven't scoped", "work fucking", "feat release", "him haven't"]
+      preceding: {"action": "SendMessage", "result": "unknown", "error": null}  self_suspect: False
+  [7] sessions=1 projects=["PycharmProjects-bareloop"]
+      contexts (verbatim user quotes): ["\nStashed to .claude/stash/2026-08-04-shape-lottery-and-rules.md (135 lines, verified) \u2014 reload protocol, the full session record (both recal autopsies, the correction, the refuted rule, the landed fixes, the shape-lottery grounding, both pending rules with their replay evidence), all 9 task states, your verbatim rulings, and the hard line up top: nothing in flight, no paid run licensed.\n\n\ud83d\udcdd 5 stashes since last consolidation \u2014 run /remember to fold them into memory.\n\n\u273b Saut\u00e9ed for 2m 20s\n\n\u276f /rem"]
+      top_keywords: ["autopsies correction", "correction refuted", "last consolidation", "lottery grounding", "consolidation run", "verbatim rulings"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+  [8] sessions=1 projects=["PycharmProjects-multis"]
+      contexts (verbatim user quotes): ["Mode     What you get     What it needs     Best for\nTelegram     A private bot, working in minutes     A bot token. Nothing else.     Getting started, zero infrastructure\nbeeperbox \u2014 local     WhatsApp/Signal/Discord/\u2026 50+ networks via Beeper, on the machine you already use     beeperbox running on your laptop     Everyday use on your own machine\nbeeperbox \u2014 remote     The same 50+ networks, off your daily driver     beeperbox on a Pi or VPS, reachable over the network     Always-on, no screen "]
+      top_keywords: ["infrastructure beeperbox", "understood homeserver", "zero infrastructure", "homeserver install", "sending something", "multis homeserver"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [9] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["Another Claude session sent a message:\n<cross-session-message from=\"uds:/run/user/1000/cc-socks/1536702.sock\" from-name=\"testing\" from-mode=\"prompting\">\nThanks \u2014 checked all four.\n\n1. Already the split you describe. Ledger DID count both sightings: ag-001 sessions 6\u21927, ag-002 7\u21928, last_seen refreshed to 2026-08-25, hashes + quotes + projects merged. The ONLY thing withheld was recurred_while_hot. My user-facing summary said \"not counted as failed while loaded\" \u2014 that wording read as \"not counted"]
+      top_keywords: ["sightings sessions", "sessions refreshed", "changes mindlessly", "validate proposed", "prompting thanks", "refreshed hashes"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": "one-off without curse/interrupt/error: 0"}  self_suspect: False
+  [10] sessions=1 projects=["PycharmProjects-bareloop"]
+      contexts (verbatim user quotes): ["what the fuck is that logic, i give you a problem. \"please find why memory loading takes time in gitdone repo\" you give it to ralph to set outside harness budget cap, etc (based on what does it decide) then the drafter tries to find where memory loading is in the repo and uses memory, if it finds something matching, gets chunks + docstrings of multiple chunks\" then what? what does it know about which primitives does it need?! how the fuck does that work after? if memory is not successful it fuck"]
+      top_keywords: ["litectx primituives", "docstrings multiple", "something matching", "chunks docstrings", "anthropic default", "stopreason signal"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+  [11] sessions=1 projects=["PycharmProjects-8een"]
+      contexts (verbatim user quotes): ["no otp, use npm login like last time i use passkey"]
+      top_keywords: ["fuck branches", "merge cleanly", "time passkey", "branches how", "going merge", "login last"]
+      preceding: {"action": "Bash \u2192 Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [12] sessions=1 projects=["PycharmProjects-bareloop"]
+      contexts (verbatim user quotes): ["no issues, all clear/clear? validated?"]
+      top_keywords: ["clear validated", "issues clear", "clear clear", "agent shit", "validated", "issues"]
+      preceding: {"action": "Agent", "result": "unknown", "error": null}  self_suspect: False
+  [13] sessions=1 projects=["PycharmProjects-justabit"]
+      contexts (verbatim user quotes): ["send number in don't send it back and we ned to update docs for it?"]
+      top_keywords: ["instead shakespear", "shakespear prose", "fuck couldn't", "number don't", "couldn't say", "review think"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+  [14] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): []
+      top_keywords: ["friction"]
+      preceding: {"action": "Read \u2192 Read", "result": "error", "error": "331\t              (/Exit code [1-9]/.test(result) && !result.includes('Exit code 137')) ||"}  self_suspect: False
+  [15] sessions=1 projects=["PycharmProjects-liteagents"]
+      contexts (verbatim user quotes): ["i just want to tell you that you have been the fucking worst and i now hate this project and less likely to do any shit with it, i am fucking tired of your dubious shady nits end of every fucking review, your fucking nonsensical perfection that has thrown us in this this fucking endless loop of shit, your definition of done is none existent and doesn't make any sense, most of your 20+ suggestions and edits have been hell"]
+      top_keywords: ["nonsensical perfection", "fucking nonsensical", "perfection thrown", "suggestions edits", "existent doesn't", "most suggestions"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+  [16] sessions=1 projects=["PycharmProjects-edgelms"]
+      contexts (verbatim user quotes): ["yes, but the idea wasn't 100% detection but at least make it close to capturing all and false positives or undecuded like url could have been used as another cheap llm to make the call,   \u276f over reporting without spamming and so many false positives, was not the desired outcome, correct?"]
+      top_keywords: ["positives undecuded", "reporting without", "positives desired", "wasn't detection", "without spamming", "detection least"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+  [17] sessions=1 projects=["PycharmProjects-bareloop"]
+      contexts (verbatim user quotes): ["so, q7 will be my questions that i will answer? like this is human deciding what to do here? i need to fucking run a whole run end to end to get a fucking feel for it, sincewe started this couple of weeks ago and i am reading reports, and you are handrolling shit, i believe it's somehow ok but i am 100% there are bugs that we will come across, we said no ui yet, but we have a fucking shape and can run on terminal or something and i need to try hitl on terminal or build basic localhost ui that do"]
+      top_keywords: ["reports handrolling", "terminal something", "questions answer", "deciding fucking", "handrolling shit", "sincewe started"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+  [18] sessions=1 projects=["PycharmProjects-bareguard"]
+      contexts (verbatim user quotes): ["did you validate all fixes and confirmed that no regression? btw, this is by far one of the worst sessions of zero trust of the amount of times you said you finished and validated then found shit. how/when can i release now?"]
+      top_keywords: ["confirmed regression", "finished validated", "fixes confirmed", "validated found", "validate fixes", "regression btw"]
+      preceding: {"action": "AskUserQuestion", "result": "error", "error": null}  self_suspect: False
+  [19] sessions=1 projects=["PycharmProjects-8een"]
+      contexts (verbatim user quotes): ["what are the old bytes, i am still confused. i am a website using 8een > send you request for wallet > you give me access > i validate it and give you a key/cookie that you are good to go > i keep issued key for 5 minutes. #2 is the worry that someone takes that key from your device and use it? or the wallet itself?"]
+      top_keywords: ["confused website", "access validate", "tired switching", "still confused", "request wallet", "website using"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False

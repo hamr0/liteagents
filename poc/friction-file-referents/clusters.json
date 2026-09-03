@@ -1,0 +1,994 @@
+[
+ {
+  "theme": "wallet cryptographically / cryptographically welded / changes everything / negative scenarios",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1,
+   "user_correction": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-8een/0716-1356-ee7781f5"
+  ],
+  "projects": [
+   "PycharmProjects-8een"
+  ],
+  "median_peak": 82.5,
+  "max_peak": 82.5,
+  "contexts": [
+   "You're missing one thing: a proof is stamped with the nonce it was made for. That changes everything. Here's the whole picture in three cases.\n.claude/stash/2026-07-16-m4-piece2-single-use-nonce-shipped.md.\nThe setup: a \"proof\" = bytes from the wallet, cryptographically welded to the exact nonce we handed out for that session. Reuse the proof = reuse the stamp.\n\nCASE 1 \u2014 stolen BYTES, nonce OFF (today's default = the footgun)\n  Alice proves \u2192 bytes B on the wire \u2192 Mallory copies B \u2192 resends B\n  "
+  ],
+  "errors": [],
+  "files": [
+   ".claude/stash/2026-07-16-m4-piece2-single-use-nonce-shipped.md",
+   "8een.context.md"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "wallet cryptographically",
+   "cryptographically welded",
+   "changes everything",
+   "negative scenarios",
+   "cryptographically",
+   "everything here's",
+   "scenarios tested",
+   "today's default",
+   "default footgun",
+   "you're missing"
+  ]
+ },
+ {
+  "theme": "lately verify / verify works / shit lately / first full",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0824-0328-6494cd28"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 75.5,
+  "max_peak": 75.5,
+  "contexts": [
+   "poc first as you have been full of shit lately, verify that it works"
+  ],
+  "errors": [],
+  "files": [
+   "/commands/remember.md",
+   "/home/hamr/PycharmProjects/liteagents/packages/claude/commands/remember.md",
+   "packages/ampcode/commands/remember.md",
+   "packages/claude/commands/remember.md",
+   "packages/droid/commands/remember.md",
+   "packages/opencode/command/remember.md"
+  ],
+  "preceding": {
+   "action": "Bash \u2192 Read",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "lately verify",
+   "verify works",
+   "shit lately",
+   "first full",
+   "poc first",
+   "full shit",
+   "lately",
+   "verify",
+   "first",
+   "works"
+  ]
+ },
+ {
+  "theme": "splitting capture / rewrittent every / gets rewrittent / runs splitting",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0823-2336-ed7c0cce"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 60,
+  "max_peak": 60,
+  "contexts": [
+   "i never fucking asked for it, you made that shit, only one fucking index that gets rewrittent with every reorg and clean links, it runs after splitting to capture new shape of split docs"
+  ],
+  "errors": [],
+  "files": [
+   "/PycharmProjects/bareagent/docs/index.md",
+   "index.md",
+   "wiki-index.md",
+   "wiki/RLM_PRD.md",
+   "wiki/api-reference.md"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "splitting capture",
+   "rewrittent every",
+   "gets rewrittent",
+   "runs splitting",
+   "never fucking",
+   "fucking asked",
+   "shit fucking",
+   "fucking gets",
+   "every reorg",
+   "reorg clean"
+  ]
+ },
+ {
+  "theme": "infrastructure standalone / rented infrastructure / dependency hierarchy / security invariants",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_correction": 3,
+   "user_curse": 3
+  },
+  "anchor_signal": "user_correction",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0821-1747-85ccb808",
+   "PycharmProjects-liteagents/0821-1747-cd5f780b"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 55,
+  "max_peak": 55,
+  "contexts": [
+   "change docs to Gists, and you are missing 1 Hey, I'm Amr \ud83d\udc4b\n\nAI-Native Builder. Local-first AI agents and privacy-first products \u2014 no accounts, no tracking, open rails over rented infrastructure. Standalone docs and playbooks that don't live in a repo. Projects: github.com/hamr0\n\ud83d\udcc4 Gists\n\n    \ud83e\udd16 AI-Native development rules \u2014 POC-first, dependency hierarchy, testing & security invariants for coding agents.\n    \ud83d\ude80 What to build \u2014 YC notes on picking what to work on in the AI era.\n    \ud83d\udd0d Privacy-re"
+  ],
+  "errors": [],
+  "files": [
+   "../docs-builder.md",
+   "//gist.githubusercontent.com/hamr0/c3816fbf08cd5acefbaf517f01c73851/raw/hamr0-gist-index.md",
+   "/tmp/claude-1000/-home-hamr-PycharmProjects-liteagents/85ccb808-197d-47de-a259-0dd96ecef696/scratchpad/hamr0-gist-index.md",
+   "20page.md",
+   "CYBERNETICS.md",
+   "README.md",
+   "a.md",
+   "docs/log.md"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "infrastructure standalone",
+   "rented infrastructure",
+   "dependency hierarchy",
+   "security invariants",
+   "native development",
+   "checking functions",
+   "products accounts",
+   "accounts tracking",
+   "development rules",
+   "hierarchy testing"
+  ]
+ },
+ {
+  "theme": "usernames whatsoever / behavrioral stashes / hardcode usernames / generally speaking",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_correction": 1,
+   "user_curse": 1
+  },
+  "anchor_signal": "user_correction",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0823-1455-9c1b91f8"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 52,
+  "max_peak": 52,
+  "contexts": [
+   "\u276f\u00a0generally speaking, the role of friction is simple, always hot/relevant memories. the agent is\n  always learning about two things (user's sessions across, behavrioral, and stashes project based)\n  these two prodict antigen (fastest decay) facts (subtle things learned from both chats and stashes)\n  and episodes (stahes learnings) and it's always HOT. they all have to have cap on old otherwise it\n  will always bloat. with that in mind with that in mind, how would you make this promise stand true"
+  ],
+  "errors": [],
+  "files": [
+   "EPISODES.md",
+   "MEMORY.md"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "usernames whatsoever",
+   "behavrioral stashes",
+   "hardcode usernames",
+   "generally speaking",
+   "across behavrioral",
+   "whatsoever detect",
+   "relevant memories",
+   "stashes episodes",
+   "stahes learnings",
+   "otherwise always"
+  ]
+ },
+ {
+  "theme": "aeacf23d4128 / 3d59a7ec2cc9 / 564372b5f623 / 0e664aa830fb",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "interrupt_cascade": 1
+  },
+  "anchor_signal": "interrupt_cascade",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0708-1204-ac726e3e"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 44,
+  "max_peak": 44,
+  "contexts": [],
+  "errors": [],
+  "files": [
+   "/home/hamr/PycharmProjects/liteagents/packages/claude/commands/friction/friction.js",
+   "13252f69-49f9-463e-b34a-aeacf23d4128.js",
+   "668e5fb2-bf8a-4552-a952-3d59a7ec2cc9.js",
+   "6a9e61b0-853b-4e64-84c8-564372b5f623.js",
+   "ac726e3e-71e8-429b-84c7-0e664aa830fb.js",
+   "antigen_candidates.js",
+   "antigen_clusters.js",
+   "antigen_review.md"
+  ],
+  "preceding": {
+   "action": "Bash \u2192 Read",
+   "result": "error",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "aeacf23d4128",
+   "3d59a7ec2cc9",
+   "564372b5f623",
+   "0e664aa830fb",
+   "f6e6c4d43cd2",
+   "0b5d222890a4",
+   "liteagents",
+   "candidates",
+   "packages",
+   "friction"
+  ]
+ },
+ {
+  "theme": "fucking reconcile / reconcile tired / haven't scoped / work fucking",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareagent/0823-1557-88782558"
+  ],
+  "projects": [
+   "PycharmProjects-bareagent"
+  ],
+  "median_peak": 42,
+  "max_peak": 42,
+  "contexts": [
+   "ask him what the fuck is wrong with him and why you/him haven't scoped well the last ba23?. work it out and fucking reconcile, tired of one feat a release"
+  ],
+  "errors": [],
+  "files": [
+   "loop.js"
+  ],
+  "preceding": {
+   "action": "SendMessage",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "fucking reconcile",
+   "reconcile tired",
+   "haven't scoped",
+   "work fucking",
+   "feat release",
+   "him haven't",
+   "scoped well",
+   "fuck wrong",
+   "tired feat",
+   "reconcile"
+  ]
+ },
+ {
+  "theme": "autopsies correction / correction refuted / last consolidation / lottery grounding",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareloop/0804-0115-a46b7829"
+  ],
+  "projects": [
+   "PycharmProjects-bareloop"
+  ],
+  "median_peak": 39,
+  "max_peak": 39,
+  "contexts": [
+   "\nStashed to .claude/stash/2026-08-04-shape-lottery-and-rules.md (135 lines, verified) \u2014 reload protocol, the full session record (both recal autopsies, the correction, the refuted rule, the landed fixes, the shape-lottery grounding, both pending rules with their replay evidence), all 9 task states, your verbatim rulings, and the hard line up top: nothing in flight, no paid run licensed.\n\n\ud83d\udcdd 5 stashes since last consolidation \u2014 run /remember to fold them into memory.\n\n\u273b Saut\u00e9ed for 2m 20s\n\n\u276f /rem"
+  ],
+  "errors": [],
+  "files": [
+   ".claude/remember/AGENT_RULES.md",
+   ".claude/stash/2026-08-04-shape-lottery-and-rules.md"
+  ],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "autopsies correction",
+   "correction refuted",
+   "last consolidation",
+   "lottery grounding",
+   "consolidation run",
+   "verbatim rulings",
+   "licensed stashes",
+   "verified reload",
+   "reload protocol",
+   "recal autopsies"
+  ]
+ },
+ {
+  "theme": "infrastructure beeperbox / understood homeserver / zero infrastructure / homeserver install",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_correction": 1,
+   "interrupt_cascade": 1
+  },
+  "anchor_signal": "user_correction",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-multis/0616-2012-153b4c58"
+  ],
+  "projects": [
+   "PycharmProjects-multis"
+  ],
+  "median_peak": 38,
+  "max_peak": 38,
+  "contexts": [
+   "Mode     What you get     What it needs     Best for\nTelegram     A private bot, working in minutes     A bot token. Nothing else.     Getting started, zero infrastructure\nbeeperbox \u2014 local     WhatsApp/Signal/Discord/\u2026 50+ networks via Beeper, on the machine you already use     beeperbox running on your laptop     Everyday use on your own machine\nbeeperbox \u2014 remote     The same 50+ networks, off your daily driver     beeperbox on a Pi or VPS, reachable over the network     Always-on, no screen "
+  ],
+  "errors": [],
+  "files": [
+   "/.multis/config.js",
+   "executor.js",
+   "src/skills/executor.js"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "infrastructure beeperbox",
+   "understood homeserver",
+   "zero infrastructure",
+   "homeserver install",
+   "sending something",
+   "multis homeserver",
+   "needs explanation",
+   "already beeperbox",
+   "beeperbox running",
+   "machine beeperbox"
+  ]
+ },
+ {
+  "theme": "sightings sessions / sessions refreshed / changes mindlessly / validate proposed",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 2,
+   "user_correction": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0825-0204-57cef9d6"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 37.5,
+  "max_peak": 37.5,
+  "contexts": [
+   "Another Claude session sent a message:\n<cross-session-message from=\"uds:/run/user/1000/cc-socks/1536702.sock\" from-name=\"testing\" from-mode=\"prompting\">\nThanks \u2014 checked all four.\n\n1. Already the split you describe. Ledger DID count both sightings: ag-001 sessions 6\u21927, ag-002 7\u21928, last_seen refreshed to 2026-08-25, hashes + quotes + projects merged. The ONLY thing withheld was recurred_while_hot. My user-facing summary said \"not counted as failed while loaded\" \u2014 that wording read as \"not counted"
+  ],
+  "errors": [
+   "one-off without curse/interrupt/error: 0"
+  ],
+  "files": [
+   "/remember.md",
+   "AGENT_RULES.md",
+   "CLAUDE.md",
+   "LIBRARY_CONVENTIONS.md",
+   "MEMORY.md",
+   "PRD.md",
+   "Z/MEMORY.md",
+   "Z/friction/antigen_clusters.js"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": "one-off without curse/interrupt/error: 0"
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "sightings sessions",
+   "sessions refreshed",
+   "changes mindlessly",
+   "validate proposed",
+   "prompting thanks",
+   "refreshed hashes",
+   "first attempting",
+   "mindlessly share",
+   "another session",
+   "session message"
+  ]
+ },
+ {
+  "theme": "litectx primituives / docstrings multiple / something matching / chunks docstrings",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 2
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareloop/0714-1649-48a7c9c7"
+  ],
+  "projects": [
+   "PycharmProjects-bareloop"
+  ],
+  "median_peak": 36,
+  "max_peak": 36,
+  "contexts": [
+   "what the fuck is that logic, i give you a problem. \"please find why memory loading takes time in gitdone repo\" you give it to ralph to set outside harness budget cap, etc (based on what does it decide) then the drafter tries to find where memory loading is in the repo and uses memory, if it finds something matching, gets chunks + docstrings of multiple chunks\" then what? what does it know about which primitives does it need?! how the fuck does that work after? if memory is not successful it fuck"
+  ],
+  "errors": [],
+  "files": [
+   "index.js",
+   "interpret.js",
+   "jobs/litectx-maintainer.js",
+   "memory-w4.test.js",
+   "memory.test.js",
+   "src/store.js",
+   "src/tokenize.js",
+   "store.js"
+  ],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "litectx primituives",
+   "docstrings multiple",
+   "something matching",
+   "chunks docstrings",
+   "anthropic default",
+   "stopreason signal",
+   "truncated instead",
+   "submit anthropic",
+   "reasoning return",
+   "loud recommended"
+  ]
+ },
+ {
+  "theme": "fuck branches / merge cleanly / time passkey / branches how",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_correction": 1,
+   "user_curse": 1
+  },
+  "anchor_signal": "user_correction",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-8een/0713-1854-0a398305"
+  ],
+  "projects": [
+   "PycharmProjects-8een"
+  ],
+  "median_peak": 35,
+  "max_peak": 35,
+  "contexts": [
+   "no otp, use npm login like last time i use passkey"
+  ],
+  "errors": [
+   "npm error This operation requires a one-time password from your authenticator."
+  ],
+  "files": [
+   "/tmp/claude-1000/-home-hamr-PycharmProjects-8een/0a398305-f221-4845-8495-e6ecaa091dcd/scratchpad/npm-reserve/package.js",
+   "8een.context.md",
+   "README.md",
+   "package.js",
+   "test/integration.test.js",
+   "tools/mkfixture/README.md"
+  ],
+  "preceding": {
+   "action": "Bash \u2192 Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "fuck branches",
+   "merge cleanly",
+   "time passkey",
+   "branches how",
+   "going merge",
+   "login last",
+   "npm login",
+   "last time",
+   "how going",
+   "branches"
+  ]
+ },
+ {
+  "theme": "clear validated / issues clear / clear clear / agent shit",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1,
+   "user_correction": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareloop/0817-1743-c0f4cc80"
+  ],
+  "projects": [
+   "PycharmProjects-bareloop"
+  ],
+  "median_peak": 33.5,
+  "max_peak": 33.5,
+  "contexts": [
+   "no issues, all clear/clear? validated?"
+  ],
+  "errors": [],
+  "files": [
+   ".d.ts",
+   "context.md",
+   "diff-review.md",
+   "jobs/litectx-maintainer.js",
+   "package-lock.js",
+   "package.js",
+   "ralph.test.js",
+   "reuse.js"
+  ],
+  "preceding": {
+   "action": "Agent",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "clear validated",
+   "issues clear",
+   "clear clear",
+   "agent shit",
+   "validated",
+   "issues",
+   "agent",
+   "clear",
+   "shit"
+  ]
+ },
+ {
+  "theme": "instead shakespear / shakespear prose / fuck couldn't / number don't",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1,
+   "user_correction": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-justabit/0818-2235-473829ad"
+  ],
+  "projects": [
+   "PycharmProjects-justabit"
+  ],
+  "median_peak": 32.5,
+  "max_peak": 32.5,
+  "contexts": [
+   "send number in don't send it back and we ned to update docs for it?"
+  ],
+  "errors": [],
+  "files": [
+   "README.md",
+   "a/release.js",
+   "b/release.js",
+   "docs/01-product/findings.md",
+   "findings.md",
+   "poc/README.md",
+   "prd.md",
+   "spec/carrier-attestation.yaml"
+  ],
+  "preceding": {
+   "action": "Bash",
+   "result": "claimed success (exit 0)",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "instead shakespear",
+   "shakespear prose",
+   "fuck couldn't",
+   "number don't",
+   "couldn't say",
+   "review think",
+   "send number",
+   "update docs",
+   "say instead",
+   "code review"
+  ]
+ },
+ {
+  "theme": "friction",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "interrupt_cascade": 1
+  },
+  "anchor_signal": "interrupt_cascade",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0526-0910-668e5fb2"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 27,
+  "max_peak": 27,
+  "contexts": [],
+  "errors": [
+   "331\t              (/Exit code [1-9]/.test(result) && !result.includes('Exit code 137')) ||"
+  ],
+  "files": [
+   "/tmp/friction-exp/new/friction.js"
+  ],
+  "preceding": {
+   "action": "Read \u2192 Read",
+   "result": "error",
+   "error": "331\t              (/Exit code [1-9]/.test(result) && !result.includes('Exit code 137')) ||"
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "friction"
+  ]
+ },
+ {
+  "theme": "nonsensical perfection / fucking nonsensical / perfection thrown / suggestions edits",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 2
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-liteagents/0825-0752-259d1c6f"
+  ],
+  "projects": [
+   "PycharmProjects-liteagents"
+  ],
+  "median_peak": 40,
+  "max_peak": 40,
+  "contexts": [
+   "i just want to tell you that you have been the fucking worst and i now hate this project and less likely to do any shit with it, i am fucking tired of your dubious shady nits end of every fucking review, your fucking nonsensical perfection that has thrown us in this this fucking endless loop of shit, your definition of done is none existent and doesn't make any sense, most of your 20+ suggestions and edits have been hell"
+  ],
+  "errors": [],
+  "files": [],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "nonsensical perfection",
+   "fucking nonsensical",
+   "perfection thrown",
+   "suggestions edits",
+   "existent doesn't",
+   "most suggestions",
+   "fucking endless",
+   "shit definition",
+   "definition none",
+   "fucking review"
+  ]
+ },
+ {
+  "theme": "positives undecuded / reporting without / positives desired / wasn't detection",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "interrupt_cascade": 1
+  },
+  "anchor_signal": "interrupt_cascade",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-edgelms/0707-0731-5415b1f4"
+  ],
+  "projects": [
+   "PycharmProjects-edgelms"
+  ],
+  "median_peak": 32,
+  "max_peak": 32,
+  "contexts": [
+   "yes, but the idea wasn't 100% detection but at least make it close to capturing all and false positives or undecuded like url could have been used as another cheap llm to make the call,   \u276f over reporting without spamming and so many false positives, was not the desired outcome, correct?"
+  ],
+  "errors": [],
+  "files": [],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "positives undecuded",
+   "reporting without",
+   "positives desired",
+   "wasn't detection",
+   "without spamming",
+   "detection least",
+   "close capturing",
+   "capturing false",
+   "false positives",
+   "desired outcome"
+  ]
+ },
+ {
+  "theme": "reports handrolling / terminal something / questions answer / deciding fucking",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareloop/0813-2012-e86e9a0e"
+  ],
+  "projects": [
+   "PycharmProjects-bareloop"
+  ],
+  "median_peak": 22.5,
+  "max_peak": 22.5,
+  "contexts": [
+   "so, q7 will be my questions that i will answer? like this is human deciding what to do here? i need to fucking run a whole run end to end to get a fucking feel for it, sincewe started this couple of weeks ago and i am reading reports, and you are handrolling shit, i believe it's somehow ok but i am 100% there are bugs that we will come across, we said no ui yet, but we have a fucking shape and can run on terminal or something and i need to try hitl on terminal or build basic localhost ui that do"
+  ],
+  "errors": [],
+  "files": [],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "reports handrolling",
+   "terminal something",
+   "questions answer",
+   "deciding fucking",
+   "handrolling shit",
+   "sincewe started",
+   "reading reports",
+   "basic localhost",
+   "questions time",
+   "human deciding"
+  ]
+ },
+ {
+  "theme": "confirmed regression / finished validated / fixes confirmed / validated found",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-bareguard/0812-1905-994a213b"
+  ],
+  "projects": [
+   "PycharmProjects-bareguard"
+  ],
+  "median_peak": 19.5,
+  "max_peak": 19.5,
+  "contexts": [
+   "did you validate all fixes and confirmed that no regression? btw, this is by far one of the worst sessions of zero trust of the amount of times you said you finished and validated then found shit. how/when can i release now?"
+  ],
+  "errors": [],
+  "files": [],
+  "preceding": {
+   "action": "AskUserQuestion",
+   "result": "error",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "confirmed regression",
+   "finished validated",
+   "fixes confirmed",
+   "validated found",
+   "validate fixes",
+   "regression btw",
+   "worst sessions",
+   "sessions zero",
+   "said finished",
+   "trust amount"
+  ]
+ },
+ {
+  "theme": "confused website / access validate / tired switching / still confused",
+  "suggested_artifact": "episode",
+  "confidence": "low",
+  "severity": "severe",
+  "signals": {
+   "user_curse": 1
+  },
+  "anchor_signal": "user_curse",
+  "tool_pattern": "episode/severe",
+  "count": 1,
+  "score": 2,
+  "sessions": 1,
+  "session_ids": [
+   "PycharmProjects-8een/0716-0740-dc9bc135"
+  ],
+  "projects": [
+   "PycharmProjects-8een"
+  ],
+  "median_peak": 16,
+  "max_peak": 16,
+  "contexts": [
+   "what are the old bytes, i am still confused. i am a website using 8een > send you request for wallet > you give me access > i validate it and give you a key/cookie that you are good to go > i keep issued key for 5 minutes. #2 is the worry that someone takes that key from your device and use it? or the wallet itself?"
+  ],
+  "errors": [],
+  "files": [],
+  "preceding": {
+   "action": "none",
+   "result": "unknown",
+   "error": null
+  },
+  "self_suspect": false,
+  "top_keywords": [
+   "confused website",
+   "access validate",
+   "tired switching",
+   "still confused",
+   "request wallet",
+   "website using",
+   "validate give",
+   "minutes worry",
+   "worry someone",
+   "someone takes"
+  ]
+ }
+]

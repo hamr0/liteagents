@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **The file-referent ledger half is SHELVED — no demonstrated problem.** The v2.24.0
+  entry below says shipping the ledger side is "gated on a future exact-label-agreement
+  measurement," which implied the work was justified and merely queued. That premise was
+  never checked, and it is wrong. The harm this channel prevents — a false match
+  inflating an entry's count until a `hot` entry hits `recurred_while_hot >= 2` and has
+  its rule rewritten — has never occurred: `ag-001` is the only `hot` entry, its
+  `recurred_while_hot` is 1 against a threshold of 2, and its two `attempts` are a
+  deliberate August rephrasing rather than a false-match rewrite. A POC also established
+  the naive ledger design would not have worked: cluster-level unions collide at 1.8%,
+  but entry-level unions collide at **38%**, because an entry accumulates paths across
+  every session it matches and inevitably collects `README.md` / `CLAUDE.md`. A
+  document-frequency filter repairs it (9.5% at df<=2), but repairing a fix for a problem
+  that is not occurring is not a reason to ship. **The incoming half is kept** — it costs
+  nothing, adds no LLM step, and accumulates evidence for free.
+- **The un-shelve trigger is now checkable rather than a judgement call:** a false match
+  observed under a sonnet-class classifier, OR `ag-001` reaching `recurred_while_hot = 2`
+  on evidence that is not about validation.
+- **And that trigger must NOT be exact-label agreement.** A fourth POC arm with the
+  user's quotes stripped from both sides scored best on every stability measure (0.900
+  exact agreement, 3/20 unstable) and is plainly the worst arm: it unanimously dropped
+  three clusters (`ag-012`, `ag-007`, `ag-001`) that all nine quote-carrying runs matched
+  unanimously, and named antigens after session hashes. It wins by having nothing to go
+  on and defaulting to `drop`. High agreement on "I don't know" is not quality — the same
+  degenerate shape as the severity axis that was seeded and rated on the same signal. A
+  re-attempt needs a human-labelled gold set.
+
+### Added
+- `poc/friction-file-referents/` — the corpus, all four arm prompts, raw labels from 12
+  runs, and `score.py`, which reproduces every table above. Kept so a re-attempt starts
+  from the numbers. Outside `package.json`'s `files` allowlist; not published.
+
+---
+
 ## [2.24.0] - 2026-09-03
 
 ### Added
