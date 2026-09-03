@@ -65,6 +65,12 @@ const testSuites = [
     file: 'version-check/version-check.test.js',
     description: 'Tests version-check.cjs cache, semver ordering, the installer manifest stamp and every failure path against a local registry stub',
     expectedTests: 16
+  },
+  {
+    name: 'sync-rules',
+    file: 'sync-rules/sync-rules.test.js',
+    description: 'Tests sync-rules.cjs bootstrap/unchanged/updated paths and that a differing AGENT_RULES body is always preserved in the backup',
+    expectedTests: 15
   }
 ];
 

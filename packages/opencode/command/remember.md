@@ -92,11 +92,26 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      fresh output). **Move only those pipeline files** — anything else in `.opencode/memory/`
      (e.g. user-owned rule files) stays where it is. Remove the old dirs only if empty, update the managed MEMORY section in AGENTS.md to
      the new reference (step 5), and tell the user exactly what moved.
-   - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
-     `.opencode/remember/AGENT_RULES.md` does not exist, copy it from the bundled template next
-     to this command (`remember/AGENT_RULES.md`, same directory as `friction.cjs`). If it
-     already exists, leave it untouched — never overwrite, even if the bundled template
-     changes in a later version; it becomes user-owned the moment it lands in the project.
+   - **Sync `AGENT_RULES.md` from the installed template** — run the bundled script, which
+     does the whole decision itself. Call it by **absolute path**, for the same reason as
+     `version-check.cjs` in step 0: the cwd is the target repo, not this package.
+     ```bash
+     node ~/.config/opencode/command/remember/sync-rules.cjs
+     ```
+     It compares `.opencode/remember/AGENT_RULES.md` against the template shipped beside it
+     and takes one of three actions: **absent** — copies it in; **identical** — does
+     nothing at all, no write and no output; **differs** — moves the old body to
+     `AGENT_RULES.md.bak` and copies the new one in, reporting both. Relay whatever it
+     prints in the step-8 report; it is silent when nothing changed.
+
+     **This replaced a bootstrap-once rule that never refreshed**, which left a measured 35
+     repos many releases behind. The rules doc is a shipped standards document, so it is
+     kept current rather than frozen on first write — nothing is destroyed, because a
+     differing body is always preserved in the backup first.
+
+     The comparison is a byte compare done *by the script*, never by you: a model-performed
+     copy can re-wrap a line or drop a trailing newline, and the file would then differ
+     forever, backing up on every single run.
    - Read all `.opencode/stash/*.md` files in the current project
    - Read friction output written in step 0: `.opencode/remember/friction/antigen_clusters.json` (preferred) or `.opencode/remember/friction/antigen_review.md` (fallback). On the fallback path, step 4c does NO counting — merge quotes into
      matching entries only; never change `sessions`, `last_seen`, or `recurred_while_hot` (the

@@ -106,15 +106,32 @@ Constraints, all load-bearing:
   that hangs on a network call is worse than one that misses a nudge.
 - Advice only. Never writes, never installs.
 
-### Module 2 — Sync AGENT_RULES, backing up first
+### Module 2 — Sync AGENT_RULES, backing up first — **BUILT 2026-09-03**
+
+Shipped as `packages/<kit>/commands/remember/sync-rules.cjs` (4 kits, 0 non-path
+diffs, each run for real and confirmed to write its own project dir — note that
+is NOT the global config dir: amp installs to `~/.config/amp` but writes `.amp/`
+in a repo). Wired into step 1 of `remember.md`, replacing the bootstrap-once
+rule. 15 tests in `tests/sync-rules/`; the backup test was proven falsifiable by
+removing the rename and observing it go red.
+
 
 Every `/remember` run, compare copy 3 against copy 2 byte-for-byte:
 
 | state | action |
 |---|---|
 | identical | do nothing — no write, no backup, no output |
-| differs | `cp` to `AGENT_RULES.md.backup.<timestamp>`, then overwrite from copy 2 |
+| differs | rename to `AGENT_RULES.md.bak` (single file), then overwrite from copy 2 |
 | absent | copy it in (today's bootstrap behaviour) |
+
+**DECIDED 2026-09-03: a single `.bak`, not timestamped backups.** The known cost
+is that a customised body survives exactly one release — the second update
+overwrites the backup with the vanilla body written by the first. Accepted
+deliberately: liteagents does not customise for users, and an engineer with a
+different way of working can retrieve their version from the backup before the
+next update. The trade is pinned by a test, so changing it is a deliberate act,
+and stated in both README.md and INSTALLER_GUIDE.md so nobody meets it by
+surprise.
 
 A byte compare, not a stamp: no JSON, no stored hash, no state to keep in sync.
 The question is only "am I about to change this file?", which any careful copy
@@ -168,7 +185,13 @@ If you had a modified AGENT_RULES.md, it is in there.
 
 The installer cannot say anything about repos — it does not know they exist.
 
-### Module 6 — Document the behaviour
+### Module 6 — Document the behaviour — **BUILT 2026-09-03**
+
+README gained an `AGENT_RULES.md` section (its previous claim that the file is
+"never overwritten again" was made false by module 2 and is gone).
+INSTALLER_GUIDE gained an "Updating and `AGENT_RULES.md`" section covering both
+refresh paths. Both state the single-`.bak` trade explicitly.
+
 
 Note in `README.md` and `docs/product/INSTALLER_GUIDE.md` that `AGENT_RULES.md`
 is refreshed from the global copy on every `/remember` run, and that local edits

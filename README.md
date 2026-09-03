@@ -83,7 +83,21 @@ capture    analyze + consolidate
 - **`/stash`** — snapshot the current session's context before compaction or handoff; nudges you to consolidate once a few stashes pile up. The write-up runs on a mid-tier model, dispatched as a background subagent where your tool supports it, so the session isn't blocked on formatting/file I/O
 - **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits. Per-stash extraction runs as concurrent subagent calls on a mid-tier model — no model name hardcoded, so it works with whatever your tool has configured
 
-`/remember` also bootstraps a one-time `AGENT_RULES.md` coding-standards template into `.claude/remember/` on first run (never overwritten again after that), referenced separately in `CLAUDE.md` for the assistant to consult when building something new — a static guide, not something the pipeline learns or extracts.
+### `AGENT_RULES.md` — the standards doc that primes every session
+
+`/remember` installs an `AGENT_RULES.md` coding-standards template into `.claude/remember/` (`.factory/`, `.amp/`, `.opencode/` for the other tools) and references it from `CLAUDE.md` (`AGENT.md` / `AGENTS.md`) as a plain pointer, so the assistant consults it when building something new. It is a static guide — not something the pipeline learns or extracts.
+
+**It is kept current on every `/remember` run**, because a shipped standards doc that never updates is a stale one: 35 local repos were measured drifting many releases behind before this existed. Each run compares your copy against the template that came with your installed liteagents:
+
+| your copy | what happens |
+|---|---|
+| identical to the template | nothing at all — no write, no output |
+| missing | copied in |
+| **different** | moved to `AGENT_RULES.md.bak`, new template copied in, both reported |
+
+So **edits are never destroyed, but they are not preserved in place either.** If you have customised your rules, fold your changes into the new `AGENT_RULES.md` after an update — `AGENT_RULES.md.bak` is a *single* file that the next update overwrites, so a customised body survives one release, not two.
+
+To get a newer template in the first place, update the package: `/remember` tells you when your install is behind, and `npm i -g liteagents@latest && liteagents` refreshes it (your previous install is backed up automatically).
 
 What you get is a memory that *learns from your own mistakes and interventions*, grows quietly in your repo, and works anywhere Claude Code runs. The friction pass inside `/remember` scans all your projects and gives you a per-repo reliability verdict:
 

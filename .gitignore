@@ -68,6 +68,8 @@ test-installation-*/
 !/tests/friction/friction.test.js
 !/tests/version-check/
 !/tests/version-check/version-check.test.js
+!/tests/sync-rules/
+!/tests/sync-rules/sync-rules.test.js
 
 # Release artifacts
 liteagents-*.tgz

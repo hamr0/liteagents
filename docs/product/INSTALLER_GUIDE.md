@@ -17,8 +17,9 @@ A guide to installing and managing liteagents across the supported AI developmen
 4. [Custom Path Configuration](#custom-path-configuration)
 5. [Common Scenarios](#common-scenarios)
 6. [Uninstalling](#uninstalling)
-7. [Troubleshooting](#troubleshooting)
-8. [FAQ](#faq)
+7. [Updating and `AGENT_RULES.md`](#updating-and-agent_rulesmd)
+8. [Troubleshooting](#troubleshooting)
+9. [FAQ](#faq)
 
 ---
 
@@ -290,6 +291,55 @@ To remove the installer itself:
 ```bash
 npm uninstall -g liteagents
 ```
+
+---
+
+## Updating and `AGENT_RULES.md`
+
+Updating liteagents happens in two places, and they refresh independently.
+
+### 1. The package and the installed kit
+
+```bash
+npm i -g liteagents@latest   # updates the package
+liteagents                    # copies the new kit into ~/.claude (or ~/.factory, etc.)
+```
+
+Re-running the installer **backs up your previous kit first**, to a
+`.backup.<timestamp>` directory beside the install, then overwrites. Nothing is
+lost; the closing message tells you where the backup went.
+
+You do not have to remember to check: `/remember` compares your installed
+version against the registry on each run and prints one line when you are
+behind. It only ever advises — it never installs anything for you.
+
+### 2. `AGENT_RULES.md` in each project
+
+`AGENT_RULES.md` is the coding-standards document that primes every session. It
+ships inside the package, the installer copies it into your kit, and `/remember`
+copies *that* into each project at `.claude/remember/AGENT_RULES.md`
+(`.factory/`, `.amp/`, `.opencode/` for the other tools), referenced from
+`CLAUDE.md` / `AGENT.md` / `AGENTS.md` as a plain pointer.
+
+Because it is a shipped standards document rather than generated state, it is
+**kept current on every `/remember` run**, not frozen at first write. Each run
+compares your project copy against the template in your installed kit:
+
+| your copy | what happens |
+|---|---|
+| identical to the template | nothing at all — no write, no output |
+| missing | copied in, reported |
+| **different** | moved to `AGENT_RULES.md.bak`, new template copied in, both reported |
+
+**If you edit your project's `AGENT_RULES.md`, fold your changes into the new
+file after an update.** Your previous body is always preserved — but
+`AGENT_RULES.md.bak` is a *single* file that each update overwrites, so a
+customised body survives one release, not two. This is a deliberate trade:
+liteagents does not try to merge your edits, because it cannot know which of
+them matter.
+
+If you never edit it, you will never see a `.bak` file at all — an identical
+copy is not rewritten.
 
 ---
 
