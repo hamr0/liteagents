@@ -123,7 +123,11 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      length-gate debt on `.claude/remember/MEMORY.md`. Steps 4-5 (friction → ledger count →
      Antigens render) are stash-independent and still run whenever friction produced output
      (see step 4's own guard). If there is also no friction
-     output, report "nothing to consolidate" and stop after step 1.
+     output, report "nothing to consolidate" and stop after step 1 — **but run
+     step 5's `stub-check.cjs` before you stop.** The stub shape does not depend on
+     there being anything to consolidate, and skipping it on quiet runs is exactly
+     how a repo with nothing to remember stays broken forever. `sync-rules.cjs`
+     already ran above, for the same reason.
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:

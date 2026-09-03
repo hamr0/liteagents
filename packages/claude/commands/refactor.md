@@ -72,8 +72,14 @@ refactor and how to close each item.
    behaviour change is not a refactor — leave the bullet, note it in the report.
 5. Run the tests as described below. Then report: **fixed / dropped / left**
    with the reason per left item, and the remaining bullet count.
-6. Say plainly: **commit, then run `/branch-review`** on this branch — ledger
-   mode is a fixer, not a review, and its diff gets the ordinary gate.
+6. **Hand it back; do not chain it.** Say plainly: **commit, then run
+   `/branch-review`** on this branch — ledger mode is a fixer, not a review,
+   and its diff gets the ordinary gate. That is a sentence you *say*, not a
+   sequence you *run*. They are two separate calls and both are the user's:
+   an answer of "commit", "yes" or "go" authorizes the commit and nothing
+   after it. Never start `/branch-review` off the back of it. Observed in the
+   field: a run chained the review onto the owner's "commit" and the owner
+   objected.
 
 ## Goals
 - Reduce complexity
