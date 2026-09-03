@@ -2,17 +2,21 @@
 
 > Status: DRAFT, not started. Written 2026-09-03 from a design conversation.
 > A portal, not a deliverable — every POC below updates this file.
+>
+> §5 records the designs considered and rejected. They are limitations we chose,
+> not oversights, and each names the signal that would reopen it.
 
 ## 1. Problem & goal
 
 `AGENT_RULES.md` is the standing rules doc that primes every session. It ships
 inside the npm package at `packages/<kit>/commands/remember/AGENT_RULES.md` (all
-four kits, next to `friction.cjs`) and `/remember` bootstraps a copy into each
-repo's `.claude/remember/`.
+four kits, next to `friction.cjs`), the installer copies it into `~/.claude` and
+the other tool dirs, and `/remember` copies *that* into each repo's
+`.claude/remember/`.
 
-**Nothing ever refreshes that copy.** `remember.md` bootstraps it only if absent
-and never overwrites afterwards — deliberately, because the file is one users are
-expected to customise. The result, measured 2026-09-03 across the local fleet:
+**Nothing ever refreshes the repo copy.** `remember.md:75-77` bootstraps it only
+if absent and never overwrites afterwards. The result, measured 2026-09-03
+across the local fleet:
 
 | gap | count |
 |---|---|
@@ -24,102 +28,53 @@ Only `liteagents` and `agentic-toolkit` are current. Three hand sweeps have been
 done and the drift returned each time, which is the actual signal: a rule
 enforced by remembering to sweep is not enforced.
 
-**Goal.** A repo learns it is behind and gets current, without ever silently
-destroying a user's own edits, and without a fourth hand sweep.
+**Goal.** Every repo you actually work in converges on the current rules by
+itself, nothing is ever destroyed without a recoverable copy, and no fourth hand
+sweep is needed.
 
-### Why the obvious fixes don't work
+### The three copies
 
-- **A content hash alone can't decide anything.** It proves two files differ; it
-  cannot say which is newer, so "differs" is ambiguous between *stale* and
-  *customised*. Overwrite on mismatch and you destroy user edits.
-- **`npm i -g liteagents@latest` does not fix it.** npm replaces the package in
-  the global prefix. `postinstall.js` only prints a message. The repo copy is a
-  copy made at bootstrap, not a link — every one of the 35 would still be stale.
-- **The installer cannot do it either.** `installer/cli.js` is home-scoped: it
-  resolves against `os.homedir()` (`installer/cli.js:124`, `:611`) and never
-  calls `process.cwd()`. It installs kits into `~/.claude`, `~/.config/amp` and
-  friends, and has no knowledge that the user has 35 repos.
+| # | path | written by | refreshed today? |
+|---|---|---|---|
+| 1 | `packages/<kit>/commands/remember/AGENT_RULES.md` | the npm package | n/a — it is the source |
+| 2 | `~/.claude/commands/remember/AGENT_RULES.md` (and `~/.factory`, `~/.config/amp`, …) | the installer | **yes** — overwritten every run, with `.backup.<timestamp>` (`installer/cli.js:129`) |
+| 3 | `<repo>/.claude/remember/AGENT_RULES.md` | `/remember`, once | **no — never** |
 
-`/remember` is the only component that runs *inside* a repo and already owns
-writing this file. The work belongs there.
-
-### Three stages, refreshed independently
-
-| stage | what updates it | backed up? |
-|---|---|---|
-| the npm package | `npm i -g liteagents@latest` | n/a — package replace |
-| `~/.claude/` commands + skills | re-run `liteagents` | yes — installer's own `.backup.<timestamp>` (`installer/cli.js:129`) |
-| repo `.claude/remember/AGENT_RULES.md` | **nothing, ever** | no — never written after bootstrap |
-
-Row two already covers command/skill churn; users just re-run the installer.
-Row three is the entire drift problem.
+Copy 2 is fine and always has been. **Copy 3 is the entire problem**, and it is
+the one the installer cannot reach: `installer/cli.js` is home-scoped, resolving
+against `os.homedir()` (`:124`, `:611`) and never calling `process.cwd()`. It
+does not know a user's repos exist. `/remember` is the only component that runs
+inside a repo, and it already owns writing that file.
 
 ## 2. Go / no-go
 
-**The riskiest assumption: the non-destructive update path is safe to run
-unattended.** Everything else in this PRD is plumbing around that one claim. It
-holds only if a file the user edited is *never* replaced, in every state the
-fleet can be in — including the state where we have no stamp and no idea what
-the file's history is.
+**The riskiest assumption: overwriting copy 3 on every run is safe.** The design
+makes it safe by never destroying anything — a differing file is backed up
+before it is replaced, exactly as the installer already does for copy 2.
 
-The design's answer is that the unknown case degrades to the loud path, never
-the silent one: no stamp and no match means we write `AGENT_RULES_NEW.md` and
-touch nothing. **Go if** module 4's two branches are each proven on a real repo
-— one untouched copy silently updated, one customised copy left byte-identical
-with `_NEW` beside it. **No-go if** any path can overwrite a body we cannot
-prove we wrote.
+**Go if** a customised repo file survives a `/remember` run as a recoverable
+`.backup.<timestamp>` beside it, proven on a real repo.
+**No-go if** any path can replace a differing body without leaving a copy.
 
-That is a correctness bar, not a measurement, and it is the only thing the
-feature stands or falls on.
-
-### Historical matching is an optimisation, not a gate
-
-An earlier draft made "≥ 30 of 35 repos match a known shipped body" the
-go/no-go. That was wrong, and the correction matters for sequencing.
-
-Historical hashes are needed **once**, for the 35 repos that predate the stamp.
-After a repo is stamped, comparison is against the stamp and history is never
-consulted again. So if historical matching finds nothing, the feature still
-works — those repos each get one `AGENT_RULES_NEW.md`, once, and are stamped
-from then on. That is a noisier migration, not a broken design.
-
-It is worth doing because it converts one-time noise into silence for the repos
-it can prove untouched. It is not worth blocking on.
-
-**Expected yield is low.** AGENT_RULES was added by hand to many repos before it
-shipped in the package, so the recoverable set is perhaps ~10 distinct shipped
-bodies, and a hand-placed copy may match none of them. Module 0 measures the
-real number; any repo it clears is one fewer `_NEW` file, and repos it cannot
-clear are handled correctly anyway.
+That is a correctness bar, not a measurement. It is the only thing the feature
+stands or falls on.
 
 ## 3. Out of scope
 
 - **Auto-running `npm install`.** `/remember` prints the command; the user runs
   it. Updating the package stays their call.
-- **GitHub as the source of AGENT_RULES.** Adds a network dependency, a rate
-  limit, and a second source of truth that can disagree with the installed
-  package. The installed package is already on disk, already versioned, and
-  already what users are told to update.
-- **Three-way merge of a customised file.** We do not know which of a user's
-  edits matter. We keep theirs and hand them the new one.
-- **Refreshing `~/.claude/` commands and skills.** That is the installer's job
-  and it already works, with its own backup.
-- **A per-file manifest for every installed artifact.** Exactly one file is
-  plausibly hand-edited. One stamp, not a manifest.
+- **GitHub as a source.** Adds a network dependency, a rate limit, and a second
+  source of truth that can disagree with the installed package.
+- **Fleet propagation.** Updating all 35 repos at once needs repo discovery —
+  a filesystem scan or a path registry — in four packages, for an unknown and
+  probably small user count. Each repo self-heals on its next `/remember`.
+- **Hash stamps, `AGENT_RULES_NEW.md`, historical hash matching.** See §5.
+- **Refreshing `~/.claude` commands and skills.** The installer's job; it
+  already works, with backups.
 
 ## 4. Modules
 
 Built in order; module N+1 does not start while N is unproven.
-
-### Module 0 — Measure historical-match coverage
-
-Extract every AGENT_RULES body recoverable from git tags, hash each, and match
-the 35 real repo copies against that set. Output: how many resolve to a known
-shipped release, how many match nothing.
-
-Sizes module 5's benefit and the one-time `_NEW` noise. Expected yield is low
-(~10 recoverable bodies; hand-placed copies may match none). **Does not gate the
-rest** — a low number means a noisier migration, not a stop. No production code.
 
 ### Module 1 — Version check in `/remember` step 0
 
@@ -132,121 +87,182 @@ liteagents 2.24.1 → 2.25.0 available: npm i -g liteagents@latest && liteagents
 
 Constraints, all load-bearing:
 - Runs inside the existing crash-isolated step 0 alongside `friction.cjs`.
-- Result cached with a ~24h TTL; the common path does no network call.
+- Result cached with a ~24h TTL at `~/.claude/.liteagents-version.json` —
+  home-scoped, because it describes the global install; a per-repo cache would
+  make N repos each fetch the same answer.
 - **Any failure — timeout, DNS, offline — is a silent skip.** A memory command
   that hangs on a network call is worse than one that misses a nudge.
-- Heads-up only. Never writes, never runs the install.
+- Advice only. Never writes, never installs.
 
-### Module 2 — Stub shape assertion and repair
+### Module 2 — Sync AGENT_RULES, backing up first
 
-`/remember` asserts the tool config (`CLAUDE.md` / `AGENTS.md` / `AGENT.md`)
-carries the current stub shape, and repairs it when missing:
+Every `/remember` run, compare copy 3 against copy 2 byte-for-byte:
+
+| state | action |
+|---|---|
+| identical | do nothing — no write, no backup, no output |
+| differs | `cp` to `AGENT_RULES.md.backup.<timestamp>`, then overwrite from copy 2 |
+| absent | copy it in (today's bootstrap behaviour) |
+
+A byte compare, not a stamp: no JSON, no stored hash, no state to keep in sync.
+The question is only "am I about to change this file?", which any careful copy
+asks anyway.
+
+This is what makes the unanswerable question unnecessary. We do not know whether
+users customise this file, or per-project versus globally, and under this design
+we do not need to: if they did, their version is beside it as a backup; if they
+did not, they never see a backup file at all.
+
+**Scripted, not prompted.** The compare, backup and copy are one operation in
+`friction.cjs` — already the mechanical arm of step 0 — never a model
+instruction. A model told to "copy the template" can normalise line endings,
+re-wrap, or drop a trailing newline, and a byte compare against a re-formatted
+copy differs forever, backing up on every single run. Same reasoning that moved
+hash arithmetic and promotion out of prose in the classify-then-count redesign.
+
+### Module 3 — Stub shape assertion and repair
+
+Every run, assert the tool config (`CLAUDE.md` / `AGENTS.md` / `AGENT.md`)
+carries the current stub shape, and repair it when wrong:
 
 - `MEMORY.md` `@`-included as `@.claude/remember/MEMORY.md` — a bare
   `@MEMORY.md` resolves to a nonexistent root file and fails silently.
 - `AGENT_RULES.md` as a **plain pointer, not an `@`-include** — v2.19 demoted it
   deliberately; an `@`-include hot-loads ~300 lines every session.
 
-This repairs shape, not merely presence, and closes the 21 pre-v2.19 stubs.
+Repairs shape, not merely presence. Closes the 21 pre-v2.19 stubs.
 
-### Module 3 — Stamp the bootstrap write
+### Module 4 — Report what happened
 
-At bootstrap, `/remember` records what it wrote, next to the file it describes:
+`/remember` reports every action it took, as it always does — never a silent
+write:
 
 ```
-.claude/remember/.agent-rules.json  →  { "version": "2.24.1", "sha": "ce98678a…" }
+AGENT_RULES.md updated (yours backed up: AGENT_RULES.md.backup.2026-09-03T…)
+CLAUDE.md stub repaired: AGENT_RULES pointer was an @-include
+liteagents 2.24.1 → 2.25.0 available: npm i -g liteagents@latest && liteagents
 ```
 
-One writer, one piece of state. Not in `MEMORY.md`, not in `ledger.json`.
+Silence when nothing changed.
 
-### Module 3.5 — The copy must be scripted, not prompted
+### Module 5 — Installer's closing note
 
-**This is the trap that would silently break the whole design.**
+At the end of a `liteagents` run, say loudly where the backups went:
 
-`remember.md:75-77` instructs the model to "copy it from the bundled template".
-That is prose executed by an agent, not a `cp`. Hash comparison only works if
-the written copy is **byte-identical** to the template — and a model doing the
-copying can normalise line endings, re-wrap a long line, or drop a trailing
-newline. Any of those and the stamp fails to match the very file we just wrote,
-so every repo takes the `_NEW` path forever, including untouched ones.
+```
+Previous skills/commands/subagents backed up at ~/.claude/…backup.<timestamp>
+If you had a modified AGENT_RULES.md, it is in there.
+```
 
-**Requirement:** copying the template, hashing it, and writing the stamp are
-**one scripted operation in `friction.cjs`** — already the mechanical arm of
-step 0 — never a model instruction. The model is told that the step ran, not
-asked to perform it. Same reasoning that moved hash arithmetic, dedup and
-promotion out of prose in the classify-then-count redesign, and the same lesson
-as the trailing-newline off-by-one that inflated line counts across 7 sites.
+The installer cannot say anything about repos — it does not know they exist.
 
-Hash raw bytes. No normalisation on either side.
+### Module 6 — Document the behaviour
 
-### Module 4 — The update path
+Note in `README.md` and `docs/product/INSTALLER_GUIDE.md` that `AGENT_RULES.md`
+is refreshed from the global copy on every `/remember` run, and that local edits
+are backed up rather than preserved in place. Without this, the first person to
+customise it is surprised.
 
-On each run, compare the on-disk body against the stamp:
+## 5. Known limitations — chosen, not overlooked
 
-| state | meaning | action |
-|---|---|---|
-| sha **matches** stamp | untouched since bootstrap | replace silently with the packaged version, then **restamp with the new hash** |
-| sha **differs** | user customised it | write `AGENT_RULES_NEW.md`; leave theirs untouched; say so loudly at the end of the run |
+Each was designed in this conversation and deliberately dropped. Each names what
+would reopen it.
 
-**Restamping is not optional.** After a silent replace, the stamp must be
-rewritten to the new version and hash in the same scripted step. Skip it and the
-next update compares against a stale stamp, finds a mismatch on a file we wrote
-ourselves, and wrongly routes an untouched repo to `_NEW`.
+### Per-project customisation is not supported
 
-`AGENT_RULES_NEW.md` is always overwritten, so it cannot accumulate, and is
-**never** `@`-included — a stub pointing at it would double hot context every
-session for exactly the users who customised.
+Edit a project's `AGENT_RULES.md` and the next `/remember` reverts it, leaving a
+`.backup.<timestamp>` beside it. This is a real trade, taken knowingly: the file
+is a shipped standards doc, the user base is small, and we would rather learn
+from an issue report than build for a user we are not certain exists.
 
-Nothing is enforced and nothing is destroyed. We do not know which of their
-edits matter, so we do not guess.
+**Reopens when:** anyone reports losing edits, or asks for per-project rules.
+The backups are the detection mechanism — someone accumulating them is the
+signal. Module 2 gains a hash stamp at that point; nothing here blocks it.
 
-### Module 5 — Migration for unstamped repos
+### No hash stamp (`.agent-rules.json`)
 
-For a repo with no `.agent-rules.json`, use module 0's shipped-body set: an
-exact match with any past release is proof of untouched, so treat it as module
-4's match case and stamp it. No match → customised → module 4's `_NEW` path.
+Designed and dropped. A stamp recording what we wrote would distinguish "vanilla
+but stale" from "user edited this", allowing a silent update in the first case
+and a hands-off warning in the second. It is unnecessary once a backup makes
+overwriting non-destructive, and it adds a second piece of state that must stay
+in sync with the file it describes.
 
-Clears most of the 35 without asking anyone anything.
+**Reopens when:** per-project customisation becomes supported.
 
-## 5. Open questions
+### No `AGENT_RULES_NEW.md`
 
-Unknowns that do not block. None is silently assumed.
+Designed and dropped. The idea was to write the new version alongside a
+customised one and let the user fold changes in by hand. The backup inverts it
+at no cost — the *new* file lands in place and the *old* one is kept — which is
+the same information with one fewer concept, and no file that must be explained.
 
-- ~~Where the version-check cache lives.~~ **DECIDED 2026-09-03:** two
-  different scopes, because they describe two different things. The per-repo
-  **stamp** lives at `.claude/remember/.agent-rules.json` — it describes this
-  repo's file. The **version-check cache** is home-scoped
-  (`~/.claude/.liteagents-version.json`) — it describes the global install, and
-  a per-repo cache would make N repos each hit the network for the same answer.
-- **A user who folds `_NEW` in and deletes it** gets a fresh `_NEW` on the next
-  release, because their merged body matches no shipped sha. Believed correct —
-  the file is customised from then on — but it means the 1% see this every
-  update. Accepted unless it proves annoying in practice.
-- **Whether `_NEW` should be gitignored.** It lives in `.claude/remember/`,
-  which is gitignored in some repos and tracked in others. Leaving it visible is
-  the current lean.
-- **Multi-kit repos.** Module 2's stub check must handle `CLAUDE.md`,
-  `AGENTS.md` and `AGENT.md`, and a repo may carry more than one.
-- **The 15 dead `.claude/memory/` pointers** are a separate defect from stub
-  shape. Whether module 2 also repairs those, or they get their own pass, is
-  undecided.
-- **Whether the historical-body set should ship in the package.** Module 5 needs
-  the hashes of past releases; reading them from git tags works in a checkout
-  but not in an arbitrary user repo. Shipping a small list of known-good hashes
-  is the likely answer and needs sizing.
+**Reopens when:** users say they would rather keep their file in place and
+review the new one.
 
-## 6. Verification
+### No historical hash matching
+
+Designed and dropped. To classify the 35 unstamped repos, we considered matching
+each body against every AGENT_RULES ever shipped, recovered from git tags. It
+existed only to serve the stamp; with no stamp it has no purpose. Expected yield
+was low anyway — the file was hand-placed in many repos before it shipped in the
+package, so perhaps ~10 distinct bodies are recoverable and a hand-placed copy
+may match none.
+
+**Reopens when:** the stamp does.
+
+### No warning-based flow
+
+Designed and dropped. An alternative kept `/remember` read-only: warn that the
+project file differs and let the user act. It fails on the nag — a
+deliberately-customised file warns forever, and a permanent warning trains users
+to ignore all warnings, including the version one. Warning only when the
+*template* changes fixes the nag but reintroduces stored state, which is the
+stamp again.
+
+**Reopens when:** overwriting proves unpopular.
+
+### No global customisation point
+
+Considered: make copy 2 the place users edit, so every repo inherits it. Dropped
+because per-project is the more natural expectation, and copy 2 is overwritten
+by the installer on every run — making it the customisation point would mean
+protecting it too, doubling the machinery.
+
+**Reopens when:** someone asks for house rules across all their projects.
+
+### The unanswered question
+
+**How many users change `AGENT_RULES.md`, and if they do, per project or once
+for all projects?** No data. The second is judged less likely. The design is
+built so that neither answer is needed: nothing is destroyed either way, and
+either answer arriving as an issue report is a cheap signal to act on. This is
+recorded as an unknown rather than assumed away.
+
+## 6. Open questions
+
+- **Whether module 3 also repairs the 15 dead `.claude/memory/` pointers.** A
+  separate defect from stub shape; may want its own pass.
+- **Backup accumulation.** Backups only appear when content differs, so a
+  vanilla repo never accrues any. A repo customised repeatedly could collect
+  several. Whether to prune, and on what rule, is undecided.
+- **Multi-kit repos.** Module 3 must handle `CLAUDE.md`, `AGENTS.md` and
+  `AGENT.md`, and a repo may carry more than one.
+- **Which tool dir is the source for copy 2** when several are installed
+  (`~/.claude`, `~/.factory`, `~/.config/amp`, `~/.config/opencode`). They
+  should be identical, but "should" is not a check.
+
+## 7. Verification
 
 Success is defined before code, per AGENT_RULES:
 
-- Module 0 answers the go/no-go with a real count over the 35 real repos, not a
-  fixture.
 - Module 1's failure rule is proven by running `/remember` with the network
   unreachable and observing it complete normally.
-- Module 4's two branches are each proven on a real repo: one untouched copy
-  silently updated, one customised copy left byte-identical with `_NEW` beside
-  it.
-- Module 5 is proven by running it against an unstamped repo from the 35 and
-  confirming the resulting classification matches what module 0 measured.
+- Module 2's three branches are each proven on a real repo: identical (no write,
+  no backup, no output), differing (backup exists, new content in place, old
+  content byte-identical in the backup), absent (copied in).
+- Module 2's scripted-copy requirement is proven by running twice in a row: the
+  second run must produce no backup. A backup on every run means the copy is
+  re-formatting and the byte compare never matches.
+- Module 3 is proven against a real pre-v2.19 stub, repaired to current shape.
 
 A step is done when the proof ran and was seen to pass.
