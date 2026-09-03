@@ -544,13 +544,30 @@ antecedent would have to be *distilled*, reintroducing the LLM judgement 4a was
 narrowed to avoid. It does not. File paths are mechanical, so the second channel costs
 no judgement step at all.
 
-**What is not done.** Nothing stores `files` on a ledger entry and nothing shows it to
-the classifier at step 4a — the channel exists on the incoming side only, so matching
-today still runs on the single quote channel described above. Shipping the ledger half
-is gated on the same bar the `top_keywords` change had to clear: exact-label agreement
-measured on a frozen corpus with and without the antecedent (0.884 → ~0.97 was that
-change's number). Until that number exists, the collision-rate table is evidence the
-channel *can* discriminate, not evidence that matching improves.
+**What is not done — and is now SHELVED (2026-09-03).** Nothing stores `files` on a
+ledger entry and nothing shows it to the classifier at step 4a, so matching today still
+runs on the single quote channel described above.
+
+This section previously said the ledger half was "gated on" a label-agreement
+measurement, which read as *justified and queued*. Checking the premise instead of the
+gate: **the problem it fixes is not occurring.** The harm is a false match inflating an
+entry until a `hot` entry hits `recurred_while_hot >= 2` and its rule is rewritten —
+`ag-001` is the only `hot` entry, sits at **1** against a threshold of **2**, and has
+never triggered it. The one observed false-match incident measured as a model-tier
+problem (haiku 4/10 wrong, sonnet 0/10), already closed by requiring sonnet-class. And
+`Open item 2`'s own proposed mitigation — a negative example on generic entries — is
+already in the 4a prompt.
+
+A POC also showed the obvious ledger design fails on its own terms: cluster unions
+collide at 1.8%, entry unions at **38%**, because an entry accumulates paths over every
+session it matches and ends up holding `README.md` and `CLAUDE.md`. A rarity filter
+repairs that (9.5% at df<=2), but repairing a fix for a non-occurring problem is not a
+reason to ship one.
+
+The incoming half stays: it costs nothing, adds no LLM judgement, and accumulates
+evidence for free. **Un-shelve trigger:** a false match observed under a sonnet-class
+classifier, or `ag-001` reaching `recurred_while_hot = 2` on evidence unrelated to
+validation. See PRD §13 for the full numbers.
 
 A related limit sits underneath all of this and is not addressed by any of it: the
 seed signal assumes a reaction indicates an agent mistake. In practice a share of them

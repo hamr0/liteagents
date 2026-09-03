@@ -369,13 +369,41 @@ would therefore reintroduce the LLM judgement step 4a was narrowed to avoid. Fil
 are mechanical text, so the second channel costs no judgement step at all. That
 objection is withdrawn.
 
-**Where that leaves it — still not DECIDED.** The channel exists on the *incoming* side
-only. No ledger entry stores `files`, and step 4a is not shown it, so matching today
-still runs on the single quote channel. The un-defer condition is unchanged and is what
-the remaining half is gated on: a measured improvement in exact-label agreement on a
-frozen corpus with and without the antecedent, the way the `top_keywords` change was
-measured (0.884 → ~0.97) before it shipped. A collision-rate table shows the channel
-*can* discriminate; it is not evidence that matching improves.
+**Where that leaves it — SHELVED, and not for want of a measurement (2026-09-03).**
+The channel exists on the *incoming* side only. No ledger entry stores `files`, and
+step 4a is not shown it, so matching today still runs on the single quote channel.
+
+The earlier framing here — "gated on an exact-label agreement measurement" — implied
+the work was justified and merely queued. That was wrong, and it survived three
+rewrites of this section without anyone checking the premise. **There is no
+demonstrated problem.** Three checks, all on real data:
+
+1. **The harm has never occurred.** The failure this channel prevents is a false match
+   inflating an entry's count until a `hot` entry hits `recurred_while_hot >= 2` and has
+   its rule REWRITTEN. `ag-001` is the only `hot` entry; its `recurred_while_hot` is
+   **1**, threshold **2**. Never fired. Its two `attempts` are a deliberate August
+   rephrasing, not a false-match rewrite.
+2. **The one observed false-match incident had a different cause.** The zkagent run
+   produced 2 loose matches; the controlled 2x2 that followed measured haiku 4/10 wrong
+   against sonnet 0/10. A model-tier problem, already closed by requiring sonnet-class
+   for this step.
+3. **The residual open item proposes a different fix, and it already shipped.** Open
+   item 2 in `remember.md` names a generic one-line `rule` as the under-specification,
+   and its mitigation is a negative example on the entry — already present in the 4a
+   prompt ("did you test it?" matches; "we're burning money, why is it failing?" does not).
+
+A POC on 2026-09-03 also established that the naive ledger design would not have worked
+anyway: cluster-level unions collide at 1.8%, but entry-level unions collide at **38%**,
+because an entry accumulates paths across every session it matches and inevitably
+collects `README.md` / `CLAUDE.md`. A document-frequency filter repairs it (9.5% at
+df<=2) — but repairing a fix for a problem that is not occurring is not a reason to ship.
+
+**Keep the incoming half.** It costs nothing, adds no LLM step, and accumulates evidence
+for free. If the problem ever becomes real, the data is already there.
+
+**Un-shelve trigger — checkable, not a judgement call:** a false match observed under a
+sonnet-class classifier, OR `ag-001` reaching `recurred_while_hot = 2` on evidence that
+is not about validation. Either one, and the POC is already done.
 
 **A limit underneath all of it.** The seed signal assumes a reaction indicates an agent
 mistake. A share of them are over-prompting, thin context, or impatience — mistakes on
