@@ -56,24 +56,41 @@ Row three is the entire drift problem.
 
 ## 2. Go / no-go
 
-**The riskiest assumption: unedited-ness is detectable on repos that have no
-stamp yet.** Every one of the 35 existing repos predates any stamp this PRD
-introduces, so on first run they are all "unknown". If unknown must be treated
-as customised, then 100% of the fleet takes the noisy path instead of the
-intended ~1%, and the feature ships as an annoyance.
+**The riskiest assumption: the non-destructive update path is safe to run
+unattended.** Everything else in this PRD is plumbing around that one claim. It
+holds only if a file the user edited is *never* replaced, in every state the
+fleet can be in — including the state where we have no stamp and no idea what
+the file's history is.
 
-The proposed answer: compare a repo's body against **every AGENT_RULES body ever
-shipped**, recoverable from git tags. An exact match with any past release
-proves the file is untouched, whatever its age.
+The design's answer is that the unknown case degrades to the loud path, never
+the silent one: no stamp and no match means we write `AGENT_RULES_NEW.md` and
+touch nothing. **Go if** module 4's two branches are each proven on a real repo
+— one untouched copy silently updated, one customised copy left byte-identical
+with `_NEW` beside it. **No-go if** any path can overwrite a body we cannot
+prove we wrote.
 
-**Go if** that historical match clears a large majority of the 35 (target: ≥ 30
-of 35 resolve to a known shipped body, leaving ≤ 5 genuinely customised).
-**No-go if** a large share match nothing — that would mean the fleet is full of
-small local edits, the silent-replace path is unsafe in general, and this PRD
-needs rethinking around a diff-and-confirm flow instead.
+That is a correctness bar, not a measurement, and it is the only thing the
+feature stands or falls on.
 
-This is measurable today against real repos, before any code is written. It is
-module 0.
+### Historical matching is an optimisation, not a gate
+
+An earlier draft made "≥ 30 of 35 repos match a known shipped body" the
+go/no-go. That was wrong, and the correction matters for sequencing.
+
+Historical hashes are needed **once**, for the 35 repos that predate the stamp.
+After a repo is stamped, comparison is against the stamp and history is never
+consulted again. So if historical matching finds nothing, the feature still
+works — those repos each get one `AGENT_RULES_NEW.md`, once, and are stamped
+from then on. That is a noisier migration, not a broken design.
+
+It is worth doing because it converts one-time noise into silence for the repos
+it can prove untouched. It is not worth blocking on.
+
+**Expected yield is low.** AGENT_RULES was added by hand to many repos before it
+shipped in the package, so the recoverable set is perhaps ~10 distinct shipped
+bodies, and a hand-placed copy may match none of them. Module 0 measures the
+real number; any repo it clears is one fewer `_NEW` file, and repos it cannot
+clear are handled correctly anyway.
 
 ## 3. Out of scope
 
@@ -94,13 +111,15 @@ module 0.
 
 Built in order; module N+1 does not start while N is unproven.
 
-### Module 0 — Measure historical-match coverage (the go/no-go)
+### Module 0 — Measure historical-match coverage
 
-Extract every AGENT_RULES body from git tags, hash each, and match the 35 real
-repo copies against that set. Output: how many resolve to a known shipped
-release, how many match nothing.
+Extract every AGENT_RULES body recoverable from git tags, hash each, and match
+the 35 real repo copies against that set. Output: how many resolve to a known
+shipped release, how many match nothing.
 
-Answers the go/no-go. No production code.
+Sizes module 5's benefit and the one-time `_NEW` noise. Expected yield is low
+(~10 recoverable bodies; hand-placed copies may match none). **Does not gate the
+rest** — a low number means a noisier migration, not a stop. No production code.
 
 ### Module 1 — Version check in `/remember` step 0
 
@@ -168,10 +187,12 @@ Clears most of the 35 without asking anyone anything.
 
 Unknowns that do not block. None is silently assumed.
 
-- **Where the version-check cache lives.** A dotfile under `.claude/remember/`
-  is the obvious home, but the check is about a *global* install, so a per-repo
-  cache means N repos each make the call. A home-scoped cache is better and
-  crosses a boundary `/remember` otherwise respects.
+- ~~Where the version-check cache lives.~~ **DECIDED 2026-09-03:** two
+  different scopes, because they describe two different things. The per-repo
+  **stamp** lives at `.claude/remember/.agent-rules.json` — it describes this
+  repo's file. The **version-check cache** is home-scoped
+  (`~/.claude/.liteagents-version.json`) — it describes the global install, and
+  a per-repo cache would make N repos each hit the network for the same answer.
 - **A user who folds `_NEW` in and deletes it** gets a fresh `_NEW` on the next
   release, because their merged body matches no shipped sha. Believed correct —
   the file is customised from then on — but it means the 1% see this every
