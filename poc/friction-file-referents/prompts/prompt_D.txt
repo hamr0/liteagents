@@ -1,0 +1,133 @@
+ARM D: NO verbatim user quotes anywhere. Ledger entries are rule + files.
+Incoming clusters are files + preceding action + errors. Tests whether the user's
+words matter at all, or whether behavioural traces alone can carry the match.
+
+LEDGER ENTRIES:
+  ag-001 | rule: Never say work is validated, tested, or finished without an actual run behind it — validate, don't assert.
+      files: ["../02-engineering/copy-pattern-studies.md", ".d.ts", "/commands/remember.md", "/home/hamr/PycharmProjects/liteagents/packages/claude/commands/remember.md", "context-units.js", "context.md", "decompose.py", "diff-review.md"]
+  ag-002 | rule: Before creating new files or content, check and follow any spec document the user already provided instead of improvising.
+      files: ["/PycharmProjects/bareagent/docs/index.md", "index.md", "wiki-index.md", "wiki/RLM_PRD.md", "wiki/api-reference.md"]
+  ag-003 | rule: When code has accumulated ad-hoc patches, stop and propose a clean redesign instead of adding another patch on top.
+      files: ["../docs-builder.md", "//gist.githubusercontent.com/hamr0/c3816fbf08cd5acefbaf517f01c73851/raw/hamr0-gist-index.md", "/home/hamr/.multis-test/data/memory/chats/8503143603/log/2026-06-23.md", "/home/hamr/.multis-test/data/memory/chats/8503143603/log/2026-06-24.md", "/home/hamr/.multis-test/data/memory/chats/8503143603/recent.js", "/tmp/claude-1000/-home-hamr-PycharmProjects-liteagents/85ccb808-197d-47de-a259-0dd96ecef696/scratchpad/hamr0-gist-index.md", "20page.md", "CYBERNETICS.md"]
+  ag-004 | rule: When asked to stop and report status, give a complete, honest accounting of outstanding items instead of glossing over gaps.
+      files: []
+  ag-005 | rule: Keep README content user-facing; never turn it into a changelog or implementation-history dump.
+      files: ["/home/hamr/PycharmProjects/multis/README.md", "Node.js", "docs/00-context/system-state.md", "docs/01-product/prd.md", "docs/README.md", "recent.js", "system-state.md"]
+  ag-006 | rule: When multiple repos share a doc, edit the canonical origin repo first and propagate from there — never edit a downstream copy directly.
+      files: ["hamr0/AGENT_RULES.md"]
+  ag-007 | rule: When building detection features, calibrate to the user's stated recall/noise goal instead of a metric they didn't ask for.
+      files: []
+  ag-008 | rule: Ground data-model decisions in the user's stated business model instead of inventing a different structure.
+      files: []
+  ag-009 | rule: In user-facing summaries, don't cite line counts or internal metrics unless asked — describe scope qualitatively.
+      files: []
+  ag-010 | rule: Design confirmation/deletion flows for minimal steps — match prompt depth to risk, don't default to long linear sequences.
+      files: []
+  ag-011 | rule: Build and validate against the toughest assumption, not the easiest case that passes; each module graduates end-to-end before the next.
+      files: ["CHANGELOG.md", "aaif-agent-auth.md", "docs/01-product/aaif-plan.md", "docs/01-product/camara-plan.md", "docs/01-product/carrier-attestation-proposal.md", "docs/01-product/prd.md"]
+  ag-012 | rule: Batch related independent work into one review/release instead of splitting it into redundant serial ones.
+      files: ["docs/02-evidence/M2-EVIDENCE.md"]
+  ag-013 | rule: Don't open a PR for every small change when pushing to main is the established workflow for that repo.
+      files: []
+
+INCOMING CLUSTERS:
+  [0] sessions=1 projects=["PycharmProjects-8een"]
+      files touched: [".claude/stash/2026-07-16-m4-piece2-single-use-nonce-shipped.md", "8een.context.md"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["wallet cryptographically", "cryptographically welded"]
+  [1] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["/commands/remember.md", "/home/hamr/PycharmProjects/liteagents/packages/claude/commands/remember.md", "packages/ampcode/commands/remember.md", "packages/claude/commands/remember.md", "packages/droid/commands/remember.md", "packages/opencode/command/remember.md"]
+      preceding: {"action": "Bash \u2192 Read", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["lately verify", "verify works"]
+  [2] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["/PycharmProjects/bareagent/docs/index.md", "index.md", "wiki-index.md", "wiki/RLM_PRD.md", "wiki/api-reference.md"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["splitting capture", "rewrittent every"]
+  [3] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["../docs-builder.md", "//gist.githubusercontent.com/hamr0/c3816fbf08cd5acefbaf517f01c73851/raw/hamr0-gist-index.md", "/tmp/claude-1000/-home-hamr-PycharmProjects-liteagents/85ccb808-197d-47de-a259-0dd96ecef696/scratchpad/hamr0-gist-index.md", "20page.md", "CYBERNETICS.md", "README.md", "a.md", "docs/log.md"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["infrastructure standalone", "rented infrastructure"]
+  [4] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["EPISODES.md", "MEMORY.md"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["usernames whatsoever", "behavrioral stashes"]
+  [5] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["/home/hamr/PycharmProjects/liteagents/packages/claude/commands/friction/friction.js", "13252f69-49f9-463e-b34a-aeacf23d4128.js", "668e5fb2-bf8a-4552-a952-3d59a7ec2cc9.js", "6a9e61b0-853b-4e64-84c8-564372b5f623.js", "ac726e3e-71e8-429b-84c7-0e664aa830fb.js", "antigen_candidates.js", "antigen_clusters.js", "antigen_review.md"]
+      preceding: {"action": "Bash \u2192 Read", "result": "error", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["aeacf23d4128", "3d59a7ec2cc9"]
+  [6] sessions=1 projects=["PycharmProjects-bareagent"]
+      files touched: ["loop.js"]
+      preceding: {"action": "SendMessage", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["fucking reconcile", "reconcile tired"]
+  [7] sessions=1 projects=["PycharmProjects-bareloop"]
+      files touched: [".claude/remember/AGENT_RULES.md", ".claude/stash/2026-08-04-shape-lottery-and-rules.md"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["autopsies correction", "correction refuted"]
+  [8] sessions=1 projects=["PycharmProjects-multis"]
+      files touched: ["/.multis/config.js", "executor.js", "src/skills/executor.js"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["infrastructure beeperbox", "understood homeserver"]
+  [9] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["/remember.md", "AGENT_RULES.md", "CLAUDE.md", "LIBRARY_CONVENTIONS.md", "MEMORY.md", "PRD.md", "Z/MEMORY.md", "Z/friction/antigen_clusters.js"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": "one-off without curse/interrupt/error: 0"}  self_suspect: False
+      errors: ["one-off without curse/interrupt/error: 0"]
+      [naming-only, NOT evidence] top_keywords: ["sightings sessions", "sessions refreshed"]
+  [10] sessions=1 projects=["PycharmProjects-bareloop"]
+      files touched: ["index.js", "interpret.js", "jobs/litectx-maintainer.js", "memory-w4.test.js", "memory.test.js", "src/store.js", "src/tokenize.js", "store.js"]
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["litectx primituives", "docstrings multiple"]
+  [11] sessions=1 projects=["PycharmProjects-8een"]
+      files touched: ["/tmp/claude-1000/-home-hamr-PycharmProjects-8een/0a398305-f221-4845-8495-e6ecaa091dcd/scratchpad/npm-reserve/package.js", "8een.context.md", "README.md", "package.js", "test/integration.test.js", "tools/mkfixture/README.md"]
+      preceding: {"action": "Bash \u2192 Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: ["npm error This operation requires a one-time password from your authenticator."]
+      [naming-only, NOT evidence] top_keywords: ["fuck branches", "merge cleanly"]
+  [12] sessions=1 projects=["PycharmProjects-bareloop"]
+      files touched: [".d.ts", "context.md", "diff-review.md", "jobs/litectx-maintainer.js", "package-lock.js", "package.js", "ralph.test.js", "reuse.js"]
+      preceding: {"action": "Agent", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["clear validated", "issues clear"]
+  [13] sessions=1 projects=["PycharmProjects-justabit"]
+      files touched: ["README.md", "a/release.js", "b/release.js", "docs/01-product/findings.md", "findings.md", "poc/README.md", "prd.md", "spec/carrier-attestation.yaml"]
+      preceding: {"action": "Bash", "result": "claimed success (exit 0)", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["instead shakespear", "shakespear prose"]
+  [14] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: ["/tmp/friction-exp/new/friction.js"]
+      preceding: {"action": "Read \u2192 Read", "result": "error", "error": "331\t              (/Exit code [1-9]/.test(result) && !result.includes('Exit code 137')) ||"}  self_suspect: False
+      errors: ["331\t              (/Exit code [1-9]/.test(result) && !result.includes('Exit code 137')) ||"]
+      [naming-only, NOT evidence] top_keywords: ["friction"]
+  [15] sessions=1 projects=["PycharmProjects-liteagents"]
+      files touched: []
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["nonsensical perfection", "fucking nonsensical"]
+  [16] sessions=1 projects=["PycharmProjects-edgelms"]
+      files touched: []
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["positives undecuded", "reporting without"]
+  [17] sessions=1 projects=["PycharmProjects-bareloop"]
+      files touched: []
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["reports handrolling", "terminal something"]
+  [18] sessions=1 projects=["PycharmProjects-bareguard"]
+      files touched: []
+      preceding: {"action": "AskUserQuestion", "result": "error", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["confirmed regression", "finished validated"]
+  [19] sessions=1 projects=["PycharmProjects-8een"]
+      files touched: []
+      preceding: {"action": "none", "result": "unknown", "error": null}  self_suspect: False
+      errors: []
+      [naming-only, NOT evidence] top_keywords: ["confused website", "access validate"]

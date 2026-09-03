@@ -403,7 +403,20 @@ for free. If the problem ever becomes real, the data is already there.
 
 **Un-shelve trigger — checkable, not a judgement call:** a false match observed under a
 sonnet-class classifier, OR `ag-001` reaching `recurred_while_hot = 2` on evidence that
-is not about validation. Either one, and the POC is already done.
+is not about validation. Either one, and the POC is already done —
+`poc/friction-file-referents/` holds the corpus, all four arm prompts, the raw labels
+from 12 runs, and a scorer that reproduces every table.
+
+**And the gate above must NOT be exact-label agreement.** The POC ran a fourth arm with
+the user's quotes stripped from both sides, leaving files and the preceding action. It
+scored BEST on every stability measure — 0.900 exact agreement, 3/20 unstable, the
+fewest matches — and is plainly the worst arm: it unanimously dropped three clusters
+(`ag-012`, `ag-007`, `ag-001`) that all nine quote-carrying runs matched unanimously, and
+it named antigens after session hashes (`new:aeacf23d4128-3d59a7ec2cc9`). It wins by
+having nothing to go on and defaulting to `drop` (12.7 of 20). **High agreement on "I
+don't know" is not quality** — the metric is won by removing information, the same
+degenerate shape as the severity axis that was seeded and rated on the same signal. A
+re-attempt needs a human-labelled gold set, not agreement.
 
 **A limit underneath all of it.** The seed signal assumes a reaction indicates an agent
 mistake. A share of them are over-prompting, thin context, or impatience — mistakes on

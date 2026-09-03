@@ -567,7 +567,18 @@ reason to ship one.
 The incoming half stays: it costs nothing, adds no LLM judgement, and accumulates
 evidence for free. **Un-shelve trigger:** a false match observed under a sonnet-class
 classifier, or `ag-001` reaching `recurred_while_hot = 2` on evidence unrelated to
-validation. See PRD §13 for the full numbers.
+validation.
+
+One result from that POC generalises past this feature and is worth carrying: an arm
+with the user's quotes stripped from both sides scored BEST on exact-label agreement
+(0.900) while unanimously dropping three clusters every quote-carrying run matched, and
+naming antigens after session hashes. It wins by having nothing to go on and defaulting
+to `drop`. **Agreement rewards removing information**, so it cannot be the gate on a
+change that adds a channel. The user's own words are load-bearing — files are neither
+necessary nor sufficient without them.
+
+Full corpus, prompts, 12 raw runs and a reproducing scorer: `poc/friction-file-referents/`.
+See PRD §13 for the numbers.
 
 A related limit sits underneath all of this and is not addressed by any of it: the
 seed signal assumes a reaction indicates an agent mistake. In practice a share of them
