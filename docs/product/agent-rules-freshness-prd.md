@@ -22,7 +22,7 @@ across the local fleet:
 |---|---|
 | stale `AGENT_RULES.md` bodies (`1acd0ee6` vs canonical `ce98678a`) | 35 |
 | pre-v2.19 `@`-include stubs (~300 lines hot-loaded per session) | 21 |
-| repos on the pre-rename `.claude/memory/` layout | 4 (+1 forked) |
+| repos on the pre-rename `.claude/memory/` layout | 4, all archived |
 
 Only `liteagents` and `agentic-toolkit` are current. Three hand sweeps have been
 done and the drift returned each time, which is the actual signal: a rule
@@ -240,9 +240,6 @@ recorded as an unknown rather than assumed away.
 
 ## 6. Open questions
 
-- **Whether the `.claude/memory/` migration belongs in this PRD or its own.**
-  See the risk below; it is a different defect from stub shape and carries a
-  data-loss path, so it may deserve separate treatment.
 - **Backup accumulation.** Backups only appear when content differs, so a
   vanilla repo never accrues any. A repo customised repeatedly could collect
   several. Whether to prune, and on what rule, is undecided.
@@ -252,37 +249,30 @@ recorded as an unknown rather than assumed away.
   (`~/.claude`, `~/.factory`, `~/.config/amp`, `~/.config/opencode`). They
   should be identical, but "should" is not a check.
 
-## 6.5 Risk — the `.claude/memory/` layout strands accumulated memory
+## 6.5 Not a live risk — the `.claude/memory/` layout
 
-Not a limitation we chose. Found while writing this PRD, measured 2026-09-03
-across 30 local repos with a `.claude/` directory:
+`.claude/memory/` is the pre-rename name of `.claude/remember/`. Measured
+2026-09-03 across 30 local repos with a `.claude/` directory: 4 on the old
+layout, 25 on the new, 1 (`bareagent`) carrying both.
 
-| layout | repos |
-|---|---|
-| old only — `.claude/memory/` | 4 |
-| new only — `.claude/remember/` | 25 |
-| both | 1 (`bareagent`) |
+Those pointers are **not dead** — `aurora/.claude/memory/` holds a live
+`AGENT_RULES.md` and `MEMORY.md` that its CLAUDE.md resolves correctly. They
+were simply never migrated.
 
-`.claude/memory/` is the pre-rename name of `.claude/remember/`. The pointers in
-those repos are **not dead** — `aurora/.claude/memory/` holds a live
-`AGENT_RULES.md` and `MEMORY.md`, and its CLAUDE.md resolves to them correctly.
-They were simply never migrated.
+**Confirmed 2026-09-03: all 4 are archived, not operational.** `/remember` is
+not run in them, so nothing is at risk and no migration is needed. Recorded only
+so the next reader does not re-derive it — and because the failure shape is
+worth knowing if a live repo on the old layout ever turns up:
 
-**The failure.** `/remember` writes to `.claude/remember/` unconditionally and
-re-points CLAUDE.md there (step 5). Run it in one of the 4 and it creates the new
-directory, repoints the config, and leaves the old `MEMORY.md` — the repo's
-entire accumulated fact history — in a directory nothing reads any more. The run
-reports success. Nothing is deleted, so no error surfaces; the memory is simply
-orphaned.
+`/remember` writes `.claude/remember/` unconditionally and repoints CLAUDE.md
+there. In an old-layout repo it would create the new directory, repoint the
+config, and leave the accumulated `MEMORY.md` in a directory nothing reads
+again — reporting success, since nothing is deleted. **If that case appears:**
+migrate contents before writing and report it; resolve an existing fork by
+reporting the orphan, never by deleting it.
 
-`bareagent` is the benign version of the same split: its CLAUDE.md already points
-at `remember/`, leaving `memory/AGENT_RULES.md` an orphan. Harmless, except as a
-decoy a reader may mistake for the live rules.
-
-**Requirement, whichever PRD owns it:** before writing `.claude/remember/` in a
-repo that has `.claude/memory/`, migrate the contents rather than fork them, and
-report the migration. A repo with both, where CLAUDE.md points at the new one, is
-resolved by reporting the orphan — never by deleting it silently.
+`bareagent`'s leftover `memory/AGENT_RULES.md` is an orphan of that kind —
+harmless, except as a decoy a reader might mistake for the live rules.
 
 ## 7. Verification
 
