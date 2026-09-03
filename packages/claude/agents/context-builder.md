@@ -99,7 +99,7 @@ digraph ContextBuilder {
 
 | Don't | Why |
 |-------|-----|
-| @ triggers in markdown (except @MEMORY.md) | Bloats context window |
+| @ triggers in markdown (except `@<tool-dir>/remember/MEMORY.md`) | Bloats context window |
 | Comprehensive content in KNOWLEDGE_BASE.md | It's a TOC, not a database |
 | Embedded agent/skill definitions | Don't duplicate ~/.claude/ |
 | ASCII trees (├─ └─) | Use arrows (→) or tables |

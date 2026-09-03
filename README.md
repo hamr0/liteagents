@@ -73,7 +73,7 @@ liteagents
 
 ## Hot Memory — project-local learning from your own sessions
 
-Liteagents ships a two-command pipeline that turns Claude Code's session logs into project-local memory. No databases, no external services, just markdown files the assistant reads via `@MEMORY.md`.
+Liteagents ships a two-command pipeline that turns Claude Code's session logs into project-local memory. No databases, no external services, just markdown files the assistant reads via an `@.claude/remember/MEMORY.md` include.
 
 ```
 /stash  →  /remember
@@ -81,7 +81,7 @@ capture    analyze + consolidate
 ```
 
 - **`/stash`** — snapshot the current session's context before compaction or handoff; nudges you to consolidate once a few stashes pile up. The write-up runs on a mid-tier model, dispatched as a background subagent where your tool supports it, so the session isn't blocked on formatting/file I/O
-- **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected into `CLAUDE.md` via `@MEMORY.md` so every future session benefits. Per-stash extraction runs as concurrent subagent calls on a mid-tier model — no model name hardcoded, so it works with whatever your tool has configured
+- **`/remember`** — runs friction analysis automatically (mining JSONL session logs across *all* your projects for frustration signals, failed flows, and abandonment patterns, clustered into antigen candidates), then consolidates stashes + friction antigens into `.claude/remember/MEMORY.md`; auto-injected into `CLAUDE.md` via an explicit `@.claude/remember/MEMORY.md` include so every future session benefits. Per-stash extraction runs as concurrent subagent calls on a mid-tier model — no model name hardcoded, so it works with whatever your tool has configured
 
 ### `AGENT_RULES.md` — the standards doc that primes every session
 
