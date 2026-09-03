@@ -35,16 +35,29 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
    project are behavioral lessons worth keeping everywhere. So point it at the tool's
    **global sessions root** (all projects), not a per-project directory.
 
-   - **Check for a newer liteagents** (best-effort, one line, never blocking) — run
-     `node <version-check.cjs>`, bundled next to this command at
-     `remember/version-check.cjs`. It prints one advice line if the installed version is
-     behind the registry, and prints nothing otherwise. It exits 0 on every path, caches
-     the registry answer for 24h, and is bounded to ~2s, so it cannot stall this run. If
-     it prints a line, relay it verbatim in your final report; never act on it and never
-     run the install yourself.
    - **Locate `friction.cjs`** — it is bundled next to this command at `remember/friction.cjs`
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
+   - **Check for a newer liteagents** (best-effort, one line, never blocking) — bundled
+     beside `friction.cjs` as `remember/version-check.cjs`. Call it by its **absolute
+     path**, exactly as step 7 calls `docs-builder.cjs`: the cwd here is the target repo,
+     not this package, so a cwd-relative path fails everywhere except the liteagents repo
+     itself.
+     ```bash
+     node ~/.claude/commands/remember/version-check.cjs
+     ```
+     **If that path does not exist, use the directory you just resolved for
+     `friction.cjs`** — the two ship side by side, so that directory is correct for a
+     non-default install and when running from a checkout, where the path above would
+     point at the installed copy instead of the one under test.
+     It prints one advice line if the installed version is behind the registry, and prints
+     nothing otherwise. It exits 0 on every path, caches the registry answer for 24h, and
+     is bounded to ~2s, so it cannot stall this run. If it prints a line, relay it verbatim
+     in your final report; never act on it and never run the install yourself.
+   - **If the script is missing from both locations, say so** — one line, same rule as step
+     7's "applicable but could not run". A failed *check* (offline, registry down, timeout)
+     stays silent by design: it is a once-a-day nudge, not a result anyone is waiting on. A
+     missing *script* means the install is incomplete, which is worth a word.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
      exists and contains `.jsonl` files directly, or one level down in per-project
      subdirectories (friction.cjs scans exactly those two levels, not a deep recursive walk).
