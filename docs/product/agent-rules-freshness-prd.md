@@ -22,7 +22,7 @@ across the local fleet:
 |---|---|
 | stale `AGENT_RULES.md` bodies (`1acd0ee6` vs canonical `ce98678a`) | 35 |
 | pre-v2.19 `@`-include stubs (~300 lines hot-loaded per session) | 21 |
-| dead `.claude/memory/` pointers | 15 |
+| repos on the pre-rename `.claude/memory/` layout | 4 (+1 forked) |
 
 Only `liteagents` and `agentic-toolkit` are current. Three hand sweeps have been
 done and the drift returned each time, which is the actual signal: a rule
@@ -240,8 +240,9 @@ recorded as an unknown rather than assumed away.
 
 ## 6. Open questions
 
-- **Whether module 3 also repairs the 15 dead `.claude/memory/` pointers.** A
-  separate defect from stub shape; may want its own pass.
+- **Whether the `.claude/memory/` migration belongs in this PRD or its own.**
+  See the risk below; it is a different defect from stub shape and carries a
+  data-loss path, so it may deserve separate treatment.
 - **Backup accumulation.** Backups only appear when content differs, so a
   vanilla repo never accrues any. A repo customised repeatedly could collect
   several. Whether to prune, and on what rule, is undecided.
@@ -250,6 +251,38 @@ recorded as an unknown rather than assumed away.
 - **Which tool dir is the source for copy 2** when several are installed
   (`~/.claude`, `~/.factory`, `~/.config/amp`, `~/.config/opencode`). They
   should be identical, but "should" is not a check.
+
+## 6.5 Risk — the `.claude/memory/` layout strands accumulated memory
+
+Not a limitation we chose. Found while writing this PRD, measured 2026-09-03
+across 30 local repos with a `.claude/` directory:
+
+| layout | repos |
+|---|---|
+| old only — `.claude/memory/` | 4 |
+| new only — `.claude/remember/` | 25 |
+| both | 1 (`bareagent`) |
+
+`.claude/memory/` is the pre-rename name of `.claude/remember/`. The pointers in
+those repos are **not dead** — `aurora/.claude/memory/` holds a live
+`AGENT_RULES.md` and `MEMORY.md`, and its CLAUDE.md resolves to them correctly.
+They were simply never migrated.
+
+**The failure.** `/remember` writes to `.claude/remember/` unconditionally and
+re-points CLAUDE.md there (step 5). Run it in one of the 4 and it creates the new
+directory, repoints the config, and leaves the old `MEMORY.md` — the repo's
+entire accumulated fact history — in a directory nothing reads any more. The run
+reports success. Nothing is deleted, so no error surfaces; the memory is simply
+orphaned.
+
+`bareagent` is the benign version of the same split: its CLAUDE.md already points
+at `remember/`, leaving `memory/AGENT_RULES.md` an orphan. Harmless, except as a
+decoy a reader may mistake for the live rules.
+
+**Requirement, whichever PRD owns it:** before writing `.claude/remember/` in a
+repo that has `.claude/memory/`, migrate the contents rather than fork them, and
+report the migration. A repo with both, where CLAUDE.md points at the new one, is
+resolved by reporting the orphan — never by deleting it silently.
 
 ## 7. Verification
 
