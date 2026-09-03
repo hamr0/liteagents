@@ -1,6 +1,7 @@
 # AGENT_RULES freshness — PRD
 
-> Status: DRAFT, not started. Written 2026-09-03 from a design conversation.
+> Status: IN PROGRESS. Written 2026-09-03 from a design conversation.
+> Modules 1, 2, 3, 4 and 6 BUILT; module 5 (installer's closing note) remains.
 > A portal, not a deliverable — every POC below updates this file.
 >
 > §5 records the designs considered and rejected. They are limitations we chose,
@@ -149,7 +150,38 @@ re-wrap, or drop a trailing newline, and a byte compare against a re-formatted
 copy differs forever, backing up on every single run. Same reasoning that moved
 hash arithmetic and promotion out of prose in the classify-then-count redesign.
 
-### Module 3 — Stub shape assertion and repair
+### Module 3 — Stub shape assertion and repair — **BUILT 2026-09-03**
+
+Shipped as `packages/<kit>/commands/remember/stub-check.cjs` (4 kits, 2 constants
+differ — `PROJECT_DIR` and `CONFIG_FILE` — and nothing else; each run for real
+and confirmed to edit its own config file: claude `CLAUDE.md`, droid/opencode
+`AGENTS.md`, amp `AGENT.md`). Wired into step 5 of `remember.md`, after the
+model has written or left the sections. 19 tests in `tests/stub-check/`.
+
+**Validated against the real fleet, not fixtures.** Run over copies of all 37
+local configs it repaired exactly 21 — the number §1 measured — each a
+single-character edit (the leading `@` removed), was byte-silent on the 4
+already-current repos, and was idempotent on a second pass. Falsifiability
+proven with two negative controls: removing the missing-target guard reddens
+the "not repaired" test, removing the marker scoping reddens the "outside the
+markers" test; the script was restored byte-identical (md5 checked) after each.
+
+**A guard the design did not originally have.** Two repos (`privpn`,
+`relayfact`) carry `@.claude/memory/MEMORY.md` inside the MEMORY markers — the
+pre-rename layout, with a live file behind it. Rewriting that to
+`.claude/remember/MEMORY.md` would break a working include to satisfy a naming
+convention. The script therefore **never repoints an include at a file that does
+not exist**: that case is reported, not repaired. This is §6.5's failure shape
+turning up as a live constraint on module 3.
+
+Scope is shape, never content: it edits only inside a marker pair, and only the
+`@` and the path. The prose in the blocks stays user-owned, which is what lets
+step 5's bootstrap-once rule stand unchanged.
+
+It also answers §6's multi-kit question by construction: each kit's script owns
+exactly its own config file, so a repo carrying two of them has each fixed by
+the tool that wrote it.
+
 
 Every run, assert the tool config (`CLAUDE.md` / `AGENTS.md` / `AGENT.md`)
 carries the current stub shape, and repair it when wrong:
@@ -161,7 +193,22 @@ carries the current stub shape, and repair it when wrong:
 
 Repairs shape, not merely presence. Closes the 21 pre-v2.19 stubs.
 
-### Module 4 — Report what happened
+### Module 4 — Report what happened — **BUILT 2026-09-03**
+
+Step 8 of `remember.md` now relays, **verbatim**, whatever the three bundled
+scripts printed — `version-check.cjs` (step 0), `sync-rules.cjs` (step 1),
+`stub-check.cjs` (step 5) — and reports nothing when they printed nothing.
+Verbatim is load-bearing: a paraphrase of "your body was backed up to
+`AGENT_RULES.md.bak`" can lose the filename, which is the one thing a user who
+just lost their edits needs. All three are silent on the no-change path, so
+silence is the normal case and there is nothing to invent.
+
+The stale step-8 line it replaced ("if AGENT_RULES.md was bootstrapped this run,
+say so") described the bootstrap-once behaviour module 2 removed. The
+`File locations` section carried the same dead claim and was corrected with it.
+
+
+
 
 `/remember` reports every action it took, as it always does — never a silent
 write:
@@ -278,8 +325,10 @@ recorded as an unknown rather than assumed away.
 - **Backup accumulation.** Backups only appear when content differs, so a
   vanilla repo never accrues any. A repo customised repeatedly could collect
   several. Whether to prune, and on what rule, is undecided.
-- **Multi-kit repos.** Module 3 must handle `CLAUDE.md`, `AGENTS.md` and
-  `AGENT.md`, and a repo may carry more than one.
+- ~~**Multi-kit repos.**~~ **Answered by module 3's shape.** Each kit's
+  `stub-check.cjs` names exactly one `CONFIG_FILE` — its own — so a repo carrying
+  two configs has each repaired by the tool that wrote it, and neither script
+  touches a file it does not own.
 - **Which tool dir is the source for copy 2** when several are installed
   (`~/.claude`, `~/.factory`, `~/.config/amp`, `~/.config/opencode`). They
   should be identical, but "should" is not a check.
@@ -322,5 +371,8 @@ Success is defined before code, per AGENT_RULES:
   second run must produce no backup. A backup on every run means the copy is
   re-formatting and the byte compare never matches.
 - Module 3 is proven against a real pre-v2.19 stub, repaired to current shape.
+  **Done 2026-09-03**: run over copies of all 37 local configs, 21 repaired, each a
+  single-character edit, silent on the 4 already-current repos, idempotent on a
+  second pass, and the 2 old-layout repos reported rather than broken.
 
 A step is done when the proof ran and was seen to pass.

@@ -422,10 +422,31 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      Users trim this section deliberately (a pointer-only variant is common), and rewriting
      it silently re-adds text they removed, on every single run, forever. Observed in the
      field: a run restored the inline rules into a AGENTS.md whose owner had cut them, and
-     the edit had to be reverted by hand. This matches how `AGENT_RULES.md` itself is
-     handled — bootstrapped once, never overwritten after.
+     the edit had to be reverted by hand. Note this no longer matches how `AGENT_RULES.md`
+     itself is handled: `sync-rules.cjs` refreshes that file every run, because it is a
+     shipped standards document with a backup behind it. This section is prose the user
+     owns, with nothing behind it — so it stays bootstrap-once.
    - If an existing pair is present but its **path pointer** is missing or wrong, that is
      load-bearing: **report it and stop**, do not silently rewrite the section around it.
+
+   - **Then assert the stub SHAPE mechanically** — run the bundled script by **absolute
+     path**, for the same reason as steps 0 and 1:
+     ```bash
+     node ~/.factory/commands/remember/stub-check.cjs
+     ```
+     It edits only *inside* the marker pairs, and only the mechanism: a MEMORY include that
+     is not `@.factory/remember/MEMORY.md` is repaired, and an `@`-include of
+     `AGENT_RULES.md` is demoted to a plain pointer. Prose inside the blocks is user-owned
+     and is never touched, which is why the bootstrap-once rule above still holds. It will
+     **not** repoint a MEMORY include at a file that does not exist — an un-migrated
+     `.factory/memory/` repo has a live MEMORY.md at the old path, and breaking a working
+     include to satisfy a naming convention is worse than reporting it. Silent when the
+     shape is already current; relay whatever it prints in the step-8 report.
+
+     Measured 2026-09-03: 21 of 37 local repos still carried the pre-v2.19 `@`-include of
+     `AGENT_RULES.md`, hot-loading ~300 lines into every session. A shape rule checked by
+     asking you to look is a rule that drifts back; this one is a byte-level assertion done
+     by the script, never by you.
 
    ```markdown
    # Project Memory
@@ -570,7 +591,14 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
      ledger: ag-003 "don't commit per change"    RECURRED while hot (2/2) → rephrased, attempt 2
      ledger: ag-002 "literal scoped ask"         ESCALATED → Fact; 2 phrasings failed. Hook or accept?
      ```
-   - If AGENT_RULES.md was bootstrapped this run, say so (one line)
+   - Relay verbatim whatever `version-check.cjs` (step 0), `sync-rules.cjs` (step 1), and
+     `stub-check.cjs` (step 5) printed. Never re-word or summarize them: they are the
+     record of a file that was written or a version gap, and a paraphrase of "your body
+     was backed up to AGENT_RULES.md.bak" can lose the filename the user needs.
+   - Each is silent when nothing changed, so silence is the normal case and there is
+     nothing to invent — never report an action that produced no output.
+   - Never a silent write: if any of the three wrote or moved a file and you did not
+     relay its line, that is a defect.
    - If step 7 ran the auto re-index, say so and name the regenerated files
      (`docs/index.md`, plus `docs/log.md` if touched) so they are staged with this run
    - Confirm MEMORY.md and AGENTS.md updated
@@ -578,7 +606,8 @@ Reads all raw material (`.factory/stash/*.md` + `.factory/remember/friction/anti
 **File locations (all project-local — two dirs: `/stash` owns `.factory/stash/`, `/remember` owns `.factory/remember/`)**
 - Stash files: `.factory/stash/*.md`
 - Memory file: `.factory/remember/MEMORY.md` (single source of truth, referenced as `@.factory/remember/MEMORY.md`)
-- Rules template: `.factory/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced by a plain path pointer, not `@`-referenced — see step 5)
+- Rules template: `.factory/remember/AGENT_RULES.md` (refreshed from the bundled package template every `/remember` run by `sync-rules.cjs`; a differing body is backed up first, not silently overwritten — referenced by a plain path pointer, not `@`-referenced — see step 5)
+- Rules backup: `.factory/remember/AGENT_RULES.md.bak` (written by `sync-rules.cjs` only when the existing body differs from the template; a single file, overwritten each time it fires — not timestamped)
 - Antigen ledger: `.factory/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.factory/remember/report.md` (latest step-8 report, overwritten each run)
 - Processed manifest: `.factory/remember/.processed`

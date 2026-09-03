@@ -71,6 +71,12 @@ const testSuites = [
     file: 'sync-rules/sync-rules.test.js',
     description: 'Tests sync-rules.cjs bootstrap/unchanged/updated paths and that a differing AGENT_RULES body is always preserved in the backup',
     expectedTests: 15
+  },
+  {
+    name: 'stub-check',
+    file: 'stub-check/stub-check.test.js',
+    description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
+    expectedTests: 19
   }
 ];
 
