@@ -35,6 +35,13 @@ Reads all raw material (`.amp/stash/*.md` + `.amp/remember/friction/antigen_clus
    project are behavioral lessons worth keeping everywhere. So point it at the tool's
    **global sessions root** (all projects), not a per-project directory.
 
+   - **Check for a newer liteagents** (best-effort, one line, never blocking) — run
+     `node <version-check.cjs>`, bundled next to this command at
+     `remember/version-check.cjs`. It prints one advice line if the installed version is
+     behind the registry, and prints nothing otherwise. It exits 0 on every path, caches
+     the registry answer for 24h, and is bounded to ~2s, so it cannot stall this run. If
+     it prints a line, relay it verbatim in your final report; never act on it and never
+     run the install yourself.
    - **Locate `friction.cjs`** — it is bundled next to this command at `remember/friction.cjs`
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.

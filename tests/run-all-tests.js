@@ -59,6 +59,12 @@ const testSuites = [
     file: 'friction/friction.test.js',
     description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
     expectedTests: 254
+  },
+  {
+    name: 'version-check',
+    file: 'version-check/version-check.test.js',
+    description: 'Tests version-check.cjs cache, semver ordering and every failure path against a local registry stub',
+    expectedTests: 13
   }
 ];
 

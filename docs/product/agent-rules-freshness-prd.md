@@ -76,7 +76,19 @@ stands or falls on.
 
 Built in order; module N+1 does not start while N is unproven.
 
-### Module 1 — Version check in `/remember` step 0
+### Module 1 — Version check in `/remember` step 0 — **BUILT 2026-09-03**
+
+Shipped as `packages/<kit>/commands/remember/version-check.cjs` (all four kits,
+0 non-path diffs, each verified by running it and confirming it writes its cache
+under that kit's own config dir). Wired into step 0 of `remember.md` in all four
+kits. 13 tests in `tests/version-check/`, full suite 1012 passing.
+
+**A POC finding changed the implementation.** `req.setTimeout` is a socket-
+inactivity timeout and does not bound connect time: against an unroutable host
+a 2000ms budget overran to **5146ms**. An explicit deadline was added, and the
+regression test was proven falsifiable by removing that deadline and observing
+it go red at 5141ms.
+
 
 Compare the installed `liteagents` version against the registry's latest. On a
 gap, print one line:

@@ -66,6 +66,8 @@ test-installation-*/
 !/tests/docs-builder/docs-builder.test.js
 !/tests/friction/
 !/tests/friction/friction.test.js
+!/tests/version-check/
+!/tests/version-check/version-check.test.js
 
 # Release artifacts
 liteagents-*.tgz
