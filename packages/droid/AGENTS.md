@@ -21,7 +21,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Droid Commands (15 total)
+## Droid Commands (14 total)
 
 | ID | Description | Usage |
 |---|---|---|
@@ -32,13 +32,12 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] | - |
-| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> |
+| root-cause | Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source | /root-cause <bug-or-error-description> |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] | - |
 | ship | Mechanical pre-deploy gate — tests, build, tree state | /ship | - |
 | release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release | - |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
-| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> | - |
 
 All resources are auto-discovered from frontmatter in their respective directories:

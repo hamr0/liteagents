@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 15 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 14 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -67,12 +67,11 @@ npx liteagents          # recommended
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
 | `/optimize` | Performance analysis on a named target |
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
-| `/debug-method` | Four-phase debugging — root cause before any fix |
-| `/trace-back` | Walk a deep error backward to its original trigger |
+| `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
 
-<sub>Claude Code splits these into 5 skills and 10 commands; Opencode, Ampcode and Droid expose all 15 as commands, plus agent reference docs.</sub>
+<sub>Claude Code splits these into 4 skills and 10 commands; Opencode, Ampcode and Droid expose all 14 as commands, plus agent reference docs.</sub>
 
 ---
 

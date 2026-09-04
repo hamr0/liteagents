@@ -103,17 +103,13 @@
     }
   },
   "command": {
-    "debug-method": {
-      "template": "{file:./command/debug-method.md}",
-      "description": "Systematic four-phase debugging framework - investigate root cause before any fixes"
-    },
     "skill-creator": {
       "template": "{file:./command/skill-creator.md}",
       "description": "Create reusable skills with proper structure, validation, and documentation"
     },
-    "trace-back": {
-      "template": "{file:./command/trace-back.md}",
-      "description": "Trace issues to their root cause using systematic investigation techniques"
+    "root-cause": {
+      "template": "{file:./command/root-cause.md}",
+      "description": "Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source"
     },
     "brainstorming": {
       "template": "{file:./command/brainstorming.md}",
