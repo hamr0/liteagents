@@ -9,6 +9,8 @@ Entry point for this repo's own documentation — dogfooding `docs-builder`'s ow
 | [`product/docs-builder-README.md`](product/docs-builder-README.md) | User-facing guide to `/docs-builder` — the three modes, the menu, the docs/ layout. |
 | [`product/remember-README.md`](product/remember-README.md) | Guide to the `/stash` → `/remember` hot-memory pipeline and the `friction.cjs` sensor. |
 | [`product/INSTALLER_GUIDE.md`](product/INSTALLER_GUIDE.md) | How to install and manage liteagents across the supported AI tools. |
+| [`product/agent-rules-freshness-prd.md`](product/agent-rules-freshness-prd.md) | PRD for keeping `AGENT_RULES.md` current: the version check, the non-destructive sync, the stub-shape repair, and the symlink guard on both write paths. |
+| [`product/branch-review-README.md`](product/branch-review-README.md) | Guide to the `/branch-review` pre-merge gate — the three stages, what blocks a merge, and the fix ledger it feeds. |
 | [`product/antigen-gate-prd.md`](product/antigen-gate-prd.md) | PRD for the (deferred) validation-gated hot-memory antigen gate. |
 | [`log.md`](log.md) | Append-only operation log written by `docs-builder.cjs` (`## [DATE] operation \| description`). |
 

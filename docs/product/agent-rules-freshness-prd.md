@@ -11,7 +11,7 @@
 
 `AGENT_RULES.md` is the standing rules doc that primes every session. It ships
 inside the npm package at `packages/<kit>/commands/remember/AGENT_RULES.md` (all
-four kits, next to `friction.cjs`), the installer copies it into `~/.claude` and
+four kits, in the `remember/` bundle), the installer copies it into `~/.claude` and
 the other tool dirs, and `/remember` copies *that* into each repo's
 `.claude/remember/`.
 
@@ -82,7 +82,7 @@ Built in order; module N+1 does not start while N is unproven.
 Shipped as `packages/<kit>/commands/remember/version-check.cjs` (all four kits,
 0 non-path diffs, each verified by running it and confirming it writes its cache
 under that kit's own config dir). Wired into step 0 of `remember.md` in all four
-kits. 13 tests in `tests/version-check/`, full suite 1012 passing.
+kits. 16 tests in `tests/version-check/`, full suite 1065 passing.
 
 **A POC finding changed the implementation.** `req.setTimeout` is a socket-
 inactivity timeout and does not bound connect time: against an unroutable host
@@ -114,7 +114,8 @@ diffs, each run for real and confirmed to write its own project dir — note tha
 is NOT the global config dir: amp installs to `~/.config/amp` but writes `.amp/`
 in a repo). Wired into step 1 of `remember.md`, replacing the bootstrap-once
 rule. 15 tests in `tests/sync-rules/`; the backup test was proven falsifiable by
-removing the rename and observing it go red.
+removing the rename and observing it go red. Now 21 tests, after the symlink
+guard below.
 
 
 Every `/remember` run, compare copy 3 against copy 2 byte-for-byte:
@@ -144,11 +145,32 @@ we do not need to: if they did, their version is beside it as a backup; if they
 did not, they never see a backup file at all.
 
 **Scripted, not prompted.** The compare, backup and copy are one operation in
-`friction.cjs` — already the mechanical arm of step 0 — never a model
-instruction. A model told to "copy the template" can normalise line endings,
+`sync-rules.cjs` — the mechanical arm of step 1, the way `friction.cjs` is
+step 0’s — never a model instruction. A model told to "copy the template" can normalise line endings,
 re-wrap, or drop a trailing newline, and a byte compare against a re-formatted
 copy differs forever, backing up on every single run. Same reasoning that moved
 hash arithmetic and promotion out of prose in the classify-then-count redesign.
+
+**A write target that leaves the repo is refused, never followed** (added
+2026-09-04, found by `/branch-review`). `escapesRepo()` resolves the deepest
+existing ancestor of the target with `realpath` and confirms the write still
+lands inside the repo, then `lstat`s the leaf. It uses `lstat` throughout, not
+`existsSync`, because `existsSync` follows links and walks straight past a
+dangling one. Three routes out were reproduced first, and a guard on only the
+first would have been false safety:
+
+| route | what happens without the guard |
+|---|---|
+| dangling link at the target | reads as "file absent"; `writeFileSync` follows it and creates the template at an attacker-named path outside the repo |
+| parent directory link (`.claude/remember` → elsewhere) | the target itself is not a link, so an lstat-the-leaf guard misses it entirely |
+| live link out (`stub-check`) | the followed file is rewritten in place — no rename-away step, unlike the differs branch above |
+
+This matters because `/remember` runs across a whole fleet and the user's repos
+sit side by side, so a relative link only has to reach a sibling checkout. The
+refusal is loud, never silent: `sync-rules` gains an `escapes` action with its
+own message and `stub-check` reports the skip. Both negative controls — a repo
+merely *reached* through a symlinked path, which is an ordinary setup — still
+sync and repair normally.
 
 ### Module 3 — Stub shape assertion and repair — **BUILT 2026-09-03**
 
@@ -156,7 +178,7 @@ Shipped as `packages/<kit>/commands/remember/stub-check.cjs` (4 kits, 2 constant
 differ — `PROJECT_DIR` and `CONFIG_FILE` — and nothing else; each run for real
 and confirmed to edit its own config file: claude `CLAUDE.md`, droid/opencode
 `AGENTS.md`, amp `AGENT.md`). Wired into step 5 of `remember.md`, after the
-model has written or left the sections. 19 tests in `tests/stub-check/`.
+model has written or left the sections. 22 tests in `tests/stub-check/`.
 
 **Validated against the real fleet, not fixtures.** Run over copies of all 37
 local configs it repaired exactly 21 — the number §1 measured — each a
@@ -392,5 +414,13 @@ Success is defined before code, per AGENT_RULES:
   **Done 2026-09-03**: run over copies of all 37 local configs, 21 repaired, each a
   single-character edit, silent on the 4 already-current repos, idempotent on a
   second pass, and the 2 old-layout repos reported rather than broken.
+
+- The symlink guard is proven by planting each of the three escape routes in a
+  throwaway repo and observing the write refused and reported, with a repo
+  reached through a symlinked path still served as a negative control. **Done
+  2026-09-04**: red first (3 of 4 POC cases escaped, and 6 regression checks
+  failed against the unpatched source), green after, and each of the four kits
+  run against its own `PROJECT_DIR`/`CONFIG_FILE` rather than assumed from the
+  claude copy.
 
 A step is done when the proof ran and was seen to pass.

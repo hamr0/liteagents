@@ -180,6 +180,9 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 | **[remember-README.md](docs/product/remember-README.md)** | How hot memory works — the `/stash` → `/remember` pipeline, the friction sensor, and the antigen ledger |
 | **[docs-builder-README.md](docs/product/docs-builder-README.md)** | How `/docs-builder` works — the reorg/cleanup modes, what it measurably costs, and the ledger that tracks doc drift |
 | **[branch-review-README.md](docs/product/branch-review-README.md)** | How the pre-merge gate works — the three stages, what blocks a merge, and the `/branch-review` → fix ledger → `/refactor` loop |
+| **[live-canvas/README.md](packages/claude/skills/live-canvas/README.md)** | How `/live-canvas` works — the two modes, the click-to-annotate channel, and the Claude Code plugin setup |
+| **[docs/README.md](docs/README.md)** | Entry point for this repo’s own docs — what lives in `product/`, `archive/` and the operation log |
+| **[docs/index.md](docs/index.md)** | The generated index of every doc, with heading ranges. Rebuilt by `/docs-builder` on every reorg or split |
 
 ---
 
