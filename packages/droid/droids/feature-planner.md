@@ -1,7 +1,6 @@
 ---
 name: feature-planner
-description: Epics, user stories, prioritization, backlog management
-when_to_use: Use for creating epics and user stories, prioritization, backlog navigation, story refinement, and sprint planning
+description: Epics, user stories, prioritization, backlog management. Use for creating epics and user stories, prioritization, backlog navigation, story refinement, and sprint planning
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

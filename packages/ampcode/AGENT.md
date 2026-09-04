@@ -21,7 +21,7 @@ These subagents are available when using Ampcode CLI.
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (4 total)
+### Skills (13 total)
 
 | ID | Description | Usage |
 |---|---|---|
@@ -29,11 +29,6 @@ These subagents are available when using Ampcode CLI.
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas |
 | root-cause | Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source | /root-cause <bug-or-error-description> |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
-
-### Commands (9 total)
-
-| ID | Description | Usage |
-|---|---|---|
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
@@ -47,4 +42,6 @@ These subagents are available when using Ampcode CLI.
 All resources are auto-discovered from frontmatter in their respective directories:
 - **Agents**: `./agents/*.md`
 - **Skills**: `./skills/*/SKILL.md`
-- **Commands**: `./commands/*.md`
+
+Amp removed custom commands in favour of skills, so every capability ships as
+`skills/<name>/SKILL.md` here — the same shape Claude Code uses.

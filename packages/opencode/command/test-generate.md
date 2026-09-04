@@ -1,9 +1,5 @@
 ---
-name: test-generate
 description: Generate and run tests [file]
-usage: /test-generate <file>
-argument-hint: [file or symbol to test]
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(npm test *), Bash(npx jest *), Bash(npx vitest *), Bash(pnpm test *), Bash(yarn test *), Bash(pytest *), Bash(python *), Bash(go test *), Bash(cargo test *), Bash(make test *)
 ---
 Generate tests for $ARGUMENTS, then run them. This is a generate → run →
 verify loop, not just file generation.

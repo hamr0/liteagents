@@ -1,9 +1,6 @@
 ---
-name: branch-review
 description: Review a branch before merge [target] [level]
-usage: /branch-review [target] [low|medium|high|max]
 argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty] [effort level]
-allowed-tools: Read, Grep, Glob, Agent, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git status *), Bash(git grep *), Bash(git rev-parse *), Bash(git merge-base *), Bash(rg *)
 ---
 Pre-merge review gate. Two stages — **general review** then a **full security
 audit** — followed by an adversarial verify pass. It **never edits code**: it

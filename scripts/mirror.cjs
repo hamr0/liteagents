@@ -12,8 +12,13 @@
  * Usage:  node scripts/mirror.cjs check    (default — exits 1 on drift)
  *         node scripts/mirror.cjs diff     (show what sync would change)
  *         node scripts/mirror.cjs sync     (writes)
- *         node scripts/mirror.cjs shapes   (record the per-kit frontmatter
- *                                           shape, read from the real files)
+ *         node scripts/mirror.cjs shapes   (rewrite scripts/frontmatter.json
+ *                                           from what the files actually say)
+ *
+ * `check` verifies TWO things: bodies match claude after path substitution,
+ * AND every file's frontmatter matches its kit's shape in frontmatter.json.
+ * The mirror preserves frontmatter but cannot judge it — frontmatter.json is
+ * what judges it.
  */
 const fs = require('fs');
 const path = require('path');
@@ -35,9 +40,12 @@ const KITS = {
     ],
   },
   ampcode: {
-    dir: 'packages/ampcode', cmd: 'commands', agent: 'agents',
+    // Amp removed custom commands in favour of skills, so every capability
+    // ships as skills/<name>/SKILL.md — the same shape claude uses.
+    dir: 'packages/ampcode', cmd: 'skills', agent: 'agents', cmdLayout: 'skill',
     subs: [
-      ['~/.claude/skills/', '~/.config/amp/commands/'],
+      ['~/.claude/skills/', '~/.config/amp/skills/'],
+      ['~/.claude/commands/', '~/.config/amp/skills/'],
       ['~/.claude/', '~/.config/amp/'],
       ['.claude/', '.amp/'],
       ["'.claude'", "'.amp'"],
@@ -47,6 +55,7 @@ const KITS = {
   opencode: {
     dir: 'packages/opencode', cmd: 'command', agent: 'agent',
     subs: [
+      ['~/.claude/skills/', '~/.config/opencode/command/'],
       ['~/.claude/commands/', '~/.config/opencode/command/'],
       ['~/.claude/agents/', '~/.config/opencode/agent/'],
       ['~/.claude/skills/', '~/.config/opencode/command/'],
@@ -90,16 +99,9 @@ const walk = (dir) =>
 /** Every claude file that should exist in the other kits, and where. */
 function sources() {
   const out = [];
-  const cmdDir = J('packages/claude/commands');
-  for (const e of fs.readdirSync(cmdDir, { withFileTypes: true })) {
-    const p = path.join(cmdDir, e.name);
-    if (e.isDirectory()) {
-      for (const f of walk(p)) out.push({ src: f, kind: 'cmd', rel: path.relative(cmdDir, f) });
-    } else if (e.name.endsWith('.md')) {
-      out.push({ src: p, kind: 'cmd', rel: e.name });
-    }
-  }
-  // Claude ships these as skills; the other kits fold them into commands.
+  // Claude ships every capability as a skill. Droid and opencode still use
+  // commands, so a skill's SKILL.md becomes <name>.md there and its bundled
+  // files keep their <name>/ directory.
   const skillDir = J('packages/claude/skills');
   for (const d of fs.readdirSync(skillDir)) {
     const base = path.join(skillDir, d);
@@ -113,6 +115,17 @@ function sources() {
     if (f.endsWith('.md')) out.push({ src: path.join(agentDir, f), kind: 'agent', rel: f });
   }
   return out;
+}
+
+/**
+ * Where an entry lands inside a kit. Most kits keep claude's flat command
+ * layout; amp ships every capability as skills/<name>/SKILL.md, so a
+ * top-level `foo.md` becomes `foo/SKILL.md` and bundled assets are already
+ * under `foo/`.
+ */
+function relFor(entry, kit) {
+  if (entry.kind !== 'cmd' || kit.cmdLayout !== 'skill') return entry.rel;
+  return entry.rel.includes(path.sep) ? entry.rel : `${entry.rel.replace(/\.md$/, '')}/SKILL.md`;
 }
 
 /** Split off YAML frontmatter. Returns ['', text] when there is none. */
@@ -151,44 +164,185 @@ function expected(entry, kit, dstPath) {
   return fm + substitute(body, kit.subs);
 }
 
-/**
- * Print the frontmatter shape each kit actually uses, read from the files
- * themselves rather than from a table in this script. Subagent frontmatter is
- * correct per kit and is the reference; commands/skills are compared to it.
- */
+const SHAPE_FILE = J('scripts/frontmatter.json');
+
+// Each tool supports a different set of frontmatter keys, so they are judged
+// separately. Amp removed custom commands, so its capabilities are skills.
+const DIRS = {
+  subagent: { claude: 'packages/claude/agents', droid: 'packages/droid/droids',
+              ampcode: 'packages/ampcode/agents', opencode: 'packages/opencode/agent' },
+  command:  { droid: 'packages/droid/commands', opencode: 'packages/opencode/command' },
+  skill:    { claude: 'packages/claude/skills', ampcode: 'packages/ampcode/skills' },
+};
+
+/** The frontmatter-bearing files for one kind in one kit. */
+function frontmatterFiles(kind, kit, dir) {
+  if (kind === 'skill') {
+    return fs.readdirSync(J(dir)).map((d) => J(dir, d, 'SKILL.md')).filter((f) => fs.existsSync(f));
+  }
+  return fs.readdirSync(J(dir)).filter((f) => f.endsWith('.md')).map((f) => J(dir, f));
+}
+
+const fmKeys = (text) =>
+  splitFrontmatter(text)[0].split('\n')
+    .map((l) => (l.match(/^([A-Za-z_-]+):/) || [])[1]).filter(Boolean);
+
+/** 'colon' = Bash(git diff:*), 'space' = Bash(git diff *), null = no Bash entries. */
+function bashStyle(text) {
+  const line = splitFrontmatter(text)[0].split('\n').find((l) => l.startsWith('allowed-tools:'));
+  if (!line || !line.includes('Bash(')) return null;
+  return /Bash\([^)]*:\*\)/.test(line) ? 'colon' : 'space';
+}
+
+/** Derive the shape file from what the files actually say today. */
 function shapes() {
-  const groups = [
-    ['subagents', { claude: 'packages/claude/agents', droid: 'packages/droid/droids',
-                    ampcode: 'packages/ampcode/agents', opencode: 'packages/opencode/agent' }],
-    ['commands',  { claude: 'packages/claude/commands', droid: 'packages/droid/commands',
-                    ampcode: 'packages/ampcode/commands', opencode: 'packages/opencode/command' }],
-  ];
-  for (const [label, dirs] of groups) {
-    console.log(`\n## ${label}`);
+  const out = {};
+  for (const [kind, dirs] of Object.entries(DIRS)) {
+    out[kind] = {};
     for (const [kit, dir] of Object.entries(dirs)) {
+      const files = frontmatterFiles(kind, kit, dir);
       const counts = new Map();
-      let total = 0;
-      for (const f of fs.readdirSync(J(dir))) {
-        if (!f.endsWith('.md')) continue;
-        total++;
-        const fm = splitFrontmatter(fs.readFileSync(J(dir, f), 'utf8'))[0];
-        for (const line of fm.split('\n')) {
-          const m = line.match(/^([A-Za-z_-]+):/);
-          if (m) counts.set(m[1], (counts.get(m[1]) || 0) + 1);
-        }
+      let style = null;
+      for (const f of files) {
+        const text = fs.readFileSync(f, 'utf8');
+        for (const k of new Set(fmKeys(text))) counts.set(k, (counts.get(k) || 0) + 1);
+        style = bashStyle(text) || style;
       }
-      const keys = [...counts.entries()].sort((a, b) => b[1] - a[1])
-        .map(([k, n]) => (n === total ? k : `${k}(${n}/${total})`));
-      console.log(`${kit.padEnd(9)} ${total} files: ${keys.join(', ')}`);
+      out[kind][kit] = {
+        required: [...counts.entries()].filter(([, n]) => n === files.length).map(([k]) => k).sort(),
+        optional: [...counts.entries()].filter(([, n]) => n < files.length).map(([k]) => k).sort(),
+        bashStyle: style,
+      };
     }
   }
-  // Claude ships four of its commands as skills; report those separately.
-  console.log('\n## claude skills');
-  for (const d of fs.readdirSync(J('packages/claude/skills'))) {
-    const fm = splitFrontmatter(fs.readFileSync(J('packages/claude/skills', d, 'SKILL.md'), 'utf8'))[0];
-    const keys = fm.split('\n').map((l) => (l.match(/^([A-Za-z_-]+):/) || [])[1]).filter(Boolean);
-    console.log(`${d.padEnd(14)} ${keys.join(', ')}`);
+  fs.writeFileSync(SHAPE_FILE, `${JSON.stringify(out, null, 2)}\n`);
+  console.log(`wrote ${path.relative(ROOT, SHAPE_FILE)}`);
+}
+
+// A path that belongs to a different tool. Each kit's own dirs are stripped
+// from its list below, so only foreign ones are flagged.
+const KIT_PATHS = {
+  claude:   ['.claude/', 'CLAUDE.md'],
+  droid:    ['.factory/', 'AGENTS.md'],
+  ampcode:  ['.amp/', '~/.config/amp/', 'AGENT.md'],
+  opencode: ['.opencode/', '~/.config/opencode/', 'AGENTS.md'],
+};
+
+/**
+ * A package must not tell its users to look in another tool's directory. This
+ * is the class of bug the hand-mirroring kept shipping: droid's /refactor
+ * pointing at `.claude/remember/`. Files fenced with `mirror:literal` and
+ * files in EXEMPT are skipped — those name every tool on purpose.
+ */
+function checkPaths() {
+  const problems = [];
+  // An exempt file keeps its exemption under amp's skills/<name>/SKILL.md
+  // layout too, where its basename no longer appears in the path.
+  const exemptSuffixes = [...EXEMPT].flatMap((e) => {
+    const rel = e.split(':')[1];
+    return [rel, rel.replace(/([^/]+)\.md$/, '$1/SKILL.md')];
+  });
+  const dirs = { claude: 'packages/claude', droid: 'packages/droid',
+                 ampcode: 'packages/ampcode', opencode: 'packages/opencode' };
+  for (const [kit, base] of Object.entries(dirs)) {
+    const own = new Set(KIT_PATHS[kit]);
+    const foreign = Object.entries(KIT_PATHS)
+      .filter(([k]) => k !== kit).flatMap(([, v]) => v);
+    const foreignSet = [...new Set(foreign)].filter((t) => !own.has(t));
+    for (const f of walk(J(base))) {
+      if (!f.endsWith('.md')) continue;
+      const rel = path.relative(ROOT, f);
+      if (exemptSuffixes.some((e) => rel.endsWith(e))) continue;
+      let literal = false;
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (line.includes('mirror:literal:start')) literal = true;
+        else if (line.includes('mirror:literal:end')) literal = false;
+        else if (!literal) {
+          for (const t of foreignSet) {
+            if (line.includes(t)) problems.push(`PATH    ${rel}:${i + 1}: names '${t}', which belongs to another tool`);
+          }
+        }
+      });
+    }
   }
+  return problems;
+}
+
+// Install roots, so a documented `~/.claude/skills/x` can be resolved back to
+// the file this repo actually ships at packages/claude/skills/x.
+const INSTALL_ROOTS = [
+  ['~/.config/opencode/', 'packages/opencode'],
+  ['~/.config/amp/', 'packages/ampcode'],
+  ['~/.factory/', 'packages/droid'],
+  ['~/.claude/', 'packages/claude'],
+];
+
+/**
+ * A package must not document an install path it does not ship. This is what
+ * broke when commands became skills: remember/SKILL.md still said
+ * `node ~/.claude/commands/remember/version-check.cjs`, a path that no longer
+ * exists. Glob segments are checked as far as their parent directory.
+ */
+function checkInstallPaths() {
+  const problems = [];
+  const exemptSuffixes = [...EXEMPT].flatMap((e) => {
+    const rel = e.split(':')[1];
+    return [rel, rel.replace(/([^/]+)\.md$/, '$1/SKILL.md')];
+  });
+  for (const [, base] of INSTALL_ROOTS) {
+    for (const f of walk(J(base))) {
+      if (!f.endsWith('.md')) continue;
+      const rel = path.relative(ROOT, f);
+      if (exemptSuffixes.some((e) => rel.endsWith(e))) continue;
+      let literal = false;
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (line.includes('mirror:literal:start')) { literal = true; return; }
+        if (line.includes('mirror:literal:end')) { literal = false; return; }
+        if (literal) return;
+        for (const m of line.matchAll(/~\/(?:\.config\/[a-z]+|\.[a-z]+)\/[A-Za-z0-9_./*-]+/g)) {
+          const hit = m[0].replace(/[.,)`]+$/, '');
+          const root = INSTALL_ROOTS.find(([r]) => hit.startsWith(r));
+          if (!root) continue;
+          let sub = hit.slice(root[0].length);
+          if (sub.includes('*')) sub = sub.slice(0, sub.indexOf('*')).replace(/\/$/, '');
+          if (!sub) continue;
+          if (!fs.existsSync(J(root[1], sub))) {
+            problems.push(`INSTALL ${rel}:${i + 1}: documents '${hit}', not shipped at ${root[1]}/${sub}`);
+          }
+        }
+      });
+    }
+  }
+  return problems;
+}
+
+/** Judge every file's frontmatter against the recorded shape. */
+function checkFrontmatter() {
+  if (!fs.existsSync(SHAPE_FILE)) {
+    return [`MISSING ${path.relative(ROOT, SHAPE_FILE)} — run: node scripts/mirror.cjs shapes`];
+  }
+  const shape = JSON.parse(fs.readFileSync(SHAPE_FILE, 'utf8'));
+  const problems = [];
+  for (const [kind, dirs] of Object.entries(DIRS)) {
+    for (const [kit, dir] of Object.entries(dirs)) {
+      const want = shape[kind] && shape[kind][kit];
+      if (!want) { problems.push(`FM      no recorded shape for ${kind}/${kit}`); continue; }
+      const allowed = new Set([...want.required, ...want.optional]);
+      for (const f of frontmatterFiles(kind, kit, dir)) {
+        const rel = path.relative(ROOT, f);
+        const text = fs.readFileSync(f, 'utf8');
+        const keys = fmKeys(text);
+        if (!keys.length) { problems.push(`FM      ${rel}: no frontmatter`); continue; }
+        for (const k of want.required) if (!keys.includes(k)) problems.push(`FM      ${rel}: missing required key '${k}'`);
+        for (const k of keys) if (!allowed.has(k)) problems.push(`FM      ${rel}: key '${k}' is not part of the ${kit} ${kind} shape`);
+        const style = bashStyle(text);
+        if (style && want.bashStyle && style !== want.bashStyle) {
+          problems.push(`FM      ${rel}: allowed-tools uses '${style}' Bash style, ${kit} uses '${want.bashStyle}'`);
+        }
+      }
+    }
+  }
+  return problems;
 }
 
 function main() {
@@ -198,14 +352,15 @@ function main() {
     console.error('usage: mirror.cjs [check|diff|sync|shapes]');
     process.exit(2);
   }
-  const problems = [];
+  const problems = mode === 'check'
+    ? [...checkFrontmatter(), ...checkPaths(), ...checkInstallPaths()] : [];
   let written = 0;
   let checked = 0;
 
   for (const entry of sources()) {
     if (EXEMPT.has(`${entry.kind}:${entry.rel}`)) continue;
     for (const [name, kit] of Object.entries(KITS)) {
-      const dst = J(kit.dir, entry.kind === 'cmd' ? kit.cmd : kit.agent, entry.rel);
+      const dst = J(kit.dir, entry.kind === 'cmd' ? kit.cmd : kit.agent, relFor(entry, kit));
       const want = expected(entry, kit, dst);
       checked++;
       const have = fs.existsSync(dst) ? fs.readFileSync(dst, 'utf8') : null;
@@ -244,10 +399,10 @@ function main() {
   }
   if (problems.length) {
     console.error(problems.join('\n'));
-    console.error(`\n${problems.length} of ${checked} mirrored file(s) out of sync. Run: node scripts/mirror.cjs sync`);
+    console.error(`\n${problems.length} problem(s). DRIFT/MISSING → node scripts/mirror.cjs sync. FM → fix the file, or re-record with: node scripts/mirror.cjs shapes`);
     process.exit(1);
   }
-  console.log(`mirror: ${checked} file(s) in sync across 3 kits (${EXEMPT.size} exempt).`);
+  console.log(`mirror: ${checked} bodies in sync across 3 kits (${EXEMPT.size} exempt); frontmatter matches ${path.relative(ROOT, SHAPE_FILE)}; no cross-tool paths; every documented install path ships.`);
 }
 
 main();

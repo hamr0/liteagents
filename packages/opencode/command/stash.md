@@ -1,9 +1,5 @@
 ---
-name: stash
 description: Stash session context [name]
-usage: /stash ["optional-name"]
-argument-hint: [optional stash name]
-allowed-tools: Read, Grep, Glob
 ---
 
 Save session context for compaction recovery or handoffs.

@@ -18,9 +18,9 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'sync-rules.cjs');
-const TEMPLATE = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const TEMPLATE = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'AGENT_RULES.md');
 
 const tmpDirs = [];

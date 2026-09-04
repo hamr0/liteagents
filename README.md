@@ -70,7 +70,7 @@ npx liteagents          # recommended
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
 
-<sub>Claude Code splits these into 4 skills and 9 commands; Opencode, Ampcode and Droid expose all 13 as commands, plus agent reference docs.</sub>
+<sub>Claude Code and Amp ship all 13 as skills; Opencode and Droid expose all 13 as commands. All four also ship agent reference docs.</sub>
 
 ---
 
@@ -169,7 +169,7 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 | [`/branch-review`](docs/product/branch-review-README.md) | The three stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
-| [Installer](docs/product/INSTALLER_GUIDE.md) | Install, troubleshooting, FAQ |
+| [Installer guide](docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and how to change a command, skill or subagent |
 | [All agents & commands](packages/subagentic-manual.md) | Full agent and command reference |
 | [Doc index](docs/index.md) | Generated index of every doc, rebuilt on each reorg |
 

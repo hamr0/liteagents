@@ -1,7 +1,6 @@
 ---
 name: code-developer
-description: Implement code, debug, refactor, optimize
-when_to_use: Use for code implementation, debugging, refactoring, optimization, and development best practices
+description: Implement code, debug, refactor, optimize. Use for code implementation, debugging, refactoring, optimization, and development best practices
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

@@ -1,7 +1,6 @@
 ---
 name: market-researcher
-description: Research markets, analyze competitors, brainstorm
-when_to_use: Use for market research, brainstorming, competitive analysis, project briefs, and initial project discovery
+description: Research markets, analyze competitors, brainstorm. Use for market research, brainstorming, competitive analysis, project briefs, and initial project discovery
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

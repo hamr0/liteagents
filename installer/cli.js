@@ -20,7 +20,9 @@ const PACKAGE_JSON = require('../package.json');
 const PACKAGE_VERSION = PACKAGE_JSON.version;
 // Banner counts derived from the description field — same source as README.
 const AGENT_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+specialized agents/) || [, '10'])[1];
-const COMMAND_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+commands/) || [, '18'])[1];
+// Claude Code and Amp ship these as skills, Droid and opencode as commands,
+// so the banner counts capabilities rather than naming one shape.
+const CAPABILITY_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+capabilities/) || [, '13'])[1];
 
 // ANSI color codes
 const colors = {
@@ -490,7 +492,7 @@ ${colors.bright}${colors.cyan}██╔══██║██║   ██║█�
 ${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
 ${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
 
-${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${COMMAND_COUNT} commands per tool${colors.reset}
+${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${CAPABILITY_COUNT} capabilities per tool${colors.reset}
     `);
   }
 

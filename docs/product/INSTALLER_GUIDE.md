@@ -1,11 +1,12 @@
 # liteagents Installer Guide
 
-**Version**: 2.8.1
-**Last Updated**: 2026-05-24
+**Version**: 3.0.0
+**Last Updated**: 2026-09-05
 
-A guide to installing and managing liteagents across the supported AI development tools using the interactive multi-tool installer.
+A guide to installing and managing liteagents across the supported AI development
+tools, and to changing what those packages ship.
 
-> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents, commands, and skills); there are no Lite/Standard/Pro variants.
+> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents plus all 13 capabilities); there are no Lite/Standard/Pro variants.
 
 ---
 
@@ -20,6 +21,7 @@ A guide to installing and managing liteagents across the supported AI developmen
 7. [Updating and `AGENT_RULES.md`](#updating-and-agent_rulesmd)
 8. [Troubleshooting](#troubleshooting)
 9. [FAQ](#faq)
+10. [Changing a command, skill or subagent](#changing-a-command-skill-or-subagent)
 
 ---
 
@@ -64,7 +66,7 @@ You'll see the welcome banner and a menu:
 
 ```
                   AGENTIC KIT
-        v2.8.1 | 10 agents + 23 commands per tool
+        v3.0.0 | 10 agents + 13 capabilities per tool
 
 What would you like to do?
 
@@ -135,7 +137,7 @@ A log of each run is written to `~/.liteagents-install.log`.
 
 ## Tools
 
-liteagents installs the **same content set into each tool**: 10 specialized agents and the full command set (23 commands). Claude Code additionally receives skills and the live-canvas plugin marketplace, which are native Claude Code features.
+liteagents installs the **same content set into each tool**: 10 specialized agents and all 13 capabilities. Claude Code and Amp ship those 13 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
 
 | Tool | Default path | Description |
 |------|--------------|-------------|
@@ -423,7 +425,7 @@ Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
 **Q: Are there different editions or variants?**
-No. Each tool receives the full package — 10 agents and 23 commands (Claude Code also gets skills and the live-canvas plugin marketplace as native features). There are no Lite/Standard/Pro variants.
+No. Each tool receives the full package — 10 agents and 13 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
 
 **Q: Can I install multiple tools?**
 Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.
@@ -489,6 +491,105 @@ liteagents
 
 **Q: How do I contribute new agents or skills?**
 Open an issue or pull request at https://github.com/hamr0/liteagents.
+
+---
+
+## Changing a command, skill or subagent
+
+Every capability exists in four places. Getting that wrong is the most common
+bug in this repo: droid users were once told to look in `.claude/remember/`,
+and `1-create-prd.md` silently lost five lines. This is the order that stops
+it happening.
+
+### The one rule
+
+**Edit `packages/claude` only. Never edit a kit file by hand.**
+
+`packages/droid`, `packages/ampcode` and `packages/opencode` are generated
+from it by `scripts/mirror.cjs`. A hand edit there is overwritten on the next
+sync, or worse, survives as drift.
+
+### The order
+
+1. **Validate the bug.** Reproduce it first. If the cause is not obvious, run
+   `/root-cause` — do not start editing on a hunch.
+2. **POC it if the change is big.** Work in the scratchpad until it actually
+   does the thing. Never ship the POC; rewrite it.
+3. **Change it under `packages/claude`.** Every capability is a skill:
+   `skills/<name>/SKILL.md`, with bundled files beside it. Subagents in
+   `agents/`. Claude Code merged commands into skills; Amp did the same. Droid
+   and opencode still use flat commands, and the mirror converts for them.
+4. **See what the mirror would do:** `node scripts/mirror.cjs diff`.
+   Read it. Path substitution is dumb find-and-replace, and some files name
+   every tool on purpose — see *Escape hatches* below.
+5. **Mirror it:** `node scripts/mirror.cjs sync`.
+6. **Check it:** `node scripts/mirror.cjs check`. Three separate checks:
+   - **bodies** match claude after path substitution (a diff),
+   - **frontmatter** matches `scripts/frontmatter.json` (a shape — required
+     keys, allowed keys, and the kit's `Bash()` style),
+   - **paths** — no package names another tool's directory.
+7. **Sweep the docs.** Anything that adds, removes or renames a capability —
+   or changes what one does — has to land in every one of these, or the repo
+   describes something it no longer ships:
+
+   - `CHANGELOG.md` — an entry under `## [Unreleased]`. Write it as the change
+     lands, not at release time; `/release` cuts the version from what is
+     already there.
+   - `README.md` — the capability table and the counts in the header line
+   - `docs/product/<name>-README.md` — the capability's own page, if it has
+     one (branch-review, docs-builder, live-canvas, remember all do)
+   - `packages/subagentic-manual.md` — table, install rows, **By category**
+     counts
+   - `packages/claude/CLAUDE.md`, `packages/droid/AGENTS.md`,
+     `packages/ampcode/AGENT.md`, `packages/opencode/AGENTS.md` — one table
+     row each
+   - `packages/claude/variants.json` and `packages/ampcode/variants.json` — if
+     a whole content category is added or removed
+   - `packages/opencode/opencode.jsonc` — the command block
+   - `package.json` — the `description` field (the installer banner counts
+     are derived from it)
+   - `tests/installer/multi-tool-testing.test.js` — the hardcoded counts
+   - `docs/index.md` — if you added or removed a docs page
+
+   Every `(N total)` heading must equal its real row count. Check it, do not
+   assume it.
+8. **Run the suite:** `npm test`. It runs `mirror.cjs check` first and refuses
+   to go further if anything is out of step.
+9. **Sync `~/.claude`** from `packages/claude` — the repo is the source of
+   truth, never the other way round.
+10. **Commit, then `/branch-review`, then `/release`.** Three separate calls,
+    each needing its own go-ahead.
+
+### Frontmatter
+
+The mirror **never reads or writes the target's frontmatter.** It splits each
+file at the second `---` and keeps the target's top half byte-for-byte. That
+is where the per-kit shape lives, and it is already correct:
+
+| | subagents | commands |
+|---|---|---|
+| claude | `name, description, when_to_use, model, color` | `Bash(git diff:*)` |
+| ampcode | same as claude | `Bash(git diff *)` |
+| droid | `…model, tools: [array]` | `Bash(git diff *)` |
+| opencode | `…mode, temperature, tools: {map}` | `Bash(git diff *)` |
+
+Because frontmatter is meant to differ, it cannot be verified by diffing.
+It is verified against `scripts/frontmatter.json` instead, which is generated
+from the real files by `node scripts/mirror.cjs shapes`. Regenerate it only
+when a shape genuinely changes — never to silence a failing check.
+
+### Escape hatches
+
+Use the smallest one that works. Every entry is coverage you give up.
+
+- **`mirror:literal:start` / `mirror:literal:end`** — an HTML comment fence
+  around a block that must read identically in all four kits, because it names
+  every tool on purpose. Used by `remember.md`'s sessions-root probe list and
+  `quality-assurance.md`'s config-file list. Prefer this: it exempts a few
+  lines, not a whole file.
+- **`EXEMPT` in `mirror.cjs`** — a whole file the mirror cannot handle. Five
+  today, each with its reason written next to it. Adding one means that file
+  is no longer checked at all, so it needs a real reason.
 
 ---
 

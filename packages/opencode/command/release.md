@@ -1,8 +1,5 @@
 ---
-name: release
 description: Verify, sweep docs, cut a version — then hand the release sequence back
-usage: /release
-allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git fetch *), Bash(git add *), Bash(git commit *), Bash(git rev-parse *), Bash(git merge-base *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(pytest *), Bash(python *), Bash(go *), Bash(cargo *), Bash(make *)
 ---
 Release **preparation** orchestrator for the **current branch**. It runs your
 existing pre-deploy gate, sweeps the docs, bumps the version and commits —

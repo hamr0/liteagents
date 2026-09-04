@@ -1,7 +1,6 @@
 ---
 name: quality-assurance
-description: Code quality validation, test architecture, security review
-when_to_use: Use for code review, test coverage analysis, security scanning, quality gate decisions, and improvement recommendations
+description: Code quality validation, test architecture, security review. Use for code review, test coverage analysis, security scanning, quality gate decisions, and improvement recommendations
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---
@@ -59,7 +58,9 @@ digraph QualityAssurance {
 
 Before any analysis, read (if exists):
 - `AGENTS.md` - Project instructions, patterns, conventions
+<!-- mirror:literal:start — names every tool's config file on purpose -->
 - `AGENT.md` / `AGENTS.md` - Agent configurations
+<!-- mirror:literal:end -->
 - `README.md` - Project overview
 - Test config files (`jest.config`, `pytest.ini`, etc.)
 

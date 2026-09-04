@@ -1,7 +1,5 @@
 ---
-name: live-canvas
 description: Conduct design interviews, generate UI variations, and collect live click-to-annotate feedback that streams into the session so edits land without leaving the browser. Use when the user wants rapid iterative UI refinement, not just batched feedback.
-allowed-tools: Read, Grep, Glob
 ---
 
 # Live Canvas Skill
@@ -27,7 +25,7 @@ Live Canvas supports two feedback transports. **The user picks every time** — 
 
 ### Host detection — do this first
 
-This SKILL.md is the Claude Code variant of the skill. Same content is mirrored as docs for Droid/Amp/Opencode under `packages/<tool>/commands/live-canvas/`, but those tools don't support the MCP channel.
+This SKILL.md is the Claude Code variant of the skill. Same content is mirrored as docs for Droid/Amp/Opencode under `packages/<tool>/` beside the other capabilities, but those tools don't support the MCP channel.
 
 **If running under Droid, Amp, or Opencode (not Claude Code):**
 - Skip the mode question entirely.
@@ -110,6 +108,8 @@ Or pick JSON now to stay in this session — feedback gets written to a file
 you paste back here. No relaunch needed.
 ```
 
+<!-- mirror:literal:start — Live mode is the Claude Code MCP plugin; these are
+     Claude's real paths in every kit, because no other tool can install it -->
 **Case C — first-time setup block:**
 
 ```
@@ -117,15 +117,16 @@ Live mode needs a one-time install. Two steps:
 
   1. From this repo's root (or wherever liteagents lives):
        bash packages/claude/plugins/live-canvas-marketplace/setup.sh
-     This copies the marketplace into ~/.factory/plugins/ and runs npm install.
+     This copies the marketplace into ~/.claude/plugins/ and runs npm install.
 
   2. In any Claude session, register and install the plugin:
-       /plugin marketplace add ~/.factory/plugins/live-canvas-marketplace
+       /plugin marketplace add ~/.claude/plugins/live-canvas-marketplace
        /plugin install live-canvas-channel@live-canvas-marketplace
 
 That's it — once the plugin is installed, /live-canvas in any session can
 claim the channel. Re-run /live-canvas and pick Live.
 ```
+<!-- mirror:literal:end -->
 
 Do not try to run any of these commands yourself. Three reasons:
 1. The `/plugin` steps are Claude Code slash commands — not doable from inside a running session.

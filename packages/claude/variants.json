@@ -1,10 +1,9 @@
 {
   "pro": {
     "name": "Pro",
-    "description": "Complete installation with all agents, skills, and commands",
+    "description": "Complete installation with all agents and skills",
     "agents": "*",
     "skills": "*",
-    "commands": "*",
     "plugins": "*"
   }
 }

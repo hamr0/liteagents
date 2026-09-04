@@ -5,6 +5,12 @@ AI development toolkit with 10 specialized agents and 18 commands per tool. Supp
 ## Documentation
 See `README.md` for usage and `docs/product/INSTALLER_GUIDE.md` for installation details.
 
+**Editing a command, skill or subagent?** Read
+`docs/product/INSTALLER_GUIDE.md` (its *Changing a command, skill or
+subagent* section) first. Short version: edit
+`packages/claude` only, then `node scripts/mirror.cjs sync && node
+scripts/mirror.cjs check`. Never hand-edit a droid/ampcode/opencode file.
+
 ## Dev Rules (mandatory — full source: `.claude/remember/AGENT_RULES.md`)
 
 **Simple > clever.** Readable code a junior can follow beats elegant code that needs a PhD to debug. Be the Simplicity Advocate: call out overcomplications and suggest simpler alternatives BEFORE building, not after.

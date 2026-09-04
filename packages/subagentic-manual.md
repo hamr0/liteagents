@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 4 skills + 9 commands + live-canvas-channel plugin |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
 | **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
 | **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
 
-All four ship the same 10 subagents and the same 13 capabilities. Claude Code splits those
-13 into 4 skills and 9 commands; the others expose all 13 as commands.
+All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
+Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
 
 ---
 
@@ -60,8 +60,9 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-13 capabilities. On Claude Code they split into 4 skills and 9 commands. On Droid /
-OpenCode / Ampcode the same 14 are all commands.
+13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
+commands into skills, Amp removed commands outright. On Droid and OpenCode all
+13 are commands.
 
 | Command | What it's for |
 |---|---|
@@ -187,12 +188,29 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (4) + `commands/` (10), plus `plugins/` |
-| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `commands/` |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 
-Each kit also carries a `variants.json` and the tool's own settings file.
+Each kit also carries a `variants.json` and the tool's own settings file. Droid
+and OpenCode still use commands, so the mirror converts each skill's `SKILL.md`
+into a flat `<name>.md` for them.
+
+---
+
+## Going deeper
+
+These live in the repo, not in the installed kit:
+
+| Doc | What's in it |
+|---|---|
+| [Installer guide](https://github.com/hamr0/liteagents/blob/main/docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and the order of operations for changing a command, skill or subagent |
+| [`/remember`](https://github.com/hamr0/liteagents/blob/main/docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
+| [`/docs-builder`](https://github.com/hamr0/liteagents/blob/main/docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
+| [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The three stages, what blocks, the fix-ledger loop |
+| [`/live-canvas`](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
+| [live-canvas-channel](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
 
 ---
 
