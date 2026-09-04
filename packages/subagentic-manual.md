@@ -112,7 +112,7 @@ Install for your platform:
 
 **Manual Skills (5)**
 - `brainstorming` - Refine rough ideas through collaborative questioning
-- `live-canvas` - Design UI variations with click-to-annotate browser feedback. **Claude Code ships a companion MCP channel plugin (`live-canvas-channel`) that enables live mode — each overlay Save streams into the session in real time.** Other tools run in batch mode only. One-time setup required: see `packages/claude/skills/live-canvas/README.md`.
+- `live-canvas` - Design UI variations with click-to-annotate browser feedback. **Claude Code ships a companion MCP channel plugin (`live-canvas-channel`) that enables live mode — each overlay Save streams into the session in real time.** Other tools run in batch mode only. One-time setup required: see `docs/product/live-canvas-README.md`.
 - `trace-back` - Trace bugs backward through call stack
 - `skill-creator` - Guide for creating new skills
 - `debug-method` - Four-phase debugging framework

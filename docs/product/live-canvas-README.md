@@ -1,3 +1,10 @@
+---
+type: reference
+title: live-canvas
+status: draft
+updated: 2026-09-04
+---
+
 # Live Canvas
 
 Click-to-annotate UI design tool for Claude Code. Renders N variants of a component or page in your browser, you click an element and type what to change, and Claude edits the variant file while you watch in the browser. No window switching, no pasted JSON.
@@ -200,19 +207,6 @@ Plus a temporary route (e.g. `app/__live_canvas/page.tsx` for Next.js App Router
 
 ---
 
-## The install pipeline, end to end
-
-1. **Liteagents installer** copies the skill:
-   - `packages/claude/skills/live-canvas/` → `~/.claude/skills/live-canvas/`
-2. **User, once:** runs `bash packages/claude/plugins/live-canvas-marketplace/setup.sh` → copies marketplace to `~/.claude/plugins/`, runs `npm install`, adds `live-claude` function to `~/.zshrc` and `~/.bashrc`
-3. **User, once:** in a Claude session, runs `/plugin marketplace add ~/.claude/plugins/live-canvas-marketplace` + `/plugin install live-canvas-channel@live-canvas-marketplace`
-4. **User, every session that wants Live mode:** runs `live-claude` (function installed by step 2)
-5. **User, whenever:** `/live-canvas` in any project
-
-Steps 1, 2, 3 are truly one-time. Step 4 is per-session. Step 5 is per-project-use.
-
----
-
 ## Troubleshooting
 
 ### Port 8788 stuck from a prior session
@@ -250,14 +244,6 @@ This shouldn't happen with v0.3.0+ — the flag gate refuses bind from plain-cla
 2. Delete the marketplace: `/plugin marketplace remove live-canvas-marketplace`
 3. Remove the dev flag from your alias/shortcut
 4. Rerun liteagents installer in remove mode (or delete `~/.claude/skills/live-canvas/` and `~/.claude/plugins/live-canvas-marketplace/` by hand)
-
----
-
-## Why the multi-step setup can't be hidden
-
-The `--dangerously-load-development-channels` flag is a per-session startup argument of Claude Code itself. A running session can't promote itself to channel-enabled mid-flight; only the next session launched with the flag gets it. Same reason a skill can't silently do `/plugin install` on your behalf — the plugin system needs explicit user consent for research-preview plugins.
-
-Until channels leave research preview and custom channels are allowlisted, step 4 is the irreducible friction. The alias removes the retyping cost.
 
 ---
 
