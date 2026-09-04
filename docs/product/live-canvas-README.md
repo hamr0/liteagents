@@ -249,7 +249,7 @@ This shouldn't happen with v0.3.0+ — the flag gate refuses bind from plain-cla
 
 ## Pointers
 
-- Plugin details: [`~/.claude/plugins/live-canvas-marketplace/plugins/live-canvas-channel/README.md`](../../plugins/live-canvas-marketplace/plugins/live-canvas-channel/README.md)
-- Skill flow: [`SKILL.md`](./SKILL.md)
-- Design principles reference: [`DESIGN_PRINCIPLES.md`](./DESIGN_PRINCIPLES.md)
+- Plugin details: [live-canvas-channel](live-canvas-channel-README.md)
+- Skill flow: [`SKILL.md`](../../packages/claude/skills/live-canvas/SKILL.md)
+- Design principles reference: [`DESIGN_PRINCIPLES.md`](../../packages/claude/skills/live-canvas/DESIGN_PRINCIPLES.md)
 - Channels reference (upstream): <https://code.claude.com/docs/en/channels-reference>

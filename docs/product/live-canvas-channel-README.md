@@ -1,3 +1,10 @@
+---
+type: reference
+title: live-canvas-channel
+status: draft
+updated: 2026-09-04
+---
+
 # live-canvas-channel
 
 Claude Code channel plugin that bridges the Live Canvas browser overlay to a running Claude session. Each Save in the overlay becomes a `notifications/claude/channel` event — Claude reacts immediately without the user leaving the browser.

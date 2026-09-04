@@ -172,7 +172,8 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 | [`/remember`](docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
 | [`/branch-review`](docs/product/branch-review-README.md) | The three stages, what blocks, the fix-ledger loop |
-| [`/live-canvas`](docs/product/live-canvas-README.md) | Both modes and the Claude Code channel plugin setup |
+| [`/live-canvas`](docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
+| [live-canvas-channel](docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
 | [Installer](docs/product/INSTALLER_GUIDE.md) | Install, troubleshooting, FAQ |
 | [All agents & commands](packages/subagentic-manual.md) | Full agent and command reference |
 | [Doc index](docs/index.md) | Generated index of every doc, rebuilt on each reorg |
