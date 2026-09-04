@@ -2,6 +2,7 @@
 name: root-cause
 description: Use when any test fails, bug appears, or behaviour surprises you, before proposing a fix - find the cause and prove it, by reading real evidence, tracing bad values back to their origin, comparing against a working case, and testing one hypothesis at a time
 usage: /root-cause <bug-or-error-description>
+allowed-tools: Read, Grep, Glob
 ---
 
 # Root Cause

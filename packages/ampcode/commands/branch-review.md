@@ -11,7 +11,7 @@ reports findings and hands them back. Fixing is a separate, separately
 authorized action.
 
 Only **Critical** and **High** findings block the merge. Everything else is
-appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local,
+appended to the **fix ledger** (`.amp/remember/fix-ledger.md`) — a local,
 cumulative list, living beside `MEMORY.md`, that `/refactor` (no arguments)
 works through between features. Like its neighbours it is a private working
 artifact, usually gitignored; it persists across reviews, it is not a
@@ -44,17 +44,17 @@ at the current HEAD SHA.
   review of a report. (Same rule `/security` carries inside stage 2.)
 - **No edits — two exceptions.** You have no authorization to change code,
   even for a finding you are certain about. Report it. The only files you may
-  write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or
-  delete) and `.claude/remember/last-review.md` (overwrite; the review record
+  write are `.amp/remember/fix-ledger.md` (append bullets; never rewrite or
+  delete) and `.amp/remember/last-review.md` (overwrite; the review record
   described at the end of this file).
 - **Prove it with two checks, because neither sees what the other does.**
   `git status --porcelain`, at start and again before you report, proves no
   **tracked** file changed — that is the "never edits code" guarantee, and it
-  is the one that matters. It cannot police your own two writes: `.claude/`
+  is the one that matters. It cannot police your own two writes: `.amp/`
   is normally gitignored, so porcelain stays empty whether you wrote the
   allowed files, wrote nothing, or overwrote `MEMORY.md`. `git status
-  --ignored` does not close it either — it collapses to `!! .claude/`, the
-  directory, not the files. So also take `md5sum .claude/remember/*` before
+  --ignored` does not close it either — it collapses to `!! .amp/`, the
+  directory, not the files. So also take `md5sum .amp/remember/*` before
   you start and again before you report, and show the comparison: only
   `fix-ledger.md` and `last-review.md` may differ.
 
@@ -95,7 +95,7 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 (the literal range or path) in your output, so the orchestrator can see what
 was actually read rather than assuming.
 
-**Re-review after fixes: read `.claude/remember/last-review.md` first.** Its
+**Re-review after fixes: read `.amp/remember/last-review.md` first.** Its
 `sha:` line is the previously-reviewed commit and its `blockers:` list is what
 you owe an answer on — take both from the file, never from the orchestrator's
 recollection, for the same reason `/release` does. Then:
@@ -231,7 +231,7 @@ check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
-`.claude/remember/fix-ledger.md` (create the file with the header below if
+`.amp/remember/fix-ledger.md` (create the file with the header below if
 missing):
 
 ```
@@ -256,7 +256,7 @@ with `UNVERIFIED:` so `/refactor` retests before acting.
 The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
 numbers, no TODO comments in code — the ledger is the single writer. Before
-appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
+appending, dedupe with **plain `grep -F "<snippet>" .amp/remember/fix-ledger.md`**;
 if it is already there, skip it. Do not touch existing bullets.
 
 **A bullet you disprove is deleted, not annotated.** If you establish that an
@@ -280,7 +280,7 @@ Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
 assumed pass.
 
-**Write the review record** to `.claude/remember/last-review.md`, overwriting
+**Write the review record** to `.amp/remember/last-review.md`, overwriting
 it. `/release` reads this file; a SHA that lives only in a chat message is
 gone after a compaction or a handover, and the only remaining source is the
 orchestrator — the one party this command already refuses to take a review's
@@ -326,7 +326,7 @@ does not move — which means nothing was fixed, which is the correct outcome.
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
-  tree clean at start; at exit clean or the two `.claude/remember/` paths
+  tree clean at start; at exit clean or the two `.amp/remember/` paths
   only.**
 - **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
   add: "N fixes waiting — run `/refactor` between features." The ledger is a

@@ -1,6 +1,7 @@
 ---
 name: live-canvas
 description: Conduct design interviews, generate UI variations, and collect live click-to-annotate feedback that streams into the session so edits land without leaving the browser. Use when the user wants rapid iterative UI refinement, not just batched feedback.
+allowed-tools: Read, Grep, Glob
 ---
 
 # Live Canvas Skill

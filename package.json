@@ -8,7 +8,8 @@
     "liteag": "./cli.js"
   },
   "scripts": {
-    "test": "node tests/run-all-tests.js",
+    "test": "node scripts/mirror.cjs check && node tests/run-all-tests.js",
+    "mirror": "node scripts/mirror.cjs",
     "test-installer": "node tests/installer/integration.test.js",
     "install-interactive": "node installer/cli.js",
     "uninstall-tool": "node installer/cli.js --uninstall",

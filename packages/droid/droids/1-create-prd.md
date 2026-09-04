@@ -168,3 +168,8 @@ B) Proceed to task generation
 - [ ] Asked essential questions (max 2 rounds, max 10 total)?
 - [ ] Waited for user answers (didn't assume)?
 - [ ] Remaining unknowns moved to Open Questions?
+- [ ] PRD focuses on what/why, not how?
+- [ ] Requirements specific and actionable?
+- [ ] Removed redundancy and bloat?
+- [ ] Noted constraints without expanding into architecture?
+- [ ] Non-goals stated (min 2-3)?

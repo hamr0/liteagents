@@ -45,15 +45,15 @@ below — it is on by default, not a separate command.
   other does.** `git status --porcelain` at exit must list only files a
   surviving bullet named — that is this command's scope guarantee, and unlike
   `/branch-review` it is not expected to be empty. It cannot police the
-  memory directory: `.claude/` is normally gitignored, so porcelain stays
+  memory directory: `.amp/` is normally gitignored, so porcelain stays
   empty whether you deleted a fixed bullet, wrote nothing, or overwrote
-  `MEMORY.md`. So also take `md5sum .claude/remember/*` before you start and
+  `MEMORY.md`. So also take `md5sum .amp/remember/*` before you start and
   again before you report, and show the comparison: only `fix-ledger.md` may
   differ. `last-review.md` in particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
 ## Ledger mode — `$ARGUMENTS` empty
-Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
+Work through `.amp/remember/fix-ledger.md`, the non-blocking findings
 `/branch-review` has accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
