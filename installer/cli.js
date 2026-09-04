@@ -19,7 +19,7 @@ const os = require('os');
 const PACKAGE_JSON = require('../package.json');
 const PACKAGE_VERSION = PACKAGE_JSON.version;
 // Banner counts derived from the description field — same source as README.
-const AGENT_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+specialized agents/) || [, '11'])[1];
+const AGENT_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+specialized agents/) || [, '10'])[1];
 const COMMAND_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+commands/) || [, '18'])[1];
 
 // ANSI color codes

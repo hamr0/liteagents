@@ -31,13 +31,13 @@ Install for your platform:
 
 | Platform | Installation | What's Included |
 |----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 11 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 11 subagents + 18 commands |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 11 subagents + 18 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 11 subagents + 18 commands |
+| **Claude Code** | `cp -r claude/* ~/.claude/` | 10 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r droid/* ~/.factory/` | 10 subagents + 18 commands |
+| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
+| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
 
 **Key Difference**:
-- All four platforms ship the same 11 subagents and the same 18 capabilities
+- All four platforms ship the same 10 subagents and the same 18 capabilities
 - **Claude Code** splits them into 8 skills (3 auto-trigger) + 10 commands
 - **Droid / OpenCode / Ampcode** expose all 18 as commands — no auto-triggering
 
@@ -47,7 +47,7 @@ Install for your platform:
 
 ### Claude Code (skills + commands)
 
-**11 Subagents** - Expert personas with specialized knowledge
+**10 Subagents** - Expert personas with specialized knowledge
 - 3 Workflow Agents (PRD, Tasks, Implementation)
 - 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
 
@@ -65,7 +65,7 @@ Install for your platform:
 
 ### Droid / OpenCode / Ampcode (commands only)
 
-**11 Subagents** - the same personas, referenced from the platform's config file
+**10 Subagents** - the same personas, referenced from the platform's config file
 
 **18 Commands** - All workflow capabilities in command form
 - Combines Claude's skills + commands into one unified command set
@@ -98,7 +98,6 @@ Install for your platform:
 | **system-architect** | System design, technology selection, API design, scalability planning |
 | **feature-planner** | Epics, user stories, prioritization, backlog management, retrospectives |
 | **market-researcher** | Market analysis, competitive research, project discovery, brainstorming |
-| **context-builder** | Initialize project context, discover documentation, create knowledge bases |
 
 ---
 
@@ -248,7 +247,7 @@ Subagent workflows require manual coordination.
 ## Value Proposition
 
 ### For Individual Developers
-- **Instant Expertise** - Access 11 specialist agents without hiring
+- **Instant Expertise** - Access 10 specialist agents without hiring
 - **Consistent Quality** - Best practices built into every agent
 - **Faster Iteration** - Systematic workflows reduce trial-and-error
 - **Learning Tool** - Observe expert patterns and decision-making
@@ -256,7 +255,7 @@ Subagent workflows require manual coordination.
 ### For Teams
 - **Standardized Processes** - Shared agent definitions ensure consistency
 - **Onboarding Acceleration** - New members learn patterns through agent interactions
-- **Documentation Culture** - context-builder and docs-builder promote knowledge capture
+- **Documentation Culture** - docs-builder promotes knowledge capture
 - **Cross-Functional Collaboration** - Product, design, and engineering agents work together
 
 ### For Technical Leaders
@@ -273,7 +272,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.claude/
 ├── CLAUDE.md           # Registry + orchestrator workflows
-├── agents/             # 11 subagent implementations (*.md)
+├── agents/             # 10 subagent implementations (*.md)
 ├── skills/             # 8 skills (subdirectories with SKILL.md)
 └── commands/           # 10 commands (*.md)
 ```
@@ -288,7 +287,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.config/amp/
 ├── AGENT.md            # Reference doc (subagents + commands)
-├── agents/             # 11 subagent implementations (*.md)
+├── agents/             # 10 subagent implementations (*.md)
 └── commands/           # 18 commands (*.md)
 ```
 
@@ -300,7 +299,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.factory/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-├── droids/             # 11 subagent implementations (*.md)
+├── droids/             # 10 subagent implementations (*.md)
 └── commands/           # 18 commands (*.md)
 ```
 
@@ -312,7 +311,7 @@ Subagent workflows require manual coordination.
 ```
 ~/.config/opencode/
 ├── AGENTS.md           # Reference doc (subagents + commands)
-├── agent/              # 11 subagent implementations (*.md)
+├── agent/              # 10 subagent implementations (*.md)
 └── command/            # 18 commands (*.md)
 ```
 

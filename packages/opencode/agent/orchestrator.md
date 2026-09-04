@@ -81,7 +81,7 @@ Predefined multi-agent sequences:
 | Workflow | Sequence | When |
 |----------|----------|------|
 | **Greenfield** | market-researcher → feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | New product/feature from scratch |
-| **Brownfield** | context-builder → system-architect → feature-planner | Understand existing codebase |
+| **Brownfield** | system-architect → feature-planner | Understand existing codebase |
 | **Feature** | feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | Add feature to existing product |
 | **Bug Fix** | code-developer → quality-assurance | Fix and verify |
 | **Sprint** | feature-planner (*sprint-plan) → 2-generate-tasks | Plan sprint from backlog |
@@ -100,7 +100,7 @@ Quick routing when user has clear intent:
 | review, quality, test | quality-assurance |
 | design, UI, wireframe | ui-designer |
 | architecture, tech, design doc | system-architect |
-| understand, document, brownfield | context-builder |
+| understand, brownfield, existing codebase | system-architect |
 
 ## Commands
 

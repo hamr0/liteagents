@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**AI development toolkit with 11 specialized agents and 18 commands per tool**
+**AI development toolkit with 10 specialized agents and 18 commands per tool**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version (auto from package.json)">
@@ -45,10 +45,10 @@ liteagents
 
 ### Supported Tools
 
-- **Claude Code** - 11 subagents + 8 skills + 10 commands (+ optional live-canvas channel plugin)
-- **Opencode** - 11 agent references + 18 commands
-- **Ampcode** - 11 subagents + 18 commands
-- **Droid** - 11 agent references + 18 commands
+- **Claude Code** - 10 subagents + 8 skills + 10 commands (+ optional live-canvas channel plugin)
+- **Opencode** - 10 agent references + 18 commands
+- **Ampcode** - 10 subagents + 18 commands
+- **Droid** - 10 agent references + 18 commands
 
 **Key Difference:**
 - **Claude Code**: Full subagent system with orchestrator + skills (auto-triggering)
@@ -121,7 +121,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 ## What's Included
 
-### 11 Agents
+### 10 Agents
 
 **Workflow Agents (3):**
 - **1-create-prd** - Define scope with structured Product Requirement Documents
@@ -132,7 +132,6 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 - **orchestrator** - Analyze intent, coordinate workflows, route to optimal agent sequences
 - **code-developer** - Implementation, debugging, refactoring, code best practices
 - **quality-assurance** - Test architecture, quality gates, requirements traceability, risk assessment
-- **context-builder** - Initialize project context, discover documentation, create knowledge bases
 - **feature-planner** - Epics, user stories, prioritization, backlog management, retrospectives
 - **market-researcher** - Market analysis, competitive research, project discovery, brainstorming
 - **system-architect** - System design, technology selection, API design, scalability planning
@@ -214,7 +213,7 @@ Results land in `.claude/remember/friction/antigen_review.md` with projects, err
 
 ## Stats
 
-- **11** Specialized Agents
+- **10** Specialized Agents
 - **18** Workflow Commands & Skills
 - **4** Supported Tools (Claude, Opencode, Ampcode, Droid)
 - **Apache-2.0** License

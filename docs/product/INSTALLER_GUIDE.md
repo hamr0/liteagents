@@ -64,7 +64,7 @@ You'll see the welcome banner and a menu:
 
 ```
                   AGENTIC KIT
-        v2.8.1 | 11 agents + 23 commands per tool
+        v2.8.1 | 10 agents + 23 commands per tool
 
 What would you like to do?
 
@@ -135,7 +135,7 @@ A log of each run is written to `~/.liteagents-install.log`.
 
 ## Tools
 
-liteagents installs the **same content set into each tool**: 11 specialized agents and the full command set (23 commands). Claude Code additionally receives skills and the live-canvas plugin marketplace, which are native Claude Code features.
+liteagents installs the **same content set into each tool**: 10 specialized agents and the full command set (23 commands). Claude Code additionally receives skills and the live-canvas plugin marketplace, which are native Claude Code features.
 
 | Tool | Default path | Description |
 |------|--------------|-------------|
@@ -423,7 +423,7 @@ Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
 **Q: Are there different editions or variants?**
-No. Each tool receives the full package — 11 agents and 23 commands (Claude Code also gets skills and the live-canvas plugin marketplace as native features). There are no Lite/Standard/Pro variants.
+No. Each tool receives the full package — 10 agents and 23 commands (Claude Code also gets skills and the live-canvas plugin marketplace as native features). There are no Lite/Standard/Pro variants.
 
 **Q: Can I install multiple tools?**
 Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.
