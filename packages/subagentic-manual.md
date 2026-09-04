@@ -21,20 +21,18 @@ Production-ready AI agent framework providing specialized subagents, workflow co
 
 ## Quick Start
 
-Clone the toolkit:
 ```bash
-git clone https://github.com/hamr0/agentic-toolkit
-cd agentic-toolkit/ai/subagentic
+npx liteagents          # interactive installer, auto-updates
 ```
 
-Install for your platform:
+Or copy a kit manually:
 
-| Platform | Installation | What's Included |
-|----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 10 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 10 subagents + 18 commands |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
+| Platform | Installation | What lands there |
+|----------|--------------|------------------|
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 18 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
 
 **Key Difference**:
 - All four platforms ship the same 10 subagents and the same 18 capabilities
@@ -213,88 +211,22 @@ you to pick from — no more hours spent nudging divs to find out what you actua
 
 ---
 
-## Usage Patterns
+## Workflow patterns
 
-### Claude Code / Ampcode: Orchestrator-First (Recommended)
+Predefined multi-agent sequences the orchestrator can run. Ask for one by name, or just
+describe the work and let it route.
 
-The orchestrator analyzes your request and routes to optimal workflows automatically.
+| Workflow | Sequence | When |
+|---|---|---|
+| **Greenfield** | market-researcher → feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | New product or feature from scratch |
+| **Brownfield** | system-architect → feature-planner | Understand an existing codebase |
+| **Feature** | feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | Add a feature to an existing product |
+| **Bug Fix** | code-developer → quality-assurance | Fix and verify |
+| **Sprint** | feature-planner (*sprint-plan) → 2-generate-tasks | Plan a sprint from the backlog |
 
-**How it works**:
-1. Make natural requests: "Add login feature", "Review this PR", "Plan next sprint"
-2. Orchestrator matches intent to workflow patterns
-3. Conditional gates ask for approval before each phase
-4. Specialists execute with domain expertise
-
-**Example Flow - Feature Development**:
-```
-User: "Add authentication feature"
-  ↓
-Orchestrator: "Research competitive approaches first?" [Yes/No]
-  ↓ Yes
-Market Researcher: [Gathers auth patterns, OAuth vs JWT tradeoffs]
-  ↓
-Orchestrator: "Create formal PRD?" [Yes/No]
-  ↓ Yes
-1-Create-PRD: [Structured requirements document]
-  ↓
-Orchestrator: "Generate implementation tasks?" [Yes/No]
-  ↓ Yes
-2-Generate-Tasks: [20 granular tasks with acceptance criteria]
-  ↓
-Orchestrator: "Start systematic implementation?" [Yes/No]
-  ↓ Yes
-3-Process-Task-List: [Iterative implementation with review gates]
-```
-
-**Bypass Options**:
-- Direct agent: `@quality-assurance review this code`
-- Role syntax: `As system-architect, design the API layer`
-- Skills: `/tdd-flow login-feature`
-
-### 9 Pre-Defined Workflow Patterns
-
-1. **Feature Discovery Flow** - Research → PRD → Tasks → Implementation
-2. **Product Definition Flow** - Strategy → Epics/Stories → Technical Assessment
-3. **Story Implementation Flow** - Validate → Implement → QA Gate
-4. **Architecture Decision Flow** - Constraints → Analysis → Alignment
-5. **UI Development Flow** - Design → PRD (optional) → Implement → Validate
-6. **Bug Triage Flow** - Investigate → Severity Assessment → Fix/Backlog
-7. **Brownfield Discovery Flow** - Context Building → Documentation → Assessment
-8. **Quality Validation Flow** - Review → Pass/Concerns/Fail → Remediation
-9. **Sprint Planning Flow** - Prioritize → Stories → Criteria → Tasks
-
-Each pattern includes conditional decision points requiring user approval.
-
-### Droid/OpenCode: Direct Command Invocation
-
-No orchestrator - invoke commands directly:
-- `/branch-review <file-or-branch> [level]`
-- `/refactor <code-section>`
-- `/tdd-flow <feature>`
-
-Subagent workflows require manual coordination.
-
----
-
-## Value Proposition
-
-### For Individual Developers
-- **Instant Expertise** - Access 10 specialist agents without hiring
-- **Consistent Quality** - Best practices built into every agent
-- **Faster Iteration** - Systematic workflows reduce trial-and-error
-- **Learning Tool** - Observe expert patterns and decision-making
-
-### For Teams
-- **Standardized Processes** - Shared agent definitions ensure consistency
-- **Onboarding Acceleration** - New members learn patterns through agent interactions
-- **Documentation Culture** - docs-builder promotes knowledge capture
-- **Cross-Functional Collaboration** - Product, design, and engineering agents work together
-
-### For Technical Leaders
-- **Scalable Expertise** - Multiply senior-level guidance across projects
-- **Quality Gates** - Built-in review and validation checkpoints
-- **Architectural Consistency** - system-architect ensures coherent design decisions
-- **Reduced Context Switching** - Specialists handle domain-specific work
+Each step is a decision point you approve before it runs. To skip the routing entirely,
+call an agent directly (`@quality-assurance review this code`) or run a command
+(`/tdd-flow login`). Droid and OpenCode have no orchestrator — invoke commands directly.
 
 ---
 
@@ -353,64 +285,4 @@ Subagent workflows require manual coordination.
 
 ---
 
-## Frontmatter Architecture
-
-All resources are self-describing via YAML frontmatter for auto-discovery:
-
-**Subagents** (`agents/*.md`):
-```yaml
----
-id: code-developer
-title: Full Stack Developer
-description: Implement code, debug, refactor
-when_to_use: Use for code implementation, debugging, refactoring, and development best practices
-model: inherit
-color: purple
----
-```
-
-**Skills** (`skills/*/SKILL.md`):
-```yaml
----
-id: tdd-flow
-name: tdd-flow
-description: Write test first, watch it fail, write minimal code to pass
-usage: /tdd-flow <feature-or-behavior-to-test>
-auto_trigger: true
----
-```
-
-**Commands** (`commands/*.md`):
-```yaml
----
-id: refactor
-name: refactor
-description: Refactor code while maintaining behavior and tests
-usage: /refactor <code-section>
-argument-hint: [file-or-function]
----
-```
-
-This enables:
-- Dynamic registry building by CLIs
-- Single source of truth (no manual registries)
-- Consistent metadata across platforms
-- Easy extensibility
-
----
-
-## Contributing
-
-Contributions welcome for:
-- New specialist agents for additional domains
-- Additional workflow patterns
-- Platform-specific optimizations
-- Documentation improvements
-
-See repository for contribution guidelines.
-
----
-
-**License**: [Specify license]
-**Repository**: https://github.com/hamr0/agentic-toolkit
-**Issues**: https://github.com/hamr0/agentic-toolkit/issues
+**Repository**: https://github.com/hamr0/liteagents · **Issues**: https://github.com/hamr0/liteagents/issues · Apache-2.0
