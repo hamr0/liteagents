@@ -249,6 +249,40 @@ console.log(`\n${colors.bright}${colors.cyan}stub-check.cjs${colors.reset}\n`);
     `stdout=${JSON.stringify(r.stdout)}`);
 }
 
+// 13. a symlinked config is reported, never repaired through. Writing through
+//     it would edit a file belonging to another repo — the user's projects sit
+//     side by side, so a relative link is a short hop.
+{
+  const outside = tmpDir('sc-outside-');
+  const victim = path.join(outside, 'victim.md');
+  fs.writeFileSync(victim, PRE_V219);
+
+  const repo = tmpDir('sc-link-');
+  fs.mkdirSync(path.join(repo, '.claude', 'remember'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude', 'remember', 'MEMORY.md'), '# mem\n');
+  fs.symlinkSync(victim, CFG(repo));
+
+  const r = run(repo);
+  check('symlinked config: the file it points at is left byte-identical',
+    fs.readFileSync(victim, 'utf8') === PRE_V219,
+    fs.readFileSync(victim, 'utf8').slice(0, 60));
+  check('symlinked config: reported, not silently skipped, exit 0',
+    r.status === 0 && /leaves the repo via a symlink/.test(r.stdout),
+    `status=${r.status} stdout=${JSON.stringify(r.stdout)}`);
+}
+
+// 14. negative control — a repo reached through a symlinked PATH is still
+//     repaired; only a symlinked config file itself is refused.
+{
+  const real = repoWith(PRE_V219);
+  const link = path.join(path.dirname(real), path.basename(real) + '-link');
+  fs.symlinkSync(real, link);
+  const r = run(link);
+  check('repo reached via a symlinked path is still repaired',
+    read(real) === CURRENT, `stdout=${JSON.stringify(r.stdout)}`);
+  fs.rmSync(link, { force: true });
+}
+
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);

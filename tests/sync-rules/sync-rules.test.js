@@ -176,6 +176,73 @@ console.log(`\n${colors.bright}${colors.cyan}sync-rules.cjs${colors.reset}\n`);
     `status=${r.status} stdout=${JSON.stringify(r.stdout)}`);
 }
 
+// 8. a symlinked target is refused, never followed. Three routes out, and a
+//    guard on only one of them is false safety:
+//      a) the target is a DANGLING link — reads as "absent", still followed
+//      b) a parent directory is a link pointing outside the repo
+//      c) the target is a live link to a file outside the repo
+//    /remember runs across a whole fleet, so a relative link only has to reach
+//    a sibling checkout to make this repo's run write into another one.
+{
+  const script = isolatedScript('RULES v9\n');
+  const outside = tmpDir('sr-outside-');
+
+  // a) dangling link
+  {
+    const repo = tmpDir('sr-dangle-');
+    fs.mkdirSync(P(repo), { recursive: true });
+    fs.symlinkSync(path.join(outside, 'planted.md'), P(repo, 'AGENT_RULES.md'));
+    const r = run(script, repo);
+    check('dangling target link: nothing created outside the repo',
+      !fs.existsSync(path.join(outside, 'planted.md')),
+      `created ${path.join(outside, 'planted.md')}`);
+    check('dangling target link: refused loudly, exit 0',
+      r.status === 0 && /leaves the repo via a symlink/.test(r.stdout),
+      `status=${r.status} stdout=${JSON.stringify(r.stdout)}`);
+  }
+
+  // b) parent directory link
+  {
+    const repo = tmpDir('sr-pdir-');
+    const away = tmpDir('sr-away-');
+    fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+    fs.symlinkSync(away, path.join(repo, '.claude', 'remember'));
+    const r = run(script, repo);
+    check('parent dir link: nothing written through it',
+      !fs.existsSync(path.join(away, 'AGENT_RULES.md')),
+      `wrote ${path.join(away, 'AGENT_RULES.md')}`);
+    check('parent dir link: refused loudly',
+      /leaves the repo via a symlink/.test(r.stdout), JSON.stringify(r.stdout));
+  }
+
+  // c) live link to an existing file outside the repo
+  {
+    const repo = tmpDir('sr-live-');
+    const victim = path.join(outside, 'victim.md');
+    fs.writeFileSync(victim, 'SOMEONE ELSE\n');
+    fs.mkdirSync(P(repo), { recursive: true });
+    fs.symlinkSync(victim, P(repo, 'AGENT_RULES.md'));
+    run(script, repo);
+    check('live link out: the target file is left byte-identical',
+      fs.readFileSync(victim, 'utf8') === 'SOMEONE ELSE\n',
+      fs.readFileSync(victim, 'utf8').slice(0, 40));
+  }
+}
+
+// 9. negative control — the guard must not refuse an ordinary repo, nor one
+//    merely REACHED through a symlinked path, which is a normal setup.
+{
+  const script = isolatedScript('RULES v9\n');
+  const real = tmpDir('sr-real2-');
+  const link = path.join(path.dirname(real), path.basename(real) + '-link');
+  fs.symlinkSync(real, link);
+  const r = run(script, link);
+  check('repo reached via a symlinked path is still synced',
+    r.status === 0 && fs.readFileSync(P(real, 'AGENT_RULES.md'), 'utf8') === 'RULES v9\n',
+    `stdout=${JSON.stringify(r.stdout)}`);
+  fs.rmSync(link, { force: true });
+}
+
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);
