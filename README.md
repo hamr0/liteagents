@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 18 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 15 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -52,7 +52,7 @@ npx liteagents          # recommended
 | `system-architect` | System design, tech selection, API design, scale |
 | `ui-designer` | UI/UX, wireframes, prototypes, design systems |
 
-**Commands & skills** — `/name`. Three of them fire on their own when the situation matches.
+**Commands & skills** — `/name`.
 
 | Command | What it's for |
 |---|---|
@@ -71,11 +71,8 @@ npx liteagents          # recommended
 | `/trace-back` | Walk a deep error backward to its original trigger |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
-| `/tdd-flow` ⚡ | Test first, watch it fail, then minimal code |
-| `/test-traps` ⚡ | Stop mocking anti-patterns and test-only production code |
-| `/verify-done` ⚡ | No "it works" claim without a command run behind it |
 
-<sub>⚡ = auto-triggering (Claude Code). Claude Code gets the full subagent system; Opencode, Ampcode and Droid get the same 18 commands plus agent reference docs.</sub>
+<sub>Claude Code splits these into 5 skills and 10 commands; Opencode, Ampcode and Droid expose all 15 as commands, plus agent reference docs.</sub>
 
 ---
 

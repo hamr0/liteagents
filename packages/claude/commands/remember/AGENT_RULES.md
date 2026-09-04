@@ -162,10 +162,12 @@ A problem you see and don't fix goes in the report, never in a comment. Comments
 - **Reads like a spec.** Someone unfamiliar with the code must understand what the feature does by reading the test
 - **Self-contained.** Each test sets up its own state, runs, and cleans up. No ordering dependencies between tests
 - **Fast and deterministic.** Flaky tests erode trust. If a test depends on timing, network, or global state, fix that dependency
+- **Never sleep for a condition — poll for it.** `sleep(50)` then assert is wrong at every value: too short and it flakes under CI load, too long and the suite drags, and a real async bug looks identical to a guess that was too short. Wait on the thing you actually care about instead — `waitFor(() => events.some(e => e.type === 'DONE'))` — calling the getter *inside* the loop, polling ~10ms, with a timeout that names what it was waiting for. A fixed sleep is only correct when you have already waited for the triggering condition, the delay is derived from a documented interval rather than guessed, and a comment says why
 
 ### Anti-Patterns — Do Not Do These
 
 - **Mocking more than 60% of the test.** If most of the test is mock setup, you're testing mocks, not code. Use real implementations with `tmp_path`, `:memory:` SQLite, or test containers
+- **Partial mocks.** Mock the complete structure the real thing returns, not just the fields your test reads. A mock missing a field that downstream code consumes passes the test and fails in production — the test proved nothing about the real shape
 - **Smoke tests.** `assert result is not None` proves nothing. Assert on specific values, structure, or side effects
 - **Testing private methods.** If you need to test a private method, either it should be public or the public method's tests should cover it
 - **Mirroring implementation.** Tests that replicate the source code line-by-line break on every refactor and catch zero bugs

@@ -178,7 +178,7 @@ You MUST complete each phase before proceeding to the next.
    - Automated test if possible
    - One-off test script if no framework
    - MUST have before fixing
-   - **REQUIRED SUB-SKILL:** Use tdd-flow for writing proper failing tests
+   - The test must be observed failing BEFORE the fix, and for the right reason
 
 2. **Implement Single Fix**
    - Address the root cause identified
@@ -281,11 +281,9 @@ If systematic investigation reveals issue is truly environmental, timing-depende
 
 **This skill requires using:**
 - **trace-back** - REQUIRED when error is deep in call stack (see Phase 1, Step 5)
-- **tdd-flow** - REQUIRED for creating failing test case (see Phase 4, Step 1)
 
 **Complementary skills:**
-- **test-traps** (Anti-Pattern 6) - Replace arbitrary timeouts identified in Phase 2
-- **verify-done** - Verify fix worked before claiming success
+- **AGENT_RULES.md → Testing Standards** - what makes the test real (poll, never sleep; no partial mocks)
 
 ## Real-World Impact
 

@@ -58,7 +58,7 @@ digraph CodeDeveloper {
 
   // Conditional testing
   tdd_needed [label="TDD specified\nor tests needed?", shape=diamond];
-  use_tdd [label="Use /tdd-flow\nor /test-generate"];
+  use_tdd [label="Use /test-generate"];
 
   // Validation
   run_validations [label="Run validations\n(lint, build, tests)"];
@@ -80,7 +80,7 @@ digraph CodeDeveloper {
 
   // Review and complete
   code_review [label="Run /branch-review"];
-  verification [label="Run /verify-done", fillcolor=orange];
+  verification [label="Run the proof", fillcolor=orange];
 
   // Story-specific
   update_story [label="Update story\n(checkbox, changelog)"];
@@ -191,9 +191,9 @@ All require `*` prefix. Invocation commands in table above. Additional:
 | Bug encountered | `/debug-method` (use `/trace-back` when the error is deep in the stack) |
 | Error deep in stack | `/trace-back` |
 | Refactoring code | `/refactor` |
-| Need tests (when required) | `/test-generate` or `/tdd-flow` |
-| Writing any test | `/test-traps` (avoid mocks, production pollution) |
-| Before completion | `/verify-done` |
+| Need tests (when required) | `/test-generate` |
+| Writing any test | AGENT_RULES.md → Testing Standards |
+| Before completion | Run the proof and read its output |
 | After code changes | `/security` |
 | Task complete / general review | `/branch-review` (reviews the branch + full security audit, verifies claims, reports findings — never fixes) |
 | Performance issues | `/optimize` |

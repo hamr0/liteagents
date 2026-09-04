@@ -69,7 +69,7 @@ Before any analysis, read (if exists):
 
 ## Slash Commands Available
 
-Use these during analysis: `/branch-review`, `/security`, `/verify-done`
+Use these during analysis: `/branch-review`, `/security`
 
 ## Analysis Areas
 

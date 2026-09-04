@@ -9,7 +9,7 @@
 6. [Environment](#environment)
 7. [Development Workflow](#development-workflow)
 8. [Twelve-Factor Checklist](#twelve-factor-checklist)
-9. [AGENT.md Stub](#agentmd-stub)
+9. [CLAUDE.md Stub](#claudemd-stub)
 
 ---
 
@@ -59,7 +59,7 @@ Every task runs through three layers. Do not skip ahead to code.
 Not courtesies. These bind you as written, whether or not your tool enforces them.
 
 - **Always** identify affected files before making changes, and explain what will change and why
-- **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.amp/settings.json`
+- **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
 - **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
 - **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/branch-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
@@ -162,10 +162,12 @@ A problem you see and don't fix goes in the report, never in a comment. Comments
 - **Reads like a spec.** Someone unfamiliar with the code must understand what the feature does by reading the test
 - **Self-contained.** Each test sets up its own state, runs, and cleans up. No ordering dependencies between tests
 - **Fast and deterministic.** Flaky tests erode trust. If a test depends on timing, network, or global state, fix that dependency
+- **Never sleep for a condition — poll for it.** `sleep(50)` then assert is wrong at every value: too short and it flakes under CI load, too long and the suite drags, and a real async bug looks identical to a guess that was too short. Wait on the thing you actually care about instead — `waitFor(() => events.some(e => e.type === 'DONE'))` — calling the getter *inside* the loop, polling ~10ms, with a timeout that names what it was waiting for. A fixed sleep is only correct when you have already waited for the triggering condition, the delay is derived from a documented interval rather than guessed, and a comment says why
 
 ### Anti-Patterns — Do Not Do These
 
 - **Mocking more than 60% of the test.** If most of the test is mock setup, you're testing mocks, not code. Use real implementations with `tmp_path`, `:memory:` SQLite, or test containers
+- **Partial mocks.** Mock the complete structure the real thing returns, not just the fields your test reads. A mock missing a field that downstream code consumes passes the test and fails in production — the test proved nothing about the real shape
 - **Smoke tests.** `assert result is not None` proves nothing. Assert on specific values, structure, or side effects
 - **Testing private methods.** If you need to test a private method, either it should be public or the public method's tests should cover it
 - **Mirroring implementation.** Tests that replicate the source code line-by-line break on every refactor and catch zero bugs
@@ -281,9 +283,9 @@ The [Twelve-Factor App](https://12factor.net) methodology for modern, scalable a
 
 ---
 
-## AGENT.md Stub
+## CLAUDE.md Stub
 
-Copy this to any project's AGENT.md. These are mandatory rules, not suggestions.
+Copy this to any project's CLAUDE.md. These are mandatory rules, not suggestions.
 
 ```markdown
 ## Dev Rules
@@ -304,5 +306,5 @@ Copy this to any project's AGENT.md. These are mandatory rules, not suggestions.
 
 **Responsive web UI is mandatory.** Any web UI must work on mobile by default — fluid layouts, viewport meta, breakpoints, no horizontal scroll. Verify in DevTools device emulation before claiming a UI task is done. POCs exempt; real projects are not.
 
-For full development and testing standards, see `.amp/remember/AGENT_RULES.md`.
+For full development and testing standards, see `.claude/remember/AGENT_RULES.md`.
 ```

@@ -22,14 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 18 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 5 skills + 10 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 15 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 15 commands |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 15 commands |
 
-All four ship the same 10 subagents and the same 18 capabilities. Claude Code splits those
-18 into 8 skills (3 of which auto-trigger) and 10 commands; the others expose all 18 as
-commands, with no auto-triggering.
+All four ship the same 10 subagents and the same 15 capabilities. Claude Code splits those
+15 into 5 skills and 10 commands; the others expose all 15 as commands.
 
 ---
 
@@ -61,9 +60,8 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-18 capabilities. On Claude Code they split into 8 skills and 10 commands, and three of the
-skills fire on their own when the situation matches. On Droid / OpenCode / Ampcode the same
-18 are all commands, with no auto-triggering.
+15 capabilities. On Claude Code they split into 5 skills and 10 commands. On Droid /
+OpenCode / Ampcode the same 15 are all commands.
 
 | Command | What it's for |
 |---|---|
@@ -82,17 +80,14 @@ skills fire on their own when the situation matches. On Droid / OpenCode / Ampco
 | `/trace-back` | Walk a deep error backward to its original trigger |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
-| `/tdd-flow` ⚡ | Test first, watch it fail, then minimal code |
-| `/test-traps` ⚡ | Stop mocking anti-patterns and test-only production code |
-| `/verify-done` ⚡ | No "it works" claim without a command run behind it |
 
-<sub>⚡ = auto-triggering, Claude Code only. `/live-canvas` runs in batch mode on
-Droid / OpenCode / Ampcode — the MCP channel plugin is Claude Code specific.</sub>
+<sub>`/live-canvas` runs in batch mode on Droid / OpenCode / Ampcode — the MCP channel
+plugin is Claude Code specific.</sub>
 
-**By category** — Development & testing (6): tdd-flow, test-traps, test-generate,
-debug-method, trace-back, verify-done · Code operations (6): refactor, optimize,
-branch-review, security, ship, release · Session & memory (5): brainstorming,
-skill-creator, docs-builder, stash, remember · Design (1): live-canvas.
+**By category** — Development & testing (3): test-generate, debug-method, trace-back ·
+Code operations (6): refactor, optimize, branch-review, security, ship, release ·
+Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
+Design (1): live-canvas.
 
 ---
 
@@ -186,7 +181,7 @@ describe the work and let it route.
 
 Each step is a decision point you approve before it runs. To skip the routing entirely,
 call an agent directly (`@quality-assurance review this code`) or run a command
-(`/tdd-flow login`). Droid and OpenCode have no orchestrator — invoke commands directly.
+(`/test-generate src/auth.js`). Droid and OpenCode have no orchestrator — invoke commands directly.
 
 ---
 
@@ -194,7 +189,7 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` + `commands/` (plus `plugins/`) |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (5) + `commands/` (10), plus `plugins/` |
 | **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `commands/` |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
