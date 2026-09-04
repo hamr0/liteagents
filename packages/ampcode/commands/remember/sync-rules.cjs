@@ -50,31 +50,40 @@ function lexists(p) {
  * "the file is absent" and is still followed on write — or any parent
  * directory may be a link pointing elsewhere. This runs across a whole fleet
  * of repos, so a relative link only has to reach a sibling checkout.
+ *
+ * A link that stays INSIDE the repo is not an escape: a repo that keeps its
+ * rules or its config behind an in-repo symlink is an ordinary setup, and
+ * refusing it would strand that repo forever. So the leaf is followed by hand
+ * with readlink — which works on a dangling link, where realpath cannot — and
+ * each hop re-resolves the parents, because the file a link points at can sit
+ * behind a linked directory of its own.
  */
 function escapesRepo(repo, target) {
   let root;
   try { root = fs.realpathSync(repo); } catch (e) { return true; }
 
-  // Walk up to the deepest ancestor that exists; anything below it cannot be
-  // a link yet, so only the existing part needs resolving.
-  const tail = [];
-  let dir = path.dirname(target);
-  while (!lexists(dir)) {
-    tail.unshift(path.basename(dir));
-    const up = path.dirname(dir);
-    if (up === dir) return true;                  // walked off the filesystem root
-    dir = up;
+  let p = path.resolve(target);
+  for (let hop = 0; hop < 40; hop++) {
+    // Resolve the existing part of the path. Walk up to the deepest ancestor
+    // that exists; anything below it cannot be a link yet.
+    const tail = [];
+    let dir = path.dirname(p);
+    while (!lexists(dir)) {
+      tail.unshift(path.basename(dir));
+      const up = path.dirname(dir);
+      if (up === dir) return true;                  // walked off the filesystem root
+      dir = up;
+    }
+    try { p = path.join(fs.realpathSync(dir), ...tail, path.basename(p)); }
+    catch (e) { return true; }                      // an ancestor is a dangling link
+
+    let to;
+    try { to = fs.readlinkSync(p); } catch (e) {
+      return p !== root && !p.startsWith(root + path.sep);   // not a link: decide here
+    }
+    p = path.resolve(path.dirname(p), to);
   }
-
-  let resolved;
-  try { resolved = path.join(fs.realpathSync(dir), ...tail, path.basename(target)); }
-  catch (e) { return true; }                      // an ancestor is a dangling link
-
-  // The last component can be a link even when every directory above it is
-  // clean — that is the dangling-file case.
-  try { if (fs.lstatSync(resolved).isSymbolicLink()) return true; } catch (e) { /* absent: fine */ }
-
-  return resolved !== root && !resolved.startsWith(root + path.sep);
+  return true;                                      // a link cycle: refuse
 }
 
 function templatePath() {
