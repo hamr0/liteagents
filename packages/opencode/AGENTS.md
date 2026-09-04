@@ -21,28 +21,23 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Opencode Commands (18 total)
+## Opencode Commands (13 total)
 
-| ID | Description | Usage | Auto |
-|---|---|---|---|
-| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] | false |
-| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas | false |
-| optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
-| refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
+| ID | Description | Usage |
+|---|---|---|
+| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
+| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas |
+| refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] | - |
-| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
+| root-cause | Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source | /root-cause <bug-or-error-description> |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] | - |
 | ship | Mechanical pre-deploy gate — tests, build, tree state | /ship | - |
 | release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release | - |
-| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
+| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
-| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
-| tdd-flow | Write test first, watch it fail, write minimal code to pass | /tdd-flow <feature-or-behavior-to-test> | true |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> | - |
-| test-traps | Prevents testing mock behavior and production pollution with test-only methods | /test-traps <testing-scenario> | true |
-| verify-done | Requires running verification commands before making any success claims | /verify-done <work-to-verify> | true |
 
 All resources are auto-discovered from frontmatter in their respective directories:
 - **Agents**: `./agent/*.md`

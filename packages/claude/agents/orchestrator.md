@@ -65,9 +65,8 @@ On-demand, read from these locations:
 
 | Resource | Global Paths | Local Path |
 |----------|--------------|------------|
-| Agents |  `~/.claude/agents/*.md`| `./.claude/agents/*.md` |
-| Commands | `~/.claude/commands/*.md`| `./.claude/commands/*.md` |
-| Skills | `~/.claude/skills/*/SKILL.md` | `./.claude/skills/*/SKILL.md`  |
+| Agents | `~/.claude/agents/*.md` | `./.claude/agents/*.md` |
+| Skills | `~/.claude/skills/*/SKILL.md` | `./.claude/skills/*/SKILL.md` |
 
 Parse frontmatter for `name`, `description`, `when_to_use`. Present as numbered list.
 

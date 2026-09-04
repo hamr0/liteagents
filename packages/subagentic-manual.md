@@ -1,384 +1,217 @@
 # Subagentic Manual
 
-Production-ready AI agent framework providing specialized subagents, workflow commands, and development skills for **Claude Code**, **OpenCode**, **Ampcode**, and **Droid**. Deploy expert AI personas instantly with zero configuration.
+A quick reference for the agent kits: what ships, what each thing does, and where it lands.
 
----
+Liteagents started as scaffolding for early LLMs that needed to be told everything. It isn't
+that anymore. Models got smarter, so the toolkit got thinner: specialists you call by name or
+that trigger themselves on domain, wide lanes instead of tight rails, constraints on *what*
+rather than scripts for *how*.
 
-## Why Subagentic?
-
-**The Challenge**: Generic AI assistants lack specialized expertise and systematic workflows, leading to inconsistent results and context overload.
-
-**The Solution**: Subagentic provides:
-- **Role-Specialized Agents** - Expert personas (architect, QA, product manager) with domain-specific knowledge
-- **Systematic Workflows** - Proven development patterns (PRD → Tasks → Implementation)
-- **Orchestrator-First Routing** - Automatic workflow matching based on user intent
-- **Frontmatter-Based Discovery** - All resources self-describe via YAML frontmatter
-- **Platform Agnostic** - Works across Claude Code, OpenCode, Ampcode, and Droid
-
-**The Result**: Predictable, high-quality outputs from specialized agents following best practices, without manually switching contexts or crafting complex prompts.
+It is actively challenged, pruned and rewritten — things get renamed, added, and deleted as
+models improve. That churn is the point.
 
 ---
 
 ## Quick Start
 
-Clone the toolkit:
 ```bash
-git clone https://github.com/hamr0/agentic-toolkit
-cd agentic-toolkit/ai/subagentic
+npx liteagents          # interactive installer, auto-updates
 ```
 
-Install for your platform:
+Or copy a kit manually:
 
-| Platform | Installation | What's Included |
-|----------|--------------|-----------------|
-| **Claude Code** | `cp -r claude/* ~/.claude/` | 10 subagents + 8 skills + 10 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r droid/* ~/.factory/` | 10 subagents + 18 commands |
-| **Ampcode** | `cp -r ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
-| **OpenCode** | `cp -r opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
+| Platform | Installation | What lands there |
+|----------|--------------|------------------|
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
 
-**Key Difference**:
-- All four platforms ship the same 10 subagents and the same 18 capabilities
-- **Claude Code** splits them into 8 skills (3 auto-trigger) + 10 commands
-- **Droid / OpenCode / Ampcode** expose all 18 as commands — no auto-triggering
-
----
-
-## What's Included
-
-### Claude Code (skills + commands)
-
-**10 Subagents** - Expert personas with specialized knowledge
-- 3 Workflow Agents (PRD, Tasks, Implementation)
-- 8 Specialist Agents (UX, QA, Architecture, Product, Development, etc.)
-
-**8 Skills** - Auto-triggering + manual workflow components
-- tdd-flow, test-traps, verify-done (auto-trigger)
-- brainstorming, debug-method, live-canvas, skill-creator, trace-back
-
-**10 Commands** - Workflow helpers
-- docs-builder, optimize, refactor, remember, branch-review, security, ship, release, stash, test-generate
-
-**Orchestration System**
-- Automatic intent matching to 9 workflow patterns
-- Conditional decision points with user approval gates
-- Selective context injection
-
-### Droid / OpenCode / Ampcode (commands only)
-
-**10 Subagents** - the same personas, referenced from the platform's config file
-
-**18 Commands** - All workflow capabilities in command form
-- Combines Claude's skills + commands into one unified command set
-- Same functionality, different invocation model (no auto-triggering)
-
-**No Orchestrator** - Direct command invocation only
+All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
+Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
 
 ---
 
 ## Subagents
 
-### Workflow Agents (3)
+Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
-| Agent | Purpose |
-|-------|---------|
-| **1-create-prd** | Define scope with structured Product Requirement Documents |
-| **2-generate-tasks** | Break PRDs into granular, actionable task lists |
-| **3-process-task-list** | Execute tasks iteratively with progress tracking and review checkpoints |
+**Workflow agents (3)** — the sequence: PRD → Tasks → Iterative implementation → Review.
 
-**Pattern**: PRD → Tasks → Iterative Implementation → Review → Complete
+| Agent | What it's for |
+|---|---|
+| `1-create-prd` | Define scope as a PRD — a portal into the work, not a spec to obey |
+| `2-generate-tasks` | Break a PRD into granular, actionable tasks |
+| `3-process-task-list` | Execute tasks one at a time with review checkpoints |
 
-### Specialist Agents (8)
+**Specialist agents (7)**
 
-| Agent | Purpose |
-|-------|---------|
-| **orchestrator** | Analyze intent, coordinate workflows, route to optimal agent sequences |
-| **ui-designer** | UI/UX design, wireframes, prototypes, accessibility, design systems |
-| **code-developer** | Implementation, debugging, refactoring, code best practices |
-| **quality-assurance** | Test architecture, quality gates, requirements traceability, risk assessment |
-| **system-architect** | System design, technology selection, API design, scalability planning |
-| **feature-planner** | Epics, user stories, prioritization, backlog management, retrospectives |
-| **market-researcher** | Market analysis, competitive research, project discovery, brainstorming |
-
----
-
-## Commands Reference
-
-### Claude Code: 18 Total (8 Skills + 10 Commands)
-
-**Auto-Triggering Skills (3)**
-- `tdd-flow` - Write test first, watch fail, minimal passing code
-- `test-traps` - Prevent mocking anti-patterns and test pollution
-- `verify-done` - Run verification before claiming done
-
-**Manual Skills (5)**
-- `brainstorming` - Refine rough ideas through collaborative questioning
-- `live-canvas` - Design UI variations with click-to-annotate browser feedback. **Claude Code ships a companion MCP channel plugin (`live-canvas-channel`) that enables live mode — each overlay Save streams into the session in real time.** Other tools run in batch mode only. One-time setup required: see `packages/claude/skills/live-canvas/README.md`.
-- `trace-back` - Trace bugs backward through call stack
-- `skill-creator` - Guide for creating new skills
-- `debug-method` - Four-phase debugging framework
-
-**Commands (10)**
-- `docs-builder` - Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
-- `optimize` - Performance analysis
-- `refactor` - Maintain behavior while improving code
-- `remember` - Consolidate stashes + friction into project memory
-- `branch-review` - Review a branch + full security audit; verifies findings, reports without fixing
-- `security` - Vulnerability scanning
-- `ship` - Pre-deployment checklist
-- `release` - Prepare a release: verify → docs → bump → commit, then report the merge/tag/publish sequence for you to authorize
-- `stash` - Save session context for compaction recovery or handoffs
-- `test-generate` - Test suite generation
-
-### Droid / OpenCode / Ampcode: 18 Commands
-
-Same functionality as skills+commands, but:
-- All invoked as commands (no auto-triggering)
-- Unified command set
-- `live-canvas` runs in batch mode only (no channel plugin — that's Claude Code specific)
-
-**Command Categories**:
-- **Development & Testing (6)**: tdd-flow, test-traps, test-generate, debug-method, trace-back, verify-done
-- **Code Operations (6)**: refactor, optimize, branch-review, security, ship, release
-- **Session & Memory (5)**: brainstorming, skill-creator, docs-builder, stash, remember
-- **Design (1)**: live-canvas
+| Agent | What it's for |
+|---|---|
+| `orchestrator` | Read intent, route to the right agent sequence |
+| `code-developer` | Implementation, debugging, refactoring |
+| `quality-assurance` | Test architecture, quality gates, risk assessment |
+| `feature-planner` | Epics, user stories, prioritization, backlog |
+| `market-researcher` | Market and competitive analysis, project discovery |
+| `system-architect` | System design, tech selection, API design, scale |
+| `ui-designer` | UI/UX, wireframes, prototypes, design systems |
 
 ---
 
-## Hot Memory
+## Commands & skills
 
-Lightweight session memory that learns from your usage patterns across sessions. **`/stash` is
-the only command you actively run — it drives the whole pipeline.** Once a few stashes pile up
-it nudges you to run `/remember`, which does everything else: friction analysis, consolidation,
-and wiring the memory into your agent config file.
+13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
+commands into skills, Amp removed commands outright. On Droid and OpenCode all
+13 are commands.
 
-```
-/stash → (nudge at 5+ unprocessed) → /remember
-```
+| Command | What it's for |
+|---|---|
+| `/stash` | Snapshot this session's context before compaction or handoff |
+| `/remember` | Fold stashes + friction into hot project memory |
+| `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
+| `/branch-review` | Full pre-merge review — blockers reported, nits to the fix ledger |
+| `/release` | Docs sweep, version bump, local commit, then hand back the merge sequence |
+| `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
+| `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
+| `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
+| `/test-generate` | Generate a test suite and verify each test exercises real code |
+| `/brainstorming` | Turn a rough idea into a formed design by questioning |
+| `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
+| `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
+| `/skill-creator` | Build a new skill |
 
-1. **`/stash`** - Snapshot current session context to the tool's `…/stash/`. Use before
-   compaction, handoffs, or ending complex work. The session drafts the raw content inline
-   (only it holds conversation context), then a mid-tier-model subagent expands and writes the
-   file — dispatched in the background where the tool supports it, falling back to writing
-   inline otherwise. Whichever actor wrote the file counts the unprocessed backlog
-   (`stash files − .processed entries`) and, at 5+, nudges you to run `/remember`. No counter is
-   stored; running `/remember` clears the backlog.
-2. **`/remember`** - Runs friction analysis first (best-effort — scores sessions across *all* your
-   projects from the tool's global sessions root, clusters failures into antigens), then
-   consolidates stashes + antigens into `…/remember/MEMORY.md` and injects an explicit
-   `@<tool-dir>/remember/MEMORY.md` include into the
-   **per-tool agent config — `CLAUDE.md` (Claude Code), `AGENTS.md` (Droid / OpenCode), or
-   `AGENT.md` (Ampcode)** — so every future session loads it. Each package writes to its own
-   tool's config file; the global probe list only governs which logs friction *reads*. Per-stash
-   extraction runs as concurrent subagent calls on a mid-tier model — no vendor-specific model
-   name hardcoded, so it works with whatever your tool has configured.
-3. **`AGENT_RULES.md` bootstrap** - On first `/remember` run, if `…/remember/AGENT_RULES.md`
-   doesn't exist, it's copied from a bundled standards-guide template — never overwritten again
-   after that, so local edits persist — and injected into the agent config via its own
-   independent marker pair. It's a guide to consult when building something new, separate from
-   the MEMORY.md hot-context block above.
+<sub>`/live-canvas` runs in batch mode on Droid / OpenCode / Ampcode — the MCP channel
+plugin is Claude Code specific.</sub>
 
-**Result:** Project-local memory that accumulates across sessions — no external dependencies, no databases, just markdown.
+**By category** — Development & testing (2): test-generate, root-cause ·
+Code operations (5): refactor, branch-review, security, ship, release ·
+Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
+Design (1): live-canvas.
 
 ---
 
-## Usage Patterns
+## The ones that carry the load
 
-### Claude Code / Ampcode: Orchestrator-First (Recommended)
+### `AGENT_RULES.md` — the architect behind every project
 
-The orchestrator analyzes your request and routes to optimal workflows automatically.
+One lightweight, generic, model-agnostic rules doc. It sets **what** matters and leaves
+wide room on **how**: simple over clever, every line has a purpose, surgical changes,
+exhaust the stdlib before reaching for a dependency, POC before you design.
 
-**How it works**:
-1. Make natural requests: "Add login feature", "Review this PR", "Plan next sprint"
-2. Orchestrator matches intent to workflow patterns
-3. Conditional gates ask for approval before each phase
-4. Specialists execute with domain expertise
+With smarter models a PRD is a **portal, not a deliverable** — the start of a
+conversation. You discover it module by module, reviewing, changing and deleting as
+experience arrives, instead of pinning everything down up front.
 
-**Example Flow - Feature Development**:
-```
-User: "Add authentication feature"
-  ↓
-Orchestrator: "Research competitive approaches first?" [Yes/No]
-  ↓ Yes
-Market Researcher: [Gathers auth patterns, OAuth vs JWT tradeoffs]
-  ↓
-Orchestrator: "Create formal PRD?" [Yes/No]
-  ↓ Yes
-1-Create-PRD: [Structured requirements document]
-  ↓
-Orchestrator: "Generate implementation tasks?" [Yes/No]
-  ↓ Yes
-2-Generate-Tasks: [20 granular tasks with acceptance criteria]
-  ↓
-Orchestrator: "Start systematic implementation?" [Yes/No]
-  ↓ Yes
-3-Process-Task-List: [Iterative implementation with review gates]
-```
+It is loaded every session, linked from the agent config, and `/remember` keeps it fresh —
+each run byte-compares your copy against the template that shipped with your install.
 
-**Bypass Options**:
-- Direct agent: `@quality-assurance review this code`
-- Role syntax: `As system-architect, design the API layer`
-- Skills: `/tdd-flow login-feature`
+| your copy | what happens |
+|---|---|
+| identical | nothing — no write, no output |
+| missing | copied in |
+| different | moved to `AGENT_RULES.md.bak`, template copied in, both reported |
 
-### 9 Pre-Defined Workflow Patterns
+Edits are never destroyed, but they aren't preserved in place either. `.bak` is a
+*single* file the next update overwrites — a customised body survives one release, not two.
 
-1. **Feature Discovery Flow** - Research → PRD → Tasks → Implementation
-2. **Product Definition Flow** - Strategy → Epics/Stories → Technical Assessment
-3. **Story Implementation Flow** - Validate → Implement → QA Gate
-4. **Architecture Decision Flow** - Constraints → Analysis → Alignment
-5. **UI Development Flow** - Design → PRD (optional) → Implement → Validate
-6. **Bug Triage Flow** - Investigate → Severity Assessment → Fix/Backlog
-7. **Brownfield Discovery Flow** - Context Building → Documentation → Assessment
-8. **Quality Validation Flow** - Review → Pass/Concerns/Fail → Remediation
-9. **Sprint Planning Flow** - Prioritize → Stories → Criteria → Tasks
+### `/stash` → `/remember` — the daily driver
 
-Each pattern includes conditional decision points requiring user approval.
+**`/stash`** is project-local: one session, one feature or scope or goal. Start fresh on
+delivery, or when context hits ~30% (never past 40%). The stash is the clean handoff to the
+next session.
 
-### Droid/OpenCode: Direct Command Invocation
+**`/remember`** fires on the nudge every 5 stashes. It folds those 5 in — and it also reads
+across *all* your projects, mining session logs for where you and the model actually
+collided: corrections, dead ends, abandoned flows. Those become rules, so the next session
+is less wrong than this one.
 
-No orchestrator - invoke commands directly:
-- `/branch-review <file-or-branch> [level]`
-- `/refactor <code-section>`
-- `/tdd-flow <feature>`
+Markdown files, no database, no RAG, always hot in context, and it keeps the nuances of
+each project separate. Runs on a mid-tier model.
 
-Subagent workflows require manual coordination.
+### `/docs-builder` — the other daily driver
 
----
+Markdown gets out of hand, and a token-hungry agent then can't find the knowledge that
+matters. It indexes everything under `/docs` in four buckets — `product/`, `logs/`,
+`wiki/`, `archive/` — reorganizes, indexes, and splits oversized docs so you don't have to.
+Mid-tier model.
 
-## Value Proposition
+### `/live-canvas` — the UI every agent CLI was missing
 
-### For Individual Developers
-- **Instant Expertise** - Access 10 specialist agents without hiring
-- **Consistent Quality** - Best practices built into every agent
-- **Faster Iteration** - Systematic workflows reduce trial-and-error
-- **Learning Tool** - Observe expert patterns and decision-making
+A terminal agent can't see your screen, and you can't describe "that padding, on that card,
+but only on mobile" in words without burning ten minutes.
 
-### For Teams
-- **Standardized Processes** - Shared agent definitions ensure consistency
-- **Onboarding Acceleration** - New members learn patterns through agent interactions
-- **Documentation Culture** - docs-builder promotes knowledge capture
-- **Cross-Functional Collaboration** - Product, design, and engineering agents work together
+`/live-canvas` spins up one lightweight localhost page with your UI on it. You **click the
+thing that needs changing**, type what you want, and submit. Comment on as many elements as
+you like, all in one pass, then send the batch to the agent.
 
-### For Technical Leaders
-- **Scalable Expertise** - Multiply senior-level guidance across projects
-- **Quality Gates** - Built-in review and validation checkpoints
-- **Architectural Consistency** - system-architect ensures coherent design decisions
-- **Reduced Context Switching** - Specialists handle domain-specific work
+- **JSON mode** — feedback lands in a file, you tell the agent to read it. Works in any tool.
+- **Live mode** — an MCP channel streams each comment straight into the session, so edits
+  land while you're still in the browser. Claude Code only.
+
+It also ships with real UI direction baked in, so it can generate variations of a screen for
+you to pick from — no more hours spent nudging divs to find out what you actually wanted.
+
+### `/branch-review` → `/release` → `/refactor`
+
+- **`/branch-review`** — reviews every change on a branch, medium depth by default. Surfaces
+  confirmed blockers only: real bugs, dead and unused code, state-ownership breaks, plus a
+  full OWASP-shaped security pass (no leaked keys, no injection, trust boundaries checked)
+  that runs at full depth regardless of level. Everything non-blocking goes to the fix ledger.
+- **`/release`** — does the pre-release chores you'd otherwise do by hand: README, CHANGELOG,
+  PRD, findings, version bump, local commit. Then it tells you you're ready to merge, and
+  hands the sequence back. It never pushes.
+- **`/refactor`** — with no arguments, works the fix ledger. Cumulative by design: nits pile
+  up until you choose to clear them, so review and release never drown in them.
 
 ---
 
-## Platform Architecture
+## Workflow patterns
 
-### Claude Code
-```
-~/.claude/
-├── CLAUDE.md           # Registry + orchestrator workflows
-├── agents/             # 10 subagent implementations (*.md)
-├── skills/             # 8 skills (subdirectories with SKILL.md)
-└── commands/           # 10 commands (*.md)
-```
+Predefined multi-agent sequences the orchestrator can run. Ask for one by name, or just
+describe the work and let it route.
 
-**Features**:
-- Full subagent system with orchestrator
-- Auto-triggering skills
-- Workflow pattern matching
-- Progressive agent loading
+| Workflow | Sequence | When |
+|---|---|---|
+| **Greenfield** | market-researcher → feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | New product or feature from scratch |
+| **Brownfield** | system-architect → feature-planner | Understand an existing codebase |
+| **Feature** | feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | Add a feature to an existing product |
+| **Bug Fix** | code-developer → quality-assurance | Fix and verify |
+| **Sprint** | feature-planner (*sprint-plan) → 2-generate-tasks | Plan a sprint from the backlog |
 
-### Ampcode
-```
-~/.config/amp/
-├── AGENT.md            # Reference doc (subagents + commands)
-├── agents/             # 10 subagent implementations (*.md)
-└── commands/           # 18 commands (*.md)
-```
-
-**Features**:
-- Full subagent system with orchestrator
-- All capabilities as commands (no auto-triggering)
-
-### Droid
-```
-~/.factory/
-├── AGENTS.md           # Reference doc (subagents + commands)
-├── droids/             # 10 subagent implementations (*.md)
-└── commands/           # 18 commands (*.md)
-```
-
-**Features**:
-- Reference table for subagents
-- Direct command invocation (no auto-triggering)
-
-### OpenCode
-```
-~/.config/opencode/
-├── AGENTS.md           # Reference doc (subagents + commands)
-├── agent/              # 10 subagent implementations (*.md)
-└── command/            # 18 commands (*.md)
-```
-
-**Features**:
-- Reference table for subagents
-- Direct command invocation (no auto-triggering)
+Each step is a decision point you approve before it runs. To skip the routing entirely,
+call an agent directly (`@quality-assurance review this code`) or run a command
+(`/test-generate src/auth.js`). Droid and OpenCode have no orchestrator — invoke commands directly.
 
 ---
 
-## Frontmatter Architecture
+## Where it lands
 
-All resources are self-describing via YAML frontmatter for auto-discovery:
+| Platform | Root | Config file | Subagents | Commands / skills |
+|---|---|---|---|---|
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
+| **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
+| **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 
-**Subagents** (`agents/*.md`):
-```yaml
----
-id: code-developer
-title: Full Stack Developer
-description: Implement code, debug, refactor
-when_to_use: Use for code implementation, debugging, refactoring, and development best practices
-model: inherit
-color: purple
----
-```
-
-**Skills** (`skills/*/SKILL.md`):
-```yaml
----
-id: tdd-flow
-name: tdd-flow
-description: Write test first, watch it fail, write minimal code to pass
-usage: /tdd-flow <feature-or-behavior-to-test>
-auto_trigger: true
----
-```
-
-**Commands** (`commands/*.md`):
-```yaml
----
-id: refactor
-name: refactor
-description: Refactor code while maintaining behavior and tests
-usage: /refactor <code-section>
-argument-hint: [file-or-function]
----
-```
-
-This enables:
-- Dynamic registry building by CLIs
-- Single source of truth (no manual registries)
-- Consistent metadata across platforms
-- Easy extensibility
+Each kit also carries a `variants.json` and the tool's own settings file. Droid
+and OpenCode still use commands, so the mirror converts each skill's `SKILL.md`
+into a flat `<name>.md` for them.
 
 ---
 
-## Contributing
+## Going deeper
 
-Contributions welcome for:
-- New specialist agents for additional domains
-- Additional workflow patterns
-- Platform-specific optimizations
-- Documentation improvements
+These live in the repo, not in the installed kit:
 
-See repository for contribution guidelines.
+| Doc | What's in it |
+|---|---|
+| [Installer guide](https://github.com/hamr0/liteagents/blob/main/docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and the order of operations for changing a command, skill or subagent |
+| [`/remember`](https://github.com/hamr0/liteagents/blob/main/docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
+| [`/docs-builder`](https://github.com/hamr0/liteagents/blob/main/docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
+| [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The three stages, what blocks, the fix-ledger loop |
+| [`/live-canvas`](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
+| [live-canvas-channel](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
 
 ---
 
-**License**: [Specify license]
-**Repository**: https://github.com/hamr0/agentic-toolkit
-**Issues**: https://github.com/hamr0/agentic-toolkit/issues
+**Repository**: https://github.com/hamr0/liteagents · **Issues**: https://github.com/hamr0/liteagents/issues · Apache-2.0

@@ -26,7 +26,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const FRICTION = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const FRICTION = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'friction.cjs');
 
 // mkdtempSync wrapper that tracks every dir it creates so they can be swept

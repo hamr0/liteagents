@@ -18,9 +18,9 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'sync-rules.cjs');
-const TEMPLATE = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const TEMPLATE = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'AGENT_RULES.md');
 
 const tmpDirs = [];
@@ -241,6 +241,35 @@ console.log(`\n${colors.bright}${colors.cyan}sync-rules.cjs${colors.reset}\n`);
     r.status === 0 && fs.readFileSync(P(real, 'AGENT_RULES.md'), 'utf8') === 'RULES v9\n',
     `stdout=${JSON.stringify(r.stdout)}`);
   fs.rmSync(link, { force: true });
+}
+
+// 10. an in-repo symlink is NOT an escape. The first guard refused any link at
+//     the leaf regardless of where it pointed, so a repo keeping its rules
+//     behind an in-repo symlink was stranded forever and told, wrongly, that
+//     the path "leaves the repo".
+{
+  const script = isolatedScript('RULES v10\n');
+  const repo = tmpDir('sr-inrepo-');
+  fs.mkdirSync(path.join(repo, 'shared'), { recursive: true });
+  fs.mkdirSync(P(repo), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'shared', 'rules.md'), 'MINE\n');
+  fs.symlinkSync('../../shared/rules.md', P(repo, 'AGENT_RULES.md'));
+
+  const r = run(script, repo);
+  check('in-repo symlink: not refused as an escape',
+    !/leaves the repo/.test(r.stdout), JSON.stringify(r.stdout));
+  check('in-repo symlink: the repo ends up with the current rules',
+    fs.readFileSync(P(repo, 'AGENT_RULES.md'), 'utf8') === 'RULES v10\n',
+    fs.readFileSync(P(repo, 'AGENT_RULES.md'), 'utf8').slice(0, 40));
+  // readlinkSync inside a try: pre-fix the run refuses, so no backup exists at
+  // all, and an unguarded lstat would THROW and abort the whole suite instead of
+  // failing this one check.
+  let bakTarget = null;
+  try { bakTarget = fs.readlinkSync(P(repo, 'AGENT_RULES.md.bak')); } catch (e) { /* absent */ }
+  check('in-repo symlink: the user link is preserved as the backup',
+    bakTarget === '../../shared/rules.md', `bak -> ${bakTarget}`);
+  check('in-repo symlink: the file it pointed at is untouched',
+    fs.readFileSync(path.join(repo, 'shared', 'rules.md'), 'utf8') === 'MINE\n');
 }
 
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);

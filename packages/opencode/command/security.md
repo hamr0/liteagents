@@ -1,9 +1,5 @@
 ---
-name: security
 description: Security audit — recurring six, injection, auth, trust boundaries
-usage: /security
-argument-hint: [file, directory, or leave empty for full scan]
-allowed-tools: Read, Grep, Glob, Bash(git log *), Bash(git grep *), Bash(rg *)
 ---
 Audit $ARGUMENTS for security vulnerabilities. **Reports, never edits** — it
 verifies every claim, then hands the findings to whoever asked.

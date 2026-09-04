@@ -1,5 +1,4 @@
 ---
-name: live-canvas
 description: Conduct design interviews, generate UI variations, and collect live click-to-annotate feedback that streams into the session so edits land without leaving the browser. Use when the user wants rapid iterative UI refinement, not just batched feedback.
 ---
 
@@ -26,7 +25,7 @@ Live Canvas supports two feedback transports. **The user picks every time** — 
 
 ### Host detection — do this first
 
-This SKILL.md is the Claude Code variant of the skill. Same content is mirrored as docs for Droid/Amp/Opencode under `packages/<tool>/commands/live-canvas/`, but those tools don't support the MCP channel.
+This SKILL.md is the Claude Code variant of the skill. Same content is mirrored as docs for Droid/Amp/Opencode under `packages/<tool>/` beside the other capabilities, but those tools don't support the MCP channel.
 
 **If running under Droid, Amp, or Opencode (not Claude Code):**
 - Skip the mode question entirely.
@@ -109,6 +108,8 @@ Or pick JSON now to stay in this session — feedback gets written to a file
 you paste back here. No relaunch needed.
 ```
 
+<!-- mirror:literal:start — Live mode is the Claude Code MCP plugin; these are
+     Claude's real paths in every kit, because no other tool can install it -->
 **Case C — first-time setup block:**
 
 ```
@@ -125,6 +126,7 @@ Live mode needs a one-time install. Two steps:
 That's it — once the plugin is installed, /live-canvas in any session can
 claim the channel. Re-run /live-canvas and pick Live.
 ```
+<!-- mirror:literal:end -->
 
 Do not try to run any of these commands yourself. Three reasons:
 1. The `/plugin` steps are Claude Code slash commands — not doable from inside a running session.
@@ -418,7 +420,7 @@ Create all files under `.claude-design/`:
 
 ### The overlay
 
-**One template, every framework:** `~/.claude/skills/live-canvas/templates/overlay-vanilla.js`. Single file, zero dependencies, plain DOM. Works in vanilla JS, Vue, Svelte, Rails, Django, Phoenix, plain HTML, Next.js, Vite-React, Remix — anywhere a `<script>` tag runs.
+**One template, every framework:** `~/.config/opencode/command/live-canvas/templates/overlay-vanilla.js`. Single file, zero dependencies, plain DOM. Works in vanilla JS, Vue, Svelte, Rails, Django, Phoenix, plain HTML, Next.js, Vite-React, Remix — anywhere a `<script>` tag runs.
 
 Copy it into a directory served by the dev server (e.g. `public/overlay-vanilla.js` for Next.js, `static/overlay-vanilla.js` for Vite, the public dir for Rails/Django). Reference it from the lab page.
 
@@ -545,7 +547,7 @@ The Live Canvas page must include:
 1. **Header** with:
    - Design Brief summary (target, scope, key requirements)
    - Instructions for reviewing
-   - **Lab banner (REQUIRED)** — paste `~/.claude/skills/live-canvas/templates/lab-banner.html` at the top of the lab page. Same text in any mode. For React/TSX labs, translate the inline style to a JS object: camelCase keys, string values. E.g. `style="border-radius:8px; padding:10px 14px; font-size:13px"` → `style={{ borderRadius: '8px', padding: '10px 14px', fontSize: '13px' }}`. Keep the text and `role="note"`.
+   - **Lab banner (REQUIRED)** — paste `~/.config/opencode/command/live-canvas/templates/lab-banner.html` at the top of the lab page. Same text in any mode. For React/TSX labs, translate the inline style to a JS object: camelCase keys, string values. E.g. `style="border-radius:8px; padding:10px 14px; font-size:13px"` → `style={{ borderRadius: '8px', padding: '10px 14px', fontSize: '13px' }}`. Keep the text and `role="note"`.
 
 2. **Variant Grid** with:
    - Clear labels (A, B, C, D, E)
@@ -568,7 +570,7 @@ The Live Canvas page must include:
 
    The overlay (`overlay-vanilla.js`) enables users to click on elements and leave comments. Without it, the Live Canvas is just a static page with no way to collect structured feedback.
 
-   - Copy `~/.claude/skills/live-canvas/templates/overlay-vanilla.js` into a directory served by the dev server (e.g. `public/`, `static/`, or wherever the framework serves static assets).
+   - Copy `~/.config/opencode/command/live-canvas/templates/overlay-vanilla.js` into a directory served by the dev server (e.g. `public/`, `static/`, or wherever the framework serves static assets).
    - Reference it from the lab page via `<script>` tag and call `LiveCanvas.init({...})` once with `target`, `channelUrl` (Live mode), and optional `batchEndpoint`. See "Wiring the overlay" above for the exact snippets per framework.
    - Every variant container in the lab page MUST have a `data-variant="X"` attribute (A, B, C, D, E, or F). The overlay uses this to route comments to the right variant file.
 

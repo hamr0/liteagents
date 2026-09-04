@@ -7,7 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.0.0] - 2026-09-05
+
+### Breaking
+- **Every capability is a skill on Claude Code and Amp.** Claude Code merged
+  custom commands into skills (`.claude/commands/deploy.md` and
+  `.claude/skills/deploy/SKILL.md` both create `/deploy`, and skills are the
+  recommended form), and Amp removed custom commands outright. So
+  `packages/claude/commands/` and `packages/ampcode/commands/` are gone, and
+  all 13 capabilities ship as `skills/<name>/SKILL.md` in both. The nine that
+  are deliberate actions — branch-review, docs-builder, refactor, release,
+  remember, security, ship, stash, test-generate — carry
+  `disable-model-invocation: true`, so Claude runs them only when you type
+  them; the four advisory ones stay auto-loadable. Bundled scripts move with
+  their skill. Droid and opencode are unchanged and still use flat commands;
+  the mirror converts for them. **Migration:** reinstall; the installer already
+  handles a `skills/` directory, and `variants.json` drops its `commands` key
+  for those two packages.
+- **The ampcode package ships skills, not commands.** Amp removed custom slash
+  commands in favour of skills, so all 13 capabilities now live at
+  `packages/ampcode/skills/<name>/SKILL.md` — the same shape Claude Code uses.
+  `packages/ampcode/commands/` is gone. **Migration:** reinstall the ampcode
+  package; the installer already handles a `skills/` directory.
+- **`/optimize` is removed; `/refactor` absorbs it — catalog goes 14 -> 13.**
+  It duplicated `/refactor`'s job shape (a named target, changed in place, no
+  behaviour change) and this repo's history shows it was never once used. A
+  targeted `/refactor` now runs a performance pass by default: complexity, N+1
+  queries, I/O in a loop, repeated recomputation. The grounding rule survives
+  the move — findings are always reported, but only *fixed* with real evidence
+  (a profile, a log line, or an obviously hot path); everything else is
+  reported as "uncertain, needs profiling data" and the code is left alone.
+  `/optimize`'s HITL gates move across too: multiple fix shapes, correctness
+  traded for speed, concurrency primitives, schema or response-shape changes.
+  **Migration:** use `/refactor <target>`; no flag needed.
+- **`trace-back` is merged into `debug-method`, renamed `/root-cause` —
+  15 -> 14.** The backward walk is now Phase 1 step 5 of one skill rather than
+  a second skill you had to know to reach for. 468 lines across two files
+  became 220 in one. `find-polluter.sh` still ships.
+- **`tdd-flow`, `test-traps` and `verify-done` are removed — 18 -> 15.** The
+  repo's own history showed the rules they carried were already being followed
+  without them; they cost context on every session to restate it.
+
+### Added
+- **`scripts/mirror.cjs` — the kit packages are generated, not hand-copied.**
+  `packages/claude` owns every body; each target file keeps its own
+  frontmatter byte-for-byte (that is where the per-kit shape lives — `tools`
+  arrays vs permission maps, `Bash(x:*)` vs `Bash(x *)`); the script owns the
+  path substitutions between them. `check` runs first in `npm test`, so a
+  partial sync can no longer ship. Modes: `check`, `diff`, `sync`, `shapes`.
+- **`scripts/frontmatter.json` — the recorded per-kit frontmatter shape.**
+  Frontmatter is meant to differ per kit, so it cannot be verified by diffing.
+  It is checked against this file instead: required keys, allowed keys, and
+  the kit's `Bash()` style. Generated from the real files by `mirror.cjs
+  shapes`, never hand-written.
+- **`docs/product/INSTALLER_GUIDE.md` gained the order of operations** for
+  changing a command, skill or subagent, from validating the bug through the
+  mirror, the three checks, the docs sweep and the release calls. Root
+  `CLAUDE.md` points at it.
+
+### Fixed
+- **Test-count floors realigned.** The Multi-Tool Installation floor was
+  lowered 36 -> 33 to match the capability cut (Claude has no `commands/`
+  directory now, so the suite counts three categories per scenario, not four),
+  and four floors that had drifted below their suites' actual counts were
+  raised to match: docs-builder 497 -> 538, friction 254 -> 323, sync-rules
+  15 -> 25, stub-check 19 -> 24. Each floor was verified to still fail when
+  set one above actual.
+- **Command frontmatter was largely invented.** Checked against each tool's own
+  docs: `usage:` is not a field in any of the four. Droid commands support only
+  `description` and `argument-hint` (tool scoping is explicitly unavailable for
+  commands); opencode commands support only `description`, `agent`, `model` and
+  `subtask`, and take their name from the filename; Claude Code command files
+  ignore `name`. Every unsupported key is removed, so the `allowed-tools` those
+  files carried — which did nothing on droid or opencode — is gone. Droid
+  subagents lose `when_to_use`, which is not a Factory field; its text is
+  folded into `description`, which is what Factory reads for routing.
+  `scripts/frontmatter.json` now records the real per-kit schemas and
+  `mirror.cjs check` enforces them.
+- **Three kits were sending users to the wrong memory directory.**
+  `/branch-review`, `/refactor` and `/release` told droid, ampcode and
+  opencode users to look in `.claude/remember/` instead of their own
+  `.factory/`, `.amp/` or `.opencode/`. Found by the new mirror check.
+- **`1-create-prd.md` had silently lost five checklist lines in droid only**,
+  from an earlier partial hand-mirror. 22 drifted or missing files were
+  restored in total, including `skill-creator/LICENSE.txt`, which its own
+  frontmatter cites and which was absent from all three kits.
+- **`docs-builder.md` carried claude's `Bash(node:*)` syntax in all three
+  other kits**, where the correct form is `Bash(node *)`.
+- **Only a symlink that actually leaves the repo counts as an escape.** The
+  previous check flagged in-repo links too; mirrored to all four kits.
+
+### Changed
+- Six commands and skills that had no `allowed-tools` at all — `remember`,
+  `stash`, `brainstorming`, `live-canvas`, `root-cause`, `skill-creator` — now
+  declare a `Read, Grep, Glob` floor, so those calls stop prompting. Subagents
+  are deliberately untouched: claude and ampcode omit `tools` and so inherit
+  everything, droid already lists all three, and opencode's `tools` is a
+  write/edit/bash permission map where they are not expressible.
+- README and `packages/subagentic-manual.md` rewritten to lead with the
+  catalog rather than a pitch.
+- Command READMEs live in `docs/product/` and no longer ship inside the
+  packages; the live-canvas-channel README moved out too.
+- `AGENT_RULES.md` testing standards are stated as principles rather than as
+  pytest specifics.
 
 ## [3.0.0] - 2026-09-04
 

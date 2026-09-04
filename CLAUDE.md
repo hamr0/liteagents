@@ -1,9 +1,15 @@
 # liteagents
 
-AI development toolkit with 10 specialized agents and 18 commands per tool. Supports Claude, Opencode, Ampcode, and Droid.
+AI development toolkit with 10 specialized agents and 13 commands and skills per tool. Supports Claude, Opencode, Ampcode, and Droid.
 
 ## Documentation
 See `README.md` for usage and `docs/product/INSTALLER_GUIDE.md` for installation details.
+
+**Editing a command, skill or subagent?** Read
+`docs/product/INSTALLER_GUIDE.md` (its *Changing a command, skill or
+subagent* section) first. Short version: edit
+`packages/claude` only, then `node scripts/mirror.cjs sync && node
+scripts/mirror.cjs check`. Never hand-edit a droid/ampcode/opencode file.
 
 ## Dev Rules (mandatory — full source: `.claude/remember/AGENT_RULES.md`)
 

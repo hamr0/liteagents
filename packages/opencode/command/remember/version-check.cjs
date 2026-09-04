@@ -79,7 +79,7 @@ function versionFromPackageJson() {
 }
 
 // The installer stamps the release it wrote into <install root>/manifest.json.
-// version-check.cjs sits at <root>/<commands|command>/remember/, so the root is
+// version-check.cjs sits at <root>/<skills|commands|command>/remember/, so the root
 // two levels up. This is the fast path: reading a file beats spawning npm.
 function versionFromManifest() {
   try {

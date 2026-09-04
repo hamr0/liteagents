@@ -14,8 +14,9 @@
  * If you add or remove a command/skill/agent/plugin, the matching assertion
  * fails (e.g. "commands: expected 8, got 7"). Bump the number in EXPECTED
  * to lock in the new, intended contents. Claude has native skills (own dir),
- * so it ships 10 commands + 8 skills; opencode/ampcode/droid fold those 8 skills
- * into commands as .md files, hence 18 (10 + 8).
+ * Claude Code merged custom commands into skills, and Amp removed commands
+ * outright, so both ship all 13 capabilities as skills/<name>/SKILL.md.
+ * Droid and opencode still use commands, so their 13 are flat .md files.
  *
  * Tests:
  * - Claude + Opencode simultaneous installation
@@ -33,9 +34,9 @@ const VARIANT = 'pro';
 
 // Per-tool directory names for each content category (tools differ in layout).
 const LAYOUT = {
-  claude:   { agents: 'agents', commands: 'commands', skills: 'skills', plugins: 'plugins' },
+  claude:   { agents: 'agents', skills: 'skills', plugins: 'plugins' },
   opencode: { agents: 'agent',  commands: 'command' },
-  ampcode:  { agents: 'agents', commands: 'commands' },
+  ampcode:  { agents: 'agents', skills: 'skills' },
   droid:    { agents: 'droids', commands: 'commands' }
 };
 
@@ -45,10 +46,10 @@ const COUNT_BY = { agents: 'md', commands: 'md', skills: 'dir', plugins: 'dir' }
 
 // Expected delivered counts per tool. Update deliberately when content changes.
 const EXPECTED = {
-  claude:   { agents: 10, commands: 10, skills: 8, plugins: 1 },
-  opencode: { agents: 10, commands: 18 },
-  ampcode:  { agents: 10, commands: 18 },
-  droid:    { agents: 10, commands: 18 }
+  claude:   { agents: 10, skills: 13, plugins: 1 },
+  opencode: { agents: 10, commands: 13 },
+  ampcode:  { agents: 10, skills: 13 },
+  droid:    { agents: 10, commands: 13 }
 };
 
 // Test results tracker

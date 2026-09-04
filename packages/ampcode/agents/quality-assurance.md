@@ -59,13 +59,15 @@ digraph QualityAssurance {
 
 Before any analysis, read (if exists):
 - `AGENT.md` - Project instructions, patterns, conventions
+<!-- mirror:literal:start — names every tool's config file on purpose -->
 - `AGENT.md` / `AGENTS.md` - Agent configurations
+<!-- mirror:literal:end -->
 - `README.md` - Project overview
 - Test config files (`jest.config`, `pytest.ini`, etc.)
 
 ## Slash Commands Available
 
-Use these during analysis: `/branch-review`, `/security`, `/verify-done`
+Use these during analysis: `/branch-review`, `/security`
 
 ## Analysis Areas
 

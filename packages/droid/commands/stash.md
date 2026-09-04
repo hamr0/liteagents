@@ -1,7 +1,5 @@
 ---
-name: stash
 description: Stash session context [name]
-usage: /stash ["optional-name"]
 argument-hint: [optional stash name]
 ---
 

@@ -1,11 +1,8 @@
 ---
-name: refactor
-description: Refactor [code]
-usage: /refactor <code-section> | /refactor (no args = fix-ledger mode)
-argument-hint: [file-or-function, or empty for the fix ledger]
-allowed-tools: Read, Edit, Grep, Glob, Bash(npm test *), Bash(npx jest *), Bash(npx vitest *), Bash(pnpm test *), Bash(yarn test *), Bash(pytest *), Bash(python *), Bash(go test *), Bash(cargo test *), Bash(make test *), Bash(git diff *), Bash(git grep *), Bash(git status *), Bash(git rev-parse *), Bash(git switch *)
+description: Refactor and optimize [code]
 ---
-Refactor $ARGUMENTS.
+Refactor $ARGUMENTS. A targeted refactor includes the performance pass
+below — it is on by default, not a separate command.
 
 ## Guardrails
 - **Spawn a worker and explicitly select your tool's mid tier.** State the
@@ -44,15 +41,15 @@ Refactor $ARGUMENTS.
   other does.** `git status --porcelain` at exit must list only files a
   surviving bullet named — that is this command's scope guarantee, and unlike
   `/branch-review` it is not expected to be empty. It cannot police the
-  memory directory: `.claude/` is normally gitignored, so porcelain stays
+  memory directory: `.opencode/` is normally gitignored, so porcelain stays
   empty whether you deleted a fixed bullet, wrote nothing, or overwrote
-  `MEMORY.md`. So also take `md5sum .claude/remember/*` before you start and
+  `MEMORY.md`. So also take `md5sum .opencode/remember/*` before you start and
   again before you report, and show the comparison: only `fix-ledger.md` may
   differ. `last-review.md` in particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
 ## Ledger mode — `$ARGUMENTS` empty
-Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
+Work through `.opencode/remember/fix-ledger.md`, the non-blocking findings
 `/branch-review` has accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
@@ -87,6 +84,35 @@ refactor and how to close each item.
 - Apply DRY
 - Better naming
 - Smaller functions (single responsibility)
+- Remove needless work — the performance pass below
+
+## Performance — part of every targeted refactor
+When `$ARGUMENTS` names a target, look for wasted work as well as messy
+work: time and space complexity, N+1 queries, I/O inside a loop, needless
+allocations, the same value recomputed repeatedly.
+
+**Ground every finding before you touch it.** Performance claims are easy
+to invent. A finding counts as **confirmed** only with at least one of:
+- a profile, benchmark or log line showing call frequency or duration,
+- the path sits on an obvious hot loop or per-request handler with real
+  volume,
+- the user supplied evidence in the request.
+
+Without one of those it is **uncertain — report it, do not optimise it.**
+Speculative optimisation is scope creep with a stopwatch.
+
+Fix confirmed findings under the same constraints as any other refactor:
+minimal change, one obvious shape, no behaviour change, no API change.
+After each such edit, re-read the changed region and confirm it still
+computes the same answer — a perf change that quietly alters semantics is
+the worst kind. Report per finding: **location** (`file:line`), **cost**
+(concrete — "N+1 over ~1k rows on every page load", not "could be
+faster"), **change**, **expected improvement**, **trade-off**
+(readability / memory / consistency).
+
+In ledger mode the surviving bullets are the whole scope — do not add
+perf findings of your own. One you notice goes back to the orchestrator
+as a new bullet, like any other side finding.
 
 ## Constraints
 - **NO behavior changes**
@@ -120,8 +146,20 @@ honest way to know is to run them.
 - the change is **bigger than the user asked for** (scope creep —
   unrelated cleanups, formatting, comment edits). Confirm before
   applying.
+- a perf fix has **multiple reasonable shapes** (cache vs precompute vs
+  batch vs paginate vs index) — present the options with trade-offs, not
+  a chosen path.
+- a perf fix trades **correctness for speed** (lossy approximation,
+  weaker or eventual consistency) — even when it is "obviously" faster.
+- a perf fix touches **concurrency primitives** (locks, atomics,
+  ordering) — easy to introduce a race.
+- a perf fix changes a **DB schema, response shape or caller contract**.
 
 Final report:
 - **refactor done, tests N pass / 0 fail** — ready, OR
 - **refactor done, but K tests fail** — awaiting direction (revert /
   patch / update test).
+
+Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
+(why + options) · **uncertain** (what profiling or data would settle it) ·
+**none found**.

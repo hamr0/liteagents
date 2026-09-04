@@ -1,8 +1,5 @@
 ---
-name: ship
 description: Mechanical pre-deploy gate — tests, build, tree state
-usage: /ship
-allowed-tools: Read, Grep, Glob, Bash(git *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(pytest *), Bash(python *), Bash(go *), Bash(cargo *), Bash(make *)
 ---
 Mechanical pre-deploy / pre-merge gate. Every item here is answerable by
 **running a command** and reading its exit code — no code judgment. Code

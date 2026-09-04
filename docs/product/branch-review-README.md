@@ -246,7 +246,6 @@ half of the record with no way to tell which write did it.
 
 ---
 
-
 ## 5b. The review record
 
 `.claude/remember/last-review.md`, written at the end of every run and overwritten whole:
@@ -455,13 +454,3 @@ sequence, including the ones typed by hand.
 4. The fix commit is reported (2 fixed, 2 dropped, 0 left), then `/branch-review` reviews
    the `chore/fix-ledger` branch like any ordinary change before it merges.
 
----
-
-## Sources
-
-`packages/claude/commands/branch-review.md` (the command spec — target resolution, the
-three stages, severity rules, ledger format, report shape), `packages/claude/commands/
-refactor.md` (ledger mode), `packages/claude/commands/release.md` (Phase 0.5, the
-SHA gate), `packages/claude/commands/security.md` (stage 2 delegation),
-`packages/claude/commands/stash.md` (the nudge pattern `/branch-review`'s own nudge
-mirrors).

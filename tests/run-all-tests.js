@@ -34,7 +34,10 @@ const testSuites = [
     name: 'Multi-Tool Installation',
     file: 'installer/multi-tool-testing.test.js',
     description: 'Tests simultaneous installation of multiple tools',
-    expectedTests: 36
+    // 33 since Claude Code's capabilities became skills: the suite counts one
+    // assertion per content category per scenario, and claude no longer has a
+    // commands/ directory to count (3 scenarios x 1 category = the -3).
+    expectedTests: 33
   },
   {
     name: 'Error Scenario Testing',
@@ -52,13 +55,13 @@ const testSuites = [
     name: 'docs-builder',
     file: 'docs-builder/docs-builder.test.js',
     description: 'Tests docs-builder.cjs behaviour end-to-end in throwaway git repos',
-    expectedTests: 497
+    expectedTests: 538
   },
   {
     name: 'friction',
     file: 'friction/friction.test.js',
     description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
-    expectedTests: 254
+    expectedTests: 323
   },
   {
     name: 'version-check',
@@ -70,13 +73,13 @@ const testSuites = [
     name: 'sync-rules',
     file: 'sync-rules/sync-rules.test.js',
     description: 'Tests sync-rules.cjs bootstrap/unchanged/updated paths and that a differing AGENT_RULES body is always preserved in the backup',
-    expectedTests: 15
+    expectedTests: 25
   },
   {
     name: 'stub-check',
     file: 'stub-check/stub-check.test.js',
     description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
-    expectedTests: 19
+    expectedTests: 24
   },
   {
     name: 'installer closing note',

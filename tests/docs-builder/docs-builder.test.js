@@ -23,7 +23,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const DB = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const DB = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'docs-builder', 'docs-builder.cjs');
 
 const colors = { reset: '\x1b[0m', green: '\x1b[32m', red: '\x1b[31m',
@@ -2700,9 +2700,9 @@ function packageParity() {
 
   const root = path.join(__dirname, '..', '..');
   const copies = [
-    'packages/claude/commands/docs-builder/docs-builder.cjs',
+    'packages/claude/skills/docs-builder/docs-builder.cjs',
     'packages/droid/commands/docs-builder/docs-builder.cjs',
-    'packages/ampcode/commands/docs-builder/docs-builder.cjs',
+    'packages/ampcode/skills/docs-builder/docs-builder.cjs',
     'packages/opencode/command/docs-builder/docs-builder.cjs',
   ];
   const hashes = new Set();

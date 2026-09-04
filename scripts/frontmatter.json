@@ -1,0 +1,94 @@
+{
+  "subagent": {
+    "claude": {
+      "required": [
+        "color",
+        "description",
+        "model",
+        "name",
+        "when_to_use"
+      ],
+      "optional": [],
+      "bashStyle": null
+    },
+    "droid": {
+      "required": [
+        "description",
+        "model",
+        "name",
+        "tools"
+      ],
+      "optional": [],
+      "bashStyle": null
+    },
+    "ampcode": {
+      "required": [
+        "color",
+        "description",
+        "model",
+        "name",
+        "when_to_use"
+      ],
+      "optional": [],
+      "bashStyle": null
+    },
+    "opencode": {
+      "required": [
+        "description",
+        "mode",
+        "name",
+        "temperature",
+        "tools",
+        "when_to_use"
+      ],
+      "optional": [],
+      "bashStyle": null
+    }
+  },
+  "command": {
+    "droid": {
+      "required": [
+        "description"
+      ],
+      "optional": [
+        "argument-hint"
+      ],
+      "bashStyle": null
+    },
+    "opencode": {
+      "required": [
+        "description"
+      ],
+      "optional": [],
+      "bashStyle": null
+    }
+  },
+  "skill": {
+    "claude": {
+      "required": [
+        "allowed-tools",
+        "description",
+        "name"
+      ],
+      "optional": [
+        "argument-hint",
+        "disable-model-invocation",
+        "license"
+      ],
+      "bashStyle": "colon"
+    },
+    "ampcode": {
+      "required": [
+        "allowed-tools",
+        "description",
+        "name"
+      ],
+      "optional": [
+        "argument-hint",
+        "disable-model-invocation",
+        "license"
+      ],
+      "bashStyle": "colon"
+    }
+  }
+}

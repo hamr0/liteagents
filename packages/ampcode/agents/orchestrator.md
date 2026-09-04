@@ -66,7 +66,7 @@ On-demand, read from these locations:
 | Resource | Global Paths | Local Path |
 |----------|--------------|------------|
 | Agents | `~/.config/amp/agents/*.md`, | `./.amp/agents/*.md` |
-| Commands | `~/.config/amp/commands/*.md` |`./.amp/commands/*.md` |
+| Skills | `~/.config/amp/skills/*/SKILL.md` | `./.amp/skills/*/SKILL.md` |
 
 Parse frontmatter for `name`, `description`, `when_to_use`. Present as numbered list.
 

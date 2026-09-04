@@ -27,7 +27,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'version-check.cjs');
 
 const tmpDirs = [];

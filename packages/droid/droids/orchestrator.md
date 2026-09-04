@@ -1,7 +1,6 @@
 ---
 name: orchestrator
-description: Route to agents, execute workflows, discover resources
-when_to_use: Use for workflow coordination, multi-agent tasks, role switching, and when unsure which specialist to consult
+description: Route to agents, execute workflows, discover resources. Use for workflow coordination, multi-agent tasks, role switching, and when unsure which specialist to consult
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

@@ -1,7 +1,6 @@
 ---
 name: ui-designer
-description: Design lightweight, functional UI with simplified flows
-when_to_use: Use for UI/UX design, user journeys, low-fidelity mockups, flow simplification, and framework selection
+description: Design lightweight, functional UI with simplified flows. Use for UI/UX design, user journeys, low-fidelity mockups, flow simplification, and framework selection
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

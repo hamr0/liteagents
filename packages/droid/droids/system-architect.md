@@ -1,7 +1,6 @@
 ---
 name: system-architect
-description: Design MVP-first architectures with opensource preference
-when_to_use: Use for system design, HLA/HLD creation, technology selection, and architecture validation from epics, user stories, or PRDs
+description: Design MVP-first architectures with opensource preference. Use for system design, HLA/HLD creation, technology selection, and architecture validation from epics, user stories, or PRDs
 model: inherit
 tools: ["Read", "LS", "Grep", "Glob", "Create", "Edit", "MultiEdit", "ApplyPatch", "Execute", "WebSearch", "FetchUrl", "mcp"]
 ---

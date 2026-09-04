@@ -17,7 +17,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'commands',
+const SCRIPT = path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
   'remember', 'stub-check.cjs');
 
 const tmpDirs = [];
@@ -281,6 +281,24 @@ console.log(`\n${colors.bright}${colors.cyan}stub-check.cjs${colors.reset}\n`);
   check('repo reached via a symlinked path is still repaired',
     read(real) === CURRENT, `stdout=${JSON.stringify(r.stdout)}`);
   fs.rmSync(link, { force: true });
+}
+
+// 15. an in-repo symlinked config is repaired, not refused. Same defect as
+//     sync-rules test 10: only a link that actually leaves the repo is an escape.
+{
+  const repo = tmpDir('sc-inrepo-');
+  fs.mkdirSync(path.join(repo, 'cfg'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.claude', 'remember'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude', 'remember', 'MEMORY.md'), '# mem\n');
+  fs.writeFileSync(path.join(repo, 'cfg', 'real.md'), PRE_V219);
+  fs.symlinkSync('cfg/real.md', CFG(repo));
+
+  const r = run(repo);
+  check('in-repo symlinked config: not refused as an escape',
+    !/leaves the repo/.test(r.stdout), JSON.stringify(r.stdout));
+  check('in-repo symlinked config: repaired through the link',
+    fs.readFileSync(path.join(repo, 'cfg', 'real.md'), 'utf8') === CURRENT,
+    fs.readFileSync(path.join(repo, 'cfg', 'real.md'), 'utf8').slice(0, 60));
 }
 
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);

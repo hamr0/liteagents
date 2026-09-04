@@ -1,7 +1,5 @@
 ---
-name: remember
 description: Consolidate stashes + friction into project memory
-usage: /remember
 ---
 
 Run friction analysis, then consolidate session stashes + friction antigens into a single project-local MEMORY.md, and inject into AGENTS.md. Friction runs automatically (best-effort) — there is no separate `/friction` command. A docs reconcile check runs at the end, detect-only.
@@ -62,6 +60,7 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      exists and contains `.jsonl` files directly, or one level down in per-project
      subdirectories (friction.cjs scans exactly those two levels, not a deep recursive walk).
      **Never prompt the user.**
+     <!-- mirror:literal:start — every tool's real path, identical in all four kits -->
      ```
      # ── Add your own global sessions root at the TOP so it is checked first ──
      ~/.claude/projects/                 # Claude Code
@@ -71,6 +70,7 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      ~/.codex/sessions/                  # Codex CLI  (use $CODEX_HOME/sessions/ if set)
      ~/.gemini/antigravity-cli/brain/    # Antigravity
      ```
+     <!-- mirror:literal:end -->
      > Note: `friction.cjs` parses Claude Code's session schema. The Codex/Antigravity roots
      > will resolve but yield no signals until friction learns their formats — open an issue
      > to request one: https://github.com/hamr0/liteagents/issues
@@ -512,8 +512,10 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    `index-flat` script `/docs-builder` already uses, never a model call. Wrapped so any
    failure here can never block the memory write that already happened in steps 3-6.
 
-   - **Locate `docs-builder.cjs`** — bundled next to this command at
-     `docs-builder/docs-builder.cjs` (same convention as `remember/friction.cjs`). Call it by
+   - **Locate `docs-builder.cjs`** — it ships in the `docs-builder/` directory
+     that sits beside this one (under `skills/` on Claude Code and Amp, under
+     `commands/` on Droid and opencode), exactly as `friction.cjs` ships beside
+     this file. Call it by
      its **absolute path** in the command below — the cwd here is the target repo, not this
      package, so a cwd-relative path fails everywhere except the liteagents repo itself.
    - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without

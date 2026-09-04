@@ -1,9 +1,6 @@
 ---
-name: docs-builder
 description: Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them
-usage: /docs-builder [reorg | cleanup <file.md> | search <query words...>]
 argument-hint: [reorg | cleanup <file.md> | search <query words...> — empty asks first run vs. drift]
-allowed-tools: Read, Write, Edit, Grep, Glob, Task, AskUserQuestion, Bash(node:*), Bash(git:*), Bash(rg:*)
 ---
 
 # docs-builder

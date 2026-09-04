@@ -1,8 +1,5 @@
 ---
-name: release
 description: Verify, sweep docs, cut a version — then hand the release sequence back
-usage: /release
-allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git fetch *), Bash(git add *), Bash(git commit *), Bash(git rev-parse *), Bash(git merge-base *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(pytest *), Bash(python *), Bash(go *), Bash(cargo *), Bash(make *)
 ---
 Release **preparation** orchestrator for the **current branch**. It runs your
 existing pre-deploy gate, sweeps the docs, bumps the version and commits —
@@ -57,7 +54,7 @@ A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
 HEAD` and compare it against the `sha:` line in
-`.claude/remember/last-review.md`, which `/branch-review` writes. Asking the
+`.opencode/remember/last-review.md`, which `/branch-review` writes. Asking the
 orchestrator "did a review run?" puts the question to the one party with an
 incentive to say yes, so its word is not evidence — and neither is a SHA
 quoted from a chat message, which is the same claim in another costume and is
@@ -72,7 +69,7 @@ that predates this file's introduction has no record, so it does not count.
   is what makes "all findings fixed" checkable instead of promised.
   **No exceptions — including the fix ledger.** It is normally gitignored, so
   appending to it moves nothing and this never comes up. A repo that tracks
-  `.claude/` instead will see a ledger commit land after the review and make
+  `.opencode/` instead will see a ledger commit land after the review and make
   it stale. That is the rule working, not a case to carve out: re-review, or
   leave the ledger uncommitted until after the release.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run

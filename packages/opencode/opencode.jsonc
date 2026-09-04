@@ -103,29 +103,13 @@
     }
   },
   "command": {
-    "debug-method": {
-      "template": "{file:./command/debug-method.md}",
-      "description": "Systematic four-phase debugging framework - investigate root cause before any fixes"
-    },
-    "verify-done": {
-      "template": "{file:./command/verify-done.md}",
-      "description": "Verify work meets requirements before marking complete - prevents incomplete deliverables"
-    },
     "skill-creator": {
       "template": "{file:./command/skill-creator.md}",
       "description": "Create reusable skills with proper structure, validation, and documentation"
     },
-    "tdd-flow": {
-      "template": "{file:./command/tdd-flow.md}",
-      "description": "Write test first, watch it fail, write minimal code to pass - ensures tests actually verify behavior"
-    },
-    "test-traps": {
-      "template": "{file:./command/test-traps.md}",
-      "description": "Identify and avoid common testing anti-patterns that create fragile, useless tests"
-    },
-    "trace-back": {
-      "template": "{file:./command/trace-back.md}",
-      "description": "Trace issues to their root cause using systematic investigation techniques"
+    "root-cause": {
+      "template": "{file:./command/root-cause.md}",
+      "description": "Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source"
     },
     "brainstorming": {
       "template": "{file:./command/brainstorming.md}",
@@ -139,13 +123,9 @@
       "template": "{file:./command/live-canvas.md}",
       "description": "Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode)"
     },
-    "optimize": {
-      "template": "{file:./command/optimize.md}",
-      "description": "Analyze and optimize performance issues"
-    },
     "refactor": {
       "template": "{file:./command/refactor.md}",
-      "description": "Refactor code while maintaining behavior and tests"
+      "description": "Refactor and optimize code while maintaining behavior and tests"
     },
     "branch-review": {
       "template": "{file:./command/branch-review.md}",
