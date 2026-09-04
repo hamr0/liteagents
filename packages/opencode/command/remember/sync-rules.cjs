@@ -36,6 +36,47 @@ const PROJECT_DIR = '.opencode';
 const RULES = 'AGENT_RULES.md';
 const BACKUP = 'AGENT_RULES.md.bak';   // keeps the origin name; not .md, so doc tooling ignores it
 
+/** lstat, not existsSync: existsSync follows links, so a DANGLING link reads
+ *  as absent and gets walked straight past. */
+function lexists(p) {
+  try { fs.lstatSync(p); return true; } catch (e) { return false; }
+}
+
+/**
+ * True when writing to `target` would land outside `repo`.
+ *
+ * There are two ways out and a guard on only one of them is false safety:
+ * `target` may itself be a symlink — including a dangling one, which reads as
+ * "the file is absent" and is still followed on write — or any parent
+ * directory may be a link pointing elsewhere. This runs across a whole fleet
+ * of repos, so a relative link only has to reach a sibling checkout.
+ */
+function escapesRepo(repo, target) {
+  let root;
+  try { root = fs.realpathSync(repo); } catch (e) { return true; }
+
+  // Walk up to the deepest ancestor that exists; anything below it cannot be
+  // a link yet, so only the existing part needs resolving.
+  const tail = [];
+  let dir = path.dirname(target);
+  while (!lexists(dir)) {
+    tail.unshift(path.basename(dir));
+    const up = path.dirname(dir);
+    if (up === dir) return true;                  // walked off the filesystem root
+    dir = up;
+  }
+
+  let resolved;
+  try { resolved = path.join(fs.realpathSync(dir), ...tail, path.basename(target)); }
+  catch (e) { return true; }                      // an ancestor is a dangling link
+
+  // The last component can be a link even when every directory above it is
+  // clean — that is the dangling-file case.
+  try { if (fs.lstatSync(resolved).isSymbolicLink()) return true; } catch (e) { /* absent: fine */ }
+
+  return resolved !== root && !resolved.startsWith(root + path.sep);
+}
+
 function templatePath() {
   // Ships beside this script, so no path guessing and no dependence on where
   // the kit was installed.
@@ -60,6 +101,7 @@ function sync(repo) {
   }
 
   const target = targetPath(repo);
+  if (escapesRepo(repo, target)) return { action: 'escapes', detail: target };
 
   let current = null;
   try { current = fs.readFileSync(target); } catch (e) { /* absent */ }
@@ -99,6 +141,13 @@ function main() {
         `${rel} updated from the installed template `
         + `(previous body kept as ${BACKUP} — fold your changes in before the `
         + `next release, it is a single file and the next update replaces it)\n`);
+      break;
+    case 'escapes':
+      // Loud, never repaired: the path is under the repo but does not stay
+      // there, so any write lands somewhere the run was not invited.
+      process.stdout.write(
+        `${rel} not synced: it leaves the repo via a symlink — refusing to `
+        + `write through it\n`);
       break;
     case 'no-template':
       // Loud: this means the install is incomplete, not that nothing changed.

@@ -46,6 +46,47 @@ const RULES = { start: '<!-- AGENT_RULES:START -->', end: '<!-- AGENT_RULES:END 
 const MEMORY_REL = `${PROJECT_DIR}/remember/MEMORY.md`;
 const RULES_REL = `${PROJECT_DIR}/remember/AGENT_RULES.md`;
 
+/** lstat, not existsSync: existsSync follows links, so a DANGLING link reads
+ *  as absent and gets walked straight past. */
+function lexists(p) {
+  try { fs.lstatSync(p); return true; } catch (e) { return false; }
+}
+
+/**
+ * True when writing to `target` would land outside `repo`.
+ *
+ * There are two ways out and a guard on only one of them is false safety:
+ * `target` may itself be a symlink — including a dangling one, which reads as
+ * "the file is absent" and is still followed on write — or any parent
+ * directory may be a link pointing elsewhere. This runs across a whole fleet
+ * of repos, so a relative link only has to reach a sibling checkout.
+ */
+function escapesRepo(repo, target) {
+  let root;
+  try { root = fs.realpathSync(repo); } catch (e) { return true; }
+
+  // Walk up to the deepest ancestor that exists; anything below it cannot be
+  // a link yet, so only the existing part needs resolving.
+  const tail = [];
+  let dir = path.dirname(target);
+  while (!lexists(dir)) {
+    tail.unshift(path.basename(dir));
+    const up = path.dirname(dir);
+    if (up === dir) return true;                  // walked off the filesystem root
+    dir = up;
+  }
+
+  let resolved;
+  try { resolved = path.join(fs.realpathSync(dir), ...tail, path.basename(target)); }
+  catch (e) { return true; }                      // an ancestor is a dangling link
+
+  // The last component can be a link even when every directory above it is
+  // clean — that is the dangling-file case.
+  try { if (fs.lstatSync(resolved).isSymbolicLink()) return true; } catch (e) { /* absent: fine */ }
+
+  return resolved !== root && !resolved.startsWith(root + path.sep);
+}
+
 /** Index range of the lines strictly between a marker pair, or null. */
 function blockRange(lines, markers) {
   const s = lines.findIndex((l) => l.trim() === markers.start);
@@ -64,6 +105,12 @@ function check(repo) {
   const config = path.join(repo, CONFIG_FILE);
   const fixes = [];
   const notes = [];
+
+  // Checked before the read, not just before the write: a repair decided
+  // from a followed link is already the wrong decision.
+  if (escapesRepo(repo, config)) {
+    return { fixes, notes: [`${CONFIG_FILE} not checked: it leaves the repo via a symlink`], changed: false };
+  }
 
   let text;
   try { text = fs.readFileSync(config, 'utf8'); } catch (e) {
