@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-04
+
+### Breaking
+- **The `context-builder` subagent is removed — catalog goes 11 -> 10 agents.**
+  `docs-builder` supersedes its Tier 2/3 work (creating/splitting `docs/*.md`,
+  validated on real corpora; `docs/index.md` via `index-flat` is the sole index,
+  same reason `docs/wiki-index.md` was already deleted). Tier 1 (author
+  `CLAUDE.md`) was the only unique part, and its one load-bearing invariant —
+  `CLAUDE.md` must `@`-include `.claude/remember/MEMORY.md` and nothing else —
+  is now a mechanical gate in `stub-check.cjs`, run every `/remember`; a prose
+  rule inside a subagent was always the weaker enforcement. **Migration:** for
+  the doc-authoring work `context-builder` did, use `/docs-builder`; for a
+  cold-start `CLAUDE.md` on a brand-new project, use Claude Code's own `/init`.
+  Orchestrator routing's Brownfield workflow now starts at `system-architect`.
+
+### Security
+- **`sync-rules.cjs` and `stub-check.cjs` no longer write through a symlink out
+  of the repo they were invoked on.** `/remember` runs across a fleet of sibling
+  checkouts, so a relative link only has to reach a neighbor. Three routes were
+  reproduced and closed: a dangling link at the write target (followed by
+  `writeFileSync` as if the file were merely absent), a symlinked parent
+  directory (invisible to a leaf-only `lstat` guard), and a symlinked
+  `CLAUDE.md` that `stub-check.cjs` rewrote in place with no rename-away step.
+  `escapesRepo()` resolves the deepest existing ancestor with `realpath` and
+  confirms the write still lands inside the repo, `lstat`-ing the leaf for the
+  dangling case; refusal is loud (an `escapes` action / a skip message), never
+  silent. Mirrored to all four kits.
+
 ### Added
 - **`AGENT_RULES.md` is now kept current in every repo, instead of written once and
   forgotten.** `remember/sync-rules.cjs` byte-compares the repo copy against the
