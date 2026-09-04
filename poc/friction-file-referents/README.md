@@ -2,7 +2,9 @@
 
 **Date:** 2026-09-03 · **Outcome:** SHELVED, do not build · **Branch:** `feat/friction-ledger-referents`
 
-Everything needed to re-run or audit this is in the directory. Nothing here was shipped.
+`score.py` reproduces the LLM-experiment table (Findings 4-6). The mechanical-study
+numbers (Findings 2-3) are recorded from a run whose script was not committed. Nothing
+here was shipped.
 
 ---
 
@@ -188,6 +190,6 @@ Finding 5 shows why.
 | `ledger.json` | the real 13-entry ledger used as the matching target |
 | `prompts/prompt_{A,B,C,D}.txt` | exactly what each arm's classifier was shown |
 | `results/{A,B,C,D}{1,2,3}.json` | raw labels from all 12 runs |
-| `score.py` | agreement scorer — `python3 score.py` reproduces the tables above |
+| `score.py` | agreement scorer — `python3 score.py` reproduces the Finding 4-6 tables above |
 
 Related: `docs/product/antigen-gate-prd.md` §13 · `docs/product/remember-README.md` §6

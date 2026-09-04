@@ -6,7 +6,7 @@ Ampcode is a lightweight CLI tool that provides workflow automation commands.
 
 These subagents are available when using Ampcode CLI.
 
-### Subagents (11 total)
+### Subagents (10 total)
 
 | ID | Title | When To Use |
 |---|---|---|
@@ -14,7 +14,6 @@ These subagents are available when using Ampcode CLI.
 | 2-generate-tasks | 2-Generate Tasks | Detailed Planning - use to break down the PRD into a granular, actionable task list |
 | 3-process-task-list | 3-Process Task List | Iterative Implementation - use to guide the AI to tackle one task at a time, allowing you to review and approve each change |
 | code-developer | Full Stack Developer | Use for code implementation, debugging, refactoring, and development best practices |
-| context-builder | Context Initializer | Use to initialize project context for new/existing projects, discover and organize documentation, create AGENT.md and KNOWLEDGE_BASE.md for optimal token-efficient memory |
 | feature-planner | Product Manager | Use for creating epics and user stories, prioritization, backlog navigation, story refinement, and retrospectives |
 | market-researcher | Business Analyst | Use for market research, brainstorming, competitive analysis, project briefs, and initial project discovery |
 | orchestrator | Master Orchestrator | Use for workflow coordination, multi-agent tasks, role switching guidance, and when unsure which specialist to consult |

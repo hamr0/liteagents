@@ -38,6 +38,26 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
    - **Locate `friction.cjs`** — it is bundled next to this command at `remember/friction.cjs`
      (the same directory as `remember.md`, whether installed or run from the package). If it
      exists nowhere, skip to step 1 (stash-only) and tell the user friction.cjs is missing.
+   - **Check for a newer liteagents** (best-effort, one line, never blocking) — bundled
+     beside `friction.cjs` as `remember/version-check.cjs`. Call it by its **absolute
+     path**, exactly as step 7 calls `docs-builder.cjs`: the cwd here is the target repo,
+     not this package, so a cwd-relative path fails everywhere except the liteagents repo
+     itself.
+     ```bash
+     node ~/.config/opencode/command/remember/version-check.cjs
+     ```
+     **If that path does not exist, use the directory you just resolved for
+     `friction.cjs`** — the two ship side by side, so that directory is correct for a
+     non-default install and when running from a checkout, where the path above would
+     point at the installed copy instead of the one under test.
+     It prints one advice line if the installed version is behind the registry, and prints
+     nothing otherwise. It exits 0 on every path, caches the registry answer for 24h, and
+     is bounded to ~2s, so it cannot stall this run. If it prints a line, relay it verbatim
+     in your final report; never act on it and never run the install yourself.
+   - **If the script is missing from both locations, say so** — one line, same rule as step
+     7's "applicable but could not run". A failed *check* (offline, registry down, timeout)
+     stays silent by design: it is a once-a-day nudge, not a result anyone is waiting on. A
+     missing *script* means the install is incomplete, which is worth a word.
    - **Resolve the global sessions root** — probe this list top-to-bottom, use the first that
      exists and contains `.jsonl` files directly, or one level down in per-project
      subdirectories (friction.cjs scans exactly those two levels, not a deep recursive walk).
@@ -72,11 +92,26 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      fresh output). **Move only those pipeline files** — anything else in `.opencode/memory/`
      (e.g. user-owned rule files) stays where it is. Remove the old dirs only if empty, update the managed MEMORY section in AGENTS.md to
      the new reference (step 5), and tell the user exactly what moved.
-   - **Bootstrap `AGENT_RULES.md` (one-time, silent-if-present).** If
-     `.opencode/remember/AGENT_RULES.md` does not exist, copy it from the bundled template next
-     to this command (`remember/AGENT_RULES.md`, same directory as `friction.cjs`). If it
-     already exists, leave it untouched — never overwrite, even if the bundled template
-     changes in a later version; it becomes user-owned the moment it lands in the project.
+   - **Sync `AGENT_RULES.md` from the installed template** — run the bundled script, which
+     does the whole decision itself. Call it by **absolute path**, for the same reason as
+     `version-check.cjs` in step 0: the cwd is the target repo, not this package.
+     ```bash
+     node ~/.config/opencode/command/remember/sync-rules.cjs
+     ```
+     It compares `.opencode/remember/AGENT_RULES.md` against the template shipped beside it
+     and takes one of three actions: **absent** — copies it in; **identical** — does
+     nothing at all, no write and no output; **differs** — moves the old body to
+     `AGENT_RULES.md.bak` and copies the new one in, reporting both. Relay whatever it
+     prints in the step-8 report; it is silent when nothing changed.
+
+     **This replaced a bootstrap-once rule that never refreshed**, which left a measured 35
+     repos many releases behind. The rules doc is a shipped standards document, so it is
+     kept current rather than frozen on first write — nothing is destroyed, because a
+     differing body is always preserved in the backup first.
+
+     The comparison is a byte compare done *by the script*, never by you: a model-performed
+     copy can re-wrap a line or drop a trailing newline, and the file would then differ
+     forever, backing up on every single run.
    - Read all `.opencode/stash/*.md` files in the current project
    - Read friction output written in step 0: `.opencode/remember/friction/antigen_clusters.json` (preferred) or `.opencode/remember/friction/antigen_review.md` (fallback). On the fallback path, step 4c does NO counting — merge quotes into
      matching entries only; never change `sessions`, `last_seen`, or `recurred_while_hot` (the
@@ -88,7 +123,11 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      length-gate debt on `.opencode/remember/MEMORY.md`. Steps 4-5 (friction → ledger count →
      Antigens render) are stash-independent and still run whenever friction produced output
      (see step 4's own guard). If there is also no friction
-     output, report "nothing to consolidate" and stop after step 1.
+     output, report "nothing to consolidate" and stop after step 1 — **but run
+     step 5's `stub-check.cjs` before you stop.** The stub shape does not depend on
+     there being anything to consolidate, and skipping it on quiet runs is exactly
+     how a repo with nothing to remember stays broken forever. `sync-rules.cjs`
+     already ran above, for the same reason.
 
 2. **Extract from unprocessed stashes** (up to 5 stashes per agent, as few agents as possible — see Guardrails)
    - Each agent reads its batch of stashes together and calls the mid-tier model (see Guardrails) to extract:
@@ -387,10 +426,31 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      Users trim this section deliberately (a pointer-only variant is common), and rewriting
      it silently re-adds text they removed, on every single run, forever. Observed in the
      field: a run restored the inline rules into a AGENTS.md whose owner had cut them, and
-     the edit had to be reverted by hand. This matches how `AGENT_RULES.md` itself is
-     handled — bootstrapped once, never overwritten after.
+     the edit had to be reverted by hand. Note this no longer matches how `AGENT_RULES.md`
+     itself is handled: `sync-rules.cjs` refreshes that file every run, because it is a
+     shipped standards document with a backup behind it. This section is prose the user
+     owns, with nothing behind it — so it stays bootstrap-once.
    - If an existing pair is present but its **path pointer** is missing or wrong, that is
      load-bearing: **report it and stop**, do not silently rewrite the section around it.
+
+   - **Then assert the stub SHAPE mechanically** — run the bundled script by **absolute
+     path**, for the same reason as steps 0 and 1:
+     ```bash
+     node ~/.config/opencode/command/remember/stub-check.cjs
+     ```
+     It edits only *inside* the marker pairs, and only the mechanism: a MEMORY include that
+     is not `@.opencode/remember/MEMORY.md` is repaired, and an `@`-include of
+     `AGENT_RULES.md` is demoted to a plain pointer. Prose inside the blocks is user-owned
+     and is never touched, which is why the bootstrap-once rule above still holds. It will
+     **not** repoint a MEMORY include at a file that does not exist — an un-migrated
+     `.opencode/memory/` repo has a live MEMORY.md at the old path, and breaking a working
+     include to satisfy a naming convention is worse than reporting it. Silent when the
+     shape is already current; relay whatever it prints in the step-8 report.
+
+     Measured 2026-09-03: 21 of 37 local repos still carried the pre-v2.19 `@`-include of
+     `AGENT_RULES.md`, hot-loading ~300 lines into every session. A shape rule checked by
+     asking you to look is a rule that drifts back; this one is a byte-level assertion done
+     by the script, never by you.
 
    ```markdown
    # Project Memory
@@ -535,7 +595,14 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      ledger: ag-003 "don't commit per change"    RECURRED while hot (2/2) → rephrased, attempt 2
      ledger: ag-002 "literal scoped ask"         ESCALATED → Fact; 2 phrasings failed. Hook or accept?
      ```
-   - If AGENT_RULES.md was bootstrapped this run, say so (one line)
+   - Relay verbatim whatever `version-check.cjs` (step 0), `sync-rules.cjs` (step 1), and
+     `stub-check.cjs` (step 5) printed. Never re-word or summarize them: they are the
+     record of a file that was written or a version gap, and a paraphrase of "your body
+     was backed up to AGENT_RULES.md.bak" can lose the filename the user needs.
+   - Each is silent when nothing changed, so silence is the normal case and there is
+     nothing to invent — never report an action that produced no output.
+   - Never a silent write: if any of the three wrote or moved a file and you did not
+     relay its line, that is a defect.
    - If step 7 ran the auto re-index, say so and name the regenerated files
      (`docs/index.md`, plus `docs/log.md` if touched) so they are staged with this run
    - Confirm MEMORY.md and AGENTS.md updated
@@ -543,7 +610,8 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
 **File locations (all project-local — two dirs: `/stash` owns `.opencode/stash/`, `/remember` owns `.opencode/remember/`)**
 - Stash files: `.opencode/stash/*.md`
 - Memory file: `.opencode/remember/MEMORY.md` (single source of truth, referenced as `@.opencode/remember/MEMORY.md`)
-- Rules template: `.opencode/remember/AGENT_RULES.md` (bootstrapped once from the bundled package template on first `/remember` run, never overwritten again — user-owned after that; referenced by a plain path pointer, not `@`-referenced — see step 5)
+- Rules template: `.opencode/remember/AGENT_RULES.md` (refreshed from the bundled package template every `/remember` run by `sync-rules.cjs`; a differing body is backed up first, not silently overwritten — referenced by a plain path pointer, not `@`-referenced — see step 5)
+- Rules backup: `.opencode/remember/AGENT_RULES.md.bak` (written by `sync-rules.cjs` only when the existing body differs from the template; a single file, overwritten each time it fires — not timestamped)
 - Antigen ledger: `.opencode/remember/ledger.json` (per-rule evidence trail: class, status, attempts/rejected-buffer, recurrence-while-hot)
 - Consolidation report: `.opencode/remember/report.md` (latest step-8 report, overwritten each run)
 - Processed manifest: `.opencode/remember/.processed`

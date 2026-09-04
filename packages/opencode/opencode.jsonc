@@ -91,16 +91,6 @@
       },
       "description": "System design, technology selection, API design, scalability planning"
       },
-          "context-builder": {
-      "prompt": "{file:./agent/context-builder.md}",
-      "mode": "subagent",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
-      },
-      "description": "Initialize project context, discover documentation, create knowledge bases"
-    },
     "market-researcher": {
       "prompt": "{file:./agent/market-researcher.md}",
       "mode": "subagent",
