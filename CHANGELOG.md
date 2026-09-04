@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.0.0] - 2026-09-05
 
 ### Breaking
 - **Every capability is a skill on Claude Code and Amp.** Claude Code merged
@@ -66,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE.md` points at it.
 
 ### Fixed
+- **Test-count floors realigned.** The Multi-Tool Installation floor was
+  lowered 36 -> 33 to match the capability cut (Claude has no `commands/`
+  directory now, so the suite counts three categories per scenario, not four),
+  and four floors that had drifted below their suites' actual counts were
+  raised to match: docs-builder 497 -> 538, friction 254 -> 323, sync-rules
+  15 -> 25, stub-check 19 -> 24. Each floor was verified to still fail when
+  set one above actual.
 - **Command frontmatter was largely invented.** Checked against each tool's own
   docs: `usage:` is not a field in any of the four. Droid commands support only
   `description` and `argument-hint` (tool scoping is explicitly unavailable for
