@@ -21,21 +21,21 @@ These subagents are available when using Ampcode CLI.
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (9 total)
-
-| ID | Description | Usage | Auto |
-|---|---|---|---|
-| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] | false |
-| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas | false |
-| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
-| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
-| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
-
-### Commands (9 total)
+### Skills (5 total)
 
 | ID | Description | Usage |
 |---|---|---|
+| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Amp) | /live-canvas |
+| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> |
+| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
+| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> |
+
+### Commands (10 total)
+
+| ID | Description | Usage |
+|---|---|---|
+| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |

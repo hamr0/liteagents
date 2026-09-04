@@ -2,7 +2,6 @@
 name: brainstorming
 description: Use when creating or developing, before writing code or implementation plans - refines rough ideas into fully-formed designs through collaborative questioning, alternative exploration, and incremental validation. Don't use during clear 'mechanical' processes
 usage: /brainstorming <session-type> <topic>
-auto_trigger: false
 ---
 
 # Brainstorming Ideas Into Designs

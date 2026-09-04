@@ -21,24 +21,24 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Droid Commands (18 total)
+## Droid Commands (15 total)
 
-| ID | Description | Usage | Auto |
-|---|---|---|---|
-| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] | false |
-| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Droid) | /live-canvas | false |
+| ID | Description | Usage |
+|---|---|---|
+| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
+| docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
+| live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Droid) | /live-canvas |
 | optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
 | refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] | - |
-| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
+| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] | - |
 | ship | Mechanical pre-deploy gate — tests, build, tree state | /ship | - |
 | release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release | - |
-| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
+| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] | - |
-| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
+| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> | - |
 
 All resources are auto-discovered from frontmatter in their respective directories:

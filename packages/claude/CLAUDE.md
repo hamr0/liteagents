@@ -21,15 +21,15 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (8 total)
+### Skills (5 total)
 
-| ID | Description | Usage | Auto |
-|---|---|---|---|
-| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> | false |
-| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> | false |
-| live-canvas | Conduct design interviews, generate UI variations, collect live click-to-annotate feedback via a browser overlay that streams into the session | /live-canvas | false |
-| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> | false |
-| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> | false |
+| ID | Description | Usage |
+|---|---|---|
+| brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
+| trace-back | Systematically traces bugs backward through call stack to identify source | /trace-back <issue-description> |
+| live-canvas | Conduct design interviews, generate UI variations, collect live click-to-annotate feedback via a browser overlay that streams into the session | /live-canvas |
+| skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
+| debug-method | Four-phase debugging framework - investigate root cause before any fixes | /debug-method <bug-or-error-description> |
 
 ### Commands (10 total)
 

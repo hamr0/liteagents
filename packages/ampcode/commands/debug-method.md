@@ -2,7 +2,6 @@
 name: debug-method
 description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes - four-phase framework (root cause investigation, pattern analysis, hypothesis testing, implementation) that ensures understanding before attempting solutions
 usage: /debug-method <bug-or-error-description>
-auto_trigger: false
 ---
 
 # Debug Method
