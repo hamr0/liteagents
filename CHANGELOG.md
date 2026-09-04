@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **`AGENT_RULES.md` is now kept current in every repo, instead of written once and
+  forgotten.** `remember/sync-rules.cjs` byte-compares the repo copy against the
+  template shipped beside it on every `/remember` run: identical does nothing at all,
+  absent copies it in, and a differing body is moved to a single `AGENT_RULES.md.bak`
+  before the new one lands. The `.bak` is one file, deliberately — a customised body
+  survives exactly one release, so fold your changes in before the next update. This
+  replaced a bootstrap-once rule that had left a measured 35 local repos many releases
+  behind, after three hand sweeps failed to hold.
+- **`remember/stub-check.cjs` asserts the config stub's SHAPE and repairs it.** v2.19
+  demoted `AGENT_RULES.md` from an `@`-include to a plain pointer — an `@`-include
+  hot-loads ~300 lines into every session — but nothing enforced it, and 21 of 37
+  measured repos had drifted back. It also repairs a MEMORY include that is not
+  `@<dir>/remember/MEMORY.md`, since a bare `@MEMORY.md` resolves to a nonexistent
+  root file and hot memory then silently never loads. It edits only *inside* the
+  marker pairs and only the mechanism; the prose in those blocks stays user-owned.
+  It will **not** repoint a MEMORY include at a file that does not exist — a repo
+  still on the pre-rename `.claude/memory/` layout has a live file at the old path,
+  and breaking a working include to satisfy a naming convention is worse than saying
+  so.
+- **`remember/version-check.cjs` nudges when the installed liteagents is behind.**
+  One line in `/remember` step 0, advice only — it never installs. Any failure
+  (offline, DNS, timeout) is a silent skip, because a memory command that hangs on a
+  network call is worse than one that misses a nudge. The installer now stamps
+  `liteagents_version` into its manifest so the check does not shell out to
+  `npm ls -g` on every run (measured 502ms -> 113ms warm).
+- **The installer says where your backup went.** On a reinstall it now closes with the
+  path of every install it moved aside, and notes that an edited `AGENT_RULES.md` is
+  preserved in the backup's `remember/` folder. A fresh install's output is unchanged.
+
+### Changed
+- **`/remember` reports every write verbatim.** Step 8 relays exactly what
+  `version-check.cjs`, `sync-rules.cjs` and `stub-check.cjs` printed, and nothing when
+  they printed nothing. Paraphrasing could drop the `AGENT_RULES.md.bak` filename,
+  which is the one thing someone who just lost their edits needs.
+- **The stub check survives a quiet run.** Step 1's guard stops the run when there are
+  no unprocessed stashes and no friction output — which is exactly the state of a
+  stale, unattended repo. `stub-check.cjs` now runs before that stop; skipping it on
+  quiet runs is how a repo with nothing to remember stayed broken forever.
+- **`/refactor` hands the review back instead of chaining it.** Step 6's "commit, then
+  run `/branch-review`" read as a sequence to execute; a field run started the review
+  off the owner's "commit" and the owner objected. It now states that this is a
+  sentence to say, that both are the user's separate calls, and that "commit"/"yes"/"go"
+  authorizes the commit and nothing after it.
+
+### Fixed
+- Four places stated the memory-include mechanism using the broken bare `@MEMORY.md`
+  form, including an anti-pattern table an agent reads before writing the config.
+- `poc/friction-file-referents/README.md` claimed everything needed to audit it was in
+  the directory. `score.py` reproduces only the LLM-experiment table (Findings 4-6);
+  the mechanical-study numbers (Findings 2-3) come from a run whose script was never
+  committed. Now stated precisely.
+
+---
+
 ## [2.24.1] - 2026-09-03
 
 ### Changed

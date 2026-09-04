@@ -77,6 +77,12 @@ const testSuites = [
     file: 'stub-check/stub-check.test.js',
     description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
     expectedTests: 19
+  },
+  {
+    name: 'installer closing note',
+    file: 'installer/closing-note.test.js',
+    description: 'Tests installer/cli.js formatBackupClosingNote: silent on a fresh install, ~-substituted backup paths, and never hardcodes the claude-only commands/remember path',
+    expectedTests: 7
   }
 ];
 

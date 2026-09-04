@@ -1,7 +1,7 @@
 # AGENT_RULES freshness — PRD
 
-> Status: IN PROGRESS. Written 2026-09-03 from a design conversation.
-> Modules 1, 2, 3, 4 and 6 BUILT; module 5 (installer's closing note) remains.
+> Status: BUILT. Written 2026-09-03 from a design conversation.
+> All six modules BUILT. Remaining: the two open questions in §6.
 > A portal, not a deliverable — every POC below updates this file.
 >
 > §5 records the designs considered and rejected. They are limitations we chose,
@@ -221,7 +221,25 @@ liteagents 2.24.1 → 2.25.0 available: npm i -g liteagents@latest && liteagents
 
 Silence when nothing changed.
 
-### Module 5 — Installer's closing note
+### Module 5 — Installer's closing note — **BUILT 2026-09-04**
+
+Shipped as `formatBackupClosingNote(backupLog)` in `installer/cli.js`, printed
+after `Done!`. Empty `backupLog` renders nothing, so a fresh install's output is
+unchanged; a reinstall lists every install it moved aside, `~`-substituted.
+
+**The POC changed the wording.** The obvious note names
+`commands/remember/AGENT_RULES.md`, which is claude-specific — opencode installs
+to `command/` (singular). The note points at the backup's `remember/` folder
+instead, which is true for all four kits, and a test asserts the string
+`commands/remember` never appears in it.
+
+Verified against real data, not fixtures: drove the real installation engine
+through a fresh install (note empty) and two reinstalls (both tools listed), and
+confirmed `AGENT_RULES.md` really is inside each backup. 7 tests in
+`tests/installer/closing-note.test.js`, proven falsifiable by removing the
+empty-guard and observing the silent-on-fresh-install test go red, then restored
+md5-identical.
+
 
 At the end of a `liteagents` run, say loudly where the backups went:
 

@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const os = require('os');
 
 // Single source of truth for version; UPDATE_VERSION.sh bumps only package.json.
 const PACKAGE_JSON = require('../package.json');
@@ -30,8 +31,34 @@ const colors = {
   yellow: '\x1b[33m',
   cyan: '\x1b[36m',
   magenta: '\x1b[35m',
-  red: '\x1b[31m'
+  red: '\x1b[31m',
+  dim: '\x1b[2m'
 };
+
+/**
+ * Render the closing note about backed-up installs, printed after `Done!`.
+ * Returns '' when backupLog is empty so a fresh install's output is
+ * unchanged. Never names `commands/` vs `command/` (opencode uses the
+ * singular form) — the note points at the shared `remember/` folder inside
+ * the backup, which is the same for every tool.
+ *
+ * @param {Array<{original: string, backup: string}>} backupLog
+ * @returns {string} Text to print (includes its own leading newline), or ''.
+ */
+function formatBackupClosingNote(backupLog) {
+  if (!backupLog || backupLog.length === 0) {
+    return '';
+  }
+
+  const lines = [`${colors.yellow}Previous install(s) backed up:${colors.reset}`];
+  for (const entry of backupLog) {
+    lines.push(`  ${entry.backup.replace(os.homedir(), '~')}`);
+  }
+  lines.push(`${colors.dim}If you had edited AGENT_RULES.md, your copy is preserved in`);
+  lines.push(`each backup's remember/ folder.${colors.reset}`);
+
+  return `\n${lines.join('\n')}`;
+}
 
 class InteractiveInstaller {
   constructor() {
@@ -701,6 +728,11 @@ ${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${COMMAND_COUNT} c
     }
 
     console.log(`\n${colors.bright}${colors.green}Done!${colors.reset}`);
+
+    const closingNote = formatBackupClosingNote(installationEngine.backupLog);
+    if (closingNote) {
+      console.log(closingNote);
+    }
   }
 
   /**
@@ -766,3 +798,4 @@ if (require.main === module) {
 }
 
 module.exports = InteractiveInstaller;
+module.exports.formatBackupClosingNote = formatBackupClosingNote;

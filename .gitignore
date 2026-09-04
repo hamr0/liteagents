@@ -72,6 +72,8 @@ test-installation-*/
 !/tests/sync-rules/sync-rules.test.js
 !/tests/stub-check/
 !/tests/stub-check/stub-check.test.js
+!/tests/installer/
+!/tests/installer/closing-note.test.js
 
 # Release artifacts
 liteagents-*.tgz
