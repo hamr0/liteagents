@@ -26,7 +26,7 @@
  *   - It only edits INSIDE a marker pair. A pointer elsewhere in the config is
  *     the user's prose and is left alone.
  *   - It never repoints the MEMORY include at a file that does not exist. An
- *     un-migrated `.claude/memory/` repo has a live MEMORY.md at the old path;
+ *     un-migrated `.opencode/memory/` repo has a live MEMORY.md at the old path;
  *     rewriting it to the new one would break a working include to satisfy a
  *     naming convention. That case is reported, not repaired.
  *

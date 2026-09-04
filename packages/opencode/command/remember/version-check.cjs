@@ -62,7 +62,7 @@ function isNewer(a, b) {
 // --- installed version ---------------------------------------------------
 
 // Walk up from this file looking for our own package.json. Finds it when
-// running from a checkout; finds nothing when installed into ~/.claude, which
+// running from a checkout; finds nothing when installed into ~/.config/opencode, which
 // is why the npm fallback exists.
 function versionFromPackageJson() {
   let dir = __dirname;
