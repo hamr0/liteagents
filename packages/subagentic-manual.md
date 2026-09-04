@@ -1,21 +1,14 @@
 # Subagentic Manual
 
-Production-ready AI agent framework providing specialized subagents, workflow commands, and development skills for **Claude Code**, **OpenCode**, **Ampcode**, and **Droid**. Deploy expert AI personas instantly with zero configuration.
+A quick reference for the agent kits: what ships, what each thing does, and where it lands.
 
----
+Liteagents started as scaffolding for early LLMs that needed to be told everything. It isn't
+that anymore. Models got smarter, so the toolkit got thinner: specialists you call by name or
+that trigger themselves on domain, wide lanes instead of tight rails, constraints on *what*
+rather than scripts for *how*.
 
-## Why Subagentic?
-
-**The Challenge**: Generic AI assistants lack specialized expertise and systematic workflows, leading to inconsistent results and context overload.
-
-**The Solution**: Subagentic provides:
-- **Role-Specialized Agents** - Expert personas (architect, QA, product manager) with domain-specific knowledge
-- **Systematic Workflows** - Proven development patterns (PRD → Tasks → Implementation)
-- **Orchestrator-First Routing** - Automatic workflow matching based on user intent
-- **Frontmatter-Based Discovery** - All resources self-describe via YAML frontmatter
-- **Platform Agnostic** - Works across Claude Code, OpenCode, Ampcode, and Droid
-
-**The Result**: Predictable, high-quality outputs from specialized agents following best practices, without manually switching contexts or crafting complex prompts.
+It is actively challenged, pruned and rewritten — things get renamed, added, and deleted as
+models improve. That churn is the point.
 
 ---
 
@@ -34,42 +27,9 @@ Or copy a kit manually:
 | **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 18 commands |
 | **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 18 commands |
 
-**Key Difference**:
-- All four platforms ship the same 10 subagents and the same 18 capabilities
-- **Claude Code** splits them into 8 skills (3 auto-trigger) + 10 commands
-- **Droid / OpenCode / Ampcode** expose all 18 as commands — no auto-triggering
-
----
-
-## What's Included
-
-### Claude Code (skills + commands)
-
-**10 Subagents** - Expert personas with specialized knowledge
-- 3 Workflow Agents (PRD, Tasks, Implementation)
-- 7 Specialist Agents (orchestration, UX, QA, architecture, product, development, research)
-
-**8 Skills** - Auto-triggering + manual workflow components
-- tdd-flow, test-traps, verify-done (auto-trigger)
-- brainstorming, debug-method, live-canvas, skill-creator, trace-back
-
-**10 Commands** - Workflow helpers
-- docs-builder, optimize, refactor, remember, branch-review, security, ship, release, stash, test-generate
-
-**Orchestration System**
-- Automatic intent matching to 9 workflow patterns
-- Conditional decision points with user approval gates
-- Selective context injection
-
-### Droid / OpenCode / Ampcode (commands only)
-
-**10 Subagents** - the same personas, referenced from the platform's config file
-
-**18 Commands** - All workflow capabilities in command form
-- Combines Claude's skills + commands into one unified command set
-- Same functionality, different invocation model (no auto-triggering)
-
-**No Orchestrator** - Direct command invocation only
+All four ship the same 10 subagents and the same 18 capabilities. Claude Code splits those
+18 into 8 skills (3 of which auto-trigger) and 10 commands; the others expose all 18 as
+commands, with no auto-triggering.
 
 ---
 
@@ -230,58 +190,16 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 ---
 
-## Platform Architecture
+## Where it lands
 
-### Claude Code
-```
-~/.claude/
-├── CLAUDE.md           # Registry + orchestrator workflows
-├── agents/             # 10 subagent implementations (*.md)
-├── skills/             # 8 skills (subdirectories with SKILL.md)
-└── commands/           # 10 commands (*.md)
-```
+| Platform | Root | Config file | Subagents | Commands / skills |
+|---|---|---|---|---|
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` + `commands/` (plus `plugins/`) |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `commands/` |
+| **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
+| **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 
-**Features**:
-- Full subagent system with orchestrator
-- Auto-triggering skills
-- Workflow pattern matching
-- Progressive agent loading
-
-### Ampcode
-```
-~/.config/amp/
-├── AGENT.md            # Reference doc (subagents + commands)
-├── agents/             # 10 subagent implementations (*.md)
-└── commands/           # 18 commands (*.md)
-```
-
-**Features**:
-- Full subagent system with orchestrator
-- All capabilities as commands (no auto-triggering)
-
-### Droid
-```
-~/.factory/
-├── AGENTS.md           # Reference doc (subagents + commands)
-├── droids/             # 10 subagent implementations (*.md)
-└── commands/           # 18 commands (*.md)
-```
-
-**Features**:
-- Reference table for subagents
-- Direct command invocation (no auto-triggering)
-
-### OpenCode
-```
-~/.config/opencode/
-├── AGENTS.md           # Reference doc (subagents + commands)
-├── agent/              # 10 subagent implementations (*.md)
-└── command/            # 18 commands (*.md)
-```
-
-**Features**:
-- Reference table for subagents
-- Direct command invocation (no auto-triggering)
+Each kit also carries a `variants.json` and the tool's own settings file.
 
 ---
 
