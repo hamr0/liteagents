@@ -123,13 +123,9 @@
       "template": "{file:./command/live-canvas.md}",
       "description": "Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode)"
     },
-    "optimize": {
-      "template": "{file:./command/optimize.md}",
-      "description": "Analyze and optimize performance issues"
-    },
     "refactor": {
       "template": "{file:./command/refactor.md}",
-      "description": "Refactor code while maintaining behavior and tests"
+      "description": "Refactor and optimize code while maintaining behavior and tests"
     },
     "branch-review": {
       "template": "{file:./command/branch-review.md}",

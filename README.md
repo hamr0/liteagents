@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 14 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 13 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -60,18 +60,17 @@ npx liteagents          # recommended
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
 | `/branch-review` | Full pre-merge review — blockers reported, nits to the fix ledger |
-| `/refactor` | Clear the fix ledger; with args, refactor a named area |
+| `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
 | `/release` | Docs sweep, version bump, local commit, then hand back the merge sequence |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
-| `/optimize` | Performance analysis on a named target |
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
 | `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
 
-<sub>Claude Code splits these into 4 skills and 10 commands; Opencode, Ampcode and Droid expose all 14 as commands, plus agent reference docs.</sub>
+<sub>Claude Code splits these into 4 skills and 9 commands; Opencode, Ampcode and Droid expose all 13 as commands, plus agent reference docs.</sub>
 
 ---
 

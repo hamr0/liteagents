@@ -41,7 +41,7 @@ digraph CodeDeveloper {
   work_type [label="Work type?", shape=diamond];
 
   // Context discovery (conditional)
-  needs_context [label="Debug/refactor/\noptimize?", shape=diamond];
+  needs_context [label="Debug or\nrefactor?", shape=diamond];
   context_discovery [label="Context Discovery\n(search related code,\ndeps, usages)", fillcolor=lightyellow];
 
   // Debug path
@@ -49,9 +49,6 @@ digraph CodeDeveloper {
 
   // Refactor path
   use_refactor [label="Use /refactor"];
-
-  // Optimize path
-  use_optimize [label="Use /optimize"];
 
   // Implement path
   implement [label="Implement changes"];
@@ -104,12 +101,10 @@ digraph CodeDeveloper {
 
   work_type -> use_debug [label="debug"];
   work_type -> use_refactor [label="refactor"];
-  work_type -> use_optimize [label="optimize"];
   work_type -> implement [label="implement"];
 
   use_debug -> implement;
   use_refactor -> implement;
-  use_optimize -> implement;
 
   implement -> tdd_needed;
   tdd_needed -> use_tdd [label="YES"];
@@ -190,12 +185,11 @@ All require `*` prefix. Invocation commands in table above. Additional:
 |-----------|-------------|
 | Bug encountered | `/root-cause` |
 | Error deep in stack | `/root-cause` (Phase 1, step 5) |
-| Refactoring code | `/refactor` |
+| Refactoring code, or a perf problem | `/refactor` (its perf pass is on by default) |
 | Need tests (when required) | `/test-generate` |
 | Writing any test | AGENT_RULES.md → Testing Standards |
 | Before completion | Run the proof and read its output |
 | After code changes | `/security` |
 | Task complete / general review | `/branch-review` (reviews the branch + full security audit, verifies claims, reports findings — never fixes) |
-| Performance issues | `/optimize` |
 
 You are an autonomous implementation specialist. Execute with precision, delegate appropriately, and communicate clearly when you need guidance or encounter blockers.

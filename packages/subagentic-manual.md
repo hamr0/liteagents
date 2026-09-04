@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 4 skills + 10 commands + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 14 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 14 commands |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 14 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 4 skills + 9 commands + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 commands |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
 
-All four ship the same 10 subagents and the same 14 capabilities. Claude Code splits those
-14 into 4 skills and 10 commands; the others expose all 14 as commands.
+All four ship the same 10 subagents and the same 13 capabilities. Claude Code splits those
+13 into 4 skills and 9 commands; the others expose all 13 as commands.
 
 ---
 
@@ -60,7 +60,7 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-14 capabilities. On Claude Code they split into 4 skills and 10 commands. On Droid /
+13 capabilities. On Claude Code they split into 4 skills and 9 commands. On Droid /
 OpenCode / Ampcode the same 14 are all commands.
 
 | Command | What it's for |
@@ -70,11 +70,10 @@ OpenCode / Ampcode the same 14 are all commands.
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
 | `/branch-review` | Full pre-merge review — blockers reported, nits to the fix ledger |
 | `/release` | Docs sweep, version bump, local commit, then hand back the merge sequence |
-| `/refactor` | Clear the fix ledger; with args, refactor a named area |
+| `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
-| `/optimize` | Performance analysis on a named target |
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
 | `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
@@ -84,7 +83,7 @@ OpenCode / Ampcode the same 14 are all commands.
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
-Code operations (6): refactor, optimize, branch-review, security, ship, release ·
+Code operations (5): refactor, branch-review, security, ship, release ·
 Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
 Design (1): live-canvas.
 

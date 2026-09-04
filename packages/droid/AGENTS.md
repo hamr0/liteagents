@@ -21,15 +21,14 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-## Droid Commands (14 total)
+## Droid Commands (13 total)
 
 | ID | Description | Usage |
 |---|---|---|
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Droid) | /live-canvas |
-| optimize | Analyze and optimize performance issues | /optimize <target-area> | - |
-| refactor | Refactor code while maintaining behavior and tests | /refactor <code-section> | - |
+| refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] | - |
 | root-cause | Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source | /root-cause <bug-or-error-description> |
