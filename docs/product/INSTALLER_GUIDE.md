@@ -578,6 +578,15 @@ It is verified against `scripts/frontmatter.json` instead, which is generated
 from the real files by `node scripts/mirror.cjs shapes`. Regenerate it only
 when a shape genuinely changes — never to silence a failing check.
 
+`scripts/frontmatter.json` is frozen and date-stamped once recorded: `shapes`
+refuses to overwrite a frozen shape that comes out weaker (a required key
+demoted to optional, gone entirely, or a `Bash()` style relaxed to `null`),
+and reports `WEAKENING` instead of writing. Pass `--force` to deliberately
+re-record it anyway; that updates the frozen date. `check` also flags orphaned
+kit files — anything under a mirrored tool directory with no corresponding
+source under `packages/claude`, left behind when a capability moves or is
+removed.
+
 ### Escape hatches
 
 Use the smallest one that works. Every entry is coverage you give up.
