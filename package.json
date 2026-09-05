@@ -1,6 +1,6 @@
 {
   "name": "liteagents",
-  "version": "4.0.0",
+  "version": "3.5.0",
   "description": "AI development toolkit with 10 specialized agents and 13 capabilities including live-canvas UI design with click-to-annotate feedback. Simple one-question installer for Claude, Opencode, Ampcode, and Droid.",
   "main": "index.js",
   "bin": {
@@ -8,7 +8,7 @@
     "liteag": "./cli.js"
   },
   "scripts": {
-    "test": "node scripts/mirror.cjs check && node tests/run-all-tests.js",
+    "test": "node scripts/mirror.cjs check && node tests/run-all-tests.js && node ./scripts/validate-package.js",
     "mirror": "node scripts/mirror.cjs",
     "test-installer": "node tests/installer/integration.test.js",
     "install-interactive": "node installer/cli.js",

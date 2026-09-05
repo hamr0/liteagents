@@ -253,7 +253,42 @@ function testMultiToolInstallation(testConfig) {
 /**
  * Run all multi-tool tests
  */
-function runAllTests() {
+/**
+ * The variant-selection path, which the copy-the-whole-tree scenarios above
+ * cannot see. installToolPackage() reads variants.json only to check the
+ * variant key exists and then copies every file, so a tool whose variants.json
+ * is missing a content field still "delivers" the right file count on disk
+ * while a real install delivers nothing. v4.0.0 was cut with exactly that bug:
+ * ampcode moved commands/ -> skills/ but its variants.json kept only `agents`,
+ * so selectVariantContent() returned zero skills and an Amp install would have
+ * carried no capabilities at all. This asserts what the installer selects.
+ */
+async function testVariantSelectionDelivers() {
+  console.log('\nTesting: Variant selection delivers expected content');
+  console.log('─'.repeat(60));
+
+  const PackageManager = require('../../installer/package-manager.js');
+  const pm = new PackageManager();
+
+  for (const [tool, expected] of Object.entries(EXPECTED)) {
+    const selected = await pm.getPackageContents(tool, VARIANT);
+    for (const [category, count] of Object.entries(expected)) {
+      if (category === 'plugins') continue; // plugins are not variant-selected
+      // Mirror COUNT_BY: commands are .md files, skills are directories. The
+      // selection also carries each capability's bundled asset directory
+      // (remember/, docs-builder/, ...), which is correct to install but is
+      // not itself a capability, so it must not be counted as one.
+      const names = new Set(selected[category].map((p) => path.basename(p)));
+      const actual = COUNT_BY[category] === 'md'
+        ? [...names].filter((n) => n.endsWith('.md')).length
+        : [...names].filter((n) => !n.endsWith('.md')).length;
+      logTest(`Variant selection: ${tool} ${category} count`, actual === count,
+        actual === count ? `${actual}` : `expected ${count}, got ${actual}`);
+    }
+  }
+}
+
+async function runAllTests() {
   console.log('\x1b[1m\x1b[36m');
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║       Multi-Tool Installation Testing Suite               ║');
@@ -271,6 +306,8 @@ function runAllTests() {
   for (const config of testConfigs) {
     testMultiToolInstallation(config);
   }
+
+  await testVariantSelectionDelivers();
 
   // Print summary
   console.log('\n\x1b[1m\x1b[36m');
@@ -301,7 +338,10 @@ function runAllTests() {
 
 // Run tests if executed directly
 if (require.main === module) {
-  runAllTests();
+  runAllTests().catch((err) => {
+    console.error(`\x1b[31mTest run crashed: ${err.stack || err}\x1b[0m`);
+    process.exit(1);
+  });
 }
 
 module.exports = {

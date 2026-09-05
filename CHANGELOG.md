@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.0.0] - 2026-09-05
+## [3.5.0] - 2026-09-05
 
 ### Breaking
 - **Every capability is a skill on Claude Code and Amp.** Claude Code merged
@@ -66,8 +66,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE.md` points at it.
 
 ### Fixed
-- **Test-count floors realigned.** The Multi-Tool Installation floor was
-  lowered 36 -> 33 to match the capability cut (Claude has no `commands/`
+
+- **Amp installs delivered no capabilities.** This release moved ampcode from
+  `commands/` to `skills/`, but `packages/ampcode/variants.json` was left
+  declaring only `agents`. The installer selects content by that field, so
+  `selectVariantContent()` returned an empty skills list and an Amp install
+  carried 10 agents and zero of the 13 capabilities. Added `"skills": "*"`.
+  Caught by `prepublishOnly`'s package validator, which is why the first cut never
+  reached the registry.
+- `scripts/validate-package.js` still mapped ampcode's capability directory to
+  `commands`; it is `skills`.
+- **Test-count floors realigned.** The Multi-Tool Installation floor moved
+  36 -> 41 (33 to match the capability cut, then +8 for the new
+  variant-selection assertions; Claude has no `commands/`
   directory now, so the suite counts three categories per scenario, not four),
   and four floors that had drifted below their suites' actual counts were
   raised to match: docs-builder 497 -> 538, friction 254 -> 323, sync-rules
@@ -98,6 +109,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previous check flagged in-repo links too; mirrored to all four kits.
 
 ### Changed
+
+- `npm test` now runs `scripts/validate-package.js` as its last step, so the
+  publish-time validator runs locally instead of only inside `publish.yml`.
+  The first cut's gate went green on a package publish then rejected.
+- New `testVariantSelectionDelivers` in the multi-tool suite asserts what the
+  installer actually *selects* per tool, not what the package tree contains.
+  The existing scenarios copy the whole tree and read `variants.json` only to
+  check the variant key exists, so they could not see a missing content field.
 - Six commands and skills that had no `allowed-tools` at all — `remember`,
   `stash`, `brainstorming`, `live-canvas`, `root-cause`, `skill-creator` — now
   declare a `Read, Grep, Glob` floor, so those calls stop prompting. Subagents

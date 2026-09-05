@@ -34,10 +34,12 @@ const testSuites = [
     name: 'Multi-Tool Installation',
     file: 'installer/multi-tool-testing.test.js',
     description: 'Tests simultaneous installation of multiple tools',
-    // 33 since Claude Code's capabilities became skills: the suite counts one
-    // assertion per content category per scenario, and claude no longer has a
-    // commands/ directory to count (3 scenarios x 1 category = the -3).
-    expectedTests: 33
+    // 41 = 33 from the copy-the-tree scenarios (one assertion per content
+    // category per scenario; claude has no commands/ directory to count since
+    // its capabilities became skills) + 8 from testVariantSelectionDelivers,
+    // which asserts what the installer actually SELECTS rather than what the
+    // package tree contains.
+    expectedTests: 41
   },
   {
     name: 'Error Scenario Testing',
