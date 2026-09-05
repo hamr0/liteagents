@@ -78,6 +78,12 @@ const testSuites = [
     expectedTests: 25
   },
   {
+    name: 'mirror',
+    file: 'mirror/mirror.test.js',
+    description: 'Tests mirror.cjs frontmatter-shape freeze (refuses a weakened shape without --force) and orphan detection (a stray file with no packages/claude source, anywhere in a kit tree) against isolated fake repos',
+    expectedTests: 27
+  },
+  {
     name: 'stub-check',
     file: 'stub-check/stub-check.test.js',
     description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',

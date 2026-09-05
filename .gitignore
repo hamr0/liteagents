@@ -74,6 +74,8 @@ test-installation-*/
 !/tests/stub-check/stub-check.test.js
 !/tests/installer/
 !/tests/installer/closing-note.test.js
+!/tests/mirror/
+!/tests/mirror/mirror.test.js
 
 # Release artifacts
 liteagents-*.tgz
