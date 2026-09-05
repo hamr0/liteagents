@@ -194,8 +194,8 @@ function bashStyle(text) {
   return /Bash\([^)]*:\*\)/.test(line) ? 'colon' : 'space';
 }
 
-/** Derive the shape file from what the files actually say today. */
-function shapes() {
+/** What the files actually say today — the candidate shape. */
+function computeShapes() {
   const out = {};
   for (const [kind, dirs] of Object.entries(DIRS)) {
     out[kind] = {};
@@ -215,8 +215,68 @@ function shapes() {
       };
     }
   }
-  fs.writeFileSync(SHAPE_FILE, `${JSON.stringify(out, null, 2)}\n`);
-  console.log(`wrote ${path.relative(ROOT, SHAPE_FILE)}`);
+  return out;
+}
+
+/**
+ * Compare a frozen shape against a freshly computed one. Anything that makes
+ * the check WEAKER (a required key demoted to optional or dropped entirely,
+ * or a bashStyle relaxed to null) is flagged as WEAKENING; everything else
+ * (a key added, an optional key dropped) is reported as a plain change.
+ */
+function diffShapes(old, neu) {
+  const lines = [];
+  for (const kind of new Set([...Object.keys(old), ...Object.keys(neu)])) {
+    const oldKits = old[kind] || {};
+    const newKits = neu[kind] || {};
+    for (const kit of new Set([...Object.keys(oldKits), ...Object.keys(newKits)])) {
+      const o = oldKits[kit] || { required: [], optional: [], bashStyle: null };
+      const n = newKits[kit] || { required: [], optional: [], bashStyle: null };
+      for (const k of o.required) {
+        if (n.required.includes(k)) continue;
+        lines.push(n.optional.includes(k)
+          ? `WEAKENING ${kind}/${kit}: '${k}' demoted from required to optional`
+          : `WEAKENING ${kind}/${kit}: required key '${k}' disappeared entirely`);
+      }
+      for (const k of n.required) if (!o.required.includes(k)) lines.push(`  ${kind}/${kit}: '${k}' added to required`);
+      for (const k of o.optional) if (!n.optional.includes(k) && !n.required.includes(k)) lines.push(`  ${kind}/${kit}: optional key '${k}' disappeared`);
+      for (const k of n.optional) if (!o.optional.includes(k) && !o.required.includes(k)) lines.push(`  ${kind}/${kit}: '${k}' added to optional`);
+      if (o.bashStyle !== n.bashStyle) {
+        lines.push(`${n.bashStyle === null && o.bashStyle ? 'WEAKENING ' : '  '}${kind}/${kit}: bashStyle changed from ${o.bashStyle} to ${n.bashStyle}`);
+      }
+    }
+  }
+  return lines;
+}
+
+/**
+ * scripts/frontmatter.json freezes the shape recorded the day it was last
+ * deliberately (re-)recorded — it is the truth `check` judges files against,
+ * not a rolling derivation from today's files. Without freezing, dropping a
+ * key from every file of a kit and re-running `shapes` makes the key silently
+ * stop being required: a circular, useless check. The top-level `frozen` date
+ * lives alongside the per-kind keys (subagent/command/skill); checkFrontmatter
+ * only ever reads shape[kind] for kind in DIRS, so it already ignores `frozen`
+ * without needing a special case.
+ */
+function shapes() {
+  const force = process.argv.includes('--force');
+  const computed = computeShapes();
+  if (fs.existsSync(SHAPE_FILE) && !force) {
+    const { frozen, ...existing } = JSON.parse(fs.readFileSync(SHAPE_FILE, 'utf8'));
+    const diffs = diffShapes(existing, computed);
+    if (diffs.length) {
+      console.error(`${path.relative(ROOT, SHAPE_FILE)} is frozen as of ${frozen || 'unknown'} — refusing to overwrite it.`);
+      console.error('Re-run with --force to deliberately re-record it (this updates the frozen date).\n');
+      console.error(diffs.join('\n'));
+      process.exit(1);
+    }
+    console.log(`${path.relative(ROOT, SHAPE_FILE)} already matches the frozen shape (frozen ${frozen}); nothing to do.`);
+    return;
+  }
+  const frozen = new Date().toISOString().slice(0, 10);
+  fs.writeFileSync(SHAPE_FILE, `${JSON.stringify({ frozen, ...computed }, null, 2)}\n`);
+  console.log(`wrote ${path.relative(ROOT, SHAPE_FILE)} (frozen ${frozen})`);
 }
 
 // A path that belongs to a different tool. Each kit's own dirs are stripped
@@ -345,6 +405,32 @@ function checkFrontmatter() {
   return problems;
 }
 
+/**
+ * A file present under a kit's cmd/agent dir with no matching packages/claude
+ * source is a stale orphan left behind when a capability moves or is removed.
+ * The expected set is built the same way the writer builds a destination path
+ * (sources() mapped through relFor), which naturally covers bundled asset
+ * files too since sources() already walks each skill directory recursively.
+ * An EXEMPT entry's path is still included here — EXEMPT only excuses the
+ * writer from judging that file's BODY, the file itself is still expected to
+ * exist, so it must never be reported as an orphan.
+ */
+function checkOrphans() {
+  const problems = [];
+  const src = sources();
+  for (const kit of Object.values(KITS)) {
+    const expected = new Set(src.map((e) => J(kit.dir, e.kind === 'cmd' ? kit.cmd : kit.agent, relFor(e, kit))));
+    for (const sub of [kit.cmd, kit.agent]) {
+      const dir = J(kit.dir, sub);
+      if (!fs.existsSync(dir)) continue;
+      for (const f of walk(dir)) {
+        if (!expected.has(f)) problems.push(`ORPHAN  ${path.relative(ROOT, f)}: no matching packages/claude source`);
+      }
+    }
+  }
+  return problems;
+}
+
 function main() {
   const mode = process.argv[2] || 'check';
   if (mode === 'shapes') return shapes();
@@ -353,7 +439,7 @@ function main() {
     process.exit(2);
   }
   const problems = mode === 'check'
-    ? [...checkFrontmatter(), ...checkPaths(), ...checkInstallPaths()] : [];
+    ? [...checkFrontmatter(), ...checkPaths(), ...checkInstallPaths(), ...checkOrphans()] : [];
   let written = 0;
   let checked = 0;
 
