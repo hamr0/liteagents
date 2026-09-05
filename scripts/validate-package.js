@@ -180,7 +180,7 @@ function validateToolPackages() {
     },
     ampcode: {
       agents: 'agents',
-      skills: 'commands'
+      skills: 'skills'
     },
     droid: {
       agents: 'droids',
