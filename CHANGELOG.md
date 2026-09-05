@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.0] - 2026-09-05
+
+### Added
+- **`scripts/frontmatter.json` is frozen and date-stamped.** `mirror.cjs
+  shapes` now refuses to overwrite a recorded shape with a weaker one (a
+  required key demoted to optional, gone entirely, or a `Bash()` style
+  relaxed to `null`) — it reports `WEAKENING` instead of writing. `--force`
+  re-records it deliberately and updates the frozen date.
+- **`mirror.cjs check` detects orphaned kit files** — a file under a mirrored
+  tool directory with no corresponding source under `packages/claude`, left
+  behind when a capability moves or is removed.
+- **`/branch-review`'s review-record guard.** A recorded `last-review.md` is
+  now validated before being trusted: its `sha:` must resolve to a real
+  commit and be an ancestor of `HEAD`, and its `branch:` must match the
+  current branch. A record that fails either check — hand-edited, corrupted,
+  or left over from a merged, renamed, or rebased branch — is treated as no
+  record at all, falling through to a full review. Previously only the
+  `sha:` line was compared, so a stale record resolved to a commit range
+  that never existed.
+
+### Fixed
+- **`supported_variants` removed from all four `tools/*/manifest-template.json`.**
+  It advertised `["lite","standard","pro"]` in every installed `manifest.json`
+  when only one install exists, and nothing read the field.
+- **`tests/installer/package-manager.test.js` was never registered** in
+  `tests/run-all-tests.js`, so it had never run. Standalone it failed 22 of
+  44 tests against the removed three-variant installer, and wrote 11 fixtures
+  into `packages/` inside the repo. Rewritten against the single-variant
+  reality, every fixture now in an isolated temp directory, and registered.
+
+### Changed
+- Installer test coverage: 1103 → 1153 tests. `getAvailableContent`'s
+  deduplication — a capability shipping both `<name>.md` and a same-named
+  `<name>/` asset directory must be listed once — now has a regression suite
+  of its own.
+
 ## [3.5.0] - 2026-09-05
 
 ### Breaking

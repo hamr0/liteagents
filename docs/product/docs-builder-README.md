@@ -145,7 +145,7 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 
 **The script lives next to the command, not in your repo.** Every `node
 docs-builder/docs-builder.cjs …` in the spec is relative to the command's own directory
-(`~/.claude/commands/` once installed); the target repo is whatever `REPO=` names, defaulting
+(`~/.claude/skills/` once installed); the target repo is whatever `REPO=` names, defaulting
 to the cwd. The spec now says so up front — before it did, a run on an external repo searched
 the target tree for the script, found nothing, and refused (see History).
 

@@ -6,7 +6,6 @@
   "optimization": "amplified-codegen",
   "integration_type": "cli",
   "manifest_format": "ampcode-config",
-  "supported_variants": ["lite", "standard", "pro"],
   "agent_format": "amplified-optimized",
   "skill_compatibility": "ampcode-native",
   "resource_format": "enhanced",

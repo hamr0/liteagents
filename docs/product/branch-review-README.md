@@ -352,6 +352,12 @@ where the previously-reviewed commit comes from, and its `blockers:` list is wha
 owes an answer on. Taking either from whoever invoked the command would reintroduce the
 recollection problem the record exists to end.
 
+Before branching on it, the record is validated: its `sha:` must resolve to a real
+commit and be an ancestor of `HEAD`, and its `branch:` must match the current branch. A
+record that fails either check — a hand-edited or corrupted `sha:`, or one left over from
+a merged, renamed, or rebased branch — is treated as if there were no record at all,
+falling through to a full review rather than resolving a range that never existed.
+
 - **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
 - **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
   tree. A recorded `blocked` verdict means its blockers are unfixed by definition.

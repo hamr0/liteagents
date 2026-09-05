@@ -27,8 +27,7 @@ const colors = {
 
 // Test suite definitions. These reflect the single-variant installer (one
 // 'pro' package per tool). The legacy Variant and Path Handling suites were
-// removed with the 3-variant system; other tests/installer/*.test.js files
-// are not wired in here.
+// removed with the 3-variant system.
 const testSuites = [
   {
     name: 'Multi-Tool Installation',
@@ -78,6 +77,12 @@ const testSuites = [
     expectedTests: 25
   },
   {
+    name: 'mirror',
+    file: 'mirror/mirror.test.js',
+    description: 'Tests mirror.cjs frontmatter-shape freeze (refuses a weakened shape without --force) and orphan detection (a stray file with no packages/claude source, anywhere in a kit tree) against isolated fake repos',
+    expectedTests: 27
+  },
+  {
     name: 'stub-check',
     file: 'stub-check/stub-check.test.js',
     description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
@@ -88,6 +93,18 @@ const testSuites = [
     file: 'installer/closing-note.test.js',
     description: 'Tests installer/cli.js formatBackupClosingNote: silent on a fresh install, ~-substituted backup paths, and never hardcodes the claude-only commands/remember path',
     expectedTests: 7
+  },
+  {
+    name: 'package-manager dedup',
+    file: 'installer/package-manager-dedup.test.js',
+    description: 'Tests installer/package-manager.js getAvailableContent lists a capability shipping both <name>.md and a same-named <name>/ once, across commands/, the singular command/, agents/ and skills/, without collapsing distinct names',
+    expectedTests: 7
+  },
+  {
+    name: 'package-manager',
+    file: 'installer/package-manager.test.js',
+    description: 'Tests installer/package-manager.js against the single-variant (pro) reality: loadVariantConfig validation and caching, selectVariantContent wildcard/array/skipMissing selection, getPackageContents/getPackageSize/validatePackage/getManifestTemplate against real package data, and countFiles/formatBytes',
+    expectedTests: 43
   }
 ];
 

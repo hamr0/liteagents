@@ -349,7 +349,9 @@ class PackageManager {
         }
       }
 
-      return { items: result, dirName: path.basename(dir) };
+      // A command with both a <name>.md file and a same-named <name>/
+      // subdirectory (bundled assets) would otherwise appear twice here.
+      return { items: [...new Set(result)], dirName: path.basename(dir) };
     };
 
     // Check for both plural and singular directory names
