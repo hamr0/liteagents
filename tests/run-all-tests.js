@@ -27,8 +27,7 @@ const colors = {
 
 // Test suite definitions. These reflect the single-variant installer (one
 // 'pro' package per tool). The legacy Variant and Path Handling suites were
-// removed with the 3-variant system; other tests/installer/*.test.js files
-// are not wired in here.
+// removed with the 3-variant system.
 const testSuites = [
   {
     name: 'Multi-Tool Installation',
@@ -100,6 +99,12 @@ const testSuites = [
     file: 'installer/package-manager-dedup.test.js',
     description: 'Tests installer/package-manager.js getAvailableContent lists a capability shipping both <name>.md and a same-named <name>/ once, across commands/, the singular command/, agents/ and skills/, without collapsing distinct names',
     expectedTests: 7
+  },
+  {
+    name: 'package-manager',
+    file: 'installer/package-manager.test.js',
+    description: 'Tests installer/package-manager.js against the single-variant (pro) reality: loadVariantConfig validation and caching, selectVariantContent wildcard/array/skipMissing selection, getPackageContents/getPackageSize/validatePackage/getManifestTemplate against real package data, and countFiles/formatBytes',
+    expectedTests: 43
   }
 ];
 

@@ -6,7 +6,6 @@
   "optimization": "mobile-codegen",
   "integration_type": "cli",
   "manifest_format": "droid-config",
-  "supported_variants": ["lite", "standard", "pro"],
   "agent_format": "mobile-optimized",
   "skill_compatibility": "droid-native",
   "resource_format": "mobile-focused",

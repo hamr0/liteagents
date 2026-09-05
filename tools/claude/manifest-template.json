@@ -6,7 +6,6 @@
   "optimization": "conversational-ai",
   "integration_type": "plugin",
   "manifest_format": "claude-plugin",
-  "supported_variants": ["lite", "standard", "pro"],
   "agent_format": "claude-conversational",
   "skill_compatibility": "claude-native",
   "resource_format": "markdown",

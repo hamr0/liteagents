@@ -6,7 +6,6 @@
   "optimization": "cli-codegen",
   "integration_type": "cli",
   "manifest_format": "opencode-config",
-  "supported_variants": ["lite", "standard", "pro"],
   "agent_format": "cli-optimized",
   "skill_compatibility": "cli-native",
   "resource_format": "terminal",

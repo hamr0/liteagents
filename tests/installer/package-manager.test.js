@@ -1,1025 +1,414 @@
+#!/usr/bin/env node
+
 /**
- * Package Manager Tests
+ * installer/package-manager.js behavioural tests
  *
- * Tests for variant configuration loading and parsing
+ * Rewritten from scratch. The previous version of this file (1025 lines, 44
+ * tests) asserted a three-variant ('lite', 'standard', 'pro') installer that
+ * no longer exists — every packages/<tool>/variants.json now ships exactly
+ * one variant, 'pro'. Standalone it scored 22 pass / 22 fail, and it was never wired into
+ * tests/run-all-tests.js, so none of that ever ran in CI. It also wrote
+ * fixtures directly under packages/ (the real tool-package tree the
+ * installer enumerates), which a crash mid-test could strand there.
+ *
+ * This version:
+ *  - asserts only the single-variant ('pro') reality; an old test whose
+ *    intent still applies (e.g. "throws for an unknown variant") is kept
+ *    with a variant name that is actually unknown ('lite'/'standard'
+ *    instead of pretending they should exist);
+ *  - never writes inside the repo — every fixture is an fs.mkdtemp() dir
+ *    under os.tmpdir(), cleaned up in `finally` (KEEP_TMP=1 to inspect);
+ *  - where a method needs a fixture, it does so by pointing a fresh
+ *    PackageManager instance's own `packagesDir` field at the tmpdir
+ *    (a plain instance property, not a source-code change) rather than
+ *    writing into the real packages/ tree;
+ *  - exercises real packages/* content directly wherever that is enough
+ *    (no fixture needed, no risk of drifting from reality);
+ *  - does NOT test getAvailableContent's dedup behaviour — that is fully
+ *    covered by tests/installer/package-manager-dedup.test.js (7 tests).
+ *
+ * Conventions follow tests/installer/package-manager-dedup.test.js and
+ * tests/installer/closing-note.test.js: self-contained, no network/TTY,
+ * isolated tmpdirs, negative controls / real-data checks so each test is
+ * provably able to FAIL rather than passing vacuously.
  */
 
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const PackageManager = require('../../installer/package-manager.js');
 
-// ANSI color codes for better test output
-const colors = {
-  reset: '\x1b[0m',
-  green: '\x1b[32m',
-  red: '\x1b[31m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  gray: '\x1b[90m'
-};
+const PM_PATH = path.join(__dirname, '..', '..', 'installer', 'package-manager.js');
+const PackageManager = require(PM_PATH);
 
-// Test utilities
-function log(message, color = 'reset') {
-  console.log(`${colors[color]}${message}${colors.reset}`);
-}
+const REPO_ROOT = path.join(__dirname, '..', '..');
+const REAL_PACKAGES_DIR = path.join(REPO_ROOT, 'packages');
 
-function logTest(name, passed, details = '') {
-  const symbol = passed ? '✓' : '✗';
-  const color = passed ? 'green' : 'red';
-  log(`  ${symbol} ${name}`, color);
-  if (details && !passed) {
-    log(`    ${details}`, 'gray');
+const colors = { reset: '\x1b[0m', green: '\x1b[32m', red: '\x1b[31m',
+  yellow: '\x1b[33m', cyan: '\x1b[36m', bright: '\x1b[1m' };
+
+let passed = 0, failed = 0;
+const failures = [];
+
+function check(name, cond, detail) {
+  if (cond) { passed++; console.log(`  ${colors.green}PASS${colors.reset} ${name}`); }
+  else {
+    failed++; failures.push({ name, detail });
+    console.log(`  ${colors.red}FAIL${colors.reset} ${name}`);
+    if (detail) console.log(`       ${colors.yellow}${detail}${colors.reset}`);
   }
 }
 
-// Test counters
-let totalTests = 0;
-let passedTests = 0;
-let failedTests = 0;
-
-// Test runner
-function test(name, fn) {
-  totalTests++;
-  try {
-    fn();
-    passedTests++;
-    logTest(name, true);
-  } catch (error) {
-    failedTests++;
-    logTest(name, false, error.message);
-  }
-}
-
-// Async test runner
-async function testAsync(name, fn) {
-  totalTests++;
+async function checkThrows(name, fn, matcher) {
   try {
     await fn();
-    passedTests++;
-    logTest(name, true);
-  } catch (error) {
-    failedTests++;
-    logTest(name, false, error.message);
+    check(name, false, 'expected a throw, none occurred');
+  } catch (err) {
+    const ok = matcher(err.message);
+    check(name, ok, `unexpected message: ${err.message}`);
   }
 }
 
-// Test suite header
-function describe(name) {
-  log(`\n${name}`, 'cyan');
+// KEEP_TMP=1 leaves the fixture behind for debugging; otherwise every run
+// cleans up, since leftover mkdtemp dirs exhaust inodes rather than bytes.
+async function withFixture(fn) {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pm-'));
+  try {
+    return await fn(dir);
+  } finally {
+    if (!process.env.KEEP_TMP) {
+      await fs.promises.rm(dir, { recursive: true, force: true });
+    }
+  }
 }
 
-// Main test execution
-async function runTests() {
-  log('\n=== Package Manager Tests ===', 'blue');
-  log('Testing variant configuration loading and parsing\n', 'gray');
-
+// Builds a fixture "packages" root: <root>/<toolId>/variants.json (+ agents).
+// Returns a PackageManager whose packagesDir is repointed at the fixture
+// root — an instance-property override, not a change to package-manager.js.
+function pmOverPackagesDir(packagesDir) {
   const pm = new PackageManager();
-
-  // Test 2.1: loadVariantConfig() method
-  describe('loadVariantConfig(toolId)');
-
-  await testAsync('should load and parse valid variants.json for Claude', async () => {
-    const config = await pm.loadVariantConfig('claude');
-    assert(config !== null, 'Config should not be null');
-    assert(typeof config === 'object', 'Config should be an object');
-  });
-
-  await testAsync('should cache loaded configurations', async () => {
-    // Load first time
-    const config1 = await pm.loadVariantConfig('claude');
-    // Load second time (should use cache)
-    const config2 = await pm.loadVariantConfig('claude');
-    assert.strictEqual(config1, config2, 'Should return same cached object');
-  });
-
-  await testAsync('should validate all three required variants exist (lite, standard, pro)', async () => {
-    const config = await pm.loadVariantConfig('claude');
-    assert(config.lite, 'lite variant should exist');
-    assert(config.standard, 'standard variant should exist');
-    assert(config.pro, 'pro variant should exist');
-  });
-
-  await testAsync('should validate variant has required fields', async () => {
-    const config = await pm.loadVariantConfig('claude');
-    const liteVariant = config.lite;
-
-    assert(liteVariant.name, 'Variant should have name field');
-    assert(liteVariant.description, 'Variant should have description field');
-    assert(liteVariant.agents !== undefined, 'Variant should have agents field');
-    assert(liteVariant.skills !== undefined, 'Variant should have skills field');
-    assert(liteVariant.resources !== undefined, 'Variant should have resources field');
-    assert(liteVariant.hooks !== undefined, 'Variant should have hooks field');
-  });
-
-  await testAsync('should load variants.json for all tools (claude, opencode, ampcode, droid)', async () => {
-    const tools = ['claude', 'opencode', 'ampcode', 'droid'];
-    for (const tool of tools) {
-      const config = await pm.loadVariantConfig(tool);
-      assert(config !== null, `Config for ${tool} should not be null`);
-      assert(config.lite && config.standard && config.pro, `${tool} should have all variants`);
-    }
-  });
-
-  await testAsync('should throw error for non-existent tool', async () => {
-    try {
-      await pm.loadVariantConfig('nonexistent-tool');
-      throw new Error('Should have thrown error for non-existent tool');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('ENOENT'),
-        'Error should indicate file not found');
-    }
-  });
-
-  await testAsync('should throw error for invalid JSON', async () => {
-    // Create temporary invalid JSON file
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-invalid');
-    const tempFile = path.join(tempDir, 'variants.json');
-
-    try {
-      // Create temp directory and invalid JSON file
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      fs.writeFileSync(tempFile, '{ invalid json }');
-
-      // Test
-      try {
-        await pm.loadVariantConfig('test-invalid');
-        throw new Error('Should have thrown error for invalid JSON');
-      } catch (error) {
-        assert(error.message.includes('JSON') || error.message.includes('parse'),
-          'Error should indicate JSON parsing failure');
-      }
-    } finally {
-      // Cleanup
-      if (fs.existsSync(tempFile)) {
-        fs.unlinkSync(tempFile);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should throw error if required variants are missing', async () => {
-    // Create temporary file with missing variant
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-incomplete');
-    const tempFile = path.join(tempDir, 'variants.json');
-
-    try {
-      // Create temp directory and incomplete variants.json
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      fs.writeFileSync(tempFile, JSON.stringify({
-        lite: { name: 'Lite', agents: [], skills: [], resources: [], hooks: [] },
-        standard: { name: 'Standard', agents: [], skills: [], resources: [], hooks: [] }
-        // Missing 'pro' variant
-      }));
-
-      // Test
-      try {
-        await pm.loadVariantConfig('test-incomplete');
-        throw new Error('Should have thrown error for missing variant');
-      } catch (error) {
-        assert(error.message.includes('pro') || error.message.includes('variant'),
-          'Error should indicate missing variant');
-      }
-    } finally {
-      // Cleanup
-      if (fs.existsSync(tempFile)) {
-        fs.unlinkSync(tempFile);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  describe('getVariantMetadata(toolId, variant)');
-
-  await testAsync('should retrieve metadata for a specific variant', async () => {
-    const metadata = await pm.getVariantMetadata('claude', 'lite');
-    assert(metadata !== null, 'Metadata should not be null');
-    assert(metadata.name === 'Lite', 'Name should match');
-    assert(typeof metadata.description === 'string', 'Should have description');
-    assert(typeof metadata.useCase === 'string', 'Should have useCase');
-    assert(typeof metadata.targetUsers === 'string', 'Should have targetUsers');
-  });
-
-  await testAsync('should retrieve metadata for all variants', async () => {
-    const variants = ['lite', 'standard', 'pro'];
-    for (const variant of variants) {
-      const metadata = await pm.getVariantMetadata('claude', variant);
-      assert(metadata !== null, `Metadata for ${variant} should not be null`);
-      assert(metadata.name, `${variant} should have name`);
-    }
-  });
-
-  await testAsync('should throw error for invalid variant name', async () => {
-    try {
-      await pm.getVariantMetadata('claude', 'invalid-variant');
-      throw new Error('Should have thrown error for invalid variant');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('invalid'),
-        'Error should indicate invalid variant');
-    }
-  });
-
-  describe('selectVariantContent(toolId, variant, availableContent)');
-
-  // Helper to get available content from Claude package
-  const getAvailableClaudeContent = async () => {
-    const baseDir = path.join(__dirname, '..', '..', 'packages', 'claude');
-
-    const getFilesInDir = async (dir) => {
-      if (!fs.existsSync(dir)) return [];
-      const items = await fs.promises.readdir(dir);
-      // Filter out directories, return only files
-      const files = [];
-      for (const item of items) {
-        const itemPath = path.join(dir, item);
-        const stat = await fs.promises.stat(itemPath);
-        if (stat.isFile()) {
-          // Return just the filename without extension for agents
-          if (dir.includes('agents')) {
-            files.push(item.replace('.md', ''));
-          } else {
-            files.push(item);
-          }
-        } else if (stat.isDirectory()) {
-          // For skills (which are directories), just include the directory name
-          files.push(item);
-        }
-      }
-      return files;
-    };
-
-    return {
-      agents: await getFilesInDir(path.join(baseDir, 'agents')),
-      skills: await getFilesInDir(path.join(baseDir, 'skills')),
-      resources: await getFilesInDir(path.join(baseDir, 'resources')),
-      hooks: await getFilesInDir(path.join(baseDir, 'hooks'))
-    };
-  };
-
-  await testAsync('should expand wildcard "*" to all available items', async () => {
-    const available = await getAvailableClaudeContent();
-    const selected = await pm.selectVariantContent('claude', 'pro', available);
-
-    // Pro variant uses "*" for all categories
-    assert.strictEqual(selected.agents.length, available.agents.length,
-      `Should select all ${available.agents.length} agents`);
-    assert.strictEqual(selected.skills.length, available.skills.length,
-      `Should select all ${available.skills.length} skills`);
-    assert.strictEqual(selected.resources.length, available.resources.length,
-      `Should select all ${available.resources.length} resources`);
-    assert.strictEqual(selected.hooks.length, available.hooks.length,
-      `Should select all ${available.hooks.length} hooks`);
-  });
-
-  await testAsync('should select specific items when array is provided', async () => {
-    const available = await getAvailableClaudeContent();
-    const selected = await pm.selectVariantContent('claude', 'lite', available);
-
-    // Lite variant has specific agents: ["master", "orchestrator", "scrum-master"]
-    assert.strictEqual(selected.agents.length, 3, 'Should select exactly 3 agents');
-    assert(selected.agents.includes('master'), 'Should include master agent');
-    assert(selected.agents.includes('orchestrator'), 'Should include orchestrator agent');
-    assert(selected.agents.includes('scrum-master'), 'Should include scrum-master agent');
-
-    // Lite variant has empty skills array
-    assert.strictEqual(selected.skills.length, 0, 'Should select no skills');
-  });
-
-  await testAsync('should select standard variant with specific skills', async () => {
-    const available = await getAvailableClaudeContent();
-    const selected = await pm.selectVariantContent('claude', 'standard', available);
-
-    // Standard variant has all agents (wildcard)
-    assert.strictEqual(selected.agents.length, available.agents.length,
-      'Should select all agents');
-
-    // Standard variant has 8 specific skills
-    assert.strictEqual(selected.skills.length, 8, 'Should select exactly 8 skills');
-
-    const expectedSkills = ['pdf', 'docx', 'xlsx', 'pptx', 'canvas-design',
-                           'theme-factory', 'brand-guidelines', 'internal-comms'];
-    for (const skill of expectedSkills) {
-      assert(selected.skills.includes(skill), `Should include ${skill} skill`);
-    }
-  });
-
-  await testAsync('should handle empty array selection []', async () => {
-    const available = await getAvailableClaudeContent();
-    const selected = await pm.selectVariantContent('claude', 'lite', available);
-
-    // Lite has empty skills array
-    assert.strictEqual(selected.skills.length, 0, 'Empty array should result in no selections');
-    assert(Array.isArray(selected.skills), 'Should return empty array, not undefined');
-  });
-
-  await testAsync('should validate that specified items exist in available content', async () => {
-    const available = {
-      agents: ['master', 'orchestrator'],
-      skills: ['pdf', 'docx'],
-      resources: ['config.yaml'],
-      hooks: ['startup.js']
-    };
-
-    // Create temp variants.json with non-existent item
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-validation');
-    const tempFile = path.join(tempDir, 'variants.json');
-
-    try {
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-
-      fs.writeFileSync(tempFile, JSON.stringify({
-        lite: {
-          name: 'Test',
-          description: 'Test',
-          agents: ['master', 'nonexistent-agent'],  // nonexistent-agent doesn't exist
-          skills: [],
-          resources: '*',
-          hooks: '*'
-        },
-        standard: {
-          name: 'Standard',
-          description: 'Standard',
-          agents: '*',
-          skills: '*',
-          resources: '*',
-          hooks: '*'
-        },
-        pro: {
-          name: 'Pro',
-          description: 'Pro',
-          agents: '*',
-          skills: '*',
-          resources: '*',
-          hooks: '*'
-        }
-      }));
-
-      try {
-        await pm.selectVariantContent('test-validation', 'lite', available);
-        throw new Error('Should have thrown error for non-existent item');
-      } catch (error) {
-        assert(error.message.includes('nonexistent-agent') || error.message.includes('not found'),
-          'Error should indicate missing item');
-      }
-    } finally {
-      // Cleanup
-      if (fs.existsSync(tempFile)) {
-        fs.unlinkSync(tempFile);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should return object with all content categories', async () => {
-    const available = await getAvailableClaudeContent();
-    const selected = await pm.selectVariantContent('claude', 'standard', available);
-
-    assert(selected !== null, 'Result should not be null');
-    assert(typeof selected === 'object', 'Result should be an object');
-    assert(Array.isArray(selected.agents), 'Should have agents array');
-    assert(Array.isArray(selected.skills), 'Should have skills array');
-    assert(Array.isArray(selected.resources), 'Should have resources array');
-    assert(Array.isArray(selected.hooks), 'Should have hooks array');
-  });
-
-  await testAsync('should work with all tools (claude, opencode, ampcode, droid)', async () => {
-    const available = await getAvailableClaudeContent();
-    const tools = ['claude', 'opencode', 'ampcode', 'droid'];
-
-    for (const tool of tools) {
-      const selected = await pm.selectVariantContent(tool, 'standard', available);
-      assert(selected !== null, `Should return selection for ${tool}`);
-      assert(Array.isArray(selected.agents), `${tool} should have agents array`);
-      assert(Array.isArray(selected.skills), `${tool} should have skills array`);
-    }
-  });
-
-  describe('getPackageContents(toolId, variant)');
-
-  await testAsync('should return contents with variant filtering for Lite variant', async () => {
-    const contents = await pm.getPackageContents('claude', 'lite');
-
-    assert(contents !== null, 'Contents should not be null');
-    assert(typeof contents === 'object', 'Contents should be an object');
-
-    // Lite variant should have exactly 3 agents
-    assert.strictEqual(contents.agents.length, 3,
-      'Lite variant should have exactly 3 agents');
-
-    // Lite variant should have 0 skills
-    assert.strictEqual(contents.skills.length, 0,
-      'Lite variant should have 0 skills');
-
-    // Should have resources and hooks (all selected with "*")
-    assert(contents.resources.length > 0, 'Should have resources');
-    assert(contents.hooks.length > 0, 'Should have hooks');
-
-    // Should have totalFiles count
-    assert(typeof contents.totalFiles === 'number', 'Should have totalFiles count');
-    assert(contents.totalFiles > 0, 'totalFiles should be greater than 0');
-  });
-
-  await testAsync('should return contents with variant filtering for Standard variant', async () => {
-    const contents = await pm.getPackageContents('claude', 'standard');
-
-    assert(contents !== null, 'Contents should not be null');
-
-    // Standard variant should have all agents (13)
-    assert.strictEqual(contents.agents.length, 13,
-      'Standard variant should have all 13 agents');
-
-    // Standard variant should have exactly 8 skills
-    assert.strictEqual(contents.skills.length, 8,
-      'Standard variant should have exactly 8 skills');
-
-    // Should have resources and hooks
-    assert(contents.resources.length > 0, 'Should have resources');
-    assert(contents.hooks.length > 0, 'Should have hooks');
-
-    // Total files should equal sum of all categories
-    const expectedTotal = contents.agents.length + contents.skills.length +
-                         contents.resources.length + contents.hooks.length;
-    assert.strictEqual(contents.totalFiles, expectedTotal,
-      'totalFiles should equal sum of all content categories');
-  });
-
-  await testAsync('should return contents with variant filtering for Pro variant', async () => {
-    const contents = await pm.getPackageContents('claude', 'pro');
-
-    assert(contents !== null, 'Contents should not be null');
-
-    // Pro variant should have all agents (13)
-    assert.strictEqual(contents.agents.length, 13,
-      'Pro variant should have all 13 agents');
-
-    // Pro variant should have all skills (22)
-    assert.strictEqual(contents.skills.length, 22,
-      'Pro variant should have all 22 skills');
-
-    // Should have all resources and hooks
-    assert(contents.resources.length > 0, 'Should have all resources');
-    assert(contents.hooks.length > 0, 'Should have all hooks');
-  });
-
-  await testAsync('should return file paths in contents arrays', async () => {
-    const contents = await pm.getPackageContents('claude', 'lite');
-
-    // Each array should contain file paths or names
-    assert(Array.isArray(contents.agents), 'agents should be an array');
-    assert(Array.isArray(contents.skills), 'skills should be an array');
-    assert(Array.isArray(contents.resources), 'resources should be an array');
-    assert(Array.isArray(contents.hooks), 'hooks should be an array');
-
-    // Check that agents array contains valid paths/names
-    if (contents.agents.length > 0) {
-      assert(typeof contents.agents[0] === 'string',
-        'Agent entries should be strings');
-    }
-  });
-
-  await testAsync('should throw error for non-existent tool', async () => {
-    try {
-      await pm.getPackageContents('nonexistent-tool', 'lite');
-      throw new Error('Should have thrown error for non-existent tool');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('ENOENT'),
-        'Error should indicate tool not found');
-    }
-  });
-
-  await testAsync('should throw error for invalid variant', async () => {
-    try {
-      await pm.getPackageContents('claude', 'invalid-variant');
-      throw new Error('Should have thrown error for invalid variant');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('invalid'),
-        'Error should indicate invalid variant');
-    }
-  });
-
-  describe('getPackageSize(toolId, variant)');
-
-  await testAsync('should calculate size for Lite variant', async () => {
-    const sizeInfo = await pm.getPackageSize('claude', 'lite');
-
-    assert(sizeInfo !== null, 'Size info should not be null');
-    assert(typeof sizeInfo === 'object', 'Size info should be an object');
-    assert(typeof sizeInfo.size === 'number', 'Should have numeric size');
-    assert(sizeInfo.size >= 0, 'Size should be non-negative');
-    assert(typeof sizeInfo.formattedSize === 'string', 'Should have formatted size');
-  });
-
-  await testAsync('should calculate size for Standard variant', async () => {
-    const sizeInfo = await pm.getPackageSize('claude', 'standard');
-
-    assert(sizeInfo !== null, 'Size info should not be null');
-    assert(typeof sizeInfo.size === 'number', 'Should have numeric size');
-    assert(sizeInfo.size > 0, 'Size should be greater than 0');
-  });
-
-  await testAsync('should calculate size for Pro variant', async () => {
-    const sizeInfo = await pm.getPackageSize('claude', 'pro');
-
-    assert(sizeInfo !== null, 'Size info should not be null');
-    assert(typeof sizeInfo.size === 'number', 'Should have numeric size');
-    assert(sizeInfo.size > 0, 'Size should be greater than 0');
-  });
-
-  await testAsync('should have Pro variant size >= Standard variant size', async () => {
-    const standardSize = await pm.getPackageSize('claude', 'standard');
-    const proSize = await pm.getPackageSize('claude', 'pro');
-
-    assert(proSize.size >= standardSize.size,
-      'Pro variant should have size >= Standard variant (more content)');
-  });
-
-  await testAsync('should have Standard variant size >= Lite variant size', async () => {
-    const liteSize = await pm.getPackageSize('claude', 'lite');
-    const standardSize = await pm.getPackageSize('claude', 'standard');
-
-    assert(standardSize.size >= liteSize.size,
-      'Standard variant should have size >= Lite variant (more content)');
-  });
-
-  await testAsync('should format size correctly (bytes/KB/MB)', async () => {
-    const sizeInfo = await pm.getPackageSize('claude', 'pro');
-
-    assert(typeof sizeInfo.formattedSize === 'string', 'Formatted size should be a string');
-    // Should contain a number followed by a unit (Bytes, KB, MB, GB)
-    const hasValidFormat = /^\d+(\.\d+)?\s+(Bytes|KB|MB|GB)$/.test(sizeInfo.formattedSize);
-    assert(hasValidFormat, `Formatted size should match pattern: ${sizeInfo.formattedSize}`);
-  });
-
-  await testAsync('should calculate size based on variant-filtered content', async () => {
-    // Get contents for verification
-    const liteContents = await pm.getPackageContents('claude', 'lite');
-    const proContents = await pm.getPackageContents('claude', 'pro');
-
-    // Pro has more files, so it should have larger size
-    assert(proContents.totalFiles > liteContents.totalFiles,
-      'Pro should have more files than Lite');
-
-    const liteSize = await pm.getPackageSize('claude', 'lite');
-    const proSize = await pm.getPackageSize('claude', 'pro');
-
-    // Size should correlate with file count
-    assert(proSize.size > liteSize.size,
-      'Pro with more files should have larger size than Lite');
-  });
-
-  await testAsync('should handle skill directories correctly', async () => {
-    // Standard and Pro have skills (directories with multiple files)
-    const standardSize = await pm.getPackageSize('claude', 'standard');
-    const proSize = await pm.getPackageSize('claude', 'pro');
-
-    // Both should have non-zero size
-    assert(standardSize.size > 0, 'Standard with 8 skills should have non-zero size');
-    assert(proSize.size > 0, 'Pro with all skills should have non-zero size');
-
-    // Pro has more skills, so should have larger size
-    assert(proSize.size > standardSize.size,
-      'Pro with all 22 skills should have larger size than Standard with 8 skills');
-  });
-
-  await testAsync('should throw error for non-existent tool', async () => {
-    try {
-      await pm.getPackageSize('nonexistent-tool', 'lite');
-      throw new Error('Should have thrown error for non-existent tool');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('ENOENT'),
-        'Error should indicate tool not found');
-    }
-  });
-
-  await testAsync('should throw error for invalid variant', async () => {
-    try {
-      await pm.getPackageSize('claude', 'invalid-variant');
-      throw new Error('Should have thrown error for invalid variant');
-    } catch (error) {
-      assert(error.message.includes('not found') || error.message.includes('invalid'),
-        'Error should indicate invalid variant');
-    }
-  });
-
-  describe('validatePackage(toolId, variant)');
-
-  await testAsync('should validate a valid package with all required content', async () => {
-    const result = await pm.validatePackage('claude', 'lite');
-
-    assert(result !== null, 'Result should not be null');
-    assert(typeof result === 'object', 'Result should be an object');
-    assert(result.valid === true, 'Package should be valid');
-    assert(Array.isArray(result.issues), 'Should have issues array');
-    assert(result.issues.length === 0, 'Valid package should have no issues');
-  });
-
-  await testAsync('should check variants.json exists', async () => {
-    // Create temp package without variants.json
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-no-variants');
-    const agentsDir = path.join(tempDir, 'agents');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-
-      const result = await pm.validatePackage('test-no-variants', 'lite');
-
-      assert(result.valid === false, 'Package without variants.json should be invalid');
-      assert(result.error && result.error.includes('variants.json') ||
-             result.issues.some(issue => issue.includes('variants.json')),
-        'Error should mention missing variants.json');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate variants.json is valid JSON', async () => {
-    // Create temp package with invalid JSON
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-invalid-variants');
-    const agentsDir = path.join(tempDir, 'agents');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), '{ invalid json }');
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-
-      const result = await pm.validatePackage('test-invalid-variants', 'lite');
-
-      assert(result.valid === false, 'Package with invalid JSON should be invalid');
-      assert(result.error && result.error.includes('JSON') ||
-             result.issues.some(issue => issue.includes('JSON')),
-        'Error should mention invalid JSON');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate all required variants (lite, standard, pro) are present', async () => {
-    // Create temp package with missing variant
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-missing-variant');
-    const agentsDir = path.join(tempDir, 'agents');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      // variants.json missing 'pro' variant
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: { name: 'Lite', description: 'Test', agents: ['master'], skills: [], resources: '*', hooks: '*' },
-        standard: { name: 'Standard', description: 'Test', agents: '*', skills: [], resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-
-      const result = await pm.validatePackage('test-missing-variant', 'lite');
-
-      assert(result.valid === false, 'Package with missing variant should be invalid');
-      assert(result.error && result.error.includes('variant') ||
-             result.issues.some(issue => issue.includes('variant') || issue.includes('pro')),
-        'Error should mention missing variant');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate each variant has required fields', async () => {
-    // Create temp package with incomplete variant definition
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-incomplete-fields');
-    const agentsDir = path.join(tempDir, 'agents');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      // lite variant missing 'description' field
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: { name: 'Lite', agents: ['master'], skills: [], resources: '*', hooks: '*' },  // missing description
-        standard: { name: 'Standard', description: 'Test', agents: '*', skills: [], resources: '*', hooks: '*' },
-        pro: { name: 'Pro', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-
-      const result = await pm.validatePackage('test-incomplete-fields', 'lite');
-
-      assert(result.valid === false, 'Package with incomplete variant should be invalid');
-      assert(result.error && result.error.includes('description') ||
-             result.issues.some(issue => issue.includes('description') || issue.includes('field')),
-        'Error should mention missing field');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate that variant-selected agents exist', async () => {
-    // Create temp package with missing agent
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-missing-agent');
-    const agentsDir = path.join(tempDir, 'agents');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: {
-          name: 'Lite',
-          description: 'Test',
-          agents: ['master', 'nonexistent-agent'],  // nonexistent-agent doesn't exist
-          skills: [],
-          resources: '*',
-          hooks: '*'
-        },
-        standard: { name: 'Standard', description: 'Test', agents: '*', skills: [], resources: '*', hooks: '*' },
-        pro: { name: 'Pro', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-
-      const result = await pm.validatePackage('test-missing-agent', 'lite');
-
-      assert(result.valid === false, 'Package with missing agent should be invalid');
-      assert(result.issues && result.issues.length > 0, 'Should have issues reported');
-      assert(result.issues.some(issue =>
-        issue.includes('nonexistent-agent') || issue.includes('agent') && issue.includes('not found')),
-        'Issues should mention missing agent');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate that variant-selected skills exist', async () => {
-    // Create temp package with missing skill
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-missing-skill');
-    const agentsDir = path.join(tempDir, 'agents');
-    const skillsDir = path.join(tempDir, 'skills');
-    const pdfSkillDir = path.join(skillsDir, 'pdf');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      if (!fs.existsSync(pdfSkillDir)) {
-        fs.mkdirSync(pdfSkillDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: { name: 'Lite', description: 'Test', agents: ['master'], skills: [], resources: '*', hooks: '*' },
-        standard: {
-          name: 'Standard',
-          description: 'Test',
-          agents: '*',
-          skills: ['pdf', 'nonexistent-skill'],  // nonexistent-skill doesn't exist
-          resources: '*',
-          hooks: '*'
-        },
-        pro: { name: 'Pro', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-      fs.writeFileSync(path.join(pdfSkillDir, 'skill.md'), '# PDF Skill');
-
-      const result = await pm.validatePackage('test-missing-skill', 'standard');
-
-      assert(result.valid === false, 'Package with missing skill should be invalid');
-      assert(result.issues && result.issues.length > 0, 'Should have issues reported');
-      assert(result.issues.some(issue =>
-        issue.includes('nonexistent-skill') || issue.includes('skill') && issue.includes('not found')),
-        'Issues should mention missing skill');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(pdfSkillDir, 'skill.md'))) {
-        fs.unlinkSync(path.join(pdfSkillDir, 'skill.md'));
-      }
-      if (fs.existsSync(pdfSkillDir)) {
-        fs.rmdirSync(pdfSkillDir);
-      }
-      if (fs.existsSync(skillsDir)) {
-        fs.rmdirSync(skillsDir);
-      }
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate wildcard selections have directories', async () => {
-    // Create temp package and validate wildcard works
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-wildcard-validation');
-    const agentsDir = path.join(tempDir, 'agents');
-    const skillsDir = path.join(tempDir, 'skills');
-    const pdfSkillDir = path.join(skillsDir, 'pdf');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      if (!fs.existsSync(pdfSkillDir)) {
-        fs.mkdirSync(pdfSkillDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: { name: 'Lite', description: 'Test', agents: ['master'], skills: [], resources: '*', hooks: '*' },
-        standard: { name: 'Standard', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' },
-        pro: { name: 'Pro', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-      fs.writeFileSync(path.join(pdfSkillDir, 'skill.md'), '# PDF Skill');
-
-      const result = await pm.validatePackage('test-wildcard-validation', 'standard');
-
-      assert(result.valid === true, 'Package with valid wildcard should be valid');
-      assert(result.issues.length === 0, 'Valid package should have no issues');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(pdfSkillDir, 'skill.md'))) {
-        fs.unlinkSync(path.join(pdfSkillDir, 'skill.md'));
-      }
-      if (fs.existsSync(pdfSkillDir)) {
-        fs.rmdirSync(pdfSkillDir);
-      }
-      if (fs.existsSync(skillsDir)) {
-        fs.rmdirSync(skillsDir);
-      }
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should validate resources and hooks referenced in variants', async () => {
-    // Create temp package with missing resource
-    const tempDir = path.join(__dirname, '..', '..', 'packages', 'test-missing-resource');
-    const agentsDir = path.join(tempDir, 'agents');
-    const resourcesDir = path.join(tempDir, 'resources');
-
-    try {
-      if (!fs.existsSync(agentsDir)) {
-        fs.mkdirSync(agentsDir, { recursive: true });
-      }
-      if (!fs.existsSync(resourcesDir)) {
-        fs.mkdirSync(resourcesDir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(tempDir, 'variants.json'), JSON.stringify({
-        lite: {
-          name: 'Lite',
-          description: 'Test',
-          agents: ['master'],
-          skills: [],
-          resources: ['config.yaml', 'missing.yaml'],  // missing.yaml doesn't exist
-          hooks: '*'
-        },
-        standard: { name: 'Standard', description: 'Test', agents: '*', skills: [], resources: '*', hooks: '*' },
-        pro: { name: 'Pro', description: 'Test', agents: '*', skills: '*', resources: '*', hooks: '*' }
-      }));
-      fs.writeFileSync(path.join(agentsDir, 'master.md'), '# Test Agent');
-      fs.writeFileSync(path.join(resourcesDir, 'config.yaml'), '# Config');
-
-      const result = await pm.validatePackage('test-missing-resource', 'lite');
-
-      assert(result.valid === false, 'Package with missing resource should be invalid');
-      assert(result.issues && result.issues.length > 0, 'Should have issues reported');
-      assert(result.issues.some(issue =>
-        issue.includes('missing.yaml') || issue.includes('resource') && issue.includes('not found')),
-        'Issues should mention missing resource');
-    } finally {
-      // Cleanup
-      if (fs.existsSync(path.join(resourcesDir, 'config.yaml'))) {
-        fs.unlinkSync(path.join(resourcesDir, 'config.yaml'));
-      }
-      if (fs.existsSync(resourcesDir)) {
-        fs.rmdirSync(resourcesDir);
-      }
-      if (fs.existsSync(path.join(tempDir, 'variants.json'))) {
-        fs.unlinkSync(path.join(tempDir, 'variants.json'));
-      }
-      if (fs.existsSync(path.join(agentsDir, 'master.md'))) {
-        fs.unlinkSync(path.join(agentsDir, 'master.md'));
-      }
-      if (fs.existsSync(agentsDir)) {
-        fs.rmdirSync(agentsDir);
-      }
-      if (fs.existsSync(tempDir)) {
-        fs.rmdirSync(tempDir);
-      }
-    }
-  });
-
-  await testAsync('should return detailed validation results', async () => {
-    const result = await pm.validatePackage('claude', 'standard');
-
-    assert(result !== null, 'Result should not be null');
-    assert(typeof result === 'object', 'Result should be an object');
-    assert(typeof result.valid === 'boolean', 'Should have valid boolean field');
-    assert(Array.isArray(result.issues), 'Should have issues array');
-    assert(typeof result.checkedFiles === 'number' && result.checkedFiles >= 0,
-      'Should have checkedFiles count');
-    assert(typeof result.missingFiles === 'number' && result.missingFiles >= 0,
-      'Should have missingFiles count');
-  });
-
-  // Test summary
-  log('\n=== Test Summary ===', 'blue');
-  log(`Total tests: ${totalTests}`, 'cyan');
-  log(`Passed: ${passedTests}`, 'green');
-  log(`Failed: ${failedTests}`, failedTests > 0 ? 'red' : 'green');
-
-  if (failedTests === 0) {
-    log('\nAll tests passed!', 'green');
-  } else {
-    log('\nSome tests failed!', 'red');
-    process.exit(1);
-  }
+  pm.packagesDir = packagesDir;
+  return pm;
 }
 
-// Run tests
-runTests().catch(error => {
-  log(`\nFatal error: ${error.message}`, 'red');
-  console.error(error);
+async function writeVariantsJson(root, toolId, obj) {
+  const toolDir = path.join(root, toolId);
+  await fs.promises.mkdir(toolDir, { recursive: true });
+  await fs.promises.writeFile(path.join(toolDir, 'variants.json'), JSON.stringify(obj, null, 2));
+  return toolDir;
+}
+
+async function main() {
+  console.log(`${colors.bright}${colors.cyan}installer/package-manager.js${colors.reset}\n`);
+
+  // ---- loadVariantConfig -------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const config = await pm.loadVariantConfig('claude');
+    check('loadVariantConfig: real claude variants.json has exactly one variant, pro',
+      Object.keys(config).length === 1 && !!config.pro,
+      `keys: ${JSON.stringify(Object.keys(config))}`);
+    check('loadVariantConfig: pro carries the required fields',
+      typeof config.pro.name === 'string' && typeof config.pro.description === 'string' && !!config.pro.agents,
+      JSON.stringify(config.pro));
+  }
+
+  await checkThrows('loadVariantConfig: throws for a tool with no packages/<id> dir',
+    () => new PackageManager().loadVariantConfig('not-a-real-tool'),
+    (msg) => /Variants file not found/.test(msg));
+
+  await withFixture(async (root) => {
+    const pm = pmOverPackagesDir(root);
+    await fs.promises.mkdir(path.join(root, 'ghost'), { recursive: true });
+    await checkThrows('loadVariantConfig: throws when variants.json itself is missing',
+      () => pm.loadVariantConfig('ghost'),
+      (msg) => /Variants file not found/.test(msg));
+  });
+
+  await withFixture(async (root) => {
+    const toolDir = path.join(root, 'badjson');
+    await fs.promises.mkdir(toolDir, { recursive: true });
+    await fs.promises.writeFile(path.join(toolDir, 'variants.json'), '{ this is not json');
+    const pm = pmOverPackagesDir(root);
+    await checkThrows('loadVariantConfig: throws with a clear message for malformed JSON',
+      () => pm.loadVariantConfig('badjson'),
+      (msg) => /Invalid JSON in variants\.json for tool badjson/.test(msg));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 'novariant', { notpro: { name: 'X', description: 'Y', agents: '*' } });
+    const pm = pmOverPackagesDir(root);
+    await checkThrows("loadVariantConfig: throws when the required 'pro' variant is absent",
+      () => pm.loadVariantConfig('novariant'),
+      (msg) => /Required variant 'pro' not found/.test(msg));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 'missingfield', { pro: { name: 'Pro', description: 'desc' /* no agents */ } });
+    const pm = pmOverPackagesDir(root);
+    await checkThrows("loadVariantConfig: throws when a required field ('agents') is missing from pro",
+      () => pm.loadVariantConfig('missingfield'),
+      (msg) => /Required field 'agents' missing/.test(msg));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 'cached', { pro: { name: 'Before', description: 'd', agents: '*' } });
+    const pm = pmOverPackagesDir(root);
+    const first = await pm.loadVariantConfig('cached');
+    // Mutate on disk after the first load; a cache hit must not see this.
+    await writeVariantsJson(root, 'cached', { pro: { name: 'After', description: 'd', agents: '*' } });
+    const second = await pm.loadVariantConfig('cached');
+    check('loadVariantConfig: caches per toolId (a later on-disk edit is not re-read)',
+      first.pro.name === 'Before' && second.pro.name === 'Before',
+      `first=${first.pro.name}, second=${second.pro.name}`);
+  });
+
+  // ---- getVariantMetadata -------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const meta = await pm.getVariantMetadata('claude', 'pro');
+    check("getVariantMetadata: real claude 'pro' has name 'Pro'", meta.name === 'Pro', meta.name);
+  }
+
+  await checkThrows("getVariantMetadata: throws for 'lite', which no longer exists",
+    () => new PackageManager().getVariantMetadata('claude', 'lite'),
+    (msg) => /Variant 'lite' not found for tool claude/.test(msg));
+
+  await checkThrows("getVariantMetadata: throws for 'standard', which no longer exists",
+    () => new PackageManager().getVariantMetadata('claude', 'standard'),
+    (msg) => /Variant 'standard' not found for tool claude/.test(msg));
+
+  // ---- selectVariantContent -----------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const available = await pm.getAvailableContent(REAL_PACKAGES_DIR + '/claude');
+    const selected = await pm.selectVariantContent('claude', 'pro', available);
+    check("selectVariantContent: wildcard '*' selects every available agent",
+      selected.agents.length === available.agents.length &&
+        available.agents.every((a) => selected.agents.includes(a)),
+      `available=${available.agents.length}, selected=${selected.agents.length}`);
+  }
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: ['keep'] } });
+    const pm = pmOverPackagesDir(root);
+    const selected = await pm.selectVariantContent('t', 'pro', { agents: ['keep', 'drop'] });
+    check('selectVariantContent: an explicit array selects only the named items',
+      selected.agents.length === 1 && selected.agents[0] === 'keep',
+      JSON.stringify(selected.agents));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: ['ghost'] } });
+    const pm = pmOverPackagesDir(root);
+    await checkThrows('selectVariantContent: an item that does not exist in availableContent throws',
+      () => pm.selectVariantContent('t', 'pro', { agents: [] }),
+      (msg) => /Item 'ghost' specified in pro variant agents not found/.test(msg));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: '*', commands: ['gone', 'stay'] } });
+    const pm = pmOverPackagesDir(root);
+    const selected = await pm.selectVariantContent('t', 'pro', { agents: [], commands: ['stay'] });
+    check('selectVariantContent: commands silently skip missing items (skipMissing=true)',
+      selected.commands.length === 1 && selected.commands[0] === 'stay',
+      JSON.stringify(selected.commands));
+  });
+
+  await withFixture(async (root) => {
+    await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: [] } });
+    const pm = pmOverPackagesDir(root);
+    const selected = await pm.selectVariantContent('t', 'pro', { agents: ['a', 'b'] });
+    check('selectVariantContent: an empty array selection yields no items',
+      Array.isArray(selected.agents) && selected.agents.length === 0,
+      JSON.stringify(selected.agents));
+  });
+
+  // ---- getAvailableVariants ------------------------------------------------
+  // NOTE: this method checks for a subdirectory literally named after the
+  // variant (packages/<tool>/<variant>/) — a layout left over from a
+  // pre-single-variant installer. No such subdirectory exists anywhere in
+  // packages/ today (see the bug reported at the end of this file), so this
+  // is exercised against a fixture that reproduces the historical shape it
+  // still assumes. Deliberately NOT asserted against real packages/: pinning
+  // the current [] result would bake the bug's own output in as expected, so
+  // fixing the bug would read as a regression.
+
+  await withFixture(async (root) => {
+    const toolDir = await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: '*' } });
+    await fs.promises.mkdir(path.join(toolDir, 'pro'), { recursive: true });
+    const pm = pmOverPackagesDir(root);
+    check("getAvailableVariants: lists 'pro' when packages/<tool>/pro/ exists",
+      JSON.stringify(pm.getAvailableVariants('t')) === JSON.stringify(['pro']),
+      JSON.stringify(pm.getAvailableVariants('t')));
+  });
+
+  // ---- getAvailableContent: dynamic directory-name resolution --------------
+  // (Not the dedup behaviour — that suite owns this method's dedup contract.)
+
+  {
+    const pm = new PackageManager();
+    const droid = await pm.getAvailableContent(path.join(REAL_PACKAGES_DIR, 'droid'));
+    check("getAvailableContent: resolves droid's agents directory as 'droids'",
+      droid.agentsDir === 'droids' && droid.agents.length > 0,
+      `agentsDir=${droid.agentsDir}, count=${droid.agents.length}`);
+
+    const opencode = await pm.getAvailableContent(path.join(REAL_PACKAGES_DIR, 'opencode'));
+    check("getAvailableContent: resolves opencode's agents/commands dirs as singular 'agent'/'command'",
+      opencode.agentsDir === 'agent' && opencode.commandsDir === 'command' &&
+        opencode.agents.length > 0 && opencode.commands.length > 0,
+      `agentsDir=${opencode.agentsDir}, commandsDir=${opencode.commandsDir}`);
+  }
+
+  // ---- getPackageContents --------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const contents = await pm.getPackageContents('claude', 'pro');
+    const sum = contents.agents.length + contents.skills.length + contents.commands.length +
+      contents.resources.length + contents.hooks.length + contents.plugins.length;
+    check('getPackageContents: real claude/pro resolves a non-empty set of agents and skills',
+      contents.agents.length > 0 && contents.skills.length > 0,
+      `agents=${contents.agents.length}, skills=${contents.skills.length}`);
+    check('getPackageContents: totalFiles equals the sum of every category',
+      contents.totalFiles === sum,
+      `totalFiles=${contents.totalFiles}, sum=${sum}`);
+  }
+
+  await checkThrows('getPackageContents: throws for an unknown tool',
+    () => new PackageManager().getPackageContents('not-a-real-tool', 'pro'),
+    (msg) => /Package not found: not-a-real-tool/.test(msg));
+
+  await checkThrows("getPackageContents: throws for an unknown variant ('standard') on a real tool",
+    () => new PackageManager().getPackageContents('claude', 'standard'),
+    (msg) => /Variant 'standard' not found for tool claude/.test(msg));
+
+  // ---- countFiles -----------------------------------------------------------
+
+  await withFixture(async (root) => {
+    await fs.promises.mkdir(path.join(root, 'nested', 'deeper'), { recursive: true });
+    await fs.promises.writeFile(path.join(root, 'a.txt'), 'a');
+    await fs.promises.writeFile(path.join(root, 'nested', 'b.txt'), 'b');
+    await fs.promises.writeFile(path.join(root, 'nested', 'deeper', 'c.txt'), 'c');
+    const pm = new PackageManager();
+    const files = await pm.countFiles(root);
+    check('countFiles: recurses into nested directories and counts only files',
+      files.length === 3 && files.every((f) => f.endsWith('.txt')),
+      JSON.stringify(files));
+  });
+
+  // ---- formatBytes -----------------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    check("formatBytes(0) === '0 Bytes'", pm.formatBytes(0) === '0 Bytes', pm.formatBytes(0));
+    check("formatBytes(1024) === '1 KB'", pm.formatBytes(1024) === '1 KB', pm.formatBytes(1024));
+    check("formatBytes(1536) === '1.5 KB'", pm.formatBytes(1536) === '1.5 KB', pm.formatBytes(1536));
+    check("formatBytes(1048576) === '1 MB'", pm.formatBytes(1048576) === '1 MB', pm.formatBytes(1048576));
+  }
+
+  // ---- getPackageSize ---------------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const { size, formattedSize } = await pm.getPackageSize('claude', 'pro');
+    check('getPackageSize: real claude/pro has a positive total size', size > 0, size);
+    check("getPackageSize: formattedSize matches formatBytes(size)",
+      formattedSize === pm.formatBytes(size), `${formattedSize} vs ${pm.formatBytes(size)}`);
+  }
+
+  // ---- validatePackage ---------------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    const result = await pm.validatePackage('claude', 'pro');
+    check('validatePackage: real claude/pro is valid with zero issues',
+      result.valid === true && result.issues.length === 0,
+      JSON.stringify(result));
+  }
+
+  await withFixture(async (root) => {
+    // A variant that selects an agent no available agent provides. Since
+    // getAvailableContent only ever lists names that exist on disk,
+    // selectVariantContent's own existence check rejects 'ghost' before
+    // validatePackage's per-item file check ever runs — the result is still
+    // an invalid package, just reported via the catch-and-report path (see
+    // Check 6 in validatePackage) rather than the missingFiles counter.
+    const toolDir = await writeVariantsJson(root, 't', { pro: { name: 'P', description: 'd', agents: ['ghost'] } });
+    await fs.promises.mkdir(path.join(toolDir, 'agents'), { recursive: true });
+    // Note: nothing named ghost.md is written, so 'ghost' never appears in
+    // availableContent either.
+    const pm = pmOverPackagesDir(root);
+    const result = await pm.validatePackage('t', 'pro');
+    check('validatePackage: reports an unresolvable selected agent as invalid',
+      result.valid === false && /ghost/.test(result.error),
+      JSON.stringify(result));
+  });
+
+  {
+    // validatePackage never throws for a bad variant name — it catches the
+    // error from selectVariantContent and returns an invalid result instead.
+    const pm = new PackageManager();
+    const result = await pm.validatePackage('claude', 'standard');
+    check("validatePackage: reports (never throws) invalid for an unknown variant ('standard')",
+      result.valid === false && /Variant 'standard' not found for tool claude/.test(result.error),
+      JSON.stringify(result));
+  }
+
+  {
+    const pm = new PackageManager();
+    const result = await pm.validatePackage('not-a-real-tool', 'pro');
+    check('validatePackage: reports a missing package directory as invalid rather than throwing',
+      result.valid === false && /Package directory not found/.test(result.error),
+      JSON.stringify(result));
+  }
+
+  // ---- getManifestTemplate ---------------------------------------------------------
+
+  {
+    const pm = new PackageManager();
+    for (const tool of ['claude', 'ampcode', 'droid', 'opencode']) {
+      const template = pm.getManifestTemplate(tool);
+      check(`getManifestTemplate: real ${tool} template parses with its own 'tool' field intact`,
+        template && template.tool === tool,
+        JSON.stringify(template));
+
+      // There is one install: everything. installation-engine.generateManifest
+      // spreads this template wholesale into the manifest.json written to the
+      // user's machine, so any field here ships to disk — and a
+      // `supported_variants` list would advertise a choice that does not exist
+      // and that nothing reads.
+      check(`getManifestTemplate: ${tool} advertises no variant choice`,
+        template && !('supported_variants' in template),
+        JSON.stringify(template && template.supported_variants));
+    }
+  }
+
+  await checkThrows('getManifestTemplate: throws for a tool with no manifest template',
+    () => new PackageManager().getManifestTemplate('not-a-real-tool'),
+    (msg) => /Manifest template not found for tool: not-a-real-tool/.test(msg));
+}
+
+main().then(() => {
+  // Summary format is a contract with tests/run-all-tests.js, which parses
+  // /Total tests:\s+(\d+)/, /Passed:\s+(\d+)/ and /Failed:\s+(\d+)/. Emit
+  // anything else and the runner reads 0 tests and fails the count floor.
+  console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
+  console.log(`Total tests: ${passed + failed}`);
+  console.log(`${colors.green}Passed: ${passed}${colors.reset}`);
+  console.log(`${colors.red}Failed: ${failed}${colors.reset}`);
+  if (failed) {
+    console.log(`\n${colors.red}Failures:${colors.reset}`);
+    for (const f of failures) console.log(`  - ${f.name}${f.detail ? `: ${f.detail}` : ''}`);
+  }
+  process.exit(failed ? 1 : 0);
+}).catch((err) => {
+  console.error(`${colors.red}Suite crashed:${colors.reset} ${err && err.stack || err}`);
+  console.log(`\nTotal tests: ${passed + failed}`);
+  console.log(`Passed: ${passed}`);
+  console.log(`Failed: ${failed + 1}`);
   process.exit(1);
 });
