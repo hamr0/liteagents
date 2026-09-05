@@ -97,14 +97,18 @@ you owe an answer on — take both from the file, never from the orchestrator's
 recollection, for the same reason `/release` does. Then:
 
 - **First, check the record belongs to this branch.** There is one record file
-  per repo, not one per branch. If its `branch:` line differs from the current
-  branch, or `git merge-base --is-ancestor <that sha> HEAD` exits non-zero,
-  the record describes a different or rewritten history — treat it exactly as
-  **No file** below and review the whole branch. Skipping this resolves
-  `<that sha>..HEAD` against a merged, renamed, or rebased sha, which is not a
-  subset of this branch but a range that never existed. Check both: the branch
-  name catches a switch, the ancestry check catches a rebase or squash under
-  the same name. Otherwise:
+  per repo, not one per branch. Validate `<that sha>` first with
+  `git rev-parse --verify <that sha>` — a value that fails this (e.g. a
+  corrupted or hand-edited record, or one starting with `-`, which git would
+  otherwise parse as an option) is a malformed record; treat it exactly as
+  **No file** below. If it validates, and its `branch:` line differs from the
+  current branch, or `git merge-base --is-ancestor <that sha> HEAD` exits
+  non-zero, the record describes a different or rewritten history — treat it
+  exactly as **No file** below and review the whole branch. Skipping this
+  resolves `<that sha>..HEAD` against a merged, renamed, or rebased sha, which
+  is not a subset of this branch but a range that never existed. Check both:
+  the branch name catches a switch, the ancestry check catches a rebase or
+  squash under the same name. Otherwise:
 
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3

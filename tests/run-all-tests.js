@@ -94,6 +94,12 @@ const testSuites = [
     file: 'installer/closing-note.test.js',
     description: 'Tests installer/cli.js formatBackupClosingNote: silent on a fresh install, ~-substituted backup paths, and never hardcodes the claude-only commands/remember path',
     expectedTests: 7
+  },
+  {
+    name: 'package-manager dedup',
+    file: 'installer/package-manager-dedup.test.js',
+    description: 'Tests installer/package-manager.js getAvailableContent lists a capability shipping both <name>.md and a same-named <name>/ once, across commands/, the singular command/, agents/ and skills/, without collapsing distinct names',
+    expectedTests: 7
   }
 ];
 
