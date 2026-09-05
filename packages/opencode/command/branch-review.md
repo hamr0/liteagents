@@ -96,6 +96,16 @@ was actually read rather than assuming.
 you owe an answer on — take both from the file, never from the orchestrator's
 recollection, for the same reason `/release` does. Then:
 
+- **First, check the record belongs to this branch.** There is one record file
+  per repo, not one per branch. If its `branch:` line differs from the current
+  branch, or `git merge-base --is-ancestor <that sha> HEAD` exits non-zero,
+  the record describes a different or rewritten history — treat it exactly as
+  **No file** below and review the whole branch. Skipping this resolves
+  `<that sha>..HEAD` against a merged, renamed, or rebased sha, which is not a
+  subset of this branch but a range that never existed. Check both: the branch
+  name catches a switch, the ancestry check catches a rebase or squash under
+  the same name. Otherwise:
+
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
   re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
