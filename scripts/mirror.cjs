@@ -26,7 +26,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const J = (...p) => path.join(ROOT, ...p);
 
-// Ordered longest-match-first: the first pair that matches a substring wins.
+// Ordered longest-match-first: substitute() applies every pair in order via
+// reduce, so an earlier pair can affect what a later pair matches.
 const KITS = {
   droid: {
     dir: 'packages/droid', cmd: 'commands', agent: 'droids',
@@ -58,7 +59,6 @@ const KITS = {
       ['~/.claude/skills/', '~/.config/opencode/command/'],
       ['~/.claude/commands/', '~/.config/opencode/command/'],
       ['~/.claude/agents/', '~/.config/opencode/agent/'],
-      ['~/.claude/skills/', '~/.config/opencode/command/'],
       ['~/.claude/', '~/.config/opencode/'],
       ['.claude/', '.opencode/'],
       ["'.claude'", "'.opencode'"],
