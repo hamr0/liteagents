@@ -154,7 +154,7 @@ options, no recommendation, no third:
 
 | Option | What it does | Cost |
 |---|---|---|
-| **First run** | sort every `.md` into product/logs/archive, then split anything too big | spends model budget |
+| **First run** | sort every `.md` into product/wiki/logs/archive, then split anything too big | spends model budget |
 | **Docs drift** | rebuild the index, re-run lint, report what changed. Nothing moves, nothing splits | cheap — the common case |
 
 Pass an argument (`reorg` or `cleanup <file.md>`) and it skips the question, so the flow
@@ -176,7 +176,7 @@ distinction.
 **"First run" has two stops, and they guard different things.** `discover` writes a plan
 where every row carries a mechanical `suggested` bucket + `reason` (a PRIOR, never a
 verdict) but an **empty** `bucket` — nothing moves yet. The classification interview then
-has the model fill `bucket` (`product`/`logs`/`archive`) for every row, and only then is
+has the model fill `bucket` (`product`/`wiki`/`logs`/`archive`) for every row, and only then is
 the full table shown for approval via `AskUserQuestion` (approve all / correct specific
 rows / abort) — that stop guards **correctness**: `apply-reorg` refuses outright to run
 while any row's `bucket` is still empty, so nothing moves on an unreviewed plan. After the
@@ -196,12 +196,12 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
-| `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
+| `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/wiki/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
 | `/docs-builder cleanup <file.md>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
 | `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts a whole messy
-`docs/` tree into the product/logs/archive layout in one pass and **never splits anything
+`docs/` tree into the product/wiki/logs/archive layout in one pass and **never splits anything
 itself**; an oversized file still moves into its bucket like everything else, but still
 needs a human to run `cleanup <file>` on it individually, one named file per invocation,
 since that step spends real model money and should never fire without a look first.
@@ -230,17 +230,24 @@ docs/
   index.md            GENERATED, and ONLY by `index-flat` (called directly, or from
                        `apply-reorg`/`reorg`/`cleanup-apply`). Never hand-edited. The
                        WHOLE-CORPUS map — the only file with a completeness guarantee.
-                       Three sections: ## Product, ## Logs, ## Archive.
+                       Three sections: ## Product, ## Logs (grouped by subdir), ## Archive.
   log.md               append-only:  ## [DATE] operation | description — written by
                        `archive`, `apply-reorg`, `validate`, `reorg`; not by read-only
                        commands (`due`, `search`, `discover`).
-  product/            specs, designs, plans — the default. `apply-reorg` MOVES files here
-                       (`git mv`); content is never rewritten.
-  logs/                pre-registrations, results, learnings, reports — historical, still
-                       relevant. Same MOVE discipline as product/archive. See "Why `logs/`
+  product/            docs ABOUT THE PRODUCT ITSELF — the default. FLAT, no subdirs.
+                       `apply-reorg` MOVES files here (`git mv`); content is never rewritten.
+                       Re-checked every reorg (only archive/ stays frozen).
+  wiki/                GENERIC, not-product-specific knowledge — conventions, how-tos,
+                       standards, reference. FLAT, no subdirs. Also where Mode 1
+                       (`cleanup`)'s page writers put synthesised pages. Re-checked every
+                       reorg, same as product/.
+  logs/                ONE-TIME, timely knowledge — POCs, experiments, investigations,
+                       incident/session write-ups, reports. Same MOVE discipline as
+                       product/wiki/archive, but the ONLY bucket that may nest, ONE level
+                       (by the file's own nearest parent dir name). See "Why `logs/`
                        exists" below.
-  wiki/                synthesised pages, written by Mode 1 (`cleanup`)'s page writers.
-  archive/             what got cleaned up: self-declared dead. Originals are BYTE-FROZEN —
+  archive/             what got cleaned up: self-declared dead. FROZEN — never re-checked.
+                       Originals are BYTE-FROZEN —
                        never a rewrite target, so a doc lands byte-identical to what it
                        carried in. Links elsewhere pointing AT it are still repaired.
                        Pruning is the user's own call (`git rm`) — nothing here does it
