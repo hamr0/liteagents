@@ -397,7 +397,7 @@ const MOVE_FIXTURE = () => ({
     'sentence end:  see docs/GUIDE.md.',
     '',
   ].join('\n'),
-  'TRAPS.md': [
+  'notes/TRAPS.md': [ // gap 1: outside root and outside docs/ — never in scope by design, so this fixture (never meant to be scanned itself) can't collide with the new default scan
     'prefix:   xdocs/GUIDE.md',
     'dotslash: ./docs/GUIDE.md',
     'suffix:   docs/GUIDE.md.bak',
@@ -423,7 +423,7 @@ function assertMoveRepairs(d, newPath, label) {
   ok(`${label}: non-markdown referrer left byte-unchanged`,
     read(d, 'tool.js'), "const required = ['docs/GUIDE.md'];\n");
 
-  const traps = read(d, 'TRAPS.md');
+  const traps = read(d, 'notes/TRAPS.md');
   okTrue(`${label}: prefix trap xdocs/ untouched`, traps.includes('xdocs/GUIDE.md'));
   okTrue(`${label}: ./docs/ trap untouched`, traps.includes('./docs/GUIDE.md'));
   okTrue(`${label}: .bak suffix trap untouched`, traps.includes('docs/GUIDE.md.bak'));
@@ -519,7 +519,7 @@ function discoverBuckets() {
     'docs/.hidden/SECRET.md': DOC('Secret'),
     // A live mkdocs snippet-include pointer (uv's docs/reference/contributing.md, real-world
     // miss) — no H1, but its only content is an include directive, not an unknown doc.
-    'docs/reference/contributing.md': '--8<-- "CONTRIBUTING.md"\n',
+    'docs/reference/vendor-include.md': '--8<-- "CONTRIBUTING.md"\n', // gap 3: 'contributing.md' itself is now protected case-insensitively; renamed to avoid the collision
     // v3: `review` is gone. No H1, no strong signal — still a real row, still `suggested`
     // product (the model decides at the interview, nothing special-cases this any more).
     'docs/reference/mystery.md': 'just some prose with no heading and no include directive.\n',
@@ -542,7 +542,7 @@ function discoverBuckets() {
   ok('a *-PREREG filename is suggested logs', suggested('docs/EXPERIMENT-PREREG.md'), 'logs');
   ok('a *-LEARNINGS filename is suggested logs', suggested('docs/RUN-1-LEARNINGS.md'), 'logs');
   ok('a no-H1 mkdocs include stub is suggested product',
-    suggested('docs/reference/contributing.md'), 'product');
+    suggested('docs/reference/vendor-include.md'), 'product');
   ok('a no-H1 file with real unclassifiable prose is still suggested product (no more `review`)',
     suggested('docs/reference/mystery.md'), 'product');
 
@@ -622,6 +622,13 @@ function discoverCarryForwardValidOnly() {
 function reorgCollision() {
   group('8. apply-reorg — a collision must not stop the run');
 
+  // (a) collision with a file the plan KNOWS ABOUT: gap 4 means docs/product/ is re-checked
+  // every run now, so a pre-existing docs/product/TAKEN.md is itself a plan row (resident,
+  // prior = product) — it must keep ITS OWN name, and the incoming docs/TAKEN.md disambiguates
+  // around it (TAKEN-2.md), never a SKIP: nothing here is actually in conflict, the tool just
+  // learned about both files at once. REGRESSION covered separately (see the ordering-bug
+  // comment at destDirFor's call site in applyReorg): a resident row must never be the one
+  // that yields its name to a later-visited row sharing the same basename.
   const d = repo({
     'docs/a/SAME.md': DOC('One'),
     'docs/b/SAME.md': DOC('Two'),
@@ -635,13 +642,34 @@ function reorgCollision() {
 
   okTrue('same-basename collision is disambiguated, both survive',
     exists(d, 'docs/product/SAME.md') && exists(d, 'docs/product/SAME-2.md'));
-  okTrue('a destination that already exists is skipped', /"skipped": 1/.test(r.out));
-  ok('the pre-existing file was not overwritten',
+  okTrue('a KNOWN (resident, in-plan) collision disambiguates instead of skipping',
+    exists(d, 'docs/product/TAKEN.md') && exists(d, 'docs/product/TAKEN-2.md'));
+  ok('the resident file keeps its own content, untouched',
     read(d, 'docs/product/TAKEN.md'), 'pre-existing, must not be overwritten\n');
+  okTrue('the resident row is reported unchanged, not skipped', /"unchanged": 1/.test(r.out));
   okTrue('unrelated files still moved', exists(d, 'docs/product/OK.md'));
   // v3: apply-reorg no longer just hints at index-flat — it runs it itself.
   okTrue('apply-reorg writes docs/index.md itself when nothing is oversized',
     exists(d, 'docs/index.md'));
+
+  // (b) collision with a file the plan does NOT know about: docs/archive/ stays frozen and is
+  // never walked, so an archive-bound row colliding with a pre-existing archive file really is
+  // an unknown-to-the-plan collision — the original "refuses to overwrite, counted as skipped"
+  // behaviour this test used to cover, still real for the one bucket that stays out of scope.
+  const d2 = repo({
+    'docs/archive/DUP.md': 'pre-existing archive content, must not be overwritten\n',
+    'docs/DUP.md': DOC('Dup'),
+  });
+  db(d2, ['discover']);
+  fillBucketsFromSuggested(d2, undefined); // suggested is 'product' by default; force archive below
+  { const p = JSON.parse(fs.readFileSync(path.join(d2, 'docs/.docs-builder/reorg-plan.json'), 'utf8'));
+    for (const row of p.rows) row.bucket = 'archive';
+    fs.writeFileSync(path.join(d2, 'docs/.docs-builder/reorg-plan.json'), JSON.stringify(p, null, 1)); }
+  const r2 = db(d2, ['apply-reorg']);
+  okTrue('an UNKNOWN (archive, out of scan scope) collision is skipped, not overwritten',
+    /"skipped": 1/.test(r2.out));
+  ok('the pre-existing archive file was not overwritten',
+    read(d2, 'docs/archive/DUP.md'), 'pre-existing archive content, must not be overwritten\n');
 }
 
 // ---------------------------------------------------------------- 9. ledger / due
@@ -2041,15 +2069,33 @@ function logsIdempotentAndIndexed() {
   okTrue('the logs file is NOT also listed under ## Product',
     !(md.split(/^## /m).find(s => s.startsWith('Product')) || '').includes('[Experiment Prereg]'));
 
-  // Idempotence: re-run discover (walkMd skips docs/logs/ by name, same as product/archive)
-  // + apply-reorg over what's left — nothing left to classify, nothing left to move.
+  // Gap 4: product/wiki/logs are re-checked EVERY run, so the run right after a move sees
+  // these two files again at their NEW resident paths — fresh rows (the plan never held these
+  // exact paths before this moment), `suggested` already matches where they now sit, but
+  // `bucket` still starts empty: even a resident file gets a real (if trivial) approval pass,
+  // same discipline as any other row — that's the cost of "litter gets re-checked", not a bug.
   db(d, ['discover']);
   const plan = JSON.parse(fs.readFileSync(path.join(d, 'docs/.docs-builder/reorg-plan.json'), 'utf8'));
-  ok('a second discover finds nothing left to classify', plan.rows.length, 0);
+  ok('the resident logs+product files reappear as fresh rows at their new paths', plan.rows.length, 2);
+  okTrue('their suggested bucket already matches where they actually sit',
+    plan.rows.every(r => r.suggested === (r.file.startsWith('docs/logs/') ? 'logs' : 'product')));
+  fillBucketsFromSuggested(d);
   const r2 = db(d, ['apply-reorg']);
-  ok('a second apply-reorg exits clean', r2.code, 0);
-  okTrue('a second apply-reorg moves nothing', /"moved": 0/.test(r2.out));
-  okTrue('a second apply-reorg skips nothing', /"skipped": 0/.test(r2.out));
+  ok('apply-reorg exits clean', r2.code, 0);
+  okTrue('nothing moves — both rows are already exactly where they belong', /"moved": 0/.test(r2.out));
+  okTrue('both rows report unchanged, not skipped',
+    /"unchanged": 2/.test(r2.out) && /"skipped": 0/.test(r2.out));
+
+  // True idempotence: a THIRD cycle, with no move in between, needs no fresh approval at all —
+  // carry-forward now finds the SAME paths it just classified a moment ago.
+  db(d, ['discover']);
+  const plan3 = JSON.parse(fs.readFileSync(path.join(d, 'docs/.docs-builder/reorg-plan.json'), 'utf8'));
+  ok('the third discover carries both buckets forward — nothing left to classify',
+    plan3.rows.filter(r => !r.bucket).length, 0);
+  const r3 = db(d, ['apply-reorg']);
+  ok('a third apply-reorg exits clean', r3.code, 0);
+  okTrue('a third apply-reorg moves nothing', /"moved": 0/.test(r3.out));
+  okTrue('a third apply-reorg skips nothing', /"skipped": 0/.test(r3.out));
   okTrue('the logs file still exists exactly once, unchanged',
     exists(d, 'docs/logs/EXPERIMENT-PREREG.md') && !exists(d, 'docs/logs/EXPERIMENT-PREREG-2.md'));
 }
@@ -2656,23 +2702,31 @@ function discoverReportsRealBucketState() {
  *  already sorted yields rows: [], filled === 0, and the `!filled` branch fired the
  *  "run the classification interview" message for a ZERO-row plan — telling the operator to
  *  interview nothing, right before `reorg` proceeds anyway. */
+/** Gap 4 changed what "already sorted" means: docs/product, docs/wiki and docs/logs are
+ *  re-checked EVERY run now — only docs/archive stays frozen/skipped. So a truly empty plan
+ *  (0 rows) only happens when nothing at all is in scope outside archive; a resident,
+ *  already-correctly-filed doc is a REAL row (suggested matching its residency) that still
+ *  needs one rubber-stamp classification pass, same as any other file. */
 function discoverEmptyPlanZeroRows() {
-  group('40. discover on an already-sorted corpus reports 0 rows, not the interview message');
+  group('40. discover — 0 rows only when nothing is in scope; a resident doc still needs one pass');
 
-  const d = repo({ 'docs/product/a.md': DOC('A'), 'docs/archive/b.md': DOC('B') });
+  const d = repo({ 'docs/archive/b.md': DOC('B') });
   const r = db(d, ['discover']);
   ok('discover exits clean', r.code, 0);
   const plan = artifact(d, 'reorg-plan.json');
-  ok('plan has 0 rows', plan.rows.length, 0);
-  okTrue('it reports 0 rows and how to re-check a bucket',
-    /0 rows/.test(r.out) && /discover docs\/product/.test(r.out));
+  ok('plan has 0 rows — archive is the only content, and it stays frozen', plan.rows.length, 0);
+  okTrue('it reports 0 rows and how to scope a directory-specific check',
+    /0 rows/.test(r.out) && /discover <dir>/.test(r.out));
   okTrue('it does NOT print the classification-interview message for an empty plan',
     !/Run the classification interview/.test(r.out));
 
-  // control: an unsorted corpus still gets the original "bucket is empty" message
-  const d2 = repo({ 'docs/a.md': DOC('A') });
+  const d2 = repo({ 'docs/product/a.md': DOC('A') });
   const r2 = db(d2, ['discover']);
-  okTrue('control: unsorted corpus still shows the bucket-is-empty message', /`bucket` is empty/.test(r2.out));
+  const plan2 = artifact(d2, 'reorg-plan.json');
+  ok('a resident, already-correctly-filed doc is still a real row, not folded away', plan2.rows.length, 1);
+  ok('its suggested bucket already matches its residency', plan2.rows[0].suggested, 'product');
+  okTrue('control: it still shows the bucket-is-empty message until rubber-stamped',
+    /`bucket` is empty/.test(r2.out));
 }
 
 // ---------------------------------------------------------------- 13. packaging
@@ -2820,8 +2874,10 @@ function dirtyOnListExcludesToolOwnedFiles() {
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
+  // Gap 6: logs nests one level, by the file's own immediate parent dir name — this one's
+  // parent is docs/product, so it nests under docs/logs/product/, not flat.
   okTrue('RUN-PREREG.md actually moved (precondition for a commit-dirty.txt write)',
-    exists(d, 'docs/logs/RUN-PREREG.md'));
+    exists(d, 'docs/logs/product/RUN-PREREG.md'));
 
   const dirty = commitList(d, 'commit-dirty.txt');
   okTrue('commit-dirty.txt does NOT list docs/log.md', !dirty.includes('docs/log.md'));
@@ -2990,32 +3046,45 @@ function nonMarkdownNeverTouched() {
   }
 }
 
-/** `reorg <dir>` re-checks a bucket that got messy (bareloop: 18 of 45 docs in docs/product
- *  were run records, and bare discover skips product/ entirely). A row already in its bucket
- *  stays put — reported as unchanged, never as a SKIP. */
+/** Gap 4: docs/product, docs/wiki and docs/logs are re-checked on EVERY run now, bare
+ *  `discover` included (bareloop: 18 of 45 docs in docs/product were run records, and the
+ *  pre-gap-4 bare discover skipped product/ entirely, missing them). A row already in its
+ *  bucket stays put — reported as unchanged, never as a SKIP. Explicit `discover <dir>` /
+ *  `reorg <dir>` still scope to exactly that dir, unaffected, and still work the same way. */
 function reorgRechecksABucket() {
-  group('42. reorg <dir> — re-checks files already inside a bucket');
+  group('42. reorg/discover — re-checks files already inside docs/product, docs/wiki, docs/logs');
   const d = repo({
     'docs/product/PLAN.md': '# Plan\n\nSee [the prereg](RUN-PREREG.md).\n',
     'docs/product/RUN-PREREG.md': DOC('Run prereg'),
   });
   db(d, ['discover']);
-  ok('bare discover plans nothing inside product/ (precondition)',
-    artifact(d, 'reorg-plan.json').rows.length, 0);
-  db(d, ['reorg', 'docs/product']);
-  ok('reorg docs/product plans both files', artifact(d, 'reorg-plan.json').rows.length, 2);
+  const plan0 = artifact(d, 'reorg-plan.json');
+  ok('bare discover already finds both files inside docs/product (gap 4)', plan0.rows.length, 2);
+  const prereg0 = plan0.rows.find(r => r.file === 'docs/product/RUN-PREREG.md');
+  const plan0Row = plan0.rows.find(r => r.file === 'docs/product/PLAN.md');
+  ok('the misfiled prereg\'s suggested bucket is logs (filename signal beats the residency prior)',
+    prereg0.suggested, 'logs');
+  ok('the correctly filed doc\'s suggested bucket is its own residency (product)',
+    plan0Row.suggested, 'product');
   okTrue('it moved nothing before the classification interview', exists(d, 'docs/product/RUN-PREREG.md'));
 
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
-  okTrue('the misfiled prereg moved to docs/logs/', exists(d, 'docs/logs/RUN-PREREG.md'));
+  // Gap 6: logs nests one level, by the file's own immediate parent dir name — this one's
+  // parent is docs/product, so it nests under docs/logs/product/, not flat docs/logs/.
+  okTrue('the misfiled prereg moved to docs/logs/product/', exists(d, 'docs/logs/product/RUN-PREREG.md'));
   okTrue('the correctly filed doc stays put', exists(d, 'docs/product/PLAN.md'));
   okTrue('it says the doc stays', /docs\/product\/PLAN\.md stays in docs\/product/.test(r.out));
   okTrue('nothing is reported as skipped', /"skipped": 0/.test(r.out) && !/SKIP /.test(r.out));
   okTrue('the unchanged count includes it', /"unchanged": 1/.test(r.out));
   okTrue('the stay-put doc\'s relative link follows the move',
-    read(d, 'docs/product/PLAN.md').includes('](../logs/RUN-PREREG.md)'));
+    read(d, 'docs/product/PLAN.md').includes('](../logs/product/RUN-PREREG.md)'));
+
+  // Explicit `discover <dir>` / `reorg <dir>` still scope to exactly that one dir, unaffected.
+  const d2 = repo({ 'docs/product/PLAN2.md': DOC('Plan2') });
+  db(d2, ['reorg', 'docs/product']);
+  ok('explicit reorg <dir> still works, scoped to that dir', artifact(d2, 'reorg-plan.json').rows.length, 1);
 }
 
 function rootEnvIsIgnoredLoudly() {
@@ -3025,32 +3094,38 @@ function rootEnvIsIgnoredLoudly() {
   okTrue('it warns that ROOT= is ignored', /ROOT=docs\/product is ignored/.test(r.out));
 }
 
-/** No docs/ yet: the repo's loose .md files get sorted into docs/, and entry-point files
- *  (README.md, CLAUDE.md, CHANGELOG.md, AGENTS.md, ...) never move. */
+/** Gap 1 (spec change, 2026-09-10): scan scope with no dir argument is ONLY (a) .md files
+ *  sitting directly at the repo root (top level, not recursive) and (b) everything under
+ *  docs/ (recursive). Every other .md file in the repo — including one merely one level
+ *  down, outside docs/ — is never listed, never moved, regardless of whether docs/ exists.
+ *  Entry-point files at root (README.md, CLAUDE.md, CHANGELOG.md, AGENTS.md, ...) never move. */
 function noDocsDirSortsLooseMd() {
-  group('44. no docs/ — loose .md files are sorted; entry-point files never move');
+  group('44. no docs/ — root-level loose .md files are sorted; nested/outside-docs files are out of scope');
   const files = {
     'README.md': '# Readme\n\nSee [design](DESIGN.md).\n',
     'CLAUDE.md': '# Claude\n\nproject rules\n',
     'CHANGELOG.md': '# Changelog\n\n- added DESIGN.md\n',
     'AGENTS.md': '# Agents\n',
     'DESIGN.md': DOC('Design'),
+    // Outside root AND outside docs/ — the new spec's scan scope excludes this entirely, even
+    // though the old (pre-gap-1) whole-repo-recursive fallback used to sweep it up.
     'notes/IDEAS.md': DOC('Ideas'),
     'src/app.js': '// see DESIGN.md\n',
   };
   const d = repo(files);
   const disc = db(d, ['discover']);
   ok('discover exits clean with no docs/', disc.code, 0);
-  okTrue('it says it is scanning the repo instead', /no docs\/ directory/.test(disc.out));
   const planned = artifact(d, 'reorg-plan.json').rows.map(x => x.file).sort().join(',');
-  ok('only the loose docs are planned — no entry-point file', planned, 'DESIGN.md,notes/IDEAS.md');
+  ok('only the root-level loose doc is planned — no entry-point file, no nested outside-docs file',
+    planned, 'DESIGN.md');
 
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
   okTrue('DESIGN.md moved into docs/product/', exists(d, 'docs/product/DESIGN.md'));
-  okTrue('notes/IDEAS.md moved into docs/product/', exists(d, 'docs/product/IDEAS.md'));
-  okTrue('the dir this run emptied is removed', !exists(d, 'notes'));
+  okTrue('notes/IDEAS.md is untouched — outside root, outside docs/, out of scan scope by design',
+    exists(d, 'notes/IDEAS.md'));
+  ok('notes/IDEAS.md is byte-unchanged', read(d, 'notes/IDEAS.md'), files['notes/IDEAS.md']);
   for (const f of ['CHANGELOG.md', 'AGENTS.md'])
     ok(`${f} stays at root, byte-unchanged`, read(d, f), files[f]);
   okTrue('CLAUDE.md stays at root with its own content intact',
@@ -3094,6 +3169,126 @@ function emptyPageIsPartialNotACrash() {
   okTrue('a newline-only page is PARTIAL too', /PARTIAL/.test(p2.out));
 }
 
+// ------------------------------------------- 45-49. docs-builder-v3 "four buckets" gaps (2026-09-10)
+
+/** Gap 3 (case-insensitive protection): REPRODUCED pre-fix — a repo with `readme.md`,
+ *  `Claude.md`, `changelog.md`, `agents.md` (all lowercase-first or fully-lowercase variants
+ *  of the exact-case protected names) had every one of them swept into the plan and, once
+ *  bucketed, MOVED — the exact-case `.has()` check missed them entirely. */
+function protectedNamesAreCaseInsensitive() {
+  group('45. entry-point files are protected case-insensitively (gap 3)');
+  const files = {
+    'readme.md': '# Readme\n\nSee [x](x.md)\n',
+    'Claude.md': '# Claude rules\n',
+    'changelog.md': '# Changelog\n',
+    'agents.md': '# Agents\n',
+    'x.md': DOC('X'),
+  };
+  const d = repo(files);
+  db(d, ['discover']);
+  const planned = artifact(d, 'reorg-plan.json').rows.map(r => r.file).sort();
+  ok('only the non-protected file is planned', planned.join(','), 'x.md');
+
+  fillBucketsFromSuggested(d);
+  db(d, ['apply-reorg']);
+  for (const f of ['Claude.md', 'changelog.md', 'agents.md'])
+    ok(`${f} stays at root, byte-unchanged (protected case-insensitively)`, read(d, f), files[f]);
+  okTrue('readme.md stays at root; only its link follows the move',
+    read(d, 'readme.md').includes('docs/product/x.md'));
+  okTrue('x.md moved', exists(d, 'docs/product/x.md'));
+}
+
+/** Gap 2: `wiki` is a real fourth reorg bucket now — REORG_DEST/VALID_BUCKETS both carry it,
+ *  and a row the interview classifies `wiki` actually lands in docs/wiki/ via apply-reorg
+ *  (pre-fix: `apply-reorg` refused any `bucket: 'wiki'` row outright, VALID_BUCKETS had only
+ *  three entries). */
+function wikiIsARealBucket() {
+  group('46. wiki is a real apply-reorg bucket (gap 2)');
+  const d = repo({ 'docs/CONVENTIONS.md': DOC('Conventions') });
+  db(d, ['discover']);
+  const plan = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+  const p = JSON.parse(fs.readFileSync(plan, 'utf8'));
+  for (const row of p.rows) row.bucket = 'wiki';
+  fs.writeFileSync(plan, JSON.stringify(p, null, 1));
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean for a wiki-bucketed row', r.code, 0);
+  okTrue('the doc landed in docs/wiki/', exists(d, 'docs/wiki/CONVENTIONS.md'));
+}
+
+/** Gap 5 (REPRODUCED pre-fix): a doc with no filename signal and no strong archive/logs
+ *  content signal, but whose H1 plainly reads as a postmortem, was suggested `product` before
+ *  this — the heading text was never consulted at all. */
+function headingBasedPrior() {
+  group('47. discover — a secondary prior from the doc\'s own H1/H2 text (gap 5)');
+  const d = repo({ 'docs/NOTES.md': '# Outage Postmortem\n\nintro\n\n## Timeline\n\nx\n' });
+  const r = db(d, ['discover']);
+  const row = artifact(d, 'reorg-plan.json').rows[0];
+  ok('a postmortem-titled doc with no filename signal is suggested logs', row.suggested, 'logs');
+  okTrue('the reason cites the heading text, not the filename',
+    /heading text/.test(row.reason));
+
+  // Negative control: an ordinary product doc titled plainly "Guide" must NOT false-positive
+  // on a bare, over-broad keyword — measured directly against this fixture (see the comment
+  // by HEADING_WIKI_RE in docs-builder.cjs: bare "guide"/"reference" were tried and dropped).
+  const d2 = repo({ 'docs/GUIDE.md': DOC('Guide') });
+  db(d2, ['discover']);
+  ok('a doc plainly titled "Guide" is NOT suggested wiki (control)',
+    artifact(d2, 'reorg-plan.json').rows[0].suggested, 'product');
+}
+
+/** Gap 6 (REPRODUCED pre-fix: logs was flat only, no nesting existed at all). A loose logs
+ *  file goes to docs/logs/ flat; a file one or more levels deep collapses into
+ *  docs/logs/<nearest parent dir name>/ — ONE level, never deeper, and re-checking an
+ *  already-placed logs file (loose or nested) must not ratchet it deeper on a second run. */
+function logsNestOneLevel() {
+  group('48. logs bucket nests exactly one level, by the file\'s own parent dir name (gap 6)');
+  const d = repo({
+    'docs/LOOSE-RETRO.md': DOC('Loose Log'),
+    'docs/fwd/poc/deep/DEEP-RETRO.md': DOC('Deep Log'),
+  });
+  db(d, ['discover']);
+  const plan = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+  const p = JSON.parse(fs.readFileSync(plan, 'utf8'));
+  for (const row of p.rows) row.bucket = 'logs';
+  fs.writeFileSync(plan, JSON.stringify(p, null, 1));
+  db(d, ['apply-reorg']);
+  okTrue('a loose logs file lands flat', exists(d, 'docs/logs/LOOSE-RETRO.md'));
+  okTrue('a deep logs file collapses to ONE level (its nearest parent dir name)',
+    exists(d, 'docs/logs/deep/DEEP-RETRO.md'));
+  okTrue('empty source dirs this run vacated are removed', !exists(d, 'docs/fwd'));
+
+  // Re-check (no move should happen a second time — one level is stable, not a ratchet).
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r2 = db(d, ['apply-reorg']);
+  okTrue('a second pass moves nothing — already exactly one level deep', /"moved": 0/.test(r2.out));
+  okTrue('both rows report unchanged', /"unchanged": 2/.test(r2.out));
+}
+
+/** Gap 7: index-flat groups ## Logs rows by their (one-level) subdir, and every doc's row —
+ *  product or logs alike — still carries H1, line count, and its H2s as a short TOC (this part
+ *  already existed; only the grouping is new). */
+function indexGroupsLogsBySubdir() {
+  group('49. index-flat — ## Logs is grouped by subdir, with per-doc H1/lines/H2 TOC (gap 7)');
+  const d = repo({
+    'docs/LOOSE-RETRO.md': DOC('Loose Log', 'Timeline', 'stuff happened'),
+    'docs/fwd/poc/deep/DEEP-RETRO.md': DOC('Deep Log', 'Findings', 'more stuff'),
+  });
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d); // both suggested `logs` (filename tokens)
+  db(d, ['apply-reorg']);
+  const md = read(d, 'docs/index.md');
+  const logsSection = (md.split(/^## /m).find(s => s.startsWith('Logs')) || '');
+  okTrue('the loose row appears ungrouped, before any subdir header',
+    /^Logs\n\n- \[Loose Log\]/.test(logsSection));
+  okTrue('the nested row sits under its own "### deep/" subdir header',
+    /### deep\/\n\n- \[Deep Log\]/.test(logsSection));
+  okTrue('the loose row carries its H1, line count and H2 TOC',
+    /\[Loose Log\]\(logs\/LOOSE-RETRO\.md\) — \d+ lines\n\s+- Timeline \(L\d+–\d+\)/.test(logsSection));
+  okTrue('the nested row carries its H1, line count and H2 TOC',
+    /\[Deep Log\]\(logs\/deep\/DEEP-RETRO\.md\) — \d+ lines\n\s+- Findings \(L\d+–\d+\)/.test(logsSection));
+}
+
   const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
     negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
@@ -3117,7 +3312,9 @@ function emptyPageIsPartialNotACrash() {
     nonAsciiMoveRecordedAsRename, commitAdvisoryWarnsAboutPreexistingDirtyFiles,
     dirtyOnListExcludesToolOwnedFiles,
     repoSubdirRecipeWorksFromParentCwd,
-    packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
+    packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash,
+    protectedNamesAreCaseInsensitive, wikiIsARealBucket, headingBasedPrior,
+    logsNestOneLevel, indexGroupsLogsBySubdir];
 
   for (const g of groups) {
     try { g(); }
