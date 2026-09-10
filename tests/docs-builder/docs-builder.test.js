@@ -2874,10 +2874,10 @@ function dirtyOnListExcludesToolOwnedFiles() {
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
-  // Gap 6: logs nests one level, by the file's own immediate parent dir name — this one's
-  // parent is docs/product, so it nests under docs/logs/product/, not flat.
+  // Gap 6 (corrected): the file's first path segment under docs/ is `product`, a bucket
+  // name — that means flat, not a group, so this lands at docs/logs/ directly.
   okTrue('RUN-PREREG.md actually moved (precondition for a commit-dirty.txt write)',
-    exists(d, 'docs/logs/product/RUN-PREREG.md'));
+    exists(d, 'docs/logs/RUN-PREREG.md'));
 
   const dirty = commitList(d, 'commit-dirty.txt');
   okTrue('commit-dirty.txt does NOT list docs/log.md', !dirty.includes('docs/log.md'));
@@ -3071,15 +3071,15 @@ function reorgRechecksABucket() {
   fillBucketsFromSuggested(d);
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
-  // Gap 6: logs nests one level, by the file's own immediate parent dir name — this one's
-  // parent is docs/product, so it nests under docs/logs/product/, not flat docs/logs/.
-  okTrue('the misfiled prereg moved to docs/logs/product/', exists(d, 'docs/logs/product/RUN-PREREG.md'));
+  // Gap 6 (corrected): the file's first path segment under docs/ is `product`, a bucket
+  // name — that means flat, not a group, so this lands at docs/logs/ directly.
+  okTrue('the misfiled prereg moved to docs/logs/', exists(d, 'docs/logs/RUN-PREREG.md'));
   okTrue('the correctly filed doc stays put', exists(d, 'docs/product/PLAN.md'));
   okTrue('it says the doc stays', /docs\/product\/PLAN\.md stays in docs\/product/.test(r.out));
   okTrue('nothing is reported as skipped', /"skipped": 0/.test(r.out) && !/SKIP /.test(r.out));
   okTrue('the unchanged count includes it', /"unchanged": 1/.test(r.out));
   okTrue('the stay-put doc\'s relative link follows the move',
-    read(d, 'docs/product/PLAN.md').includes('](../logs/product/RUN-PREREG.md)'));
+    read(d, 'docs/product/PLAN.md').includes('](../logs/RUN-PREREG.md)'));
 
   // Explicit `discover <dir>` / `reorg <dir>` still scope to exactly that one dir, unaffected.
   const d2 = repo({ 'docs/product/PLAN2.md': DOC('Plan2') });
@@ -3240,11 +3240,29 @@ function headingBasedPrior() {
  *  file goes to docs/logs/ flat; a file one or more levels deep collapses into
  *  docs/logs/<nearest parent dir name>/ — ONE level, never deeper, and re-checking an
  *  already-placed logs file (loose or nested) must not ratchet it deeper on a second run. */
+/**
+ * Gap 6, corrected rule (orchestrator review, 2026-09-10): the group is the FIRST path
+ * segment under docs/ — a special subfolder is one self-explanatory group, e.g. every one of
+ * a repo's POCs under docs/fwd/ stays together as `fwd`, however deep a given file actually
+ * sits — UNLESS that first segment is itself a bucket name: `product`/`wiki`/`archive` mean
+ * flat (never a group), and `logs` means the group is the SECOND segment instead (an existing
+ * docs/logs/<group>/... keeps its own group). A file with no first segment (loose at the repo
+ * root, or directly in docs/) is flat.
+ *
+ * REPRODUCED against the FIRST version of this fix (commit ef6ba74, "nearest parent dir
+ * name") — that version got two of these three cases wrong:
+ *   docs/product/x.md      -> docs/logs/product/x.md   WRONG (parent dir name was 'product')
+ *   docs/fwd/z.md          -> docs/logs/fwd/z.md        correct by accident (parent IS 'fwd')
+ *   docs/fwd/poc/deep/y.md -> docs/logs/deep/y.md       WRONG (parent dir name was 'deep',
+ *                                                        not the group 'fwd' it belongs with)
+ */
 function logsNestOneLevel() {
-  group('48. logs bucket nests exactly one level, by the file\'s own parent dir name (gap 6)');
+  group('48. logs bucket nests exactly one level, by the FIRST path segment under docs/ (gap 6, corrected)');
   const d = repo({
     'docs/LOOSE-RETRO.md': DOC('Loose Log'),
-    'docs/fwd/poc/deep/DEEP-RETRO.md': DOC('Deep Log'),
+    'docs/product/x.md': DOC('X'),                    // first segment IS a bucket name: flat
+    'docs/fwd/z.md': DOC('Z'),                          // first segment 'fwd': group 'fwd'
+    'docs/fwd/poc/deep/DEEP-RETRO.md': DOC('Deep Log'), // same group 'fwd', however deep
   });
   db(d, ['discover']);
   const plan = path.join(d, 'docs/.docs-builder/reorg-plan.json');
@@ -3253,16 +3271,21 @@ function logsNestOneLevel() {
   fs.writeFileSync(plan, JSON.stringify(p, null, 1));
   db(d, ['apply-reorg']);
   okTrue('a loose logs file lands flat', exists(d, 'docs/logs/LOOSE-RETRO.md'));
-  okTrue('a deep logs file collapses to ONE level (its nearest parent dir name)',
-    exists(d, 'docs/logs/deep/DEEP-RETRO.md'));
-  okTrue('empty source dirs this run vacated are removed', !exists(d, 'docs/fwd'));
+  okTrue('a file whose first segment under docs/ is a bucket name (product) lands flat',
+    exists(d, 'docs/logs/x.md') && !exists(d, 'docs/logs/product'));
+  okTrue('a file directly under a non-bucket subdir groups by that subdir\'s name',
+    exists(d, 'docs/logs/fwd/z.md'));
+  okTrue('a file several levels deeper in the SAME subdir joins the SAME group, not its own parent',
+    exists(d, 'docs/logs/fwd/DEEP-RETRO.md'));
+  okTrue('nothing landed under the wrong ("deep") group', !exists(d, 'docs/logs/deep'));
+  okTrue('empty source dirs this run vacated are removed', !exists(d, 'docs/fwd') && !exists(d, 'docs/product'));
 
   // Re-check (no move should happen a second time — one level is stable, not a ratchet).
   db(d, ['discover']);
   fillBucketsFromSuggested(d);
   const r2 = db(d, ['apply-reorg']);
   okTrue('a second pass moves nothing — already exactly one level deep', /"moved": 0/.test(r2.out));
-  okTrue('both rows report unchanged', /"unchanged": 2/.test(r2.out));
+  okTrue('every row reports unchanged', /"unchanged": 4/.test(r2.out));
 }
 
 /** Gap 7: index-flat groups ## Logs rows by their (one-level) subdir, and every doc's row —
@@ -3272,6 +3295,8 @@ function indexGroupsLogsBySubdir() {
   group('49. index-flat — ## Logs is grouped by subdir, with per-doc H1/lines/H2 TOC (gap 7)');
   const d = repo({
     'docs/LOOSE-RETRO.md': DOC('Loose Log', 'Timeline', 'stuff happened'),
+    // First path segment under docs/ is `fwd` (not a bucket name) — that's the group,
+    // however deep the file actually sits inside it (gap 6, corrected rule).
     'docs/fwd/poc/deep/DEEP-RETRO.md': DOC('Deep Log', 'Findings', 'more stuff'),
   });
   db(d, ['discover']);
@@ -3281,12 +3306,39 @@ function indexGroupsLogsBySubdir() {
   const logsSection = (md.split(/^## /m).find(s => s.startsWith('Logs')) || '');
   okTrue('the loose row appears ungrouped, before any subdir header',
     /^Logs\n\n- \[Loose Log\]/.test(logsSection));
-  okTrue('the nested row sits under its own "### deep/" subdir header',
-    /### deep\/\n\n- \[Deep Log\]/.test(logsSection));
+  okTrue('the nested row sits under its own "### fwd/" subdir header',
+    /### fwd\/\n\n- \[Deep Log\]/.test(logsSection));
   okTrue('the loose row carries its H1, line count and H2 TOC',
     /\[Loose Log\]\(logs\/LOOSE-RETRO\.md\) — \d+ lines\n\s+- Timeline \(L\d+–\d+\)/.test(logsSection));
   okTrue('the nested row carries its H1, line count and H2 TOC',
-    /\[Deep Log\]\(logs\/deep\/DEEP-RETRO\.md\) — \d+ lines\n\s+- Findings \(L\d+–\d+\)/.test(logsSection));
+    /\[Deep Log\]\(logs\/fwd\/DEEP-RETRO\.md\) — \d+ lines\n\s+- Findings \(L\d+–\d+\)/.test(logsSection));
+}
+
+/**
+ * REGRESSION (orchestrator review, 2026-09-10), verbatim repro of the reported case. Commit
+ * ef6ba74's "nearest parent dir name" rule got both of these wrong:
+ *   docs/product/x.md      -> docs/logs/product/x.md   (should be flat: docs/logs/x.md)
+ *   docs/fwd/poc/deep/y.md -> docs/logs/deep/y.md       (should join docs/logs/fwd/, its
+ *                                                        actual group, not its own parent)
+ * Kept as its own small, easy-to-diff test in addition to #48's broader coverage.
+ */
+function logsGroupIsFirstSegmentNotParentDir() {
+  group('50. logs grouping — first path segment under docs/, not the immediate parent dir (regression)');
+  const d = repo({
+    'docs/product/x.md': DOC('X'),
+    'docs/fwd/poc/deep/y.md': DOC('Y'),
+  });
+  db(d, ['discover']);
+  const plan = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+  const p = JSON.parse(fs.readFileSync(plan, 'utf8'));
+  for (const row of p.rows) row.bucket = 'logs';
+  fs.writeFileSync(plan, JSON.stringify(p, null, 1));
+  db(d, ['apply-reorg']);
+  ok('docs/product/x.md (first segment is a bucket name) lands flat', exists(d, 'docs/logs/x.md'), true);
+  okTrue('it did NOT nest under docs/logs/product/', !exists(d, 'docs/logs/product'));
+  ok('docs/fwd/poc/deep/y.md joins the docs/logs/fwd/ group', exists(d, 'docs/logs/fwd/y.md'), true);
+  okTrue('it did NOT nest under docs/logs/deep/ (its own parent, not its group)',
+    !exists(d, 'docs/logs/deep'));
 }
 
   const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
@@ -3314,7 +3366,7 @@ function indexGroupsLogsBySubdir() {
     repoSubdirRecipeWorksFromParentCwd,
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash,
     protectedNamesAreCaseInsensitive, wikiIsARealBucket, headingBasedPrior,
-    logsNestOneLevel, indexGroupsLogsBySubdir];
+    logsNestOneLevel, indexGroupsLogsBySubdir, logsGroupIsFirstSegmentNotParentDir];
 
   for (const g of groups) {
     try { g(); }

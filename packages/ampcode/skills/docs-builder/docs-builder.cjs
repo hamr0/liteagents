@@ -2163,25 +2163,35 @@ function applyReorg(planFile) {
   const movedDestPaths = []; // every successful move's NEW path, same accumulator
 
   // Gap 6: `logs` is the ONE bucket that may nest, ONE level. product/wiki/archive stay flat
-  // (REORG_DEST[row.bucket] alone). The nearest meaningful directory is simply the file's own
-  // immediate parent directory name — no cleverness, stated plainly: a file sitting loose
-  // (parent is the repo root '.', or bare 'docs') goes to docs/logs/ flat; anything one or
-  // more levels deep collapses into docs/logs/<parent-dir-name>/, so a deeper path like
-  // docs/fwd/poc/deep/y.md still nests only once (docs/logs/deep/y.md). A file already
-  // resident at docs/logs/<sub>/x.md computes the SAME destination it already occupies (its
-  // parent's basename is <sub>), so re-checking it reports "unchanged", never a spurious
-  // rename. One function, used by both the pre-reservation pass and the move pass right below
-  // it, so they can never compute two different answers for the same row.
+  // (REORG_DEST[row.bucket] alone). The group is the FIRST path segment under docs/ — a
+  // special subfolder is one self-explanatory group, e.g. every one of a repo's POCs under
+  // docs/fwd/ stays together as `fwd`, however deep a given file actually sits inside it —
+  // UNLESS that first segment is itself a bucket name: `product`/`wiki`/`archive` mean flat,
+  // never a group, and `logs` means the group is the SECOND segment instead (an existing
+  // docs/logs/<group>/... keeps its own group on a re-check, rather than a ratchet). A file
+  // with no first segment at all — loose at the repo root, or sitting directly in docs/ —
+  // is flat. REJECTED first attempt (orchestrator review, real bugs): "the file's own
+  // immediate parent directory name" — that put docs/product/x.md (bucket-name parent) under
+  // docs/logs/product/ instead of flat, and put docs/fwd/poc/deep/y.md under docs/logs/deep/
+  // (its own parent) instead of docs/logs/fwd/ (the group it actually belongs with). One
+  // function, used by both the pre-reservation pass and the move pass right below it, so they
+  // can never compute two different answers for the same row.
   const destDirFor = row => {
-    const parentDir = path.dirname(row.file).split(path.sep).join('/');
-    // A file already sitting loose in docs/logs/ itself (parentDir === REORG_DEST.logs) is
-    // ALSO "loose", same as '.'/'docs' — without this, re-checking an already-flat logs file
-    // computed parentDir='docs/logs', took its basename 'logs', and nested it into
-    // docs/logs/logs/ on every subsequent run. One level means one level, not a ratchet.
-    const loose = parentDir === '.' || parentDir === 'docs' || parentDir === REORG_DEST.logs;
-    return row.bucket === 'logs' && !loose
-      ? path.posix.join(REORG_DEST.logs, path.basename(parentDir))
-      : REORG_DEST[row.bucket];
+    if (row.bucket !== 'logs') return REORG_DEST[row.bucket];
+    const segs = row.file.split(path.sep).join('/').split('/');
+    const dirSegs = segs.slice(0, -1); // drop the filename itself
+    const under = dirSegs[0] === 'docs' ? dirSegs.slice(1) : dirSegs; // strip a leading docs/
+    const seg1 = under[0];
+    if (seg1 === undefined || seg1 === 'product' || seg1 === 'wiki' || seg1 === 'archive')
+      return REORG_DEST.logs; // loose (root, or directly in docs/), or a bucket name: flat
+    if (seg1 === 'logs') {
+      const seg2 = under[1]; // e.g. resident docs/logs/<seg2>/x.md: keep its own group
+      return seg2 ? path.posix.join(REORG_DEST.logs, seg2) : REORG_DEST.logs;
+    }
+    // A real, non-bucket subdir name (under docs/, or outside docs/ via an explicit
+    // `discover <dir>` scan) IS the group — one level, no matter how deep the file actually
+    // sits inside it (docs/fwd/poc/deep/y.md flattens to docs/logs/fwd/y.md, not .../deep/).
+    return path.posix.join(REORG_DEST.logs, seg1);
   };
   // Gap 4 fallout: a resident row (already correctly bucketed, discovered in PLACE — new
   // since product/wiki/logs are now re-checked every run) must keep its OWN name even when a

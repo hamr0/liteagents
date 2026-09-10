@@ -174,10 +174,14 @@ docs/
                      reorg, same as product/.
   logs/              ONE-TIME, specific, timely knowledge tied to one section/scenario/case —
                      POCs, experiments, investigations, incident/session write-ups, reports. The
-                     ONLY bucket that may nest, ONE level: `docs/logs/<subdir>/*.md` — the
-                     subdir is the file's own nearest parent directory name (a loose file, or
-                     one directly under docs/, stays flat). Re-checked every reorg, same as
-                     product/wiki/.
+                     ONLY bucket that may nest, ONE level: `docs/logs/<group>/*.md` — the group
+                     is the FIRST path segment under `docs/` (a special subfolder is one
+                     self-explanatory group, e.g. every POC under `docs/fwd/` stays together as
+                     `fwd`, however deep a file actually sits inside it), UNLESS that segment is
+                     itself a bucket name (`product`/`wiki`/`archive` → flat; `logs` → the group
+                     is the SECOND segment instead). A file with no first segment — loose at the
+                     repo root, or directly under `docs/` — stays flat. Re-checked every reorg,
+                     same as product/wiki/.
   archive/           what got cleaned up: self-declared dead. FROZEN — never re-checked, never
                      walked by a bare `discover`/`reorg` at all. Originals are BYTE-FROZEN:
                      nothing under here is ever a rewrite target, so a doc lands byte-identical
@@ -399,9 +403,10 @@ a pointer to re-run `discover`.
 - `product` → verified `git mv` to `docs/product/<basename>` (always flat)
 - `wiki` → verified `git mv` to `docs/wiki/<basename>` (always flat)
 - `logs` → verified `git mv` to `docs/logs/<basename>` (loose) **or**
-  `docs/logs/<parent-dir-name>/<basename>` if the file came from a subdirectory — the ONE
-  bucket that may nest, ONE level, by the file's own nearest parent directory name. A deeper
-  path collapses into that same one level (no ratchet on a re-check either).
+  `docs/logs/<group>/<basename>` — the ONE bucket that may nest, ONE level, where the group is
+  the file's FIRST path segment under `docs/` (unless that segment is itself a bucket name —
+  see the Layout section above). A deeper path inside the same special subfolder joins the
+  SAME group (no ratchet on a re-check either).
 - `archive` → verified `git mv` to `docs/archive/<basename>` (always flat, and frozen — never
   re-checked again once there)
 - **Oversized files move too — size decides splittable, not sorted.** No bucket is exempt.

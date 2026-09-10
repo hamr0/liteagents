@@ -243,9 +243,11 @@ docs/
                        reorg, same as product/.
   logs/                ONE-TIME, timely knowledge — POCs, experiments, investigations,
                        incident/session write-ups, reports. Same MOVE discipline as
-                       product/wiki/archive, but the ONLY bucket that may nest, ONE level
-                       (by the file's own nearest parent dir name). See "Why `logs/`
-                       exists" below.
+                       product/wiki/archive, but the ONLY bucket that may nest, ONE level:
+                       the group is the file's FIRST path segment under docs/ (a special
+                       subfolder like docs/fwd/ is one group, however deep a file sits
+                       inside it), unless that segment is itself a bucket name. See "Why
+                       `logs/` exists" below.
   archive/             what got cleaned up: self-declared dead. FROZEN — never re-checked.
                        Originals are BYTE-FROZEN —
                        never a rewrite target, so a doc lands byte-identical to what it
