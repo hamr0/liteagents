@@ -774,10 +774,26 @@ function indexRow(rel, dest, includeH2) {
   return row;
 }
 
-function renderSection(title, rows) {
+// `subdirOf`: optional, `row => subdir name or '' (loose)`. Gap 7 (logs may nest one level —
+// same rule as apply-reorg's destDir computation): grouping is purely a rendering concern, so
+// it lives here rather than as a second traversal of the corpus. `''` (loose) always sorts
+// first, then subdirs alphabetically, so a reader hits the ungrouped files before the buckets.
+function renderSection(title, rows, subdirOf = null) {
   let s = `## ${title}\n\n`;
-  s += rows.length ? rows.map(r => r.row).join('') : '_(none)_\n';
-  return s + '\n';
+  if (!rows.length) return s + '_(none)_\n\n';
+  if (!subdirOf) return s + rows.map(r => r.row).join('') + '\n';
+  const groups = new Map();
+  for (const r of rows) {
+    const key = subdirOf(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const keys = [...groups.keys()].sort((a, b) => a === '' ? -1 : b === '' ? 1 : a.localeCompare(b));
+  for (const k of keys) {
+    if (k) s += `### ${k}/\n\n`;
+    s += groups.get(k).map(r => r.row).join('') + '\n';
+  }
+  return s;
 }
 
 function indexFlat() {
@@ -819,7 +835,14 @@ function indexFlat() {
      + 'after every split (`cleanup-apply`). No theme grouping, no model call. Never '
      + 'hand-edit._\n\n';
   s += renderSection('Product', productRows);
-  s += renderSection('Logs', logsRows);
+  // Gap 7: group logs rows by their (one-level) subdir name, same nesting rule apply-reorg
+  // uses to compute the destination in the first place — a loose docs/logs/x.md row has no
+  // '/' after the 'docs/logs/' prefix, so it keys to '' (loose, rendered ungrouped, first).
+  s += renderSection('Logs', logsRows, r => {
+    const rest = r.file.slice(logsRel.length);
+    const slash = rest.indexOf('/');
+    return slash === -1 ? '' : rest.slice(0, slash);
+  });
   s += renderSection('Archive', archiveRows);
   const total = productRows.length + logsRows.length + archiveRows.length;
   s += `---\n\nTotal: ${total} row(s) — ${productRows.length} product, `
@@ -982,7 +1005,7 @@ function confined(p, what, { deref = false } = {}) {
 function doArchive(src, dest) {
   const s = confined(src, 'move a doc from', { deref: true });
   if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
-  if (PROTECTED_NAMES.has(path.basename(src)))
+  if (isProtectedName(path.basename(src)))
     throw new Error(`refusing to move ${src}: ${path.basename(src)} is an entry-point/contract `
       + 'doc (README, CLAUDE.md, CHANGELOG, the index, the log, ...) and is never moved, at '
       + 'any depth — every human and agent reads it first.');
@@ -1734,6 +1757,22 @@ const ARCHIVAL_STATUS_RE = /\b(CLOSED|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RET
 // (`REUSE-PREPROBE-PREREG.md`), not always a prefix.
 const LOGS_FILENAME_RE = /\b(PREREG|LEARNINGS|REPORT|RESULTS|POSTMORTEM|RETRO)\b/;
 
+// Gap 5 (docs-builder-v3-spec follow-up): a SECOND, weaker prior read from the doc's own
+// heading text (H1 + its first few H2s), for the case where the filename carries no signal at
+// all. Case-INsensitive on purpose here, unlike ARCHIVAL_STATUS_RE/LOGS_FILENAME_RE above —
+// those are anchored to a SHOUTED self-declaration or a filename convention, both of which are
+// real author signals only in their exact (caps/prefix) form; a heading is ordinary prose
+// ("Postmortem: the outage", "How to configure X"), so demanding shouted case here would just
+// never fire. Checked LAST, after every stronger path/status/filename/residency signal above,
+// and it is still only a PRIOR — the classification interview decides, same as every row.
+const HEADING_ARCHIVE_RE = /\b(deprecated|obsolete|retired|superseded|no longer (?:used|maintained|relevant))\b/i;
+const HEADING_LOGS_RE = /\b(postmortem|retrospective|retro|investigation|incident report|experiment|proof of concept|\bpoc\b|session log|findings|results)\b/i;
+// Bare "guide"/"reference" were tried first and DROPPED: a real fixture titled plainly "Guide"
+// (an ordinary product doc, nothing generic about it) false-positived immediately — the same
+// failure species as FROZEN in ARCHIVAL_STATUS_RE's own comment above. Only compound phrases
+// that are near-exclusively about repo-wide, not-product-specific knowledge stay.
+const HEADING_WIKI_RE = /\b(conventions?|how[- ]to|style guide|reference guide|glossary)\b/i;
+
 // Never reorged, at ANY depth: the repo's entry-point/contract docs. Moving a README or a
 // CLAUDE.md into archive/ breaks the thing every human and agent reads first. Bare LICENSE /
 // NOTICE have no .md extension and are already excluded by walkMd's extension filter.
@@ -1742,6 +1781,13 @@ const PROTECTED_NAMES = new Set([
   'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md',
   'CLAUDE.md', 'AGENTS.md', 'AGENT.md',
 ]);
+// Case-INSENSITIVE on purpose (regression): a filesystem that happily has both `README.md`
+// and `readme.md` protects both — this is a real-world filename, not a hypothetical, and the
+// three call sites below (walkMd, doArchive, cleanup) must never disagree on the answer, which
+// is why this is the one chokepoint they all go through instead of three separate `.has()`
+// checks drifting apart.
+const PROTECTED_NAMES_LC = new Set([...PROTECTED_NAMES].map(n => n.toLowerCase()));
+const isProtectedName = name => PROTECTED_NAMES_LC.has(name.toLowerCase());
 
 const DEFAULT_OVERSIZED_LINES = 500; // a starting default, UNMEASURED — see docs-builder.md
 
@@ -1771,7 +1817,7 @@ function isIncludeStub(lines) {
 function classifyDoc(rel, text) {
   const lines = splitLines(text);
   const mask = fenceMask(lines);
-  const { h1 } = headings(lines, mask);
+  const { h1, heads } = headings(lines, mask);
   const snip = snippet(lines, mask, 0, lines.length, 200);
   const opening = lines.slice(0, 20).join(' ').slice(0, 2000);
   const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
@@ -1787,6 +1833,29 @@ function classifyDoc(rel, text) {
     return row('archive', 'filename matches an archive-shaped pattern (weak signal, no content confirmation)');
   if (LOGS_FILENAME_RE.test(path.basename(rel)))
     return row('logs', 'filename matches an experiment-record pattern (PREREG/LEARNINGS/REPORT/RESULTS/POSTMORTEM/RETRO) — weak signal, no content confirmation');
+
+  // Gap 4: a file already resident under docs/product, docs/wiki or docs/logs carries ITS
+  // OWN current bucket forward as its prior — it is re-checked every run (only docs/archive
+  // stays frozen, so archive-resident files never reach classifyDoc at all: walkMd's default
+  // skip keeps that directory out of the walk entirely). Checked AFTER the stronger
+  // path/status/filename signals above, on purpose: those can still override mere residency
+  // (e.g. a product-resident doc whose content now shouts DEPRECATED still suggests archive).
+  const posixRel = rel.split(path.sep).join('/');
+  for (const bucket of ['product', 'wiki', 'logs'])
+    if (posixRel.startsWith(REORG_DEST[bucket] + '/'))
+      return row(bucket, `already resident in ${REORG_DEST[bucket]}/ — re-checked every run`);
+
+  // Gap 5: a weaker secondary prior read from the doc's own heading text (H1 + its first 3
+  // H2s), for a file whose filename carries no signal at all. Still only a prior — see the
+  // regexes' own comment for why this is case-insensitive unlike the two above it.
+  const headingText = [h1, ...heads.filter(h => h.lvl === 2).slice(0, 3).map(h => h.text)].join(' ');
+  if (HEADING_ARCHIVE_RE.test(headingText))
+    return row('archive', 'heading text (H1 + early H2s) suggests retired/superseded content');
+  if (HEADING_LOGS_RE.test(headingText))
+    return row('logs', 'heading text (H1 + early H2s) suggests a one-time investigation/experiment/report');
+  if (HEADING_WIKI_RE.test(headingText))
+    return row('wiki', 'heading text (H1 + early H2s) suggests generic reference/how-to content');
+
   if (!h1) {
     if (isIncludeStub(lines))
       return row('product', 'include stub');
@@ -1796,10 +1865,17 @@ function classifyDoc(rel, text) {
     // that default is gone with it — nothing moves until the interview says so.
     return row('product', 'no H1 — no strong signal, model decides');
   }
-  return row('product', 'structured (has an H1), no archive/logs signal');
+  return row('product', 'structured (has an H1), no archive/logs/wiki signal');
 }
 
-function walkMd(dir, base, out) {
+// `enter`: bucket dir names this walk should descend into DESPITE the reserved-name skip
+// below — used by discover()'s own default docs/ walk (gap 4: product/wiki/logs are
+// re-checked every run; archive alone stays frozen, so it is never passed here). Every OTHER
+// caller (wholeCorpusFiles' root walk, and any explicit `discover <dir>`/`reorg <dir>` whose
+// named dir IS itself one of these — the skip only ever applies to a CHILD name, never the
+// walk's own starting dir) keeps the old default: skip all four, so wholeCorpusFiles' own
+// explicit product/archive/logs calls stay the only source of those rows and nothing doubles.
+function walkMd(dir, base, out, enter = new Set()) {
   for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
     const abs = path.join(dir, name.name), rel = path.join(base, name.name);
     if (name.isDirectory()) {
@@ -1807,11 +1883,11 @@ function walkMd(dir, base, out) {
       // machine/tool state (.git, .github, .claude, .factory, .opencode, .amp, .docs-builder)
       // and node_modules is vendored — moving a .md out of those is never wanted.
       if (name.name.startsWith('.') || name.name === 'node_modules') continue;
-      if (['wiki', 'archive', 'product', 'logs'].includes(name.name)) continue;
-      walkMd(abs, rel, out);
+      if (['wiki', 'archive', 'product', 'logs'].includes(name.name) && !enter.has(name.name)) continue;
+      walkMd(abs, rel, out, enter);
     } else if (name.isFile() && name.name.endsWith('.md')) {
       // Entry-point/contract docs are never subject to reorg, wherever they sit.
-      if (PROTECTED_NAMES.has(name.name)) continue;
+      if (isProtectedName(name.name)) continue;
       out.push(rel);
     }
   }
@@ -1842,16 +1918,31 @@ function discover(root) {
   if (process.env.ROOT)
     console.error(`WARN: ROOT=${process.env.ROOT} is ignored — pass the folder as an argument `
       + '(`discover <dir>` / `reorg <dir>`), not an env var.');
-  // No docs/ yet and no folder named: sort the repo's loose .md files instead. walkMd still
-  // skips PROTECTED_NAMES (README.md, CLAUDE.md, CHANGELOG.md, ...), so those never move.
-  const noDocs = !root && !fs.existsSync(path.join(REPO, 'docs'));
-  if (noDocs) console.log('no docs/ directory — scanning the repo\'s .md files (entry-point files like '
-    + 'README.md, CLAUDE.md and CHANGELOG.md are never moved).');
-  const rootRel = root || (noDocs ? '.' : 'docs');
-  const rootAbs = path.join(REPO, rootRel);
-  if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
-  const files = [];
-  walkMd(rootAbs, rootRel, files);
+  // Scan scope, no dir argument (gap 1): ONLY (a) .md files sitting directly at the repo root
+  // (top level, not recursive) and (b) everything under docs/ (recursive, gap 4: product/wiki/
+  // logs are re-checked every run there — only docs/archive stays skipped/frozen, via walkMd's
+  // default `enter` set). Every other .md file in the repo is out of scope — never listed,
+  // never moved. `discover <dir>` / `reorg <dir>` keep scoping to exactly that one directory,
+  // unchanged (walkMd's own default skip-all-four behaviour, same as always).
+  let rootRel, files = [];
+  if (root) {
+    rootRel = root;
+    const rootAbs = path.join(REPO, rootRel);
+    if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
+    walkMd(rootAbs, rootRel, files);
+  } else {
+    rootRel = '.';
+    for (const name of fs.readdirSync(REPO, { withFileTypes: true }))
+      if (name.isFile() && name.name.endsWith('.md') && !isProtectedName(name.name))
+        files.push(name.name);
+    const docsAbs = path.join(REPO, 'docs');
+    if (fs.existsSync(docsAbs)) walkMd(docsAbs, 'docs', files, new Set(['product', 'wiki', 'logs']));
+    if (!files.length)
+      console.log('no docs/ directory and no loose .md files at the repo root — nothing to scan '
+        + '(entry-point files like README.md, CLAUDE.md and CHANGELOG.md are never moved, and a '
+        + '.md file elsewhere in the repo is out of scope by design — pass `discover <dir>` to '
+        + 'scan it explicitly).');
+  }
   const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
   const prevBuckets = new Map();
   if (fs.existsSync(planFile)) {
@@ -1865,7 +1956,7 @@ function discover(root) {
   }
   const rows = files.map(rel =>
     ({ ...classifyDoc(rel, read(rel)), bucket: prevBuckets.get(rel) || '' }));
-  const bySuggested = { product: 0, logs: 0, archive: 0 };
+  const bySuggested = { product: 0, logs: 0, archive: 0, wiki: 0 };
   for (const r of rows) bySuggested[r.suggested]++;
   const oversizedCount = rows.filter(r => r.oversized).length;
   write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
@@ -1884,10 +1975,12 @@ function discover(root) {
   // buckets already set, so this has to report what is actually in the plan.
   const filled = rows.filter(r => r.bucket).length;
   if (!rows.length) {
-    console.log(`plan written to docs/.docs-builder/reorg-plan.json — 0 rows. Files already `
-      + 'inside product/, logs/ or archive/ are not re-checked by default — `apply-reorg` will '
-      + 'only rescan and rebuild the index. To re-check a bucket that got messy, run '
-      + '`node $DB discover docs/product` (or `/docs-builder reorg docs/product`).');
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — 0 rows. docs/archive/ is `
+      + 'frozen and never re-checked; docs/product/, docs/wiki/ and docs/logs/ ARE re-checked '
+      + 'automatically on every bare `discover`/`reorg` (gap 4) — 0 rows here means there is '
+      + 'nothing in scope at all yet. `apply-reorg` will only rescan and rebuild the index. To '
+      + 'scope a check to one directory outside the default root+docs/ coverage, run '
+      + '`node $DB discover <dir>` (or `/docs-builder reorg <dir>`).');
   } else if (!filled) {
     console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
       + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
@@ -1968,7 +2061,7 @@ function scanWholeCorpus() {
   return corpus.length;
 }
 
-const REORG_DEST = { product: 'docs/product', logs: 'docs/logs', archive: 'docs/archive' };
+const REORG_DEST = { product: 'docs/product', logs: 'docs/logs', archive: 'docs/archive', wiki: 'docs/wiki' };
 const VALID_BUCKETS = new Set(Object.keys(REORG_DEST));
 // bucket values a PRE-v3 reorg-plan.json could hold — neither exists any more ('oversized'
 // was a bucket, now a boolean; 'review' is gone outright, see classifyDoc). Distinguishing
@@ -2037,7 +2130,7 @@ function injectClaudeMdPointer() {
 
 // v3 reorg (docs-builder-v3-spec.md, "four buckets"): the interview, not this function, does
 // the classifying — this only executes an ALREADY-approved plan. It refuses outright if any
-// row's `bucket` isn't one of the three real buckets: an empty bucket means the interview
+// row's `bucket` isn't one of the four real buckets: an empty bucket means the interview
 // hasn't happened, and a stale 'oversized'/'review' bucket means the plan predates this
 // version's schema. Oversized rows are no longer skipped — they move like everything else
 // (size decides splittable, not sorted) and come back as split candidates at their NEW path.
@@ -2054,7 +2147,7 @@ function applyReorg(planFile) {
         ? ` This plan predates v3's four-bucket schema ('oversized'/'review' no longer `
           + 'exist as buckets) — re-run `discover` to regenerate it, then classify.'
         : ' Run the classification interview (docs-builder.md): fill every row\'s `bucket` '
-          + '(product/logs/archive), get the user\'s approval, then re-run.'));
+          + '(product/wiki/logs/archive), get the user\'s approval, then re-run.'));
   }
   const results = { moved: 0, skipped: 0, unchanged: 0, artifactsSynced: 0, linksRewritten: 0,
                     syncFailed: 0, dirsRemoved: 0, claudeMdUpdated: false };
@@ -2068,16 +2161,58 @@ function applyReorg(planFile) {
   const sourceDirs = [];
   const linkFilesTouched = []; // dedup'd by flushCommitAdvisory() at the end of the run
   const movedDestPaths = []; // every successful move's NEW path, same accumulator
+
+  // Gap 6: `logs` is the ONE bucket that may nest, ONE level. product/wiki/archive stay flat
+  // (REORG_DEST[row.bucket] alone). The nearest meaningful directory is simply the file's own
+  // immediate parent directory name — no cleverness, stated plainly: a file sitting loose
+  // (parent is the repo root '.', or bare 'docs') goes to docs/logs/ flat; anything one or
+  // more levels deep collapses into docs/logs/<parent-dir-name>/, so a deeper path like
+  // docs/fwd/poc/deep/y.md still nests only once (docs/logs/deep/y.md). A file already
+  // resident at docs/logs/<sub>/x.md computes the SAME destination it already occupies (its
+  // parent's basename is <sub>), so re-checking it reports "unchanged", never a spurious
+  // rename. One function, used by both the pre-reservation pass and the move pass right below
+  // it, so they can never compute two different answers for the same row.
+  const destDirFor = row => {
+    const parentDir = path.dirname(row.file).split(path.sep).join('/');
+    // A file already sitting loose in docs/logs/ itself (parentDir === REORG_DEST.logs) is
+    // ALSO "loose", same as '.'/'docs' — without this, re-checking an already-flat logs file
+    // computed parentDir='docs/logs', took its basename 'logs', and nested it into
+    // docs/logs/logs/ on every subsequent run. One level means one level, not a ratchet.
+    const loose = parentDir === '.' || parentDir === 'docs' || parentDir === REORG_DEST.logs;
+    return row.bucket === 'logs' && !loose
+      ? path.posix.join(REORG_DEST.logs, path.basename(parentDir))
+      : REORG_DEST[row.bucket];
+  };
+  // Gap 4 fallout: a resident row (already correctly bucketed, discovered in PLACE — new
+  // since product/wiki/logs are now re-checked every run) must keep its OWN name even when a
+  // DIFFERENT row elsewhere shares the same basename and is scheduled to move into the same
+  // destDir. REPRODUCED pre-fix: docs/product/TAKEN.md (resident) got bumped to
+  // docs/product/TAKEN-2.md because a loose docs/TAKEN.md, sharing the basename, happened to
+  // be visited first in the single collision-counting pass and claimed the name first. Fix:
+  // pre-reserve every resident row's own slot before any row's name gets disambiguated, so a
+  // moving row is the one that yields, never the file that was already correctly in place.
   for (const row of plan.rows) {
-    const destDir = REORG_DEST[row.bucket];
+    const destDir0 = destDirFor(row);
+    const key0 = destDir0 + '/' + path.basename(row.file);
+    if (path.join(destDir0, path.basename(row.file)) === row.file) usedNames.set(key0, 1);
+  }
+  for (const row of plan.rows) {
+    const destDir = destDirFor(row);
     let base = path.basename(row.file);
-    // Reserve/disambiguate the name FIRST, same order as before a `reorg <dir>` re-check could
-    // land here — an already-correctly-bucketed row still claims its own name so a later row
-    // cannot collide onto it, even though it never actually moves.
-    const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
-    usedNames.set(destDir + '/' + base, n);
-    if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
-    const dest = path.join(destDir, base);
+    const naiveDest = path.join(destDir, base);
+    let dest;
+    if (naiveDest === row.file) {
+      // Already reserved for itself above — never disambiguated away from its own path.
+      dest = row.file;
+    } else {
+      // Reserve/disambiguate the name FIRST, same order as before a `reorg <dir>` re-check
+      // could land here — a row scheduled to move here still claims its own name so a LATER
+      // row cannot collide onto it either.
+      const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
+      usedNames.set(destDir + '/' + base, n);
+      if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+      dest = path.join(destDir, base);
+    }
     // `reorg <dir>` re-checks files ALREADY inside their bucket (Change 3) — a row whose
     // destination equals its current path used to reach moveDoc anyway and fail doArchive's
     // "refusing to overwrite" guard (the destination is itself), counted as a false SKIP. It's
@@ -2334,7 +2469,7 @@ function cleanup(files) {
       + 'named. Run it once per file.');
   const [file] = files;
   if (path.extname(file) !== '.md') die(`cleanup: ${file} is not a .md file`);
-  if (PROTECTED_NAMES.has(path.basename(file)))
+  if (isProtectedName(path.basename(file)))
     die(`cleanup: ${file} is a protected entry-point doc (README/CLAUDE.md/etc.) and is `
       + 'never split');
   if (!fs.existsSync(repoPath(file))) die(`cleanup: no such file: ${file}`);
