@@ -2789,6 +2789,53 @@ function commitAdvisoryWarnsAboutPreexistingDirtyFiles() {
   ok('control: commit-dirty.txt is empty or absent', commitList(clean, 'commit-dirty.txt').join(','), '');
 }
 
+// ------------------------------ 44b. dirty-on-list WARN excludes the tool's own outputs
+
+/**
+ * BUG (regression, reproduced pre-fix). snapshotDirty() runs before `reorg`'s classification
+ * interview stop, which itself calls logOp('reorg', ...) and appends to docs/log.md. By the
+ * time `apply-reorg` runs (after the interview fills in buckets) and takes ITS OWN snapshot,
+ * docs/log.md is already dirty from the tool's own earlier step — not a real user edit — so
+ * flushCommitAdvisory's WARN falsely named it alongside genuine pre-existing edits like
+ * CLAUDE.md. Same false alarm for docs/index.md, which index-flat regenerates whole every run.
+ * This follows the REAL documented flow (reorg stops -> interview -> apply-reorg), not a
+ * hand-written reorg-plan.json, so it exercises the exact sequence that produces the bug.
+ */
+function dirtyOnListExcludesToolOwnedFiles() {
+  group('44b. commit advisory — dirty-on-list WARN excludes docs/log.md and docs/index.md');
+
+  const d = repo({
+    'docs/product/PLAN.md': DOC('Plan'),
+    'docs/product/RUN-PREREG.md': DOC('Run Prereg'),
+    'CLAUDE.md': '# Project\n',
+  });
+  // The operator's own pre-existing edit, uncommitted, made BEFORE any of this runs.
+  write(d, { 'CLAUDE.md': '# Project\nWIP\n' });
+
+  const r1 = db(d, ['reorg', 'docs/product']);
+  ok('reorg (unclassified) exits clean', r1.code, 0);
+  okTrue('it stops for the classification interview', /classification interview/.test(r1.out));
+  okTrue('docs/log.md was written by reorg\'s own stop', exists(d, 'docs/log.md'));
+
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('RUN-PREREG.md actually moved (precondition for a commit-dirty.txt write)',
+    exists(d, 'docs/logs/RUN-PREREG.md'));
+
+  const dirty = commitList(d, 'commit-dirty.txt');
+  okTrue('commit-dirty.txt does NOT list docs/log.md', !dirty.includes('docs/log.md'));
+  okTrue('commit-dirty.txt does NOT list docs/index.md', !dirty.includes('docs/index.md'));
+  okTrue('commit-dirty.txt DOES list CLAUDE.md', dirty.includes('CLAUDE.md'));
+
+  const line = recipeLine(r.out);
+  okTrue('a recipe was printed', !!line);
+  if (line) {
+    const res = spawnSync('bash', ['-c', line], { cwd: d, encoding: 'utf8' });
+    ok('the printed recipe runs clean', res.status, 0);
+  }
+}
+
 // -------------------------------------------------- 45. REPO as a subdirectory
 
 /**
@@ -3068,6 +3115,7 @@ function emptyPageIsPartialNotACrash() {
     discoverEmptyPlanZeroRows, nonMarkdownNeverTouched, reorgRechecksABucket,
     rootEnvIsIgnoredLoudly, noDocsDirSortsLooseMd, usageListsCleanupApply, artifactsDefaultUnderRepo,
     nonAsciiMoveRecordedAsRename, commitAdvisoryWarnsAboutPreexistingDirtyFiles,
+    dirtyOnListExcludesToolOwnedFiles,
     repoSubdirRecipeWorksFromParentCwd,
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
 
