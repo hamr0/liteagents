@@ -126,19 +126,49 @@ confirmed in Phase 0.5.
   summarize, escalate. Do not weigh it yourself.
 - **All clean** → continue.
 
-## Phase 2 — Docs sweep
-Update what this feature actually changed, wherever those docs live in this
-project — match each file's existing format, touch nothing unrelated. Use
-`docs/index.md` when the project has one to find what exists.
+## Phase 2 — Docs sweep (required — no skipping, no sampling)
+Update what this branch changed, wherever those docs live in this project —
+match each file's existing format, touch nothing unrelated. Use
+`docs/index.md` when the project has one to find what exists. **All three
+passes run on every release**; the size of the branch or the change never
+cuts one.
 
-- **CHANGELOG.md** — new entry.
-- **README.md** — only if user-facing usage changed.
+1. **List every change.** Read `git log --format='%h %s%n%b'
+   origin/main..HEAD` — the bodies, not just the subjects — and the diff.
+   Write one line per user-visible change: feature, command, flag, behaviour,
+   fix, dependency bump. A subject is a summary; the body is the list, and a
+   sweep built from subjects drops whatever only a body mentions.
+2. **CHANGELOG.md** — a new entry holding every line from pass 1, each under
+   the heading the file already uses for its kind (Added / Changed / Fixed /
+   Security). A new capability is **Added** even when it shipped in a `fix:`
+   commit. Then check it back: every pass-1 line maps to an entry, and the
+   semver level in Phase 3 agrees with the headings (an Added entry means at
+   least minor).
+3. **Grep for stale text.** For every string the diff removed or replaced
+   that a reader might have copied — a command line, flag, file name, recipe,
+   env var, printed message — search the docs for the old form:
+   `grep -rnF "<old string>" --include='*.md' .` (past CHANGELOG entries are
+   history; leave them). Every other hit is stale **because of this branch** —
+   update it. "It was already stale before this branch" is a claim: prove it
+   with `git show $(git merge-base origin/main HEAD):<source path>`. If the
+   base code already disagreed with the doc, report it as out of scope;
+   otherwise it is yours to fix.
+
+Then judge each of these against the pass-1 list:
+- **README.md** — if user-facing usage changed.
 - **PRD** — the feature's entry / status.
 - **Guide / context docs** — the project's standing context.
 - **Findings / learnings** — where the project keeps them.
 - **Any other frequently-updated doc** this change makes stale.
 
-If a doc needs no change, **say so** rather than editing it for its own sake.
+Report **one row per doc**: file · changed / no change · the evidence (the
+grep or diff you ran). A "no change" with no evidence is a skip, and a skip
+fails this phase — it is not a pass. If a doc truly needs no change, say so
+with the evidence rather than editing it for its own sake.
+
+**The sweep is the worker's job, start to finish.** The orchestrator checks
+the report; it does not redo or patch the sweep. A gap it finds goes back to
+the worker, and it counts as a failed sweep, not a small follow-up.
 
 ## Phase 3 — Cut (local only)
 1. **Version bump** — pick the semver level from the change (patch / minor /
