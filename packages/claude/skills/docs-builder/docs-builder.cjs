@@ -1286,10 +1286,34 @@ function moveDoc(src, dest) {
 // `movedFrom`: {src, dest} for every successful move this run, so the commit recipe below can
 // record the RENAME against its old name — `git add` cannot see a path that no longer exists,
 // but `git commit --pathspec-from-file` naming both old and new records an R100.
-const RUN = { moved: [], links: [], generated: [], movedFrom: [] };
+const RUN = { moved: [], links: [], generated: [], movedFrom: [], dirty: [] };
 const noteMoved = (...paths) => RUN.moved.push(...paths);
 const noteLinks = files => RUN.links.push(...files);
 const noteMovedFrom = (src, dest) => RUN.movedFrom.push({ src, dest });
+
+// Snapshot of paths that were ALREADY dirty (staged, unstaged, or untracked) before this run
+// touched anything. Taken once, from the dispatcher, before a move-capable command runs.
+// Needed because `git add --pathspec-from-file` can't split hunks: if CLAUDE.md (say) already
+// had the operator's own uncommitted edit before the run, the recipe's `git add` on CLAUDE.md
+// stages that edit too, silently, since it's on the list for an unrelated reason (it's always
+// on the list). This can't be prevented — only made visible, in flushCommitAdvisory below.
+// Crash-isolated and never throws: no git repo (or a repo with no commits yet) means "nothing
+// was dirty", not a failure worth interrupting the run over.
+function snapshotDirty() {
+  try {
+    const out = execFileSync('git', ['-C', REPO, 'status', '--porcelain', '-z'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    const records = out.split('\0').filter(Boolean);
+    const paths = [];
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i], code = rec.slice(0, 2), p = rec.slice(3);
+      paths.push(p);
+      // A rename/copy record's OLD path follows as its own NUL-terminated record right after.
+      if (code[0] === 'R' || code[0] === 'C') paths.push(records[++i]);
+    }
+    return paths;
+  } catch { return []; }
+}
 // Files this run CREATED or REWROTE that no move produced — the rebuilt index, the config
 // file's pointer block, the pages a split wrote. Omitting them meant following the recipe
 // committed a reorg with no index and no pointer.
@@ -1317,8 +1341,14 @@ function flushCommitAdvisory() {
     let oldPaths = [];
     if (moveSrcs.length) {
       try {
-        const inHead = new Set(gitOrThrow(['ls-tree', '-r', '--name-only', 'HEAD', '--', ...moveSrcs],
-          'listing moved files known to HEAD').split('\n'));
+        // -z / NUL-separated: `--name-only` alone C-quotes any path with a non-ASCII or quote
+        // character (core.quotepath) — e.g. `docs/x/café.md` comes back as `"docs/x/caf\\303\\251.md"`,
+        // which never matches the raw JS path, so that path silently fell out of `oldPaths` and the
+        // recipe committed it as a fresh ADD, leaving its true `D` staged. gitOrThrow() trims() the
+        // whole output, but NUL (U+0000) isn't in trim()'s whitespace set, so a trailing record
+        // survives intact.
+        const inHead = new Set(gitOrThrow(['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', ...moveSrcs],
+          'listing moved files known to HEAD').split('\0').filter(Boolean));
         oldPaths = moveSrcs.filter(f => inHead.has(f));
       } catch { /* no HEAD yet (fresh repo): nothing moved was ever committed */ }
     }
@@ -1334,18 +1364,46 @@ function flushCommitAdvisory() {
       ? `${linkSet.length} .md file(s) with link rewrites UNSTAGED`
       : 'no inbound-link rewrites this run.');
 
+    // Paths on the recipe's own list that were ALREADY dirty before this run (see
+    // snapshotDirty() above). These are only untouched-by-THIS-RUN's move logic — the recipe's
+    // `git add` still stages whatever the operator's own edit left in them, because pathspec
+    // can't split hunks. Always written, even when empty, so a stale file from an earlier run
+    // that DID find dirty paths can never be mistaken for this run's (clean) answer.
+    const dirtySet = new Set(RUN.dirty);
+    const dirtyOnList = commitFiles.filter(f => dirtySet.has(f));
+    fs.mkdirSync(ARTIFACTS, { recursive: true });
+    fs.writeFileSync(path.join(ARTIFACTS, 'commit-dirty.txt'),
+      dirtyOnList.length ? dirtyOnList.join('\n') + '\n' : '');
+
     if (addFiles.length) {
       console.log('\nA blanket `git add -A` / `git add -u` / `git commit -a` would ALSO absorb any');
       console.log('unrelated in-flight work in the tree — this tool never suggests one (it does');
       console.log('NOT auto-commit either: you may want these moves bundled with other work).');
-      const addRel = path.join(ARTIFACTS, 'commit-add.txt');
-      const filesRel = path.join(ARTIFACTS, 'commit-files.txt');
-      fs.mkdirSync(path.dirname(repoPath(addRel)), { recursive: true });
-      fs.writeFileSync(repoPath(addRel), addFiles.join('\n') + '\n');
-      fs.writeFileSync(repoPath(filesRel), commitFiles.join('\n') + '\n');
+      console.log('This recipe stages each listed file WHOLE — pathspec cannot split hunks, so');
+      console.log('any of the operator\'s OWN edits already sitting in a listed file (not made by');
+      console.log('this run) are committed right along with it.');
+      if (dirtyOnList.length) {
+        console.log(`\nWARN: ${dirtyOnList.length} file(s) on this list already had uncommitted `
+          + 'changes before this run — the recipe commits those changes too:');
+        for (const f of dirtyOnList) console.log(`  ${f}`);
+      }
+      // Written directly under ARTIFACTS (already REPO-anchored) — NOT re-joined with
+      // repoPath(), which would double-prefix REPO when REPO is a subdirectory of cwd (e.g.
+      // REPO=sub writing to sub/sub/docs/.docs-builder/... while the recipe below still prints
+      // the correct sub/docs/... path, so following it hit `fatal: pathspec ... did not match
+      // any files`, exit 128, nothing staged).
+      fs.writeFileSync(path.join(ARTIFACTS, 'commit-add.txt'), addFiles.join('\n') + '\n');
+      fs.writeFileSync(path.join(ARTIFACTS, 'commit-files.txt'), commitFiles.join('\n') + '\n');
       console.log(`Commit exactly this run's ${commitFiles.length} file(s):`);
-      console.log(`  git add --pathspec-from-file=${addRel} && `
-        + `git commit -m "docs: reorg" --pathspec-from-file=${filesRel}`);
+      // The pathspec-from-file ARGUMENT and its CONTENTS must both be REPO-relative: `git -C`
+      // applies REPO as a prefix to both. Proven by POC (git 2.55): an absolute REPO-relative
+      // argument path combined with `-C`-prefixed contents double-prefixes; a REPO-relative
+      // argument path with REPO-relative contents is the one combination that works whether or
+      // not `-C` is present, so the printed recipe always uses it — no fork for the common case.
+      const repoAbs = path.resolve(REPO);
+      const gitCmd = repoAbs === process.cwd() ? 'git' : `git -C '${repoAbs}'`;
+      console.log(`  ${gitCmd} add --pathspec-from-file=${ARTIFACTS_REL}/commit-add.txt && `
+        + `${gitCmd} commit -m "docs: reorg" --pathspec-from-file=${ARTIFACTS_REL}/commit-files.txt`);
     }
   } catch (e) {
     console.error(`  WARN could not print the commit advisory: ${e.message}`);
@@ -2459,7 +2517,8 @@ function cleanupApply(file, outlineF, labelsF) {
 
 // Machine state has one home. Callers can override with OUT, but the default must never
 // scatter JSON into whatever directory the user happened to be standing in.
-const ARTIFACTS = path.join(REPO, 'docs/.docs-builder');
+const ARTIFACTS_REL = 'docs/.docs-builder';
+const ARTIFACTS = path.join(REPO, ARTIFACTS_REL);
 function write(obj, fallback) {
   const dest = process.env.OUT || path.join(ARTIFACTS, fallback);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -2467,6 +2526,10 @@ function write(obj, fallback) {
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
+// Taken BEFORE the command runs, only for commands that can move a file — the point is to
+// capture what was dirty BEFORE this run touched anything, for flushCommitAdvisory's WARN.
+const MOVE_COMMANDS = new Set(['archive', 'apply-reorg', 'reorg', 'cleanup-apply']);
+if (MOVE_COMMANDS.has(cmd)) RUN.dirty = snapshotDirty();
 switch (cmd) {
   case 'scan':        scan(rest); break;
   case 'validate':    validate(rest[0], rest[1]); break;

@@ -118,7 +118,7 @@ function fillBucketsFromSuggested(dir, planRel = 'docs/.docs-builder/reorg-plan.
 }
 
 /** The one printed add+commit recipe line, or undefined. */
-const recipeLine = out => (out.split('\n').find(l => /^\s*git add --pathspec-from-file=/.test(l)) || '').trim() || undefined;
+const recipeLine = out => (out.split('\n').find(l => /^\s*git(?: -C '[^']*')? add --pathspec-from-file=/.test(l)) || '').trim() || undefined;
 /** A commit list the advisory wrote under docs/.docs-builder/, as an array ([] if absent). */
 const commitList = (dir, name) => {
   const p = path.join(dir, 'docs/.docs-builder', name);
@@ -2708,6 +2708,128 @@ function artifactsDefaultUnderRepo() {
 }
 
 
+// -------------------------------------------------- 43. non-ASCII move -> rename, not a stray D
+
+/**
+ * BUG 1 (regression, reproduced pre-fix). `flushCommitAdvisory`'s `oldPaths` lookup used
+ * `git ls-tree -r --name-only HEAD -- <paths>` — with `core.quotepath` at its default (true),
+ * a path containing a non-ASCII byte or a quote comes back C-quoted (e.g.
+ * `"docs/x/caf\303\251.md"`), which never matches the raw JS path. The file dropped out of
+ * `oldPaths`, so `commit-files.txt` never named its OLD path: `git commit` recorded the move
+ * as an ADD of the new path alone, leaving the true `D` of the old path staged afterward.
+ */
+function nonAsciiMoveRecordedAsRename() {
+  group('43. commit advisory — a moved non-ASCII filename is recorded as a rename, not left staged');
+
+  const d = repo({ 'docs/x/café.md': DOC('Cafe') });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/x/café.md', bucket: 'archive' },
+  ] }) });
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the move landed', exists(d, 'docs/archive/café.md'));
+
+  const line = recipeLine(r.out);
+  okTrue('a recipe was printed', !!line);
+  if (line) {
+    const res = spawnSync('bash', ['-c', line], { cwd: d, encoding: 'utf8' });
+    ok('the printed recipe runs clean', res.status, 0);
+
+    const status = git(d, ['-c', 'core.quotepath=false', 'show', '--name-status', '-M', '--format=', 'HEAD']);
+    okTrue('HEAD records a rename from the old non-ASCII path to the new one',
+      /R\d*\s+docs\/x\/café\.md\s+docs\/archive\/café\.md/.test(status));
+
+    // docs/.docs-builder/ itself is this tool's own scratch dir, never committed by the
+    // recipe — exclude it, same as commitRecipeCoversTheRunLog does above.
+    const remaining = git(d, ['status', '--porcelain'])
+      .split('\n').filter(Boolean).filter(l => !l.includes('docs/.docs-builder/'));
+    ok('nothing is left staged after the recipe', remaining.join(','), '');
+  }
+}
+
+// -------------------------------------------------- 44. dirty-before-run files are surfaced
+
+/**
+ * BUG 2 (regression, reproduced pre-fix). The recipe's `git add --pathspec-from-file` cannot
+ * split hunks: a file that is on the list for an unrelated reason (CLAUDE.md is rewritten by
+ * every apply-reorg) and ALSO already carried the operator's own uncommitted edit BEFORE this
+ * run, has that edit committed too — silently, since nothing printed said so. The fix makes it
+ * VISIBLE (a WARN plus a written file), not blocking.
+ */
+function commitAdvisoryWarnsAboutPreexistingDirtyFiles() {
+  group('44. commit advisory — warns when a listed file already had its own uncommitted edits');
+
+  const d = repo({
+    'docs/A.md': DOC('A'),
+    'CLAUDE.md': '# Project\n',
+  });
+  // The operator's own pre-existing edit, uncommitted, made BEFORE this run does anything.
+  write(d, { 'CLAUDE.md': '# Project\nWIP\n' });
+
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/A.md', bucket: 'archive' },
+  ] }) });
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+
+  okTrue('CLAUDE.md is on the commit list (precondition)',
+    commitList(d, 'commit-add.txt').includes('CLAUDE.md'));
+  okTrue('the WARN names CLAUDE.md', /WARN:[\s\S]{0,200}CLAUDE\.md/.test(r.out));
+  okTrue('commit-dirty.txt lists CLAUDE.md', commitList(d, 'commit-dirty.txt').includes('CLAUDE.md'));
+
+  // Control: a clean repo (no pre-existing edits anywhere) gets no WARN, and commit-dirty.txt
+  // is empty or absent.
+  const clean = repo({ 'docs/B.md': DOC('B') });
+  write(clean, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/B.md', bucket: 'archive' },
+  ] }) });
+  const r2 = db(clean, ['apply-reorg']);
+  ok('control apply-reorg exits clean', r2.code, 0);
+  okTrue('control: no WARN printed', !/WARN:[\s\S]{0,60}uncommitted/.test(r2.out));
+  ok('control: commit-dirty.txt is empty or absent', commitList(clean, 'commit-dirty.txt').join(','), '');
+}
+
+// -------------------------------------------------- 45. REPO as a subdirectory
+
+/**
+ * BUG 3 (regression, reproduced pre-fix). ARTIFACTS is REPO-anchored
+ * (`path.join(REPO, 'docs/.docs-builder')`), but `flushCommitAdvisory` re-joined an
+ * ARTIFACTS-based path through `repoPath()`, which joins REPO a SECOND time. With REPO set to
+ * a subdirectory (run from its parent), the artifact landed at
+ * `sub/sub/docs/.docs-builder/commit-add.txt` while the printed recipe named `sub/docs/...` —
+ * following the recipe hit `fatal: pathspec ... did not match any files`, exit 128, nothing
+ * staged.
+ */
+function repoSubdirRecipeWorksFromParentCwd() {
+  group('45. commit advisory — REPO as a subdirectory: the recipe works from the parent cwd');
+
+  const parent = mkdtemp('db-parent-');
+  const sub = path.join(parent, 'sub');
+  fs.mkdirSync(sub, { recursive: true });
+  git(sub, ['init', '-q', '.']);
+  git(sub, ['config', 'user.email', 't@t']);
+  git(sub, ['config', 'user.name', 't']);
+  write(sub, { 'docs/A.md': DOC('A') });
+  git(sub, ['add', '-A']); git(sub, ['commit', '-qm', 'init']);
+  write(sub, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/A.md', bucket: 'archive' },
+  ] }) });
+
+  const r = db(parent, ['apply-reorg'], { REPO: 'sub' });
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the move landed under sub/', exists(sub, 'docs/archive/A.md'));
+  okTrue('artifacts landed under sub/docs/.docs-builder, not sub/sub/...',
+    exists(sub, 'docs/.docs-builder/commit-add.txt') && !fs.existsSync(path.join(sub, 'sub')));
+
+  const line = recipeLine(r.out);
+  okTrue('a recipe was printed', !!line);
+  if (line) {
+    const res = spawnSync('bash', ['-c', line], { cwd: parent, encoding: 'utf8' });
+    ok('the printed recipe, run from the PARENT cwd, exits clean', res.status, 0);
+    const status = git(sub, ['show', '--name-status', '-M', '--format=', 'HEAD']);
+    okTrue('HEAD (inside sub) records the rename', /R\d*\s+docs\/A\.md\s+docs\/archive\/A\.md/.test(status));
+  }
+}
 
 /** docs-builder.cjs ships in four packages; a fix that lands in one is not shipped. */
 function packageParity() {
@@ -2945,6 +3067,8 @@ function emptyPageIsPartialNotACrash() {
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
     discoverEmptyPlanZeroRows, nonMarkdownNeverTouched, reorgRechecksABucket,
     rootEnvIsIgnoredLoudly, noDocsDirSortsLooseMd, usageListsCleanupApply, artifactsDefaultUnderRepo,
+    nonAsciiMoveRecordedAsRename, commitAdvisoryWarnsAboutPreexistingDirtyFiles,
+    repoSubdirRecipeWorksFromParentCwd,
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
 
   for (const g of groups) {

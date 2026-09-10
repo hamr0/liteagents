@@ -412,17 +412,23 @@ everything else. Run these steps literally, in order:
 
 1. `git branch --show-current`. If it prints `main` or `master`, do **NOT** commit — tell the
    user the files are ready and to switch to a branch first.
-2. `cat docs/.docs-builder/commit-files.txt` to see exactly what this run touched, then ask
-   with `AskUserQuestion`, header `Commit`: **"Commit these N files now?"** — **Commit** (run
-   the printed recipe) / **Leave uncommitted** (say what is pending; nothing this run did gets
-   undone).
+2. `cat docs/.docs-builder/commit-files.txt` to see exactly what this run touched, and
+   `cat docs/.docs-builder/commit-dirty.txt` to see which of those files already carried the
+   operator's own uncommitted edits BEFORE this run — pathspec can't split hunks, so committing
+   the file commits that edit too. Then ask with `AskUserQuestion`, header `Commit`: if
+   `commit-dirty.txt` lists anything, **"Commit these N files now? Note: these files also
+   carry your own uncommitted edits, which will be committed too: …"** (name them); otherwise
+   **"Commit these N files now?"** — **Commit** (run the printed recipe) / **Leave uncommitted**
+   (say what is pending; nothing this run did gets undone).
 3. On **Commit**, run the printed recipe line EXACTLY as printed:
    ```
    git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt
    ```
-   Do not hand-edit it, do not stage by hand instead, and do not scope it to `docs/` alone —
-   a `.md` outside `docs/` (e.g. `README.md`) can carry a repaired link. If it errors or names a path that doesn't exist,
-   that is a BUG: stop and report it to the user; do not silently hand-repair and move on.
+   (when `REPO` isn't the shell's cwd, both commands are printed as `git -C '<REPO>' …` instead
+   — run that form, unmodified). Do not hand-edit it, do not stage by hand instead, and do not
+   scope it to `docs/` alone — a `.md` outside `docs/` (e.g. `README.md`) can carry a repaired
+   link. If it errors or names a path that doesn't exist, that is a BUG: stop and report it to
+   the user; do not silently hand-repair and move on.
    OBSERVED, real (privcloud first field run, pre-dating the pathspec-file recipe): a
    hand-rolled recipe once omitted `docs/log.md` and the operator quietly added it by hand —
    the bug only surfaced later, when asked for near-misses. A silent repair is a lost bug
