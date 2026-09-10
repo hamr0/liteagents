@@ -345,11 +345,14 @@ immediately — nothing in this tool's output ever said so, and it was confirmed
 different repos, where another session's `git add -A` silently folded the staged renames into
 an unrelated commit. The advisory names the staged rename count, the unstaged link-rewrite
 count, and the distinct top-level locations outside `docs/` that were touched, then prints a
-one-line recipe (`git add -u && git commit -m "docs: reorg"`) that captures both in ONE
-commit — deliberately never scoped to `docs` alone, since the link rewrites the moves trigger
-reach outside `docs/` too (`src/`, `scripts/`, `tests/`, `README.md`) and a `docs`-scoped
-commit would ship moved files with their inbound links unrepaired. Nothing is ever
-auto-committed.
+one-line recipe (`git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git
+commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt`) that
+captures both in ONE commit — exactly this run's files, renames kept, and nothing else the
+user has staged or edited. It is deliberately never scoped to `docs` alone, since the link
+rewrites the moves trigger reach outside `docs/` too (`src/`, `scripts/`, `tests/`,
+`README.md`) and a `docs`-scoped commit would ship moved files with their inbound links
+unrepaired. A listed file that already carried the user's own uncommitted edits is named in
+`commit-dirty.txt`, and the skill asks before committing. Nothing is ever auto-committed.
 
 ---
 

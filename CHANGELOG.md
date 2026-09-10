@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.7.0] - 2026-09-10
+
+### Added
+- **`docs-builder` sorts a repo that has no `docs/` yet.** With no folder named and no
+  `docs/` directory, `discover` / `reorg` scan the repo's loose `.md` files instead of
+  stopping. Protected entry-point files (`README.md`, `CLAUDE.md`, `CHANGELOG.md`,
+  `AGENTS.md`, ...) never move.
+- **`reorg <dir>` / `discover <dir>`** re-check a single bucket that got messy.
+- **`docs-builder` asks before committing.** After a run, the skill shows exactly which
+  files the run touched and asks; it refuses to commit on `main` / `master`.
+- `discover` warns that `ROOT=` is ignored and says to pass the folder as an argument.
+
+### Security
+- `hono` bumped 4.13.0 → 4.13.7 (indirect dependency, Dependabot).
+
+### Fixed
+- **`docs-builder`'s commit recipe mishandled non-ASCII renames, silently swept up the
+  operator's own uncommitted edits, and broke under `REPO=<subdir>`.** A moved file with a
+  non-ASCII name (e.g. `café.md`) lost its rename because `ls-tree` C-quoted the path,
+  dropping it from `commit-files.txt`; now uses `ls-tree -z`. A pre-run dirty snapshot now
+  names any listed file that already carried the user's own uncommitted edits
+  (`commit-dirty.txt`), and `SKILL.md` surfaces that in the commit question instead of
+  silently including them. `REPO=<subdir>` no longer writes lists to a doubled path or
+  exits 128 — lists are written under `ARTIFACTS` directly and the recipe uses `git -C`
+  when `REPO` isn't the cwd.
+- **`docs-builder`'s dirty-file warning no longer flags the tool's own log/index.** `reorg`
+  appends to `docs/log.md` and rebuilds `docs/index.md` as part of its own run, so the
+  following `apply-reorg` warned that those tool-owned files carried "your own uncommitted
+  edits." Both are now excluded from the dirty-file check; every other listed file is still
+  checked.
+- **`docs-builder`'s link rewriter now touches only `.md` files, and `reorg <dir>` /
+  `discover <dir>` re-check an already-classified bucket instead of leaving it a false
+  SKIP.** Previously the rewriter could open signed JSON job specs or byte-signed scripts
+  outside `docs/`, and the commit advisory could stage unrelated files alongside the run's
+  own changes; the advisory now names exactly the staged renames, unstaged rewrites, and
+  distinct outside-`docs/` locations touched by that run.
+- **`/branch-review` and `/security` effort level no longer cuts which checks run** — only
+  how many findings are reported. Stage 1's fail-first check is one red run per changed
+  test file, never a sample; a check that can't run is written `NOT RUN: <reason>` on a
+  new `checks:` line, visible but non-blocking (`/release` still reads only `coverage:`).
+  Stage 2's secrets scan always covers all history, never narrowed to the review range.
+
 ## [3.6.0] - 2026-09-05
 
 ### Added
