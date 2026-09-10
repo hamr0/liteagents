@@ -117,6 +117,14 @@ function fillBucketsFromSuggested(dir, planRel = 'docs/.docs-builder/reorg-plan.
   return plan;
 }
 
+/** The one printed add+commit recipe line, or undefined. */
+const recipeLine = out => (out.split('\n').find(l => /^\s*git add --pathspec-from-file=/.test(l)) || '').trim() || undefined;
+/** A commit list the advisory wrote under docs/.docs-builder/, as an array ([] if absent). */
+const commitList = (dir, name) => {
+  const p = path.join(dir, 'docs/.docs-builder', name);
+  return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split('\n').filter(Boolean) : [];
+};
+
 const DOC = (h1, h2 = 'Section One', body = 'words words words') =>
   `# ${h1}\n\nintro line\n\n## ${h2}\n\n${body}\n`;
 
@@ -411,8 +419,9 @@ function assertMoveRepairs(d, newPath, label) {
   ok(`${label}: backtick mention rewritten`, readme.includes(`\`${newPath}\``), true);
   ok(`${label}: sentence-final mention rewritten`, readme.includes(`see ${newPath}.`), true);
   ok(`${label}: no dead reference left in README`, readme.includes('docs/GUIDE.md'), false);
-  ok(`${label}: non-markdown referrer rewritten`,
-    read(d, 'tool.js').includes(newPath), true);
+  // docs-builder only ever edits .md files (bareloop, 2026-09-10: signed .json/.mjs broke).
+  ok(`${label}: non-markdown referrer left byte-unchanged`,
+    read(d, 'tool.js'), "const required = ['docs/GUIDE.md'];\n");
 
   const traps = read(d, 'TRAPS.md');
   okTrue(`${label}: prefix trap xdocs/ untouched`, traps.includes('xdocs/GUIDE.md'));
@@ -2345,7 +2354,7 @@ function commitAdvisoryReported() {
   ok('apply-reorg exits clean', r.code, 0);
   okTrue('(a) names the rename count', /1 rename\(s\) this run/.test(r.out));
   okTrue('(a) the recipe stages the moved file by explicit path',
-    /git add -- '?docs\/product\/GUIDE\.md'?/.test(r.out));
+    !!recipeLine(r.out) && commitList(d, 'commit-add.txt').includes('docs/product/GUIDE.md'));
   okTrue('(c) the recipe never scopes the commit to `docs` alone',
     !/-- docs\b/.test(r.out) && !/commit\b[^\n]*\bdocs\b\s*$/m.test(r.out));
 
@@ -2374,7 +2383,7 @@ function commitAdvisoryOnArchive() {
   ok('archive exits clean', r.code, 0);
   okTrue('(d) archive also names the rename count', /1 rename\(s\) this run/.test(r.out));
   okTrue('(d) archive also stages the moved file by explicit path',
-    /git add -- '?docs\/archive\/A\.md'?/.test(r.out));
+    !!recipeLine(r.out) && commitList(d, 'commit-add.txt').includes('docs/archive/A.md'));
   const addLines = r.out.split('\n').filter(l => /^\s*git add /.test(l));
   okTrue('(d) archive\'s printed git add never uses -u/-A',
     addLines.length > 0 && addLines.every(l => !/-u\b|-A\b/.test(l)));
@@ -2395,33 +2404,38 @@ function commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork() {
   });
   // Unrelated in-flight edit, uncommitted — exactly what `git add -A`/`-u` would absorb.
   write(d, { 'src/unrelated.js': 'const x = 2; // unrelated in-flight work\n' });
+  // Another session's STAGED work — a plain `git commit` commits the whole index, this too.
+  write(d, { 'other-session.txt': 'staged elsewhere\n' });
+  git(d, ['add', 'other-session.txt']);
 
   const r = db(d, ['archive', 'docs/A.md']);
   ok('archive exits clean', r.code, 0);
 
-  const addLine = r.out.split('\n').find(l => /^\s*git add -- /.test(l));
-  okTrue('the advisory printed an explicit-path git add command', !!addLine);
-  if (addLine) {
-    execFileSync('bash', ['-c', addLine.trim()], { cwd: d });
-    execFileSync('bash', ['-c', 'git commit -qm "docs: reorg"'], { cwd: d });
+  const line = recipeLine(r.out);
+  okTrue('the advisory printed the add+commit recipe', !!line);
+  if (line) {
+    const res = spawnSync('bash', ['-c', line], { cwd: d, encoding: 'utf8' });
+    ok('the printed recipe runs clean', res.status, 0);
 
-    const status = git(d, ['status', '--porcelain']);
-    okTrue('the moved file is committed, not left staged', !/docs\/archive\/A\.md/.test(status));
+    okTrue('git recorded the move as a rename in the recipe\'s commit',
+      /R\d*\s+docs\/A\.md\s+docs\/archive\/A\.md/
+        .test(git(d, ['show', '--name-status', '-M', '--format=', 'HEAD'])));
     // `git diff --name-only` (unstaged only, unambiguous) rather than porcelain's XY columns —
     // `git()`'s own `.trim()` can eat porcelain's leading space when that line lands first.
     okTrue('the unrelated in-flight edit was NOT absorbed — still an unstaged modification',
       git(d, ['diff', '--name-only']).split('\n').includes('src/unrelated.js'));
+    okTrue('another session\'s staged file was NOT absorbed — still staged, not committed',
+      git(d, ['diff', '--cached', '--name-only']).split('\n').includes('other-session.txt'));
   }
 }
 
 /**
- * The failure mode this must break: an operator reads `git status`, sees only the smaller,
- * docs-shaped STAGED block, and scopes their commit to docs/ — silently dropping every link
- * repair outside it. A bare count ("35 link rewrites") still reads as "docs stuff"; only
- * naming the actual non-docs top-level path the rewriter touched fights that.
+ * A .md outside docs/ (README.md) is still a doc: its link is repaired, and the commit must
+ * carry that repair — scoping the commit to docs/ alone would ship a moved file whose inbound
+ * link was never committed.
  */
 function commitAdvisoryNamesOutsideDocsPaths() {
-  group('27d. commit advisory — names non-docs paths the link rewriter touched');
+  group('27d. commit advisory — a repaired .md outside docs/ is in the commit list');
 
   const d = repo({
     'docs/A.md': DOC('A'),
@@ -2431,8 +2445,8 @@ function commitAdvisoryNamesOutsideDocsPaths() {
   ok('archive exits clean', r.code, 0);
   okTrue('README.md link was actually rewritten (precondition)',
     read(d, 'README.md').includes('docs/archive/A.md'));
-  okTrue('(e) advisory\'s "outside docs/" clause names the top-level non-docs path README.md',
-    /outside docs\/: [^\n]*README\.md/.test(r.out));
+  okTrue('(e) the commit list carries README.md',
+    commitList(d, 'commit-files.txt').includes('README.md'));
 }
 
 
@@ -2491,20 +2505,18 @@ function commitRecipePathsAllExist() {
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean', r.code, 0);
 
-  const addLines = r.out.split('\n').filter(l => /^\s*git add -- /.test(l));
+  const addLines = r.out.split('\n').filter(l => /^\s*git add /.test(l));
   ok('exactly ONE recipe is printed for the run', addLines.length, 1);
 
-  const quoted = (addLines[0] || '').match(/'([^']+)'/g) || [];
-  const paths = quoted.map(q => q.slice(1, -1));
-  const missing = paths.filter(p => !exists(d, p));
-  ok('no recipe path is stale (every one exists on disk)', missing.join(','), '');
+  const missing = commitList(d, 'commit-add.txt').filter(p => !exists(d, p));
+  ok('no path to `git add` is stale (every one exists on disk)', missing.join(','), '');
 
   // Run it for real: the strongest form of this assertion.
-  const res = spawnSync('bash', ['-c', (addLines[0] || 'false').trim()], { cwd: d, encoding: 'utf8' });
+  const res = spawnSync('bash', ['-c', recipeLine(r.out) || 'false'], { cwd: d, encoding: 'utf8' });
   ok('the printed recipe runs clean', res.status, 0);
-  const staged = git(d, ['diff', '--cached', '--name-only']);
-  okTrue('the generated index is staged by the recipe', staged.includes('docs/index.md'));
-  okTrue('the moved docs are staged by the recipe', staged.includes('docs/product/A.md'));
+  const committed = git(d, ['show', '--name-only', '--format=', 'HEAD']);
+  okTrue('the generated index is committed by the recipe', committed.includes('docs/index.md'));
+  okTrue('the moved docs are committed by the recipe', committed.includes('docs/product/A.md'));
 }
 
 /**
@@ -2530,16 +2542,19 @@ function commitAdvisoryPrintedOncePerRun() {
     'docs/.docs-builder/outline.json', 'docs/.docs-builder/labels.json']);
   ok('cleanup-apply exits clean', r.code, 0);
 
-  const addLines = r.out.split('\n').filter(l => /^\s*git add -- /.test(l));
+  const addLines = r.out.split('\n').filter(l => /^\s*git add /.test(l));
   ok('exactly ONE recipe is printed for the whole run', addLines.length, 1);
 
-  const recipe = (addLines[0] || '').trim();
-  okTrue('the one recipe covers the archive move', recipe.includes('docs/archive/BIG.md'));
-  okTrue('the one recipe covers the relocated core page', recipe.includes('docs/BIG.md'));
-  okTrue('the one recipe covers the non-core page the split produced', recipe.includes('docs/wiki/other.md'));
-  okTrue('the one recipe covers the rebuilt index', recipe.includes('docs/index.md'));
+  const list = commitList(d, 'commit-files.txt');
+  okTrue('the one recipe covers the archive move', list.includes('docs/archive/BIG.md'));
+  okTrue('the one recipe covers the relocated core page', list.includes('docs/BIG.md'));
+  okTrue('the one recipe covers the non-core page the split produced', list.includes('docs/wiki/other.md'));
+  okTrue('the one recipe covers the rebuilt index', list.includes('docs/index.md'));
+  // The core page moved out of docs/wiki/ was never committed — `git commit` rejects an
+  // old path it can't match, so it must not be listed.
+  okTrue('the never-tracked interim core page path is NOT listed', !list.includes('docs/wiki/BIG.md'));
 
-  const res = spawnSync('bash', ['-c', recipe || 'false'], { cwd: d, encoding: 'utf8' });
+  const res = spawnSync('bash', ['-c', recipeLine(r.out) || 'false'], { cwd: d, encoding: 'utf8' });
   ok('the printed recipe runs clean', res.status, 0);
 }
 
@@ -2596,13 +2611,12 @@ function commitRecipeCoversTheRunLog() {
   ok('apply-reorg exits clean', r.code, 0);
   okTrue('the run wrote docs/log.md (precondition)', exists(d, 'docs/log.md'));
 
-  const addLine = r.out.split('\n').find(l => /^\s*git add -- /.test(l));
-  okTrue('a recipe was printed', !!addLine);
-  okTrue('the recipe names docs/log.md', /'docs\/log\.md'/.test(addLine || ''));
+  const line = recipeLine(r.out);
+  okTrue('a recipe was printed', !!line);
+  okTrue('the recipe names docs/log.md', commitList(d, 'commit-add.txt').includes('docs/log.md'));
 
   // The real bar: run it, then nothing this run produced is left behind untracked.
-  execFileSync('bash', ['-c', (addLine || 'false').trim()], { cwd: d });
-  execFileSync('bash', ['-c', 'git commit -qm "docs: reorg"'], { cwd: d });
+  execFileSync('bash', ['-c', line || 'false'], { cwd: d });
   const untracked = git(d, ['ls-files', '--others', '--exclude-standard'])
     .split('\n').filter(Boolean).filter(f => !f.startsWith('docs/.docs-builder/'));
   ok('nothing the run produced is left untracked after the recipe', untracked.join(','), '');
@@ -2650,7 +2664,8 @@ function discoverEmptyPlanZeroRows() {
   ok('discover exits clean', r.code, 0);
   const plan = artifact(d, 'reorg-plan.json');
   ok('plan has 0 rows', plan.rows.length, 0);
-  okTrue('it reports the 0-row / already-sorted state', /0 rows/.test(r.out) && /already sorted/.test(r.out));
+  okTrue('it reports 0 rows and how to re-check a bucket',
+    /0 rows/.test(r.out) && /discover docs\/product/.test(r.out));
   okTrue('it does NOT print the classification-interview message for an empty plan',
     !/Run the classification interview/.test(r.out));
 
@@ -2775,6 +2790,109 @@ function trailingNewlineLineCount() {
   }
 }
 
+// ------------------------------------------- 41-44. docs-only scope (bareloop, 2026-09-10)
+
+/** FIELD BUG (bareloop, 2026-09-10): the link rewriter edited every tracked .json/.mjs/.js
+ *  holding a moved doc's path — 6 signed job specs (hash = their freeze), a byte-signed close
+ *  script, and a code comment that tripped a commit gate. docs-builder only ever touches .md. */
+function nonMarkdownNeverTouched() {
+  group('41. link rewriter — never opens a non-.md file (signed artifacts, code)');
+  const files = {
+    'docs/RUN-PREREG.md': DOC('Run prereg'),
+    'docs/PLAN.md': '# Plan\n\nsee docs/RUN-PREREG.md\n',
+    'jobs/spec.json': '{"description":"bench for docs/RUN-PREREG.md"}\n',
+    'scripts/close.mjs': '// see docs/RUN-PREREG.md\n',
+    'src/planrun.js': '// prompt source: docs/RUN-PREREG.md\n',
+    'ci.yml': 'doc: docs/RUN-PREREG.md\n',
+  };
+  const d = repo(files);
+  db(d, ['discover']);
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the prereg moved to docs/logs/ (precondition)', exists(d, 'docs/logs/RUN-PREREG.md'));
+  okTrue('the .md referrer IS rewritten',
+    read(d, 'docs/product/PLAN.md').includes('docs/logs/RUN-PREREG.md'));
+  const list = commitList(d, 'commit-files.txt');
+  for (const f of ['jobs/spec.json', 'scripts/close.mjs', 'src/planrun.js', 'ci.yml']) {
+    ok(`${f} is byte-unchanged`, read(d, f), files[f]);
+    okTrue(`${f} is not in the commit list`, !list.includes(f));
+    okTrue(`${f} is not named anywhere in the output`, !r.out.includes(f));
+  }
+}
+
+/** `reorg <dir>` re-checks a bucket that got messy (bareloop: 18 of 45 docs in docs/product
+ *  were run records, and bare discover skips product/ entirely). A row already in its bucket
+ *  stays put — reported as unchanged, never as a SKIP. */
+function reorgRechecksABucket() {
+  group('42. reorg <dir> — re-checks files already inside a bucket');
+  const d = repo({
+    'docs/product/PLAN.md': '# Plan\n\nSee [the prereg](RUN-PREREG.md).\n',
+    'docs/product/RUN-PREREG.md': DOC('Run prereg'),
+  });
+  db(d, ['discover']);
+  ok('bare discover plans nothing inside product/ (precondition)',
+    artifact(d, 'reorg-plan.json').rows.length, 0);
+  db(d, ['reorg', 'docs/product']);
+  ok('reorg docs/product plans both files', artifact(d, 'reorg-plan.json').rows.length, 2);
+  okTrue('it moved nothing before the classification interview', exists(d, 'docs/product/RUN-PREREG.md'));
+
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('the misfiled prereg moved to docs/logs/', exists(d, 'docs/logs/RUN-PREREG.md'));
+  okTrue('the correctly filed doc stays put', exists(d, 'docs/product/PLAN.md'));
+  okTrue('it says the doc stays', /docs\/product\/PLAN\.md stays in docs\/product/.test(r.out));
+  okTrue('nothing is reported as skipped', /"skipped": 0/.test(r.out) && !/SKIP /.test(r.out));
+  okTrue('the unchanged count includes it', /"unchanged": 1/.test(r.out));
+  okTrue('the stay-put doc\'s relative link follows the move',
+    read(d, 'docs/product/PLAN.md').includes('](../logs/RUN-PREREG.md)'));
+}
+
+function rootEnvIsIgnoredLoudly() {
+  group('43. discover — ROOT= is not read; it says so instead of silently scanning docs/');
+  const d = repo({ 'docs/product/a.md': DOC('A') });
+  const r = db(d, ['discover'], { ROOT: 'docs/product' });
+  okTrue('it warns that ROOT= is ignored', /ROOT=docs\/product is ignored/.test(r.out));
+}
+
+/** No docs/ yet: the repo's loose .md files get sorted into docs/, and entry-point files
+ *  (README.md, CLAUDE.md, CHANGELOG.md, AGENTS.md, ...) never move. */
+function noDocsDirSortsLooseMd() {
+  group('44. no docs/ — loose .md files are sorted; entry-point files never move');
+  const files = {
+    'README.md': '# Readme\n\nSee [design](DESIGN.md).\n',
+    'CLAUDE.md': '# Claude\n\nproject rules\n',
+    'CHANGELOG.md': '# Changelog\n\n- added DESIGN.md\n',
+    'AGENTS.md': '# Agents\n',
+    'DESIGN.md': DOC('Design'),
+    'notes/IDEAS.md': DOC('Ideas'),
+    'src/app.js': '// see DESIGN.md\n',
+  };
+  const d = repo(files);
+  const disc = db(d, ['discover']);
+  ok('discover exits clean with no docs/', disc.code, 0);
+  okTrue('it says it is scanning the repo instead', /no docs\/ directory/.test(disc.out));
+  const planned = artifact(d, 'reorg-plan.json').rows.map(x => x.file).sort().join(',');
+  ok('only the loose docs are planned — no entry-point file', planned, 'DESIGN.md,notes/IDEAS.md');
+
+  fillBucketsFromSuggested(d);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits clean', r.code, 0);
+  okTrue('DESIGN.md moved into docs/product/', exists(d, 'docs/product/DESIGN.md'));
+  okTrue('notes/IDEAS.md moved into docs/product/', exists(d, 'docs/product/IDEAS.md'));
+  okTrue('the dir this run emptied is removed', !exists(d, 'notes'));
+  for (const f of ['CHANGELOG.md', 'AGENTS.md'])
+    ok(`${f} stays at root, byte-unchanged`, read(d, f), files[f]);
+  okTrue('CLAUDE.md stays at root with its own content intact',
+    read(d, 'CLAUDE.md').includes('project rules'));
+  ok('README.md stays at root; only its link follows the move',
+    read(d, 'README.md'), '# Readme\n\nSee [design](docs/product/DESIGN.md).\n');
+  ok('src/app.js (non-.md) is byte-unchanged', read(d, 'src/app.js'), files['src/app.js']);
+  const res = spawnSync('bash', ['-c', recipeLine(r.out) || 'false'], { cwd: d, encoding: 'utf8' });
+  ok('the printed recipe runs clean', res.status, 0);
+}
+
 /** Regression, 2026-09-01 (found by review of the splitLines fix itself): an EMPTY page file
  *  must still report PARTIAL, not crash. `''.split('\n')` is `['']`, so the pre-splitLines
  *  code always had a lines[0] to read; splitLines pops that trailing empty element and returns
@@ -2825,7 +2943,8 @@ function emptyPageIsPartialNotACrash() {
     commitAdvisoryNamesOutsideDocsPaths, commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork,
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
-    discoverEmptyPlanZeroRows, usageListsCleanupApply, artifactsDefaultUnderRepo,
+    discoverEmptyPlanZeroRows, nonMarkdownNeverTouched, reorgRechecksABucket,
+    rootEnvIsIgnoredLoudly, noDocsDirSortsLooseMd, usageListsCleanupApply, artifactsDefaultUnderRepo,
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash];
 
   for (const g of groups) {

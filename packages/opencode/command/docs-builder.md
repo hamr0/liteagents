@@ -47,8 +47,10 @@ Every command below is `node $DB …`; everything the script writes (`docs/.docs
 JSON state, `docs/index.md`, the ledger, the log, the config pointer) lands under the target
 repo. `REPO=` is optional and only needed when not running from the repo root.
 
-**With an argument** (`reorg`, `cleanup <file>`, or `search <query words...>`) — run that mode
-directly, no question asked.
+**With an argument** (`reorg [dir]`, `cleanup <file>`, or `search <query words...>`) — run that
+mode directly, no question asked. `reorg <dir>` re-checks every doc already inside `<dir>` —
+use it when a bucket (e.g. `docs/product`) got messy and needs a second pass, since a bare
+`reorg`/`discover` never looks inside `product/`, `logs/`, `archive/` or `wiki/` at all.
 
 **Bare `/docs-builder`, no argument — ALWAYS ask, never auto-detect.** Run `due` first and
 put its one-line verdict in the question text so the choice is informed. Then use
@@ -98,12 +100,10 @@ read-only — no model cost, no interview, nothing moves.
    to split** (any, all, none). Only then run `cleanup <file>` (Mode 1) on each chosen file —
    `cleanup` itself prints the estimated split cost for that one file, then a mechanical
    shape report, then stops for its own interview (Mode 1, step 1b) before anything else runs.
-   Before that first commit, add `docs/.docs-builder/` to `.gitignore` if it is not already
-   ignored: it is machine state, regenerated every run, and the ledger stamp is per-clone by
-   design — it must never ride into history on a later `git add -A`.
-   Once the moves are committed, run `node $DB ledger` — nothing in steps 1-3 stamps the
-   ledger, and without the stamp `due` stays NOT due, the picker's verdict stays uninformed,
-   and `/remember`'s docs nudge never fires.
+   Add `docs/.docs-builder/` to `.gitignore` if it is not already ignored: it is machine state,
+   regenerated every run, and the ledger stamp is per-clone by design — it must never ride into
+   history on a later `git add -A`. Then follow "Finishing a run" (below `apply-reorg`, Mode 0
+   step 3) to commit and stamp the ledger.
 
 The two stops are deliberate and different. Step 2 guards *correctness* — the interview and
 the user's approval, before a single file moves. Step 3's follow-up guards *cost* — splitting
@@ -114,7 +114,7 @@ when they pick "First run". Never split N files in one shot on an unseen list.
 first, if a ledger stamp exists, then it runs `discover`. If any row's `bucket` is still
 empty (true on a genuine first run, or when new files appeared since the last classification),
 `reorg` **stops right there** and prints what to do next — it never silently proceeds past an
-unclassified plan. Commit what it changed, then run `node $DB ledger` to move the stamp. Once
+unclassified plan. Otherwise follow "Finishing a run" once it's done. Once
 the plan is fully classified (an already-sorted corpus's re-run
 carries its prior classifications forward automatically — see "Discover is idempotent"
 below), `reorg` continues straight through `apply-reorg` → `lint`, no further stop, so
@@ -225,8 +225,22 @@ purpose, not silently dropped.
 ### 1. Discover (script) — enriches and PROPOSES, never classifies, never moves
 
 ```bash
-node $DB discover        # defaults to docs/
+node $DB discover        # defaults to docs/, or the repo root if there is no docs/ (below)
+node $DB discover <dir>  # re-checks every doc already inside <dir>, e.g. docs/product
 ```
+
+An explicit `<dir>` argument is the re-check path: a bare `discover`/`reorg` never descends
+into `product/`, `logs/`, `archive/` or `wiki/`, so use `discover <dir>` (or `/docs-builder
+reorg <dir>`) when a bucket got messy and needs a second classification pass. A row already
+in its right bucket is reported as staying, not moved. `ROOT=` is NOT read by this script —
+setting it prints a `WARN`; pass the folder as the argument.
+
+**No `docs/` directory, and no `<dir>` argument:** `discover` scans the repo's `.md` files
+instead of refusing — recursively, skipping dot-dirs and `node_modules`, so a `.md` under
+`src/` or `tests/` shows up in the plan too; the interview is where it gets kept out.
+`PROTECTED_NAMES` still applies at any depth, so `README.md`, `CLAUDE.md`, `CHANGELOG.md`,
+`AGENTS.md`, `AGENT.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
+`index.md` and `log.md` are never planned or moved.
 
 Recursively finds every `*.md` under the root (skipping `wiki/`, `logs/`, `archive/`,
 `product/`, `.docs-builder/`, and the protected files), and for each one writes a row with:
@@ -365,20 +379,10 @@ a pointer to re-run `discover`.
   static — it never varies with row count, so a re-run rewrites identical bytes. Idempotent:
   an existing block is replaced in place, never duplicated; other content is left alone.
   The target is `CONFIG=` (default `CLAUDE.md`); this package uses `CONFIG=AGENTS.md`.
-- **The moves land STAGED in your git index — commit them promptly.** `git mv` stages each
-  rename immediately (that is what preserves history), so when `apply-reorg` returns the repo
-  is holding N staged renames. Any other session's `git add -A` or `git commit -a` will absorb
-  them into an unrelated commit — OBSERVED TWICE, in two different repos. `apply-reorg` prints
-  a closing advisory naming the counts and a copy-pasteable recipe. **Run that recipe
-  VERBATIM. Do NOT hand-edit it, and do NOT stage by hand instead.** If it looks incomplete
-  or names a path that errors, that is a BUG in the recipe — stop and report it to the user;
-  do not silently repair it and move on. OBSERVED, real (privcloud first field run): the
-  recipe omitted `docs/log.md`, the operator quietly added it by hand, and the bug only
-  surfaced because they were later asked for near-misses — a silent repair is a lost bug
-  report. Do NOT scope the commit to `docs` alone either: the renames are staged, but the
-  inbound-link rewrites are UNSTAGED and reach outside `docs/` (`src/`, `scripts/`, `tests/`,
-  `README.md`). Both belong in ONE commit, or you ship moved files whose links were never
-  repaired. The tool never auto-commits, by design.
+- **The moves land STAGED in your git index — nothing is committed for you.** `git mv` stages
+  each rename immediately (that is what preserves history), so when `apply-reorg` returns the
+  repo is holding N staged renames plus unstaged link rewrites. `apply-reorg` prints a closing
+  commit advisory; see "Finishing a run" below for the actual commit flow.
 - A basename collision (two files, same name, different original folders) is
   disambiguated (`-2`, `-3`, …); a collision with a **file that already exists at the
   destination** is skipped, logged, and does not stop the rest of the run.
@@ -398,6 +402,41 @@ a pointer to re-run `discover`.
   content, so a pre-move scan would just be redone), and reuses the same `scan` used
   everywhere else in this pipeline — no second scanner, no second outline format.
 
+### Finishing a run — the commit flow, run by hand every time
+
+`apply-reorg`/`archive`/`cleanup-apply` never auto-commit, by design. Each run's staged renames
+and unstaged link rewrites (in `.md` files only, but anywhere — e.g. the root `README.md`)
+belong in ONE commit, including the
+`AGENTS.md` docs-pointer block `apply-reorg` writes — it is in `commit-files.txt` along with
+everything else. Run these steps literally, in order:
+
+1. `git branch --show-current`. If it prints `main` or `master`, do **NOT** commit — tell the
+   user the files are ready and to switch to a branch first.
+2. `cat docs/.docs-builder/commit-files.txt` to see exactly what this run touched, then ask
+   with `AskUserQuestion`, header `Commit`: **"Commit these N files now?"** — **Commit** (run
+   the printed recipe) / **Leave uncommitted** (say what is pending; nothing this run did gets
+   undone).
+3. On **Commit**, run the printed recipe line EXACTLY as printed:
+   ```
+   git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt
+   ```
+   Do not hand-edit it, do not stage by hand instead, and do not scope it to `docs/` alone —
+   a `.md` outside `docs/` (e.g. `README.md`) can carry a repaired link. If it errors or names a path that doesn't exist,
+   that is a BUG: stop and report it to the user; do not silently hand-repair and move on.
+   OBSERVED, real (privcloud first field run, pre-dating the pathspec-file recipe): a
+   hand-rolled recipe once omitted `docs/log.md` and the operator quietly added it by hand —
+   the bug only surfaced later, when asked for near-misses. A silent repair is a lost bug
+   report.
+4. After a successful commit, run `node $DB ledger` to stamp the consolidation — nothing in
+   `discover`/`apply-reorg`/`archive`/`cleanup-apply` stamps it for you, and without the stamp
+   `due` stays NOT due, the picker's verdict stays uninformed, and `/remember`'s docs nudge
+   never fires.
+
+Add `docs/.docs-builder/` to `.gitignore` before the first commit if it is not already
+ignored — it is machine state, regenerated every run, and the ledger stamp is per-clone by
+design. Never use `git add -A` / `git add -u` / `git commit -a` for this: either would ALSO
+absorb any unrelated in-flight work in the tree — OBSERVED TWICE, in two different repos.
+
 **After each move it repairs the paths that move just broke** — the whole point of doing this
 in a script. Both movers (`apply-reorg` and `archive`) go through ONE function, `moveDoc`, so
 the follow-up list cannot be added to one and missed by the other; that exact miss shipped
@@ -409,8 +448,12 @@ reported as a file that needs re-moving. Two follow-ups:
    (`records[].file`, and the `<file> :: ` prefix inside every key). This is the same
    function `archive` calls; `apply-reorg` used to bypass it, which silently invalidated
    every key of every file it moved. Both now reach it through `moveDoc`.
-2. **Inbound links** — every git-tracked `.md`/`.js`/`.cjs`/`.mjs`/`.json`/`.yml` file that
-   points at the old path (repo-rooted, e.g. `docs/GUIDE.md`) is rewritten to the new one.
+2. **Inbound links** — every git-tracked `.md` file, anywhere in the repo, that points at the
+   old path (repo-rooted, e.g. `docs/GUIDE.md`) is rewritten to the new one. Only `.md` files
+   are ever opened, read, or edited — this is a DOCS tool, not a repo-wide text rewriter.
+   FIELD BUG, real (bareloop, 2026-09-10): the previous version also scanned
+   `.js`/`.cjs`/`.mjs`/`.json`/`.yml`, and rewrote 6 signed JSON job specs (breaking their
+   hashes), a byte-signed `.mjs` close script, and a code comment that tripped a commit gate.
    In `.md` files specifically, a RELATIVE link is also caught: inside actual markdown link
    syntax only (`[text](../concepts/x.md)` or a reference-style `[label]: ./tools.md`), never
    bare prose, the target is resolved against the SCANNING file's own directory, and — if it
@@ -445,13 +488,14 @@ predicate, `isRewriteExempt`, at one call site. `docs/.docs-builder/` is exclude
 
 **A known, deliberate trade-off: this is a literal exact-path match over raw file bytes, not
 fence-aware or context-aware.** It rewrites every exact, word-bounded occurrence of the old path
-in every git-tracked `.md`/`.js`/`.cjs`/`.mjs`/`.json`/`.yml` file (except the two exemptions
-above) — inside a code fence, inside a sentence describing history ("this used to live at
-docs/OLD.md"), anywhere. A prose mention of where a file *used to be* WILL be rewritten to say
-where it is now, changing what the sentence says. This is intentional, not an oversight: a dead
-link is worse than a reworded sentence, the match is exact rather than inferred (unlike the
-dangling-reference *lint*, which infers and was cut outright at 1/27 precision), and every
-rewrite is printed per file so it is visible, never silent.
+in every git-tracked `.md` file (except the two exemptions above) — inside a code fence, inside
+a sentence describing history ("this used to live at docs/OLD.md"), anywhere. A prose mention of
+where a file *used to be* WILL be rewritten to say where it is now, changing what the sentence
+says. This is intentional, not an oversight: a dead link is worse than a reworded sentence, the
+match is exact rather than inferred (unlike the dangling-reference *lint*, which infers and was
+cut outright at 1/27 precision), and every rewrite is printed per file so it is visible, never
+silent. Only `.md` files are ever in scope, so this trade-off never touches non-doc files —
+see "Inbound links" above.
 
 ---
 
@@ -770,7 +814,8 @@ v3 folds the old `reconcile` and `due` commands into one: "first run" (nothing s
 state, and two separate commands only made users guess which one to run.
 
 ```bash
-node $DB reorg
+node $DB reorg        # whole corpus (docs/, or the repo root if there is no docs/)
+node $DB reorg <dir>  # re-checks every doc already inside <dir> — passes <dir> to discover
 ```
 
 If a ledger stamp exists (see "Knowing when reorg is due" below), its `due`-style drift
