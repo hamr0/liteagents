@@ -441,7 +441,9 @@ a pointer to re-run `discover`.
   touches — is never removed. Only directories THIS run emptied are candidates; a dir that
   happened to already be empty before this run started is not this tool's to remove.
 - **After every move, `apply-reorg` re-scans the whole corpus** — `docs/product/`,
-  `docs/wiki/`, `docs/logs/`, and `docs/archive/` all — straight into `outline.json`, the database `search`
+  `docs/logs/`, and `docs/archive/` all (`docs/wiki/` is excluded, same as any other
+  `PAGES` dir — it holds synthesised pages, not source docs to reorg) — straight into
+  `outline.json`, the database `search`
   reads. Not a hint, not opt-in: it runs every time, even when nothing moved this run (e.g.
   re-running on a corpus already sorted from a previous pass). Measured bug this closes: on a
   real 37-doc corpus, `outline.json` used to hold records for only the 12 files a split had
@@ -870,7 +872,7 @@ v3 folds the old `reconcile` and `due` commands into one: "first run" (nothing s
 state, and two separate commands only made users guess which one to run.
 
 ```bash
-node $DB reorg        # whole corpus (docs/, or the repo root if there is no docs/)
+node $DB reorg        # root-level .md files (top level only) + everything under docs/
 node $DB reorg <dir>  # re-checks every doc already inside <dir> — passes <dir> to discover
 ```
 

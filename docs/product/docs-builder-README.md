@@ -279,13 +279,17 @@ wrong".
 
 **Never moved — enforced in code, not just documented.** Two guards in `docs-builder.cjs`:
 
-- `PROTECTED_NAMES`, matched at **any depth**: `README.md`, `index.md`, `log.md`,
-  `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
-  `CLAUDE.md`, `AGENTS.md`, `AGENT.md`. Bare `LICENSE`/`NOTICE` carry no `.md` extension,
-  so the walker never sees them.
+- `PROTECTED_NAMES`, matched **case-insensitively at any depth**: `README.md`, `index.md`,
+  `log.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  `SECURITY.md`, `CLAUDE.md`, `AGENTS.md`, `AGENT.md` (so `readme.md`/`Claude.md` are
+  protected too, not just their exact-case forms). Bare `LICENSE`/`NOTICE` carry no `.md`
+  extension, so the walker never sees them.
 - `walkMd` skips every dot-dir (`.git/`, `.github/`, `.claude/`, `.factory/`, `.opencode/`,
   `.amp/`, `.docs-builder/`) and `node_modules/`, plus the dirs reorg itself owns
-  (`product/`, `logs/`, `archive/`, `wiki/`) so a second run is idempotent.
+  (`product/`, `logs/`, `archive/`, `wiki/`) so a second run is idempotent — **except**
+  the bare, no-directory `discover`/`reorg` call, which re-enters `product/`, `wiki/`, and
+  `logs/` on purpose to re-check their residents every run; only `archive/` stays skipped
+  there too.
 
 ---
 
@@ -302,9 +306,12 @@ proof a model must not classify, but the actual failure was the *silent move wit
 gate at all*, not the judgement. The approval gate is the safety property, and it is
 strictly stronger than a rule that moves files unreviewed.
 
-**`discover` no longer classifies — it enriches and proposes.** For every `.md` file under
-`docs/` (skipping `product/`, `logs/`, `archive/`, `wiki/`, `.docs-builder/`, and the
-protected entry-point docs) it writes a row carrying `h1`, a short `snip`, an `oversized`
+**`discover` no longer classifies — it enriches and proposes.** With no directory named,
+the scan scope is root-level `.md` files (non-recursive) plus everything under `docs/`
+(recursive); `discover <dir>` / `reorg <dir>` scope to exactly that one directory instead.
+Within `docs/`, `product/`, `wiki/`, and `logs/` are re-checked every run — only
+`archive/` stays frozen and skipped, along with `.docs-builder/` and the protected
+entry-point docs. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
 **boolean** (over `OVERSIZED_LINES`, default 500 — size decides *splittable*, never
 *sorted*), and a mechanical `suggested` bucket + `reason`: a
 PRIOR the classification interview is shown, never an authority over it. `bucket` itself
@@ -314,7 +321,7 @@ no-H1 file with no strong signal is just an ordinary unclassified row, same as a
 that the interview decides like everything else.
 
 The classification interview: feed the model the whole plan table (file, h1, snip, lines,
-suggested+reason) in **one call**, have it fill `bucket` (`product`/`logs`/`archive`) with
+suggested+reason) in **one call**, have it fill `bucket` (`product`/`wiki`/`logs`/`archive`) with
 a one-line reason per row, write the answers into `reorg-plan.json`, then show the user the
 full table via `AskUserQuestion` — approve all / correct specific rows / abort. The
 approval table has a mandated shape: **exactly four columns**, `file | lines | →

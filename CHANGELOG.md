@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.7.0] - 2026-09-10
+## [3.7.0] - 2026-09-11
 
 ### Added
 - **`docs-builder` sorts a repo that has no `docs/` yet.** With no folder named and no
@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`docs-builder` asks before committing.** After a run, the skill shows exactly which
   files the run touched and asks; it refuses to commit on `main` / `master`.
 - `discover` warns that `ROOT=` is ignored and says to pass the folder as an argument.
+- **`docs-builder` gains a fourth bucket, `wiki/`**, for generic non-product-specific
+  knowledge (conventions, how-tos, standards, reference) — `product/`, `wiki/`, `logs/`,
+  `archive/` is now the full layout everywhere (SKILL.md, README, `index-flat`).
+- **`docs-builder` classifies from headings, not just filenames.** A doc with no
+  filename signal now also gets a weaker, case-insensitive prior from its own H1 + first
+  3 H2s.
+- **`logs/` is the one bucket that nests**, one level, grouped by the file's own first
+  path segment under `docs/` (a special subfolder like `docs/fwd/` stays one group
+  however deep a file sits inside it, unless that segment is itself a bucket name); loose
+  files stay flat. `index-flat`'s `## Logs` section groups rows the same way.
 
 ### Security
 - `hono` bumped 4.13.0 → 4.13.7 (indirect dependency, Dependabot).
@@ -48,6 +58,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test file, never a sample; a check that can't run is written `NOT RUN: <reason>` on a
   new `checks:` line, visible but non-blocking (`/release` still reads only `coverage:`).
   Stage 2's secrets scan always covers all history, never narrowed to the review range.
+- **`docs-builder`'s default scan scope no longer sweeps the whole repo.** With no
+  directory named, `discover` / `reorg` now scan only root-level `.md` files
+  (non-recursive) plus everything under `docs/` (recursive); `discover <dir>` /
+  `reorg <dir>` are unchanged. `PROTECTED_NAMES` is now matched case-insensitively at
+  every call site, so files like `readme.md` or `Claude.md` are protected too, not just
+  their exact-case forms. `docs/product`, `docs/wiki`, and `docs/logs` are now
+  re-checked on every bare run (only `docs/archive` stays frozen) — this also fixed an
+  ordering bug where a resident row could be bumped off its own bucket by an unrelated
+  same-basename row visited earlier.
+- **`/release`'s docs sweep is now required and can't be skipped or sampled.** A prior
+  run had built a `CHANGELOG` from commit subjects alone (missing changes only named in
+  commit bodies) and called a stale README line "already stale before this branch"
+  without checking. Phase 2 is now three required passes — list every change from commit
+  bodies, map each to a CHANGELOG heading, and grep docs for every replaced string,
+  proving any "pre-existing" claim against the merge-base — with one evidence row per
+  doc; a "no change" with no evidence now fails the phase.
 
 ## [3.6.0] - 2026-09-05
 
