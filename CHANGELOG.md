@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.7.0] - 2026-09-11
+
+### Added
+- **`docs-builder` sorts a repo that has no `docs/` yet.** With no folder named and no
+  `docs/` directory, `discover` / `reorg` scan the repo's loose `.md` files instead of
+  stopping. Protected entry-point files (`README.md`, `CLAUDE.md`, `CHANGELOG.md`,
+  `AGENTS.md`, ...) never move.
+- **`reorg <dir>` / `discover <dir>`** re-check a single bucket that got messy.
+- **`docs-builder` asks before committing.** After a run, the skill shows exactly which
+  files the run touched and asks; it refuses to commit on `main` / `master`.
+- `discover` warns that `ROOT=` is ignored and says to pass the folder as an argument.
+- **`docs-builder` gains a fourth bucket, `wiki/`**, for generic non-product-specific
+  knowledge (conventions, how-tos, standards, reference) — `product/`, `wiki/`, `logs/`,
+  `archive/` is now the full layout everywhere (SKILL.md, README, `index-flat`).
+- **`docs-builder` classifies from headings, not just filenames.** A doc with no
+  filename signal now also gets a weaker, case-insensitive prior from its own H1 + first
+  3 H2s.
+- **`logs/` is the one bucket that nests**, one level, grouped by the file's own first
+  path segment under `docs/` (a special subfolder like `docs/fwd/` stays one group
+  however deep a file sits inside it, unless that segment is itself a bucket name); loose
+  files stay flat. `index-flat`'s `## Logs` section groups rows the same way.
+
+### Security
+- `hono` bumped 4.13.0 → 4.13.7 (indirect dependency, Dependabot).
+
+### Fixed
+- **`docs-builder`'s commit recipe mishandled non-ASCII renames, silently swept up the
+  operator's own uncommitted edits, and broke under `REPO=<subdir>`.** A moved file with a
+  non-ASCII name (e.g. `café.md`) lost its rename because `ls-tree` C-quoted the path,
+  dropping it from `commit-files.txt`; now uses `ls-tree -z`. A pre-run dirty snapshot now
+  names any listed file that already carried the user's own uncommitted edits
+  (`commit-dirty.txt`), and `SKILL.md` surfaces that in the commit question instead of
+  silently including them. `REPO=<subdir>` no longer writes lists to a doubled path or
+  exits 128 — lists are written under `ARTIFACTS` directly and the recipe uses `git -C`
+  when `REPO` isn't the cwd.
+- **`docs-builder`'s dirty-file warning no longer flags the tool's own log/index.** `reorg`
+  appends to `docs/log.md` and rebuilds `docs/index.md` as part of its own run, so the
+  following `apply-reorg` warned that those tool-owned files carried "your own uncommitted
+  edits." Both are now excluded from the dirty-file check; every other listed file is still
+  checked.
+- **`docs-builder`'s link rewriter now touches only `.md` files, and `reorg <dir>` /
+  `discover <dir>` re-check an already-classified bucket instead of leaving it a false
+  SKIP.** Previously the rewriter could open signed JSON job specs or byte-signed scripts
+  outside `docs/`, and the commit advisory could stage unrelated files alongside the run's
+  own changes; the advisory now names exactly the staged renames, unstaged rewrites, and
+  distinct outside-`docs/` locations touched by that run.
+- **`/branch-review` and `/security` effort level no longer cuts which checks run** — only
+  how many findings are reported. Stage 1's fail-first check is one red run per changed
+  test file, never a sample; a check that can't run is written `NOT RUN: <reason>` on a
+  new `checks:` line, visible but non-blocking (`/release` still reads only `coverage:`).
+  Stage 2's secrets scan always covers all history, never narrowed to the review range.
+- **`docs-builder`'s default scan scope no longer sweeps the whole repo.** With no
+  directory named, `discover` / `reorg` now scan only root-level `.md` files
+  (non-recursive) plus everything under `docs/` (recursive); `discover <dir>` /
+  `reorg <dir>` are unchanged. `PROTECTED_NAMES` is now matched case-insensitively at
+  every call site, so files like `readme.md` or `Claude.md` are protected too, not just
+  their exact-case forms. `docs/product`, `docs/wiki`, and `docs/logs` are now
+  re-checked on every bare run (only `docs/archive` stays frozen) — this also fixed an
+  ordering bug where a resident row could be bumped off its own bucket by an unrelated
+  same-basename row visited earlier.
+- **`/release`'s docs sweep is now required and can't be skipped or sampled.** A prior
+  run had built a `CHANGELOG` from commit subjects alone (missing changes only named in
+  commit bodies) and called a stale README line "already stale before this branch"
+  without checking. Phase 2 is now three required passes — list every change from commit
+  bodies, map each to a CHANGELOG heading, and grep docs for every replaced string,
+  proving any "pre-existing" claim against the merge-base — with one evidence row per
+  doc; a "no change" with no evidence now fails the phase.
+
 ## [3.6.0] - 2026-09-05
 
 ### Added

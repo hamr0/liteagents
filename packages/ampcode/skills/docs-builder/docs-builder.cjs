@@ -774,10 +774,26 @@ function indexRow(rel, dest, includeH2) {
   return row;
 }
 
-function renderSection(title, rows) {
+// `subdirOf`: optional, `row => subdir name or '' (loose)`. Gap 7 (logs may nest one level —
+// same rule as apply-reorg's destDir computation): grouping is purely a rendering concern, so
+// it lives here rather than as a second traversal of the corpus. `''` (loose) always sorts
+// first, then subdirs alphabetically, so a reader hits the ungrouped files before the buckets.
+function renderSection(title, rows, subdirOf = null) {
   let s = `## ${title}\n\n`;
-  s += rows.length ? rows.map(r => r.row).join('') : '_(none)_\n';
-  return s + '\n';
+  if (!rows.length) return s + '_(none)_\n\n';
+  if (!subdirOf) return s + rows.map(r => r.row).join('') + '\n';
+  const groups = new Map();
+  for (const r of rows) {
+    const key = subdirOf(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const keys = [...groups.keys()].sort((a, b) => a === '' ? -1 : b === '' ? 1 : a.localeCompare(b));
+  for (const k of keys) {
+    if (k) s += `### ${k}/\n\n`;
+    s += groups.get(k).map(r => r.row).join('') + '\n';
+  }
+  return s;
 }
 
 function indexFlat() {
@@ -819,7 +835,14 @@ function indexFlat() {
      + 'after every split (`cleanup-apply`). No theme grouping, no model call. Never '
      + 'hand-edit._\n\n';
   s += renderSection('Product', productRows);
-  s += renderSection('Logs', logsRows);
+  // Gap 7: group logs rows by their (one-level) subdir name, same nesting rule apply-reorg
+  // uses to compute the destination in the first place — a loose docs/logs/x.md row has no
+  // '/' after the 'docs/logs/' prefix, so it keys to '' (loose, rendered ungrouped, first).
+  s += renderSection('Logs', logsRows, r => {
+    const rest = r.file.slice(logsRel.length);
+    const slash = rest.indexOf('/');
+    return slash === -1 ? '' : rest.slice(0, slash);
+  });
   s += renderSection('Archive', archiveRows);
   const total = productRows.length + logsRows.length + archiveRows.length;
   s += `---\n\nTotal: ${total} row(s) — ${productRows.length} product, `
@@ -982,7 +1005,7 @@ function confined(p, what, { deref = false } = {}) {
 function doArchive(src, dest) {
   const s = confined(src, 'move a doc from', { deref: true });
   if (!fs.existsSync(s)) throw new Error(`no such file: ${src}`);
-  if (PROTECTED_NAMES.has(path.basename(src)))
+  if (isProtectedName(path.basename(src)))
     throw new Error(`refusing to move ${src}: ${path.basename(src)} is an entry-point/contract `
       + 'doc (README, CLAUDE.md, CHANGELOG, the index, the log, ...) and is never moved, at '
       + 'any depth — every human and agent reads it first.');
@@ -1059,7 +1082,10 @@ function rewriteArchivedPath(oldPath, newPath) {
 // log.md (append-only history — a record of where a file WAS is not a broken link); never the
 // pipeline's own JSON (rewriteArchivedPath owns those); never a file RESIDENT under
 // docs/archive/ (same rationale, one directory further — see isRewriteExempt below).
-const LINK_EXTS = new Set(['.md', '.js', '.cjs', '.mjs', '.json', '.yml', '.yaml']);
+//
+// docs-builder is a DOCS tool: it only ever reads or edits `.md` files. FIELD BUG (bareloop,
+// 2026-09-10, real): also scanning .json/.mjs/.js rewrote 6 signed job specs (breaking their
+// hashes), a byte-signed close script, and a code comment that tripped a commit gate.
 const LINK_SKIP = /(^|\/)(CHANGELOG\.md|log\.md)$/;
 
 // docs/archive/ exists to hold frozen originals — its whole purpose is a record of where a
@@ -1186,7 +1212,7 @@ function rewriteLinks(oldPath, newPath) {
     return result;
   }
   for (const f of candidates) {
-    if (!f || !LINK_EXTS.has(path.extname(f))) continue;
+    if (!f || !f.endsWith('.md')) continue;
     if (isRewriteExempt(f) || f.startsWith('docs/.docs-builder/')) continue;
     let text;
     try { text = fs.readFileSync(repoPath(f), 'utf8'); } catch { continue; }
@@ -1280,14 +1306,55 @@ function moveDoc(src, dest) {
 // longer exists. `git add` is atomic: one stale pathspec makes the whole command exit 128 and
 // stage NOTHING, so following the printed recipe committed nothing at all. flush() drops
 // anything not on disk (it moved; its destination is already in `moved`).
-const RUN = { moved: [], links: [], generated: [] };
+// `movedFrom`: {src, dest} for every successful move this run, so the commit recipe below can
+// record the RENAME against its old name — `git add` cannot see a path that no longer exists,
+// but `git commit --pathspec-from-file` naming both old and new records an R100.
+const RUN = { moved: [], links: [], generated: [], movedFrom: [], dirty: [] };
 const noteMoved = (...paths) => RUN.moved.push(...paths);
 const noteLinks = files => RUN.links.push(...files);
+const noteMovedFrom = (src, dest) => RUN.movedFrom.push({ src, dest });
+
+// Snapshot of paths that were ALREADY dirty (staged, unstaged, or untracked) before this run
+// touched anything. Taken once, from the dispatcher, before a move-capable command runs.
+// Needed because `git add --pathspec-from-file` can't split hunks: if CLAUDE.md (say) already
+// had the operator's own uncommitted edit before the run, the recipe's `git add` on CLAUDE.md
+// stages that edit too, silently, since it's on the list for an unrelated reason (it's always
+// on the list). This can't be prevented — only made visible, in flushCommitAdvisory below.
+// Crash-isolated and never throws: no git repo (or a repo with no commits yet) means "nothing
+// was dirty", not a failure worth interrupting the run over.
+function snapshotDirty() {
+  try {
+    const out = execFileSync('git', ['-C', REPO, 'status', '--porcelain', '-z'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    const records = out.split('\0').filter(Boolean);
+    const paths = [];
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i], code = rec.slice(0, 2), p = rec.slice(3);
+      paths.push(p);
+      // A rename/copy record's OLD path follows as its own NUL-terminated record right after.
+      if (code[0] === 'R' || code[0] === 'C') paths.push(records[++i]);
+    }
+    return paths;
+  } catch { return []; }
+}
+// Tool-owned outputs, exempt from the dirty-on-list WARN below: an earlier step of the same
+// flow (e.g. `reorg` stopping for the interview) already wrote them, so "dirty" there is the
+// tool's own work, not the user's. docs/log.md is append-only via logOp(); docs/index.md is
+// fully regenerated by index-flat().
+const TOOL_OWNED = new Set(['docs/log.md', 'docs/index.md']);
 // Files this run CREATED or REWROTE that no move produced — the rebuilt index, the config
 // file's pointer block, the pages a split wrote. Omitting them meant following the recipe
 // committed a reorg with no index and no pointer.
 const noteGenerated = (...paths) => RUN.generated.push(...paths);
 
+// Proven by POC (git 2.55): `git add` rejects a moved file's OLD path (not in the index or
+// worktree any more); `git commit -- <path>` rejects a brand-new UNTRACKED file. Neither
+// command alone can stage-and-commit both a rename's old name (for `git commit` to record an
+// R100 against) and this run's newly generated files (index.md, log.md, split pages) in one
+// shot — so two pathspec-from-file lists, one per command, replace the old single `git add`
+// recipe. `commit-add.txt` holds only on-disk paths (what `git add` stages); `commit-files.txt`
+// adds every moved file's OLD path on top (what `git commit` needs to see, so the rename is
+// recorded against its previous name, even though that path no longer exists on disk).
 function flushCommitAdvisory() {
   if (!RUN.moved.length) return;
   try {
@@ -1295,17 +1362,26 @@ function flushCommitAdvisory() {
     const moveSet = Array.from(new Set(RUN.moved)).filter(onDisk);
     const linkSet = Array.from(new Set(RUN.links)).filter(onDisk);
     const genSet = Array.from(new Set(RUN.generated)).filter(onDisk);
-    const allFiles = Array.from(new Set([...moveSet, ...linkSet, ...genSet]));
-    // The failure mode this must break: an operator reads `git status`, sees only the
-    // STAGED block (the smaller, docs-shaped half), and scopes their commit to `docs/` —
-    // silently dropping every link repair outside it. A bare count doesn't fight that
-    // ("35 link rewrites" still reads as "docs stuff"); naming the actual non-docs
-    // locations does. Derived from moveDoc's own linkFiles paths — no hardcoded dir names.
-    // Count FILES outside docs/, but list the distinct top-level LOCATIONS. Reporting the
-    // location count instead understates the trap: 19 files across 6 dirs printed as "6"
-    // reads as a rounding error rather than most of the change set.
-    const outsideFiles = linkSet.filter(f => f.split('/')[0] !== 'docs');
-    const outsideDocs = Array.from(new Set(outsideFiles.map(f => f.split('/')[0]))).sort();
+    const addFiles = Array.from(new Set([...moveSet, ...linkSet, ...genSet]));
+    // Only old paths git knows from HEAD: a page this run wrote and then moved (cleanup-apply's
+    // core-page relocation) was never tracked, and `git commit` rejects a pathspec it can't match.
+    const moveSrcs = Array.from(new Set(RUN.movedFrom.map(m => m.src)));
+    let oldPaths = [];
+    if (moveSrcs.length) {
+      try {
+        // -z / NUL-separated: `--name-only` alone C-quotes any path with a non-ASCII or quote
+        // character (core.quotepath) — e.g. `docs/x/café.md` comes back as `"docs/x/caf\\303\\251.md"`,
+        // which never matches the raw JS path, so that path silently fell out of `oldPaths` and the
+        // recipe committed it as a fresh ADD, leaving its true `D` staged. gitOrThrow() trims() the
+        // whole output, but NUL (U+0000) isn't in trim()'s whitespace set, so a trailing record
+        // survives intact.
+        const inHead = new Set(gitOrThrow(['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', ...moveSrcs],
+          'listing moved files known to HEAD').split('\0').filter(Boolean));
+        oldPaths = moveSrcs.filter(f => inHead.has(f));
+      } catch { /* no HEAD yet (fresh repo): nothing moved was ever committed */ }
+    }
+    const commitFiles = Array.from(new Set([...addFiles, ...oldPaths]));
+
     console.log(`\n${moveSet.length} rename(s) this run (git mv stages these automatically; `
       + 'the copy+unlink fallback used outside a git repo does not)');
     // Unit, stated: linkSet holds FILE paths, so this is a file count. cleanup-apply's
@@ -1313,28 +1389,50 @@ function flushCommitAdvisory() {
     // "restored 38" — same-sounding nouns, two different units, and the reader has no way to
     // tell they are not a discrepancy. Name the unit in both places.
     console.log(linkSet.length
-      ? `${linkSet.length} file(s) with link rewrites UNSTAGED` + (outsideFiles.length
-        ? `, ${outsideFiles.length} outside docs/: ${outsideDocs.join(', ')}`
-        : ' (all inside docs/)')
+      ? `${linkSet.length} .md file(s) with link rewrites UNSTAGED`
       : 'no inbound-link rewrites this run.');
-    console.log('A blanket `git add -A` / `git add -u` / `git commit -a` would ALSO absorb any');
-    console.log('unrelated in-flight work in the tree — this tool never suggests one (it does');
-    console.log('NOT auto-commit either: you may want these moves bundled with other work).');
-    console.log('Stage exactly what this run touched (renames + link rewrites), then commit:');
-    const quote = f => `'${f.replace(/'/g, `'\\''`)}'`;
-    const SHOWN = 20;
-    if (allFiles.length <= SHOWN) {
-      console.log(`  git add -- ${allFiles.map(quote).join(' ')}`);
-    } else {
-      const listRel = path.join(ARTIFACTS, 'commit-files.txt');
-      fs.mkdirSync(path.dirname(repoPath(listRel)), { recursive: true });
-      fs.writeFileSync(repoPath(listRel), allFiles.join('\n') + '\n');
-      console.log(`  ${allFiles.length} files touched — full list written to ${listRel}`);
-      console.log(`  git add -- ${allFiles.slice(0, SHOWN).map(quote).join(' ')}  # + `
-        + `${allFiles.length - SHOWN} more, see ${listRel}`);
-      console.log(`  cat ${listRel} | xargs git add --`);
+
+    // Paths on the recipe's own list that were ALREADY dirty before this run (see
+    // snapshotDirty() above). These are only untouched-by-THIS-RUN's move logic — the recipe's
+    // `git add` still stages whatever the operator's own edit left in them, because pathspec
+    // can't split hunks. Always written, even when empty, so a stale file from an earlier run
+    // that DID find dirty paths can never be mistaken for this run's (clean) answer.
+    const dirtySet = new Set(RUN.dirty);
+    const dirtyOnList = commitFiles.filter(f => dirtySet.has(f) && !TOOL_OWNED.has(f));
+    fs.mkdirSync(ARTIFACTS, { recursive: true });
+    fs.writeFileSync(path.join(ARTIFACTS, 'commit-dirty.txt'),
+      dirtyOnList.length ? dirtyOnList.join('\n') + '\n' : '');
+
+    if (addFiles.length) {
+      console.log('\nA blanket `git add -A` / `git add -u` / `git commit -a` would ALSO absorb any');
+      console.log('unrelated in-flight work in the tree — this tool never suggests one (it does');
+      console.log('NOT auto-commit either: you may want these moves bundled with other work).');
+      console.log('This recipe stages each listed file WHOLE — pathspec cannot split hunks, so');
+      console.log('any of the operator\'s OWN edits already sitting in a listed file (not made by');
+      console.log('this run) are committed right along with it.');
+      if (dirtyOnList.length) {
+        console.log(`\nWARN: ${dirtyOnList.length} file(s) on this list already had uncommitted `
+          + 'changes before this run — the recipe commits those changes too:');
+        for (const f of dirtyOnList) console.log(`  ${f}`);
+      }
+      // Written directly under ARTIFACTS (already REPO-anchored) — NOT re-joined with
+      // repoPath(), which would double-prefix REPO when REPO is a subdirectory of cwd (e.g.
+      // REPO=sub writing to sub/sub/docs/.docs-builder/... while the recipe below still prints
+      // the correct sub/docs/... path, so following it hit `fatal: pathspec ... did not match
+      // any files`, exit 128, nothing staged).
+      fs.writeFileSync(path.join(ARTIFACTS, 'commit-add.txt'), addFiles.join('\n') + '\n');
+      fs.writeFileSync(path.join(ARTIFACTS, 'commit-files.txt'), commitFiles.join('\n') + '\n');
+      console.log(`Commit exactly this run's ${commitFiles.length} file(s):`);
+      // The pathspec-from-file ARGUMENT and its CONTENTS must both be REPO-relative: `git -C`
+      // applies REPO as a prefix to both. Proven by POC (git 2.55): an absolute REPO-relative
+      // argument path combined with `-C`-prefixed contents double-prefixes; a REPO-relative
+      // argument path with REPO-relative contents is the one combination that works whether or
+      // not `-C` is present, so the printed recipe always uses it — no fork for the common case.
+      const repoAbs = path.resolve(REPO);
+      const gitCmd = repoAbs === process.cwd() ? 'git' : `git -C '${repoAbs}'`;
+      console.log(`  ${gitCmd} add --pathspec-from-file=${ARTIFACTS_REL}/commit-add.txt && `
+        + `${gitCmd} commit -m "docs: reorg" --pathspec-from-file=${ARTIFACTS_REL}/commit-files.txt`);
     }
-    console.log('  git commit -m "docs: reorg"');
   } catch (e) {
     console.error(`  WARN could not print the commit advisory: ${e.message}`);
   }
@@ -1364,6 +1462,7 @@ function archiveOrThrow(src, dest) {
     + (r.links ? `, ${r.links} link(s) rewritten` : '')
     + (r.failures.length ? `, FOLLOW-UP FAILED: ${r.failures.join('; ')}` : ''));
   noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
+  noteMovedFrom(src, r.rel);
   if (r.failures.length) {
     const e = new Error(`the move above SUCCEEDED — ${src} is now at ${r.rel}. But ${r.failures.join('; ')}\n`
       + `Fix that, then re-run \`scan\` (and redo labels) — do NOT re-run \`archive\` for `
@@ -1658,6 +1757,22 @@ const ARCHIVAL_STATUS_RE = /\b(CLOSED|ARCHIVAL|ARCHIVED|SUPERSEDED|WITHDRAWN|RET
 // (`REUSE-PREPROBE-PREREG.md`), not always a prefix.
 const LOGS_FILENAME_RE = /\b(PREREG|LEARNINGS|REPORT|RESULTS|POSTMORTEM|RETRO)\b/;
 
+// Gap 5 (docs-builder-v3-spec follow-up): a SECOND, weaker prior read from the doc's own
+// heading text (H1 + its first few H2s), for the case where the filename carries no signal at
+// all. Case-INsensitive on purpose here, unlike ARCHIVAL_STATUS_RE/LOGS_FILENAME_RE above —
+// those are anchored to a SHOUTED self-declaration or a filename convention, both of which are
+// real author signals only in their exact (caps/prefix) form; a heading is ordinary prose
+// ("Postmortem: the outage", "How to configure X"), so demanding shouted case here would just
+// never fire. Checked LAST, after every stronger path/status/filename/residency signal above,
+// and it is still only a PRIOR — the classification interview decides, same as every row.
+const HEADING_ARCHIVE_RE = /\b(deprecated|obsolete|retired|superseded|no longer (?:used|maintained|relevant))\b/i;
+const HEADING_LOGS_RE = /\b(postmortem|retrospective|retro|investigation|incident report|experiment|proof of concept|\bpoc\b|session log|findings|results)\b/i;
+// Bare "guide"/"reference" were tried first and DROPPED: a real fixture titled plainly "Guide"
+// (an ordinary product doc, nothing generic about it) false-positived immediately — the same
+// failure species as FROZEN in ARCHIVAL_STATUS_RE's own comment above. Only compound phrases
+// that are near-exclusively about repo-wide, not-product-specific knowledge stay.
+const HEADING_WIKI_RE = /\b(conventions?|how[- ]to|style guide|reference guide|glossary)\b/i;
+
 // Never reorged, at ANY depth: the repo's entry-point/contract docs. Moving a README or a
 // CLAUDE.md into archive/ breaks the thing every human and agent reads first. Bare LICENSE /
 // NOTICE have no .md extension and are already excluded by walkMd's extension filter.
@@ -1666,6 +1781,13 @@ const PROTECTED_NAMES = new Set([
   'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md',
   'CLAUDE.md', 'AGENTS.md', 'AGENT.md',
 ]);
+// Case-INSENSITIVE on purpose (regression): a filesystem that happily has both `README.md`
+// and `readme.md` protects both — this is a real-world filename, not a hypothetical, and the
+// three call sites below (walkMd, doArchive, cleanup) must never disagree on the answer, which
+// is why this is the one chokepoint they all go through instead of three separate `.has()`
+// checks drifting apart.
+const PROTECTED_NAMES_LC = new Set([...PROTECTED_NAMES].map(n => n.toLowerCase()));
+const isProtectedName = name => PROTECTED_NAMES_LC.has(name.toLowerCase());
 
 const DEFAULT_OVERSIZED_LINES = 500; // a starting default, UNMEASURED — see docs-builder.md
 
@@ -1695,7 +1817,7 @@ function isIncludeStub(lines) {
 function classifyDoc(rel, text) {
   const lines = splitLines(text);
   const mask = fenceMask(lines);
-  const { h1 } = headings(lines, mask);
+  const { h1, heads } = headings(lines, mask);
   const snip = snippet(lines, mask, 0, lines.length, 200);
   const opening = lines.slice(0, 20).join(' ').slice(0, 2000);
   const ceiling = +process.env.OVERSIZED_LINES || DEFAULT_OVERSIZED_LINES;
@@ -1711,6 +1833,29 @@ function classifyDoc(rel, text) {
     return row('archive', 'filename matches an archive-shaped pattern (weak signal, no content confirmation)');
   if (LOGS_FILENAME_RE.test(path.basename(rel)))
     return row('logs', 'filename matches an experiment-record pattern (PREREG/LEARNINGS/REPORT/RESULTS/POSTMORTEM/RETRO) — weak signal, no content confirmation');
+
+  // Gap 4: a file already resident under docs/product, docs/wiki or docs/logs carries ITS
+  // OWN current bucket forward as its prior — it is re-checked every run (only docs/archive
+  // stays frozen, so archive-resident files never reach classifyDoc at all: walkMd's default
+  // skip keeps that directory out of the walk entirely). Checked AFTER the stronger
+  // path/status/filename signals above, on purpose: those can still override mere residency
+  // (e.g. a product-resident doc whose content now shouts DEPRECATED still suggests archive).
+  const posixRel = rel.split(path.sep).join('/');
+  for (const bucket of ['product', 'wiki', 'logs'])
+    if (posixRel.startsWith(REORG_DEST[bucket] + '/'))
+      return row(bucket, `already resident in ${REORG_DEST[bucket]}/ — re-checked every run`);
+
+  // Gap 5: a weaker secondary prior read from the doc's own heading text (H1 + its first 3
+  // H2s), for a file whose filename carries no signal at all. Still only a prior — see the
+  // regexes' own comment for why this is case-insensitive unlike the two above it.
+  const headingText = [h1, ...heads.filter(h => h.lvl === 2).slice(0, 3).map(h => h.text)].join(' ');
+  if (HEADING_ARCHIVE_RE.test(headingText))
+    return row('archive', 'heading text (H1 + early H2s) suggests retired/superseded content');
+  if (HEADING_LOGS_RE.test(headingText))
+    return row('logs', 'heading text (H1 + early H2s) suggests a one-time investigation/experiment/report');
+  if (HEADING_WIKI_RE.test(headingText))
+    return row('wiki', 'heading text (H1 + early H2s) suggests generic reference/how-to content');
+
   if (!h1) {
     if (isIncludeStub(lines))
       return row('product', 'include stub');
@@ -1720,10 +1865,17 @@ function classifyDoc(rel, text) {
     // that default is gone with it — nothing moves until the interview says so.
     return row('product', 'no H1 — no strong signal, model decides');
   }
-  return row('product', 'structured (has an H1), no archive/logs signal');
+  return row('product', 'structured (has an H1), no archive/logs/wiki signal');
 }
 
-function walkMd(dir, base, out) {
+// `enter`: bucket dir names this walk should descend into DESPITE the reserved-name skip
+// below — used by discover()'s own default docs/ walk (gap 4: product/wiki/logs are
+// re-checked every run; archive alone stays frozen, so it is never passed here). Every OTHER
+// caller (wholeCorpusFiles' root walk, and any explicit `discover <dir>`/`reorg <dir>` whose
+// named dir IS itself one of these — the skip only ever applies to a CHILD name, never the
+// walk's own starting dir) keeps the old default: skip all four, so wholeCorpusFiles' own
+// explicit product/archive/logs calls stay the only source of those rows and nothing doubles.
+function walkMd(dir, base, out, enter = new Set()) {
   for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
     const abs = path.join(dir, name.name), rel = path.join(base, name.name);
     if (name.isDirectory()) {
@@ -1731,11 +1883,11 @@ function walkMd(dir, base, out) {
       // machine/tool state (.git, .github, .claude, .factory, .opencode, .amp, .docs-builder)
       // and node_modules is vendored — moving a .md out of those is never wanted.
       if (name.name.startsWith('.') || name.name === 'node_modules') continue;
-      if (['wiki', 'archive', 'product', 'logs'].includes(name.name)) continue;
-      walkMd(abs, rel, out);
+      if (['wiki', 'archive', 'product', 'logs'].includes(name.name) && !enter.has(name.name)) continue;
+      walkMd(abs, rel, out, enter);
     } else if (name.isFile() && name.name.endsWith('.md')) {
       // Entry-point/contract docs are never subject to reorg, wherever they sit.
-      if (PROTECTED_NAMES.has(name.name)) continue;
+      if (isProtectedName(name.name)) continue;
       out.push(rel);
     }
   }
@@ -1760,11 +1912,37 @@ function walkMd(dir, base, out) {
 // only accepts a currently-VALID bucket — a legacy pre-v3 value (e.g. 'oversized', 'review')
 // is dropped, not carried, so it starts unclassified instead of failing apply-reorg's schema check.
 function discover(root) {
-  const rootRel = root || 'docs';
-  const rootAbs = path.join(REPO, rootRel);
-  if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
-  const files = [];
-  walkMd(rootAbs, rootRel, files);
+  // ROOT is not a recognised env var anywhere in this script (REPO is the repo-root override;
+  // easy to confuse the two). A caller that sets ROOT expecting it to scope the scan gets
+  // silently ignored otherwise — loud, not silent, same law as every other guard in this file.
+  if (process.env.ROOT)
+    console.error(`WARN: ROOT=${process.env.ROOT} is ignored — pass the folder as an argument `
+      + '(`discover <dir>` / `reorg <dir>`), not an env var.');
+  // Scan scope, no dir argument (gap 1): ONLY (a) .md files sitting directly at the repo root
+  // (top level, not recursive) and (b) everything under docs/ (recursive, gap 4: product/wiki/
+  // logs are re-checked every run there — only docs/archive stays skipped/frozen, via walkMd's
+  // default `enter` set). Every other .md file in the repo is out of scope — never listed,
+  // never moved. `discover <dir>` / `reorg <dir>` keep scoping to exactly that one directory,
+  // unchanged (walkMd's own default skip-all-four behaviour, same as always).
+  let rootRel, files = [];
+  if (root) {
+    rootRel = root;
+    const rootAbs = path.join(REPO, rootRel);
+    if (!fs.existsSync(rootAbs)) die(`no such directory: ${rootRel}`);
+    walkMd(rootAbs, rootRel, files);
+  } else {
+    rootRel = '.';
+    for (const name of fs.readdirSync(REPO, { withFileTypes: true }))
+      if (name.isFile() && name.name.endsWith('.md') && !isProtectedName(name.name))
+        files.push(name.name);
+    const docsAbs = path.join(REPO, 'docs');
+    if (fs.existsSync(docsAbs)) walkMd(docsAbs, 'docs', files, new Set(['product', 'wiki', 'logs']));
+    if (!files.length)
+      console.log('no docs/ directory and no loose .md files at the repo root — nothing to scan '
+        + '(entry-point files like README.md, CLAUDE.md and CHANGELOG.md are never moved, and a '
+        + '.md file elsewhere in the repo is out of scope by design — pass `discover <dir>` to '
+        + 'scan it explicitly).');
+  }
   const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
   const prevBuckets = new Map();
   if (fs.existsSync(planFile)) {
@@ -1778,7 +1956,7 @@ function discover(root) {
   }
   const rows = files.map(rel =>
     ({ ...classifyDoc(rel, read(rel)), bucket: prevBuckets.get(rel) || '' }));
-  const bySuggested = { product: 0, logs: 0, archive: 0 };
+  const bySuggested = { product: 0, logs: 0, archive: 0, wiki: 0 };
   for (const r of rows) bySuggested[r.suggested]++;
   const oversizedCount = rows.filter(r => r.oversized).length;
   write({ generated: new Date().toISOString(), root: rootRel, rows }, 'reorg-plan.json');
@@ -1797,9 +1975,12 @@ function discover(root) {
   // buckets already set, so this has to report what is actually in the plan.
   const filled = rows.filter(r => r.bucket).length;
   if (!rows.length) {
-    console.log(`plan written to docs/.docs-builder/reorg-plan.json — 0 rows. Nothing outside `
-      + 'product/, logs/ and archive/ is left to classify — the corpus is already sorted. '
-      + '`apply-reorg` will only rescan and rebuild the index.');
+    console.log(`plan written to docs/.docs-builder/reorg-plan.json — 0 rows. docs/archive/ is `
+      + 'frozen and never re-checked; docs/product/, docs/wiki/ and docs/logs/ ARE re-checked '
+      + 'automatically on every bare `discover`/`reorg` (gap 4) — 0 rows here means there is '
+      + 'nothing in scope at all yet. `apply-reorg` will only rescan and rebuild the index. To '
+      + 'scope a check to one directory outside the default root+docs/ coverage, run '
+      + '`node $DB discover <dir>` (or `/docs-builder reorg <dir>`).');
   } else if (!filled) {
     console.log(`plan written to docs/.docs-builder/reorg-plan.json — every row's \`suggested\` `
       + 'is a PRIOR, not a verdict, and `bucket` is empty. Run the classification interview '
@@ -1880,7 +2061,7 @@ function scanWholeCorpus() {
   return corpus.length;
 }
 
-const REORG_DEST = { product: 'docs/product', logs: 'docs/logs', archive: 'docs/archive' };
+const REORG_DEST = { product: 'docs/product', logs: 'docs/logs', archive: 'docs/archive', wiki: 'docs/wiki' };
 const VALID_BUCKETS = new Set(Object.keys(REORG_DEST));
 // bucket values a PRE-v3 reorg-plan.json could hold — neither exists any more ('oversized'
 // was a bucket, now a boolean; 'review' is gone outright, see classifyDoc). Distinguishing
@@ -1949,7 +2130,7 @@ function injectClaudeMdPointer() {
 
 // v3 reorg (docs-builder-v3-spec.md, "four buckets"): the interview, not this function, does
 // the classifying — this only executes an ALREADY-approved plan. It refuses outright if any
-// row's `bucket` isn't one of the three real buckets: an empty bucket means the interview
+// row's `bucket` isn't one of the four real buckets: an empty bucket means the interview
 // hasn't happened, and a stale 'oversized'/'review' bucket means the plan predates this
 // version's schema. Oversized rows are no longer skipped — they move like everything else
 // (size decides splittable, not sorted) and come back as split candidates at their NEW path.
@@ -1966,9 +2147,9 @@ function applyReorg(planFile) {
         ? ` This plan predates v3's four-bucket schema ('oversized'/'review' no longer `
           + 'exist as buckets) — re-run `discover` to regenerate it, then classify.'
         : ' Run the classification interview (docs-builder.md): fill every row\'s `bucket` '
-          + '(product/logs/archive), get the user\'s approval, then re-run.'));
+          + '(product/wiki/logs/archive), get the user\'s approval, then re-run.'));
   }
-  const results = { moved: 0, skipped: 0, artifactsSynced: 0, linksRewritten: 0,
+  const results = { moved: 0, skipped: 0, unchanged: 0, artifactsSynced: 0, linksRewritten: 0,
                     syncFailed: 0, dirsRemoved: 0, claudeMdUpdated: false };
   // Set once, up front, from the SAME plan the loop below reads row.file from — every row
   // this run already commits to bucket:'archive' is exempt from every rewrite the run makes,
@@ -1980,18 +2161,83 @@ function applyReorg(planFile) {
   const sourceDirs = [];
   const linkFilesTouched = []; // dedup'd by flushCommitAdvisory() at the end of the run
   const movedDestPaths = []; // every successful move's NEW path, same accumulator
+
+  // Gap 6: `logs` is the ONE bucket that may nest, ONE level. product/wiki/archive stay flat
+  // (REORG_DEST[row.bucket] alone). The group is the FIRST path segment under docs/ — a
+  // special subfolder is one self-explanatory group, e.g. every one of a repo's POCs under
+  // docs/fwd/ stays together as `fwd`, however deep a given file actually sits inside it —
+  // UNLESS that first segment is itself a bucket name: `product`/`wiki`/`archive` mean flat,
+  // never a group, and `logs` means the group is the SECOND segment instead (an existing
+  // docs/logs/<group>/... keeps its own group on a re-check, rather than a ratchet). A file
+  // with no first segment at all — loose at the repo root, or sitting directly in docs/ —
+  // is flat. REJECTED first attempt (orchestrator review, real bugs): "the file's own
+  // immediate parent directory name" — that put docs/product/x.md (bucket-name parent) under
+  // docs/logs/product/ instead of flat, and put docs/fwd/poc/deep/y.md under docs/logs/deep/
+  // (its own parent) instead of docs/logs/fwd/ (the group it actually belongs with). One
+  // function, used by both the pre-reservation pass and the move pass right below it, so they
+  // can never compute two different answers for the same row.
+  const destDirFor = row => {
+    if (row.bucket !== 'logs') return REORG_DEST[row.bucket];
+    const segs = row.file.split(path.sep).join('/').split('/');
+    const dirSegs = segs.slice(0, -1); // drop the filename itself
+    const under = dirSegs[0] === 'docs' ? dirSegs.slice(1) : dirSegs; // strip a leading docs/
+    const seg1 = under[0];
+    if (seg1 === undefined || seg1 === 'product' || seg1 === 'wiki' || seg1 === 'archive')
+      return REORG_DEST.logs; // loose (root, or directly in docs/), or a bucket name: flat
+    if (seg1 === 'logs') {
+      const seg2 = under[1]; // e.g. resident docs/logs/<seg2>/x.md: keep its own group
+      return seg2 ? path.posix.join(REORG_DEST.logs, seg2) : REORG_DEST.logs;
+    }
+    // A real, non-bucket subdir name (under docs/, or outside docs/ via an explicit
+    // `discover <dir>` scan) IS the group — one level, no matter how deep the file actually
+    // sits inside it (docs/fwd/poc/deep/y.md flattens to docs/logs/fwd/y.md, not .../deep/).
+    return path.posix.join(REORG_DEST.logs, seg1);
+  };
+  // Gap 4 fallout: a resident row (already correctly bucketed, discovered in PLACE — new
+  // since product/wiki/logs are now re-checked every run) must keep its OWN name even when a
+  // DIFFERENT row elsewhere shares the same basename and is scheduled to move into the same
+  // destDir. REPRODUCED pre-fix: docs/product/TAKEN.md (resident) got bumped to
+  // docs/product/TAKEN-2.md because a loose docs/TAKEN.md, sharing the basename, happened to
+  // be visited first in the single collision-counting pass and claimed the name first. Fix:
+  // pre-reserve every resident row's own slot before any row's name gets disambiguated, so a
+  // moving row is the one that yields, never the file that was already correctly in place.
   for (const row of plan.rows) {
-    const destDir = REORG_DEST[row.bucket];
+    const destDir0 = destDirFor(row);
+    const key0 = destDir0 + '/' + path.basename(row.file);
+    if (path.join(destDir0, path.basename(row.file)) === row.file) usedNames.set(key0, 1);
+  }
+  for (const row of plan.rows) {
+    const destDir = destDirFor(row);
     let base = path.basename(row.file);
-    const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
-    usedNames.set(destDir + '/' + base, n);
-    if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+    const naiveDest = path.join(destDir, base);
+    let dest;
+    if (naiveDest === row.file) {
+      // Already reserved for itself above — never disambiguated away from its own path.
+      dest = row.file;
+    } else {
+      // Reserve/disambiguate the name FIRST, same order as before a `reorg <dir>` re-check
+      // could land here — a row scheduled to move here still claims its own name so a LATER
+      // row cannot collide onto it either.
+      const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
+      usedNames.set(destDir + '/' + base, n);
+      if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
+      dest = path.join(destDir, base);
+    }
+    // `reorg <dir>` re-checks files ALREADY inside their bucket (Change 3) — a row whose
+    // destination equals its current path used to reach moveDoc anyway and fail doArchive's
+    // "refusing to overwrite" guard (the destination is itself), counted as a false SKIP. It's
+    // not a skip: nothing is wrong, the file already lives where it should.
+    if (dest === row.file) {
+      console.log(`  ${row.file} stays in ${destDir}`);
+      results.unchanged++;
+      continue;
+    }
     // Only a failed MOVE skips the file. A failed follow-up is a warning on a file that has
     // already moved — counting it as skipped would be a lie, and stopping the loop would
     // strand the rest of the plan half-applied.
     let r;
     try {
-      r = moveDoc(row.file, path.join(destDir, base));
+      r = moveDoc(row.file, dest);
     } catch (e) {
       console.error(`SKIP ${row.file}: ${e.message}`);
       results.skipped++;
@@ -2000,9 +2246,10 @@ function applyReorg(planFile) {
     console.log(`  ${row.file} -> ${r.rel}`);
     results.moved++;
     movedDestPaths.push(r.rel);
+    noteMovedFrom(row.file, r.rel);
     results.artifactsSynced += r.artifacts;
     results.linksRewritten += r.links;
-    sourceDirs.push(path.dirname(path.join(REPO, row.file)));
+    sourceDirs.push(path.dirname(path.resolve(REPO, row.file)));
     if (row.oversized) splitCandidates.push({ file: r.rel, bucket: row.bucket, lines: row.lines });
     for (const { file, n } of r.linkFiles) { console.log(`    ${file}: ${n} link(s) -> ${r.rel}`); linkFilesTouched.push(file); }
     for (const f of r.failures) {
@@ -2012,7 +2259,9 @@ function applyReorg(planFile) {
   }
   // Only directories the moves THIS RUN emptied are candidates — never a dir this run never
   // touched, even if it happens to be empty already (that's not ours to remove).
-  const rootAbs = path.join(REPO, plan.root || 'docs');
+  // resolve, not join: with a relative REPO and root '.', join yields 'src' — never prefixed by
+  // rootAbs + sep — so collectEmptyDirs would silently skip every dir this run emptied.
+  const rootAbs = path.resolve(REPO, plan.root || 'docs');
   const removedDirs = sourceDirs.length ? collectEmptyDirs(rootAbs, sourceDirs) : [];
   results.dirsRemoved = removedDirs.length;
   for (const dir of removedDirs)
@@ -2073,7 +2322,7 @@ function applyReorg(planFile) {
 // model by default, so it never has labels.json to validate against — that capability didn't
 // move, it stayed exactly where it already lived: the standalone `validate`/`index` commands,
 // unchanged, still runnable by hand once labels.json exists.
-function reorg() {
+function reorg(dir) {
   // discover/apply-reorg/lint/due each write a DIFFERENT artifact, and every one of them
   // honours the same `OUT` override — same trap reconcile's own OUT guard existed to catch.
   if (process.env.OUT) {
@@ -2095,7 +2344,7 @@ function reorg() {
     console.log('');
   }
   console.log('== discover ==');
-  discover();
+  discover(dir);
   // v3: classification is the model's job, behind an approval gate (docs-builder-v3-spec.md
   // §4). `reorg` must not silently proceed past a plan the interview hasn't touched yet —
   // that would be the exact failure the gate exists to prevent, just moved one layer up.
@@ -2230,7 +2479,7 @@ function cleanup(files) {
       + 'named. Run it once per file.');
   const [file] = files;
   if (path.extname(file) !== '.md') die(`cleanup: ${file} is not a .md file`);
-  if (PROTECTED_NAMES.has(path.basename(file)))
+  if (isProtectedName(path.basename(file)))
     die(`cleanup: ${file} is a protected entry-point doc (README/CLAUDE.md/etc.) and is `
       + 'never split');
   if (!fs.existsSync(repoPath(file))) die(`cleanup: no such file: ${file}`);
@@ -2363,6 +2612,7 @@ function cleanupApply(file, outlineF, labelsF) {
         for (const m of r.artifactNotes) console.log(`    ${m}`);
         if (r.failures.length) console.error(`  WARN core page relocated, but ${r.failures.join('; ')}`);
         noteMoved(r.rel); noteLinks(r.linkFiles.map(x => x.file));
+        noteMovedFrom(from, r.rel);
 
         // FIELD BUG (real, reproduced): archiveOrThrow above rewrote EVERY inbound reference
         // to point at docs/archive/, because at that moment the archive genuinely was the
@@ -2417,7 +2667,8 @@ function cleanupApply(file, outlineF, labelsF) {
 
 // Machine state has one home. Callers can override with OUT, but the default must never
 // scatter JSON into whatever directory the user happened to be standing in.
-const ARTIFACTS = path.join(REPO, 'docs/.docs-builder');
+const ARTIFACTS_REL = 'docs/.docs-builder';
+const ARTIFACTS = path.join(REPO, ARTIFACTS_REL);
 function write(obj, fallback) {
   const dest = process.env.OUT || path.join(ARTIFACTS, fallback);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -2425,6 +2676,10 @@ function write(obj, fallback) {
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
+// Taken BEFORE the command runs, only for commands that can move a file — the point is to
+// capture what was dirty BEFORE this run touched anything, for flushCommitAdvisory's WARN.
+const MOVE_COMMANDS = new Set(['archive', 'apply-reorg', 'reorg', 'cleanup-apply']);
+if (MOVE_COMMANDS.has(cmd)) RUN.dirty = snapshotDirty();
 switch (cmd) {
   case 'scan':        scan(rest); break;
   case 'validate':    validate(rest[0], rest[1]); break;
@@ -2437,7 +2692,7 @@ switch (cmd) {
   case 'lint':        lint(rest); break;
   case 'discover':    discover(rest[0]); break;
   case 'apply-reorg': applyReorg(rest[0]); break;
-  case 'reorg':       reorg(); break;
+  case 'reorg':       reorg(rest[0]); break;
   case 'cleanup':       cleanup(rest); break;
   case 'cleanup-apply': cleanupApply(rest[0], rest[1], rest[2]); break;
   default:

@@ -154,7 +154,7 @@ options, no recommendation, no third:
 
 | Option | What it does | Cost |
 |---|---|---|
-| **First run** | sort every `.md` into product/logs/archive, then split anything too big | spends model budget |
+| **First run** | sort every `.md` into product/wiki/logs/archive, then split anything too big | spends model budget |
 | **Docs drift** | rebuild the index, re-run lint, report what changed. Nothing moves, nothing splits | cheap — the common case |
 
 Pass an argument (`reorg` or `cleanup <file.md>`) and it skips the question, so the flow
@@ -176,7 +176,7 @@ distinction.
 **"First run" has two stops, and they guard different things.** `discover` writes a plan
 where every row carries a mechanical `suggested` bucket + `reason` (a PRIOR, never a
 verdict) but an **empty** `bucket` — nothing moves yet. The classification interview then
-has the model fill `bucket` (`product`/`logs`/`archive`) for every row, and only then is
+has the model fill `bucket` (`product`/`wiki`/`logs`/`archive`) for every row, and only then is
 the full table shown for approval via `AskUserQuestion` (approve all / correct specific
 rows / abort) — that stop guards **correctness**: `apply-reorg` refuses outright to run
 while any row's `bucket` is still empty, so nothing moves on an unreviewed plan. After the
@@ -196,12 +196,12 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
-| `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
+| `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/wiki/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
 | `/docs-builder cleanup <file.md>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
 | `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts a whole messy
-`docs/` tree into the product/logs/archive layout in one pass and **never splits anything
+`docs/` tree into the product/wiki/logs/archive layout in one pass and **never splits anything
 itself**; an oversized file still moves into its bucket like everything else, but still
 needs a human to run `cleanup <file>` on it individually, one named file per invocation,
 since that step spends real model money and should never fire without a look first.
@@ -230,17 +230,26 @@ docs/
   index.md            GENERATED, and ONLY by `index-flat` (called directly, or from
                        `apply-reorg`/`reorg`/`cleanup-apply`). Never hand-edited. The
                        WHOLE-CORPUS map — the only file with a completeness guarantee.
-                       Three sections: ## Product, ## Logs, ## Archive.
+                       Three sections: ## Product, ## Logs (grouped by subdir), ## Archive.
   log.md               append-only:  ## [DATE] operation | description — written by
                        `archive`, `apply-reorg`, `validate`, `reorg`; not by read-only
                        commands (`due`, `search`, `discover`).
-  product/            specs, designs, plans — the default. `apply-reorg` MOVES files here
-                       (`git mv`); content is never rewritten.
-  logs/                pre-registrations, results, learnings, reports — historical, still
-                       relevant. Same MOVE discipline as product/archive. See "Why `logs/`
-                       exists" below.
-  wiki/                synthesised pages, written by Mode 1 (`cleanup`)'s page writers.
-  archive/             what got cleaned up: self-declared dead. Originals are BYTE-FROZEN —
+  product/            docs ABOUT THE PRODUCT ITSELF — the default. FLAT, no subdirs.
+                       `apply-reorg` MOVES files here (`git mv`); content is never rewritten.
+                       Re-checked every reorg (only archive/ stays frozen).
+  wiki/                GENERIC, not-product-specific knowledge — conventions, how-tos,
+                       standards, reference. FLAT, no subdirs. Also where Mode 1
+                       (`cleanup`)'s page writers put synthesised pages. Re-checked every
+                       reorg, same as product/.
+  logs/                ONE-TIME, timely knowledge — POCs, experiments, investigations,
+                       incident/session write-ups, reports. Same MOVE discipline as
+                       product/wiki/archive, but the ONLY bucket that may nest, ONE level:
+                       the group is the file's FIRST path segment under docs/ (a special
+                       subfolder like docs/fwd/ is one group, however deep a file sits
+                       inside it), unless that segment is itself a bucket name. See "Why
+                       `logs/` exists" below.
+  archive/             what got cleaned up: self-declared dead. FROZEN — never re-checked.
+                       Originals are BYTE-FROZEN —
                        never a rewrite target, so a doc lands byte-identical to what it
                        carried in. Links elsewhere pointing AT it are still repaired.
                        Pruning is the user's own call (`git rm`) — nothing here does it
@@ -270,13 +279,17 @@ wrong".
 
 **Never moved — enforced in code, not just documented.** Two guards in `docs-builder.cjs`:
 
-- `PROTECTED_NAMES`, matched at **any depth**: `README.md`, `index.md`, `log.md`,
-  `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
-  `CLAUDE.md`, `AGENTS.md`, `AGENT.md`. Bare `LICENSE`/`NOTICE` carry no `.md` extension,
-  so the walker never sees them.
+- `PROTECTED_NAMES`, matched **case-insensitively at any depth**: `README.md`, `index.md`,
+  `log.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  `SECURITY.md`, `CLAUDE.md`, `AGENTS.md`, `AGENT.md` (so `readme.md`/`Claude.md` are
+  protected too, not just their exact-case forms). Bare `LICENSE`/`NOTICE` carry no `.md`
+  extension, so the walker never sees them.
 - `walkMd` skips every dot-dir (`.git/`, `.github/`, `.claude/`, `.factory/`, `.opencode/`,
   `.amp/`, `.docs-builder/`) and `node_modules/`, plus the dirs reorg itself owns
-  (`product/`, `logs/`, `archive/`, `wiki/`) so a second run is idempotent.
+  (`product/`, `logs/`, `archive/`, `wiki/`) so a second run is idempotent — **except**
+  the bare, no-directory `discover`/`reorg` call, which re-enters `product/`, `wiki/`, and
+  `logs/` on purpose to re-check their residents every run; only `archive/` stays skipped
+  there too.
 
 ---
 
@@ -293,9 +306,12 @@ proof a model must not classify, but the actual failure was the *silent move wit
 gate at all*, not the judgement. The approval gate is the safety property, and it is
 strictly stronger than a rule that moves files unreviewed.
 
-**`discover` no longer classifies — it enriches and proposes.** For every `.md` file under
-`docs/` (skipping `product/`, `logs/`, `archive/`, `wiki/`, `.docs-builder/`, and the
-protected entry-point docs) it writes a row carrying `h1`, a short `snip`, an `oversized`
+**`discover` no longer classifies — it enriches and proposes.** With no directory named,
+the scan scope is root-level `.md` files (non-recursive) plus everything under `docs/`
+(recursive); `discover <dir>` / `reorg <dir>` scope to exactly that one directory instead.
+Within `docs/`, `product/`, `wiki/`, and `logs/` are re-checked every run — only
+`archive/` stays frozen and skipped, along with `.docs-builder/` and the protected
+entry-point docs. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
 **boolean** (over `OVERSIZED_LINES`, default 500 — size decides *splittable*, never
 *sorted*), and a mechanical `suggested` bucket + `reason`: a
 PRIOR the classification interview is shown, never an authority over it. `bucket` itself
@@ -305,7 +321,7 @@ no-H1 file with no strong signal is just an ordinary unclassified row, same as a
 that the interview decides like everything else.
 
 The classification interview: feed the model the whole plan table (file, h1, snip, lines,
-suggested+reason) in **one call**, have it fill `bucket` (`product`/`logs`/`archive`) with
+suggested+reason) in **one call**, have it fill `bucket` (`product`/`wiki`/`logs`/`archive`) with
 a one-line reason per row, write the answers into `reorg-plan.json`, then show the user the
 full table via `AskUserQuestion` — approve all / correct specific rows / abort. The
 approval table has a mandated shape: **exactly four columns**, `file | lines | →
@@ -345,11 +361,14 @@ immediately — nothing in this tool's output ever said so, and it was confirmed
 different repos, where another session's `git add -A` silently folded the staged renames into
 an unrelated commit. The advisory names the staged rename count, the unstaged link-rewrite
 count, and the distinct top-level locations outside `docs/` that were touched, then prints a
-one-line recipe (`git add -u && git commit -m "docs: reorg"`) that captures both in ONE
-commit — deliberately never scoped to `docs` alone, since the link rewrites the moves trigger
-reach outside `docs/` too (`src/`, `scripts/`, `tests/`, `README.md`) and a `docs`-scoped
-commit would ship moved files with their inbound links unrepaired. Nothing is ever
-auto-committed.
+one-line recipe (`git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git
+commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt`) that
+captures both in ONE commit — exactly this run's files, renames kept, and nothing else the
+user has staged or edited. It is deliberately never scoped to `docs` alone, since the link
+rewrites the moves trigger reach outside `docs/` too (`src/`, `scripts/`, `tests/`,
+`README.md`) and a `docs`-scoped commit would ship moved files with their inbound links
+unrepaired. A listed file that already carried the user's own uncommitted edits is named in
+`commit-dirty.txt`, and the skill asks before committing. Nothing is ever auto-committed.
 
 ---
 

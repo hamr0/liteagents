@@ -137,6 +137,13 @@ governs **stage 1 only**:
 - **high / max** — broader coverage; uncertain findings are allowed, but each
   must be labelled uncertain.
 
+**No shortcuts.** The level decides how many findings you report, never which
+checks you run. Every check this file calls required runs at every level —
+never cut or sample one "given the effort level", the branch size, or time. If
+a check truly cannot run, write `NOT RUN: <reason>` for it on the `checks:`
+line of the report and the review record. That is a visible gap, not a
+blocker and not a pass.
+
 **Stage 2 (security) always runs full, at every level.** A shallow security
 pass is worse than none — it reads as coverage while missing the class of bug
 that costs the most.
@@ -186,7 +193,10 @@ carries the reproduction.
   location outside the repo; the tree must still be clean at exit. A test that
   passes against both the buggy and the fixed source is a tautology and proves
   nothing. Flag every one you find, and say so explicitly when the tests are
-  the branch's only evidence for its claims.
+  the branch's only evidence for its claims. **Required, every test file the
+  diff adds or changes — one red run per file is enough; checking a sample of
+  the files is a skip.** Count them as `fail-first N/M files` on the
+  `checks:` line.
 - **Maintainability.** Complexity, naming, duplication — only when material.
 
 ## Stage 2 — Security (always full)
@@ -201,7 +211,10 @@ If `security.md` cannot be found, run what you can from the list above and
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
-policy on a table the new code now reads are all in scope.
+policy on a table the new code now reads are all in scope. **The review range
+never narrows this stage** — even when you were handed `main..HEAD`, the
+secrets scan covers every commit on every branch (`security.md` item 1 has
+the command).
 
 ## Stage 3 — Verify (adversarial)
 Findings are claims, not facts. **Try to break each one, not to confirm it** —
@@ -289,7 +302,10 @@ uncertain).
 
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
-assumed pass.
+assumed pass. Then a `checks:` line for the two checks most often cut short:
+`fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
+<reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
+does not block.
 
 **Write the review record** to `.factory/remember/last-review.md`, overwriting
 it. `/release` reads this file; a SHA that lives only in a chat message is
@@ -308,6 +324,7 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
+checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 ```

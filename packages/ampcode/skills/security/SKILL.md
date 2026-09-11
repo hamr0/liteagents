@@ -23,9 +23,12 @@ These show up in nearly every quickly-built app regardless of stack:
 
 1. **Secrets in the repo.** Tokens / API keys / `.env` files committed to
    tracked files or anywhere in git history. Verify `.env` is gitignored and
-   only a value-less `.env.example` is tracked; scan history (`git log -p`,
-   `git grep`) for leaked keys. Secrets must load from env / a secret store at
-   runtime — never hardcoded, never logged.
+   only a value-less `.env.example` is tracked. Scan ALL history, every
+   branch — a range or target never narrows this — with:
+   `git log --all -p | grep -nE '(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY)'`
+   plus any key shape specific to this project's providers. Report each hit
+   as real or a known test fixture. Secrets must load from env / a secret
+   store at runtime — never hardcoded, never logged.
 2. **Data-access authorization (tenant isolation).** Every record read or
    written must be scoped to the requesting principal — via DB-level rules
    (RLS / row policies) and/or application-layer ownership checks. Flag any
