@@ -60,7 +60,7 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
-- **Never** write secrets into the tree (`.env`/`*.env`, keys, credentials). They load from the environment at runtime; only a value-less `.env.example` is committed
+- **Never** put secrets in the tree — see [Security & Robustness Invariants §1](#security--robustness-invariants)
 - **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/branch-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
 ---
@@ -113,6 +113,7 @@ Before adding any external dependency, all of these must be true:
 - **Containerize only when necessary.** Start with a virtualenv or bare metal. Docker adds value for deployment parity and isolation — not for running a script
 - **Responsive web UI is mandatory in dev projects.** Any web UI must be usable on mobile by default — fluid layouts, viewport meta tag, breakpoints for narrow screens, no horizontal scroll. Test in DevTools device emulation before declaring a UI task done. POCs are exempt (validate the idea first), but the moment a POC graduates to a real project this becomes a hard requirement
 - **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created. Dead code, nits, bugs you pass on the way: if it's inside or affects the code you're already changing, and the fix changes no behavior, fix it and say so. Otherwise report it — say what it costs to leave it. "It would be nicer" is not a cost. Every changed line traces to the request or to a fix you named
+- **Meter the whole unit of work.** Usage and cost sum every call a unit of work makes; the last call's number is never the total, and one unpriced call makes the total unknown, not zero
 
 ### Red Flags — Stop and Flag These
 - Over-engineering simple problems
@@ -144,7 +145,7 @@ particular toolchain spells it.
 
 - **After the design stabilizes, not during exploration.** Do not test a prototype — you will write tests for code you delete tomorrow. First make it work (POC), then make it right (tests), then make it fast
 - **Tests first when you already know the contract.** Pure functions, algorithms, parsers, validators, data transformations — write the test, watch it fail, then implement. When you are still discovering the interface, that same discipline produces churn and false confidence
-- **Write tests for bugs.** Every fix ships a regression test that fails before the fix and passes after — the highest-value test there is
+- **Write tests for bugs.** Every fix ships a regression test — the highest-value test there is
 - **Write tests before refactoring.** Characterization tests lock in current behavior first, then change the code
 - **Write tests when the code has users.** Called by other modules or exposed externally means it needs tests; a helper serving one caller does not need its own file
 - **Do not test glue code.** Something that only wires A to B to C is covered at the integration level
@@ -152,7 +153,7 @@ particular toolchain spells it.
 ### What makes a good test
 
 - **Tests real behavior.** Call the public interface, assert on observable output. Never reach into internals
-- **Fails for the right reason.** It breaks when the feature breaks, not when the implementation moves
+- **Fails for the right reason — prove it.** It breaks when the feature breaks, not when the implementation moves. Revert the fix (or switch the check off), run the test, watch it go red, then restore it: a test you have never seen fail is unverified, however right it reads
 - **Reads like a spec.** Someone new to the code should learn what the feature does by reading it
 - **Self-contained.** Sets up its own state, runs, cleans up. No ordering dependencies, and no reliance on project directories, user config, or ambient environment
 - **Deterministic.** Flaky tests erode trust. A dependency on timing, network, or global state is a defect in the test
@@ -186,15 +187,22 @@ Throwaway POCs are exempt while you validate logic (per **POC first** above) —
 1. **No secrets in the repo.** Keys, tokens, and credentials load from the environment / a secret store at runtime — never hardcoded, never logged. `.env` is gitignored; only a value-less `.env.example` is committed. Scan history before trusting a repo. One leaked key is a breached database or a runaway bill.
 2. **Scope every data access to its owner.** Each record read or written is constrained to the requesting principal — via DB-level rules (RLS / row policies) and/or an application-layer ownership check. Never trust a client-supplied id without a gate. If the storage layer offers row-level policies, enabling them is not optional, and "on but too broad" still fails.
 3. **Bound every reachable endpoint.** Rate-limit public routes AND authenticated mutation/write routes AND abuse-prone inbound paths (mail, webhooks). An unbounded route is a free DoS and bill amplifier — a script in a loop should not be able to take the service down.
-4. **Handle the unhappy path.** Every IO / network / DB / third-party call has an explicit failure path. Nothing fails silently. Internal detail (stack traces, queries, secrets) never reaches the client. Async/background work carries its own catch.
+4. **Handle the unhappy path.** Every IO / network / DB / third-party call has an explicit failure path. Nothing fails silently. Internal detail (stack traces, queries, secrets) never reaches the client. Async/background work carries its own catch. A warning nobody has to act on is not a check — either it halts / reds the run, or it is counted and surfaced where a human reads it. Record what you asked a dependency for and what you got back. Read and record the stop/finish reason of every external or model call — a cut-off answer (length/max_tokens) is never the same as no answer.
 5. **Authorization is not authentication.** "Logged in" never implies "allowed". Every state-changing or privileged action checks ownership AND role/permission. If swapping an id in a request would expose or mutate someone else's data, it's a bug — return 403.
 6. **Data access scales.** No queries inside loops, no per-render repeated round-trips, indexes on every filtered/joined column. Code that's fine at 10 users and collapses at 1,000 is a latent outage.
 
-Also hold the line on: input validation at every trust boundary (untrusted uploads, inbound mail, webhooks, and spoofable headers like `X-Forwarded-For` — trust them only behind a vetted proxy); parameterized queries (never string-built SQL); vetted libraries for crypto / auth / sanitization (never roll your own); and least-privilege binding (loopback, not `0.0.0.0`, unless the port is deliberately public).
+Also hold the line on:
+
+- **Validate input at every trust boundary.** Untrusted uploads, inbound mail, webhooks, and spoofable headers like `X-Forwarded-For` — trust the latter only behind a vetted proxy.
+- **Model output is untrusted input too.** Validate it against a schema and key every decision on a typed field — never regex-parse the model's prose for a number, id, or verdict.
+- **Guard lookups keyed by an external string.** Look the key up only among the map's own entries, never inherited ones — an inherited member can otherwise answer for a key the map never had, so "not found → throw" is bypassed.
+- **Parameterize every query.** Never string-build SQL.
+- **Use vetted libraries for security-critical code** — see [External Dependency Checklist](#external-dependency-checklist).
+- **Bind least-privilege.** Loopback, not `0.0.0.0`, unless the port is deliberately public.
 
 **Verify at two moments, not one.**
 - **While building** — this list shapes the code as it's written.
-- **Before deploy/merge** — run **`/branch-review`**, whose second stage runs **`/security`** in full; `/release` then runs **`/ship`** as the mechanical pre-deploy gate. A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run them whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
+- **Before deploy/merge** — see [Operating Flow §2](#operating-flow). A Critical/High finding blocks the ship; lower-severity findings get logged and triaged, not silently shipped. Proactively remind the user to run `/branch-review` whenever a change touches auth, data access, endpoints, secrets, or untrusted input.
 
 ---
 

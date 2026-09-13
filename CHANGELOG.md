@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.8.0] - 2026-09-13
+
+### Added
+- **`AGENT_RULES.md` gains five rules from fwdloop's m0a review**, in all four kits:
+  prove a test can fail (revert the fix, watch it go red, restore, rather than trust
+  a test that "reads right"); model output is untrusted input (schema-validate it and
+  key decisions on typed fields, never regex the model's prose); a warning nobody has
+  to act on is not a check (either it halts/reds the run, or it is counted and
+  surfaced where a human reads it — including recording the stop/finish reason of
+  every external or model call, since a cut-off answer is never the same as no
+  answer); meter the whole unit of work (cost sums every call; one unpriced call
+  makes the total unknown, not zero); and guard lookups keyed by an external string
+  against inherited map entries answering for a key the map never had.
+
+### Changed
+- **`AGENT_RULES.md` redundancy pass** (all four kits): secrets, vetted libraries, and
+  the review chain are now each stated once with pointers elsewhere instead of
+  repeated inline — the "Not courtesies" secrets bullet points at Security &
+  Robustness Invariants §1, and "Before deploy/merge" points at Operating Flow §2
+  instead of restating the `/branch-review` → `/security` → `/ship` chain. The
+  security section's "Also hold the line on" paragraph is now one bullet per rule.
+  A duplicated regression-test rule was trimmed from "Write tests for bugs" since
+  "Fails for the right reason" now covers it.
+
 ## [3.7.0] - 2026-09-11
 
 ### Added
