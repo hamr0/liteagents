@@ -195,7 +195,7 @@ Also hold the line on:
 
 - **Validate input at every trust boundary.** Untrusted uploads, inbound mail, webhooks, and spoofable headers like `X-Forwarded-For` — trust the latter only behind a vetted proxy.
 - **Model output is untrusted input too.** Validate it against a schema and key every decision on a typed field — never regex-parse the model's prose for a number, id, or verdict.
-- **Guard lookups keyed by an external string.** Look the key up only among the map's own entries, never inherited ones (a key like `constructor` can otherwise resolve to an inherited value) — so "not found → throw" can't be bypassed.
+- **Guard lookups keyed by an external string.** Look the key up only among the map's own entries, never inherited ones — an inherited member can otherwise answer for a key the map never had, so "not found → throw" is bypassed.
 - **Parameterize every query.** Never string-build SQL.
 - **Use vetted libraries for security-critical code** — see [External Dependency Checklist](#external-dependency-checklist).
 - **Bind least-privilege.** Loopback, not `0.0.0.0`, unless the port is deliberately public.
