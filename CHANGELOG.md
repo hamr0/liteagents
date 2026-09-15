@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [3.9.0] - 2026-09-15
 
 ### Changed
 - **`/branch-review` gains a Stage 4 docs sweep**, run every time: checks the change
