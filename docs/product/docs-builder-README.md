@@ -246,8 +246,10 @@ docs/
                        product/wiki/archive, but the ONLY bucket that may nest, ONE level:
                        the group is the file's FIRST path segment under docs/ (a special
                        subfolder like docs/fwd/ is one group, however deep a file sits
-                       inside it), unless that segment is itself a bucket name. See "Why
-                       `logs/` exists" below.
+                       inside it), unless that segment is itself a bucket name. A
+                       `discover <dir>` scan outside docs/ uses the file's own path:
+                       `discover src` puts src/x.md and src/a/b.md in docs/logs/src/.
+                       See "Why `logs/` exists" below.
   archive/             what got cleaned up: self-declared dead. FROZEN — never re-checked.
                        Originals are BYTE-FROZEN —
                        never a rewrite target, so a doc lands byte-identical to what it

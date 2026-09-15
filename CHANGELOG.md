@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **`docs-builder` spells out where `discover <dir>` puts logs from outside `docs/`**:
+  the first segment of the file's own path is the group, so `discover src` puts
+  `src/x.md` and `src/a/b.md` both in `docs/logs/src/`. Behaviour is unchanged; the
+  skill and README now say so, and a test pins it.
+
+---
+
 ## [3.9.0] - 2026-09-15
 
 ### Changed

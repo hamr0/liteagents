@@ -176,8 +176,10 @@ docs/
                      `fwd`, however deep a file actually sits inside it), UNLESS that segment is
                      itself a bucket name (`product`/`wiki`/`archive` → flat; `logs` → the group
                      is the SECOND segment instead). A file with no first segment — loose at the
-                     repo root, or directly under `docs/` — stays flat. Re-checked every reorg,
-                     same as product/wiki/.
+                     repo root, or directly under `docs/` — stays flat. A `discover <dir>` scan
+                     outside `docs/` uses the same rule on the file's own path: `discover src`
+                     puts `src/x.md` and `src/a/b.md` both in `docs/logs/src/`. Re-checked every
+                     reorg, same as product/wiki/.
   archive/           what got cleaned up: self-declared dead. FROZEN — never re-checked, never
                      walked by a bare `discover`/`reorg` at all. Originals are BYTE-FROZEN:
                      nothing under here is ever a rewrite target, so a doc lands byte-identical
@@ -402,7 +404,8 @@ a pointer to re-run `discover`.
   `docs/logs/<group>/<basename>` — the ONE bucket that may nest, ONE level, where the group is
   the file's FIRST path segment under `docs/` (unless that segment is itself a bucket name —
   see the Layout section above). A deeper path inside the same special subfolder joins the
-  SAME group (no ratchet on a re-check either).
+  SAME group (no ratchet on a re-check either). Outside `docs/` (a `discover <dir>` scan), the
+  first segment of the file's own path is the group.
 - `archive` → verified `git mv` to `docs/archive/<basename>` (always flat, and frozen — never
   re-checked again once there)
 - **Oversized files move too — size decides splittable, not sorted.** No bucket is exempt.

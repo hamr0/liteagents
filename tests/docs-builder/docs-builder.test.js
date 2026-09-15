@@ -3341,6 +3341,30 @@ function logsGroupIsFirstSegmentNotParentDir() {
     !exists(d, 'docs/logs/deep'));
 }
 
+/**
+ * A `discover <dir>` scan outside docs/ uses the same first-segment rule on the file's own
+ * path: the scanned folder is the group. Pinned on purpose (owner decision, 2026-09-15) after
+ * a ledger finding proposed stripping the scanned root instead — which would also flatten
+ * `discover docs/fwd`, disagreeing with the bare scan that groups the same files as `fwd`.
+ */
+function logsGroupOutsideDocsIsScannedFolder() {
+  group('51. logs grouping — a discover <dir> scan outside docs/ groups by that folder');
+  const d = repo({
+    'src/x.md': DOC('X'),
+    'src/a/b.md': DOC('B'),
+  });
+  db(d, ['discover', 'src']);
+  const plan = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+  const p = JSON.parse(fs.readFileSync(plan, 'utf8'));
+  for (const row of p.rows) row.bucket = 'logs';
+  fs.writeFileSync(plan, JSON.stringify(p, null, 1));
+  db(d, ['apply-reorg']);
+  ok('src/x.md joins the docs/logs/src/ group', exists(d, 'docs/logs/src/x.md'), true);
+  ok('src/a/b.md joins the same docs/logs/src/ group', exists(d, 'docs/logs/src/b.md'), true);
+  okTrue('src/x.md did NOT land flat in docs/logs/', !exists(d, 'docs/logs/x.md'));
+  okTrue('src/a/b.md did NOT nest under docs/logs/a/', !exists(d, 'docs/logs/a'));
+}
+
   const groups = [cleanupApplyFollowUpFailureIsReported, moveChokepointGuards,
     negativeControls, scanContract, slugCollision, moveViaArchive,
     moveViaApplyReorg, moveFailureIsolation, discoverBuckets, discoverCarryForwardValidOnly, reorgCollision,
@@ -3366,7 +3390,8 @@ function logsGroupIsFirstSegmentNotParentDir() {
     repoSubdirRecipeWorksFromParentCwd,
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash,
     protectedNamesAreCaseInsensitive, wikiIsARealBucket, headingBasedPrior,
-    logsNestOneLevel, indexGroupsLogsBySubdir, logsGroupIsFirstSegmentNotParentDir];
+    logsNestOneLevel, indexGroupsLogsBySubdir, logsGroupIsFirstSegmentNotParentDir,
+    logsGroupOutsideDocsIsScannedFolder];
 
   for (const g of groups) {
     try { g(); }
