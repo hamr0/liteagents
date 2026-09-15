@@ -129,7 +129,7 @@
     },
     "branch-review": {
       "template": "{file:./command/branch-review.md}",
-      "description": "Pre-merge review: general review + full security audit, verify pass, no fixes"
+      "description": "Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes"
     },
     "security": {
       "template": "{file:./command/security.md}",
@@ -141,7 +141,7 @@
     },
     "release": {
       "template": "{file:./command/release.md}",
-      "description": "Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence"
+      "description": "Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence"
     },
     "remember": {
       "template": "{file:./command/remember.md}",

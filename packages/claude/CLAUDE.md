@@ -32,10 +32,10 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
-| branch-review | Pre-merge review: general review + full security audit, verify pass, no fixes | /branch-review [target] [level] |
+| branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [target] [level] |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] |
 | ship | Mechanical pre-deploy gate — tests, build, tree state | /ship |
-| release | Verify, sweep docs, cut a version — then hand back the merge/tag/publish sequence | /release |
+| release | Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence | /release |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
 

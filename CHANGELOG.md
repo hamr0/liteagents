@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **`/branch-review` gains a Stage 4 docs sweep**, run every time: checks the change
+  against the guide/context doc, PRD, README and findings, and commits doc-only
+  files; its record gains `docs-commit:` and `docs:` lines. **`/release` Phase 2 now
+  only writes the CHANGELOG** with the version — the docs sweep moved out of it.
+  `/release`'s stale-docs check now only lets through files listed on the review
+  record's `docs:` line; anything else needs a fresh `/branch-review`.
+
+---
+
 ## [3.8.0] - 2026-09-13
 
 ### Added

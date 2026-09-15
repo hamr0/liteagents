@@ -2,10 +2,12 @@
 description: Review a branch before merge [target] [level]
 argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty] [effort level]
 ---
-Pre-merge review gate. Two stages — **general review** then a **full security
-audit** — followed by an adversarial verify pass. It **never edits code**: it
-reports findings and hands them back. Fixing is a separate, separately
-authorized action.
+Pre-merge review gate. **General review**, then a **full security audit**,
+then an adversarial verify pass, then a **docs sweep**. It **never edits
+code**: findings are reported and handed back, and fixing is a separate,
+separately authorized action. The docs sweep is the one stage that writes,
+and only to docs — it updates the project's docs for what this branch
+changed and commits exactly that.
 
 Only **Critical** and **High** findings block the merge. Everything else is
 appended to the **fix ledger** (`.factory/remember/fix-ledger.md`) — a local,
@@ -39,21 +41,27 @@ at the current HEAD SHA.
   executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
   is the entire point of this command. A review that delegates its work is a
   review of a report. (Same rule `/security` carries inside stage 2.)
-- **No edits — two exceptions.** You have no authorization to change code,
+- **No edits — three exceptions.** You have no authorization to change code,
   even for a finding you are certain about. Report it. The only files you may
   write are `.factory/remember/fix-ledger.md` (append bullets; never rewrite or
-  delete) and `.factory/remember/last-review.md` (overwrite; the review record
-  described at the end of this file).
+  delete), `.factory/remember/last-review.md` (overwrite; the review record
+  described at the end of this file), and the doc files Stage 4 touches —
+  edited and then committed by that stage alone, never for code, skills,
+  config, or tests.
 - **Prove it with two checks, because neither sees what the other does.**
-  `git status --porcelain`, at start and again before you report, proves no
-  **tracked** file changed — that is the "never edits code" guarantee, and it
-  is the one that matters. It cannot police your own two writes: `.factory/`
-  is normally gitignored, so porcelain stays empty whether you wrote the
-  allowed files, wrote nothing, or overwrote `MEMORY.md`. `git status
-  --ignored` does not close it either — it collapses to `!! .factory/`, the
-  directory, not the files. So also take `md5sum .factory/remember/*` before
-  you start and again before you report, and show the comparison: only
-  `fix-ledger.md` and `last-review.md` may differ.
+  `git status --porcelain`, at start and again before you report, proves the
+  tree is clean — no code or config changed, and Stage 4's doc edits are
+  committed rather than left loose, since that stage's commit is the last act
+  before you report. It cannot police your own two `.factory/` writes:
+  `.factory/` is normally gitignored, so porcelain stays empty whether you
+  wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
+  status --ignored` does not close it either — it collapses to `!!
+  .factory/`, the directory, not the files. So also take `md5sum
+  .factory/remember/*` before you start and again before you report, and show
+  the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
+  run `git diff --name-only <reviewed sha>..HEAD` before you report: it must
+  list only the files on the record's `docs:` line — anything else means an
+  edit escaped Stage 4's scope.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
@@ -111,6 +119,9 @@ recollection, for the same reason `/release` does. Then:
   the branch name catches a switch, the ancestry check catches a rebase or
   squash under the same name. Otherwise:
 
+- **`sha:` ≠ HEAD, but every file in `git diff --name-only <that sha>..HEAD`
+  is on the record's `docs:` line** → treat this exactly like `sha:` = HEAD
+  below: nothing to review. Say so and stop.
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
   re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
@@ -232,6 +243,40 @@ inputs or state → the wrong output, crash, or exposure that results. If you
 cannot write that sentence, the finding is not ready — drop it or mark it
 uncertain. No vibes.
 
+## Stage 4 — Docs sweep (always runs)
+Runs on **every** run, whatever stages 1-3 conclude, over the same resolved
+target range as the rest of this review — the whole branch on a first
+review, `<recorded sha>..HEAD` on a re-review. A blocked verdict does not
+skip this stage: a later re-review's narrower range would otherwise never
+cover the commits a skipped run left undocumented.
+
+1. **List the changes.** Read the commit bodies (not just subjects) and the
+   diff, plus the newest one or two notes in `.factory/stash/`, for every
+   user-visible change — feature, command, flag, behaviour, fix, dependency
+   bump.
+2. **Place each change in the docs.** For every change from step 1, find
+   where the project's guide/context doc — and the PRD, README, or
+   findings/learnings doc when the change touches them — describes it now.
+   Check every place the topic comes up, not just the first. "This branch
+   already edited that doc" is not checked. Nothing describes it → add it.
+   Something says otherwise, including text written earlier on this branch →
+   fix it.
+3. **Not this stage's job:** the CHANGELOG. `/release` writes that entry,
+   with the version. If this stage corrects a line that a fix-ledger bullet
+   also names, that is ordinary sweep work — the doc changed with the
+   feature, so it was already yours to update — but **do not delete the
+   bullet**. `/refactor` is the only deleter; its revalidation drops the
+   bullet once it finds the finding no longer holds.
+4. **Commit what you touched.** Doc files only — never code, skills, config,
+   or tests. Stage the exact paths you edited by name (never `git add
+   -A`/`-u`) and commit `docs: sweep for <short sha range>`. Nothing changed
+   → no commit. **On `main`/`master` → make no edits at all**; report what the
+   sweep would change instead of writing it, so the tree stays clean. This is
+   the last act before you write the review record.
+
+Report one row per change: change · doc `file:line` · added / fixed / already
+correct.
+
 ## Report — then escalate
 **Open with the one-line verdict**, before any section: **Ready to merge? Yes /
 No / Not until these are fixed.** A report that opens with "Critical: none
@@ -325,9 +370,18 @@ verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
+docs-commit: <full sha | none>
+docs: <space-separated files the sweep changed | none>
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 ```
+
+`sha:` is the HEAD that stages 1-3 reviewed — **before** Stage 4's docs
+commit, if it made one. `docs:` is repo-relative paths on one space-separated
+line — exactly the files in `docs-commit`, nothing implied or assumed beyond
+what's listed. `/release` still compares this SHA to `HEAD`, and its relaxed
+stale rule (see `/release`) is what lets a docs-only commit sit between the
+two without forcing a re-review.
 
 `blockers: none` when the verdict is ready. One line per blocker and nothing
 more: the reasoning belongs in the report, and the non-blocking findings
@@ -360,6 +414,8 @@ End with:
   add: "N fixes waiting — run `/refactor` between features." The ledger is a
   local artifact; in the usual case it is gitignored, so writing it moves
   nothing and leaves HEAD untouched.
+- **Docs sweep: N changes documented (added/fixed/already-correct), commit
+  `<sha | none>`** — the Stage 4 table.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** If you die mid-flight —
   a rate limit, a crash, a cancelled turn — there is no report and no
