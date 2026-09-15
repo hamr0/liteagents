@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/branch-review` allows `Edit`, `Write`, `git add` and `git commit`** (Claude and
   Amp), so Stage 4's docs commit runs without permission prompts.
 
+### Fixed
+- **`scripts/mirror.cjs check` catches a mixed `Bash()` style** in `allowed-tools`. It
+  used to pass a line if any one entry had the kit's style, so a single wrong-style
+  entry slipped through.
+
 ---
 
 ## [3.8.0] - 2026-09-13

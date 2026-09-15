@@ -187,11 +187,13 @@ const fmKeys = (text) =>
   splitFrontmatter(text)[0].split('\n')
     .map((l) => (l.match(/^([A-Za-z_-]+):/) || [])[1]).filter(Boolean);
 
-/** 'colon' = Bash(git diff:*), 'space' = Bash(git diff *), null = no Bash entries. */
+/** 'colon' = Bash(git diff:*), 'space' = Bash(git diff *), 'mixed' = both, null = no Bash entries. */
 function bashStyle(text) {
   const line = splitFrontmatter(text)[0].split('\n').find((l) => l.startsWith('allowed-tools:'));
   if (!line || !line.includes('Bash(')) return null;
-  return /Bash\([^)]*:\*\)/.test(line) ? 'colon' : 'space';
+  const entries = line.match(/Bash\([^)]*\)/g);
+  const colon = entries.filter((e) => e.endsWith(':*)')).length;
+  return colon === entries.length ? 'colon' : colon === 0 ? 'space' : 'mixed';
 }
 
 /** What the files actually say today — the candidate shape. */
