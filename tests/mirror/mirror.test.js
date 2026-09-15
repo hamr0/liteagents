@@ -335,6 +335,32 @@ writeAgentPair(weakenRepo, AGENT_KEYS.slice(0, 4)); // drops when_to_use from bo
     r.status === 0, `status=${r.status} stderr=${r.stderr}`);
 }
 
+// ===========================================================================
+// BASH STYLE (`check` subcommand)
+// ===========================================================================
+
+// 13. one wrong-style entry mixed in with right-style ones is caught — a line
+//     that merely CONTAINS a colon entry must not pass as colon style.
+{
+  const repo = buildCleanRepo('mir-mixed-');
+  writeFile(path.join(repo, 'packages/ampcode/skills/bar/SKILL.md'),
+    fm(['name: bar', 'description: Bar skill', 'allowed-tools: Bash(git diff:*), Bash(git add *)']) + 'Bar body text.\n');
+  const r = run(repo, 'check');
+  check('mixed Bash style: check exits non-zero', r.status !== 0, `status=${r.status}`);
+  check('mixed Bash style: stderr names the file and the Bash style',
+    r.stderr.split('\n').some((l) => l.includes(path.join('ampcode', 'skills', 'bar', 'SKILL.md')) && /Bash style/.test(l)),
+    `stderr=${JSON.stringify(r.stderr)}`);
+}
+
+// 14. negative control: several entries, all in the kit's style, still pass.
+{
+  const repo = buildCleanRepo('mir-allcolon-');
+  writeFile(path.join(repo, 'packages/ampcode/skills/bar/SKILL.md'),
+    fm(['name: bar', 'description: Bar skill', 'allowed-tools: Read, Bash(git diff:*), Bash(git add:*)']) + 'Bar body text.\n');
+  const r = run(repo, 'check');
+  check('all-colon Bash entries: check exits 0', r.status === 0, `status=${r.status} stderr=${r.stderr}`);
+}
+
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.0] - 2026-09-15
+
+### Changed
+- **`/branch-review` gains a Stage 4 docs sweep**, run every time: checks the change
+  against the guide/context doc, PRD, README and findings, and commits doc-only
+  files; its record gains `docs-commit:` and `docs:` lines. **`/release` Phase 2 now
+  only writes the CHANGELOG** with the version — the docs sweep moved out of it.
+  `/release`'s stale-docs check now only lets through files listed on the review
+  record's `docs:` line; anything else needs a fresh `/branch-review`.
+- **`/release` reuses an existing `## [Unreleased]` CHANGELOG section**: it checks it
+  against the commits, adds anything missing, and retitles it to the version, instead
+  of writing a second entry.
+- **`/ship`'s "in sync with `origin`" check** says a never-pushed branch is normal
+  before a release.
+- **`/branch-review` allows `Edit`, `Write`, `git add` and `git commit`** (Claude and
+  Amp), so Stage 4's docs commit runs without permission prompts.
+
+### Fixed
+- **`scripts/mirror.cjs check` catches a mixed `Bash()` style** in `allowed-tools`. It
+  used to pass a line if any one entry had the kit's style, so a single wrong-style
+  entry slipped through.
+
+---
+
 ## [3.8.0] - 2026-09-13
 
 ### Added

@@ -69,8 +69,8 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
-| `/branch-review` | Full pre-merge review — blockers reported, nits to the fix ledger |
-| `/release` | Docs sweep, version bump, local commit, then hand back the merge sequence |
+| `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
+| `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
@@ -157,9 +157,11 @@ you to pick from — no more hours spent nudging divs to find out what you actua
   confirmed blockers only: real bugs, dead and unused code, state-ownership breaks, plus a
   full OWASP-shaped security pass (no leaked keys, no injection, trust boundaries checked)
   that runs at full depth regardless of level. Everything non-blocking goes to the fix ledger.
-- **`/release`** — does the pre-release chores you'd otherwise do by hand: README, CHANGELOG,
-  PRD, findings, version bump, local commit. Then it tells you you're ready to merge, and
-  hands the sequence back. It never pushes.
+  It also sweeps and commits the project's docs — README, PRD, findings — for what the branch
+  changed, on every run.
+- **`/release`** — does the last pre-release chore: writes the CHANGELOG entry, bumps the
+  version, commits locally. Then it tells you you're ready to merge, and hands the sequence
+  back. It never pushes.
 - **`/refactor`** — with no arguments, works the fix ledger. Cumulative by design: nits pile
   up until you choose to clear them, so review and release never drown in them.
 
@@ -208,7 +210,7 @@ These live in the repo, not in the installed kit:
 | [Installer guide](https://github.com/hamr0/liteagents/blob/main/docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and the order of operations for changing a command, skill or subagent |
 | [`/remember`](https://github.com/hamr0/liteagents/blob/main/docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](https://github.com/hamr0/liteagents/blob/main/docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
-| [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The three stages, what blocks, the fix-ledger loop |
+| [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The four stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
 

@@ -8,19 +8,21 @@ updated: 2026-09-02
 # branch-review
 
 `/branch-review` is the pre-merge gate. It reads a branch, runs a general review and a
-full security audit against it, then tries to break its own findings before reporting
-them. It is a **slash command**: `commands/branch-review.md`, no bundled script — every
-check is a worker reading, running, and grepping the repo itself, the same shape as
-`/security`.
+full security audit against it, tries to break its own findings before reporting them,
+then sweeps the project's docs for what the branch changed. It is a **slash command**:
+`commands/branch-review.md`, no bundled script — every check is a worker reading, running,
+and grepping the repo itself, the same shape as `/security`.
 
-**It never edits code.** Its only writes are the fix ledger and the review record. Fixing findings is a
-separate, separately authorized action, handled by `/refactor` in ledger mode.
+**It never edits code.** Its writes are the fix ledger, the review record, and — stage 4
+only — the docs it sweeps, committed as their own docs-only commit. Fixing code findings is
+a separate, separately authorized action, handled by `/refactor` in ledger mode.
 
 ```
 commit  ──►  /branch-review [target] [level]  ──►  fix ledger + blocking findings
                  ├─ stage 1: general review (effort-governed)
                  ├─ stage 2: security (always full)
-                 └─ stage 3: verify (adversarial)
+                 ├─ stage 3: verify (adversarial)
+                 └─ stage 4: docs sweep (always runs; commits doc edits)
                                                           │
                                         /refactor (no args) ──► fixes, deletes bullets
                                                           │
@@ -31,21 +33,24 @@ commit  ──►  /branch-review [target] [level]  ──►  fix ledger + bloc
 
 ## 1. What it guarantees
 
-**Two files, and proving it wrote nothing else.** The review's only writes are the fix
-ledger (§5) and the review record (§5b). Proving that takes two checks, because neither
-sees what the other does. `git status --porcelain`, at start and at exit, proves no
-*tracked* file changed — the never-edits-code guarantee, and the one that matters. It
-cannot see the review's own two writes: `.claude/` is normally gitignored, so porcelain
-stays empty whether the reviewer wrote the allowed files, wrote nothing, or overwrote
-`MEMORY.md`. `git status --ignored` does not close it either, collapsing to the directory
-rather than the files. An `md5sum` comparison over `.claude/remember/` before and after
-does, and only those two files may differ.
+**Three writes, and proving it wrote nothing else.** The review's writes are the fix
+ledger (§5), the review record (§5b), and stage 4's docs (§3, committed on its own).
+Proving that takes two checks, because neither sees what the other does. `git
+status --porcelain`, at start and at exit, proves the tree is clean — no code or config
+changed, and stage 4's doc edits are committed rather than left loose, since that commit is
+the stage's last act. It cannot see the review's own `.claude/` writes: `.claude/` is
+normally gitignored, so porcelain stays empty whether the reviewer wrote the allowed files,
+wrote nothing, or overwrote `MEMORY.md`. `git status --ignored` does not close it either,
+collapsing to the directory rather than the files. An `md5sum` comparison over
+`.claude/remember/` before and after does, and only the ledger and the record may differ. A
+third check, `git diff --name-only <reviewed sha>..HEAD`, confirms the docs commit touched
+only the files the record's `docs:` line names.
 
-- **Reports, never fixes.** The command may write exactly one file —
-  `.claude/remember/fix-ledger.md` — and only by appending. Everything else it finds is
-  handed back as a finding. It re-runs `git status --porcelain` before reporting: empty,
-  or listing exactly the ledger path, or it says what else changed. That turns "it never
-  edits" from a claim into a checked fact, not an assertion.
+- **Reports code findings, never fixes them.** Outside stage 4, the command may write
+  exactly one file — `.claude/remember/fix-ledger.md` — and only by appending. Everything
+  else it finds is handed back as a finding. It re-runs `git status --porcelain` before
+  reporting: clean (stage 4 committed what it touched), or it says what else changed. That
+  turns "it never edits code" from a claim into a checked fact, not an assertion.
 - **The worker does its own work.** The review subagent must not spawn subagents of its
   own — everything it reports has to be something it personally read, ran, or grepped. A
   relayed "I executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
@@ -98,7 +103,7 @@ than none — it reads as coverage while missing the class of bug that costs the
 
 ---
 
-## 3. The three stages
+## 3. The four stages
 
 ### Stage 1 — General review (effort-governed)
 The diff is the subject, but the worker reads the whole file around every hunk — a
@@ -160,6 +165,18 @@ pass that sets out to confirm reliably misses what an adversarial pass finds.
 **Every surviving finding must carry a concrete failure scenario**: specific inputs or
 state → the wrong output, crash, or exposure that results. If the worker can't write that
 sentence, the finding isn't ready — drop it or mark it uncertain. No vibes.
+
+### Stage 4 — Docs sweep (always runs)
+Runs on every run, at whatever verdict stages 1-3 reach, over the same resolved target
+range as the rest of the review — the whole branch on a first review, `<recorded sha>..HEAD`
+on a re-review; a blocked run still runs it, or a later re-review's narrower range would
+never cover the commits it skipped. The worker lists every user-visible change from the
+commit bodies, diff, and recent `.claude/stash/` notes; finds where the project's
+guide/context doc — and its PRD, README, or findings/learnings doc when relevant —
+describes each one, and adds or fixes it (an edit already made elsewhere on this branch
+still has to be checked, not assumed covered). The `CHANGELOG` stays `/release`'s job. What
+it touched is committed on its own, doc paths only, as the review's last act before the
+record is written.
 
 ---
 
@@ -258,9 +275,17 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
+docs-commit: <full sha | none>
+docs: <space-separated files the sweep changed | none>
 blockers:
 - <file:line> · <one-sentence claim>
 ```
+
+`sha:` is the HEAD that stages 1-3 reviewed — **before** stage 4's docs commit, if it made
+one; `docs-commit` and `docs:` record that commit and what it touched separately, which is
+what lets `/release` Phase 0.5 (§9) treat a docs-only commit after the reviewed SHA as not
+stale. `docs:` is repo-relative paths on one space-separated line — exactly the files in
+`docs-commit`, nothing implied or assumed beyond what's listed.
 
 It answers one question — was *this commit* reviewed, and what came of it — so only the
 latest answer can be true, which is why it is overwritten rather than appended. The
@@ -404,14 +429,20 @@ whatever state the ledger file happens to be in.
   place the difference is visible.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
-- **Recorded SHA ≠ current HEAD** (commits landed after the review, including fix
-  commits) → **stale**, stop and ask for a re-review.
+- **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review — *unless every
+  file* in `git diff --name-only <recorded sha>..HEAD` is listed on the record's `docs:`
+  line (§5b) — i.e. `/branch-review`'s own docs-sweep commit, and nothing else. Any file not
+  on that line — a `README.md`, `CHANGELOG.md`, or other `docs/` file included — is stale
+  regardless, which is why `/release`'s own version-bump commit (it touches `package.json`,
+  never on that line) still makes a second `/release` run stale without a re-review.
+  `/release` runs this diff itself and reports the file list it compared against the
+  `docs:` line, rather than asserting "it's just docs."
 - **The fix ledger is not an exception.** Where `.claude/` is gitignored (as here), an
   append never reaches a commit, HEAD does not move, and the recorded SHA still matches —
   so the question never arises. A repo that tracks `.claude/` instead will see a ledger
-  commit land after the review and make it stale. That is the gate working as designed,
-  not a case to special-case: re-review, or leave the ledger uncommitted until the
-  release is cut. One rule, no branches in it.
+  commit land after the review and make it stale, since the ledger is never a file on the
+  record's `docs:` line — that is the gate working as designed, not a case to
+  special-case: re-review, or leave the ledger uncommitted until the release is cut.
 - **Reviewed at this SHA with findings still outstanding** → stop; findings are resolved
   before a release is cut.
 

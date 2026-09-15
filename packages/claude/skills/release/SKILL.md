@@ -1,13 +1,14 @@
 ---
 name: release
-description: Verify, sweep docs, cut a version — then hand the release sequence back
+description: Verify, write the CHANGELOG, cut a version — then hand the release sequence back
 allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git fetch:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(pytest:*), Bash(python:*), Bash(go:*), Bash(cargo:*), Bash(make:*)
 disable-model-invocation: true
 ---
 Release **preparation** orchestrator for the **current branch**. It runs your
-existing pre-deploy gate, sweeps the docs, bumps the version and commits —
-then **stops and reports**. It never pushes, opens a PR, merges, tags, or
-publishes: those are yours to authorize by name.
+existing pre-deploy gate, writes the CHANGELOG, bumps the version and
+commits — then **stops and reports**. It never pushes, opens a PR, merges,
+tags, or publishes: those are yours to authorize by name. The general docs
+sweep runs earlier, in `/branch-review`.
 
 It does not re-implement checks, and it does not review code. Review is a
 separate command that must have run first.
@@ -67,14 +68,22 @@ that predates this file's introduction has no record, so it does not count.
 
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
-- **Stale** — recorded SHA ≠ `git rev-parse HEAD`, i.e. commits landed after
-  the review (including fix commits) → **stop** and ask for a re-review. This
-  is what makes "all findings fixed" checkable instead of promised.
-  **No exceptions — including the fix ledger.** It is normally gitignored, so
-  appending to it moves nothing and this never comes up. A repo that tracks
-  `.claude/` instead will see a ledger commit land after the review and make
-  it stale. That is the rule working, not a case to carve out: re-review, or
-  leave the ledger uncommitted until after the release.
+- **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
+  re-review, **unless every file** in `git diff --name-only <recorded
+  sha>..HEAD` is listed on the record's `docs:` line — `/branch-review`'s own
+  docs-sweep commit, and nothing else. Run that diff yourself and report the
+  file list you compared against the `docs:` line; do not take "it's just
+  docs" on trust. Any file not on that line — including a `README.md`,
+  `CHANGELOG.md`, or other `docs/` file the sweep didn't touch — is not a
+  docs commit, so its presence anywhere in that list means **stale**, stop,
+  re-review. This is what makes "all findings fixed" checkable instead of
+  promised.
+  **No exceptions beyond the `docs:` line — including the fix ledger.** It is
+  normally gitignored, so appending to it moves nothing and this never comes
+  up. A repo that tracks `.claude/` instead will see a ledger commit land
+  after the review and make it stale. That is the rule working, not a case to
+  carve out: re-review, or leave the ledger uncommitted until after the
+  release.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
@@ -87,16 +96,8 @@ that predates this file's introduction has no record, so it does not count.
 - **Reviewed at this SHA with findings outstanding** → **stop**. Findings are
   resolved before a release is cut.
 
-This phase runs **before** `/release` writes anything, so the docs-and-bump
-commit it makes later cannot invalidate the review it just checked. That
-If Phase 2's docs sweep happens to correct a line that a fix-ledger bullet
-also names, that is ordinary sweep work — the doc changed with the feature,
-so it was already yours to update. **Do not delete the bullet.** `/refactor`
-is the only deleter, and its revalidation will drop that bullet on its next
-run when it finds the finding no longer holds. Deleting it here would make
-`/release` a second writer on state that has exactly one owner, and the whole
-value of the ledger's one-append-one-delete split is that it stays readable
-as a log.
+This phase runs **before** `/release` writes anything, so the CHANGELOG-and-
+bump commit it makes later cannot invalidate the review it just checked.
 
 Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
 match yes/no.
@@ -126,49 +127,19 @@ confirmed in Phase 0.5.
   summarize, escalate. Do not weigh it yourself.
 - **All clean** → continue.
 
-## Phase 2 — Docs sweep (required — no skipping, no sampling)
-Update what this branch changed, wherever those docs live in this project —
-match each file's existing format, touch nothing unrelated. Use
-`docs/index.md` when the project has one to find what exists. **All three
-passes run on every release**; the size of the branch or the change never
-cuts one.
+## Phase 2 — CHANGELOG
+The general docs sweep (guide/context doc, PRD, README, findings/learnings)
+happens in `/branch-review` (Stage 4), already covered by Phase 0.5. This
+phase only writes `CHANGELOG.md`: an entry covering every user-visible
+change in `origin/main..HEAD`, read from the commit bodies (not just
+subjects), under the headings the file already uses. If the file already has
+a `## [Unreleased]` section, that is this release's draft: check it against
+the commits, add anything missing, and retitle it `## [X.Y.Z] - YYYY-MM-DD`.
+Otherwise write a new entry under that title. Never leave both. An Added
+entry means at least a minor bump. Past entries are history — leave them.
 
-1. **List every change.** Read `git log --format='%h %s%n%b'
-   origin/main..HEAD` — the bodies, not just the subjects — and the diff.
-   Write one line per user-visible change: feature, command, flag, behaviour,
-   fix, dependency bump. A subject is a summary; the body is the list, and a
-   sweep built from subjects drops whatever only a body mentions.
-2. **CHANGELOG.md** — a new entry holding every line from pass 1, each under
-   the heading the file already uses for its kind (Added / Changed / Fixed /
-   Security). A new capability is **Added** even when it shipped in a `fix:`
-   commit. Then check it back: every pass-1 line maps to an entry, and the
-   semver level in Phase 3 agrees with the headings (an Added entry means at
-   least minor).
-3. **Grep for stale text.** For every string the diff removed or replaced
-   that a reader might have copied — a command line, flag, file name, recipe,
-   env var, printed message — search the docs for the old form:
-   `grep -rnF "<old string>" --include='*.md' .` (past CHANGELOG entries are
-   history; leave them). Every other hit is stale **because of this branch** —
-   update it. "It was already stale before this branch" is a claim: prove it
-   with `git show $(git merge-base origin/main HEAD):<source path>`. If the
-   base code already disagreed with the doc, report it as out of scope;
-   otherwise it is yours to fix.
-
-Then judge each of these against the pass-1 list:
-- **README.md** — if user-facing usage changed.
-- **PRD** — the feature's entry / status.
-- **Guide / context docs** — the project's standing context.
-- **Findings / learnings** — where the project keeps them.
-- **Any other frequently-updated doc** this change makes stale.
-
-Report **one row per doc**: file · changed / no change · the evidence (the
-grep or diff you ran). A "no change" with no evidence is a skip, and a skip
-fails this phase — it is not a pass. If a doc truly needs no change, say so
-with the evidence rather than editing it for its own sake.
-
-**The sweep is the worker's job, start to finish.** The orchestrator checks
-the report; it does not redo or patch the sweep. A gap it finds goes back to
-the worker, and it counts as a failed sweep, not a small follow-up.
+**This is the worker's job, start to finish.** The orchestrator checks the
+entry; it does not redo or patch it.
 
 ## Phase 3 — Cut (local only)
 1. **Version bump** — pick the semver level from the change (patch / minor /
@@ -179,23 +150,24 @@ the worker, and it counts as a failed sweep, not a small follow-up.
    already exists locally. The bump must land
    on the branch, before any merge — a version committed to `main` directly,
    or added after the merge, breaks the tag/package match.
-2. **Commit** — `release: vX.Y.Z — <summary>`, including the docs and the
-   bump.
+2. **Commit** — `release: vX.Y.Z — <summary>`, including the CHANGELOG and
+   the bump.
 
 Then **stop.** Nothing else.
 
-This release commit is the **one** commit allowed to land after the review, and
-only because it contains docs and a version number — no code, so it cannot
-invalidate a finding. It does move HEAD past the reviewed SHA, which is why
-`/release` must not be run twice on the same branch without a re-review: the
-second run will correctly stop as stale.
+This release commit is the one commit `/release` itself adds after the
+review. It touches `package.json` for the version bump — never a file on the
+record's `docs:` line under Phase 0.5's rule — so it moves HEAD past the
+reviewed SHA with a file that rule doesn't cover. Running `/release` twice on
+the same branch without a re-review therefore still correctly stops as
+stale, as it always did.
 
 ## Report — the sequence, for a human to authorize
 Print the evidence, then hand back the exact remaining steps so the
 orchestrator can run them on the user's named go:
 
-> **Cut ✅ vX.Y.Z on `<branch>`** — `/ship` green, docs updated, release commit
-> made locally. Reviewed at `<sha>`.
+> **Cut ✅ vX.Y.Z on `<branch>`** — `/ship` green, CHANGELOG updated, release
+> commit made locally. Reviewed at `<sha>`.
 > Ready when you are:
 > 1. `git push -u origin <branch>`
 > 2. `gh pr create` into `main`
