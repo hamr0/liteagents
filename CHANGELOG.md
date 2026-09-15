@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only writes the CHANGELOG** with the version — the docs sweep moved out of it.
   `/release`'s stale-docs check now only lets through files listed on the review
   record's `docs:` line; anything else needs a fresh `/branch-review`.
+- **`/release` reuses an existing `## [Unreleased]` CHANGELOG section**: it checks it
+  against the commits, adds anything missing, and retitles it to the version, instead
+  of writing a second entry.
+- **`/ship`'s "in sync with `origin`" check** says a never-pushed branch is normal
+  before a release.
+- **`/branch-review` allows `Edit`, `Write`, `git add` and `git commit`** (Claude and
+  Amp), so Stage 4's docs commit runs without permission prompts.
 
 ---
 

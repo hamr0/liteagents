@@ -53,7 +53,8 @@ silently and in the unsafe direction.
 - [ ] **Docs & config in sync** — `.env.example`, README, and any PRD /
       context doc updated for new config or new usage.
 - [ ] **Clean tree, correct branch, in sync with `origin`** — and never on
-      `main`.
+      `main`. A branch never pushed has no `origin` copy yet; that is normal
+      before a release and passes, as long as it is not behind `origin/main`.
 
 Report: **Ready 🚀** or **Blocked 🛑** with the specific failing items and the
 command output that proves each one.

@@ -127,10 +127,13 @@ confirmed in Phase 0.5.
 ## Phase 2 — CHANGELOG
 The general docs sweep (guide/context doc, PRD, README, findings/learnings)
 happens in `/branch-review` (Stage 4), already covered by Phase 0.5. This
-phase only writes `CHANGELOG.md`: a new entry covering every user-visible
+phase only writes `CHANGELOG.md`: an entry covering every user-visible
 change in `origin/main..HEAD`, read from the commit bodies (not just
-subjects), under the headings the file already uses. An Added entry means at
-least a minor bump. Past entries are history — leave them.
+subjects), under the headings the file already uses. If the file already has
+a `## [Unreleased]` section, that is this release's draft: check it against
+the commits, add anything missing, and retitle it `## [X.Y.Z] - YYYY-MM-DD`.
+Otherwise write a new entry under that title. Never leave both. An Added
+entry means at least a minor bump. Past entries are history — leave them.
 
 **This is the worker's job, start to finish.** The orchestrator checks the
 entry; it does not redo or patch it.
