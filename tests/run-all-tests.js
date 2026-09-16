@@ -105,6 +105,18 @@ const testSuites = [
     file: 'installer/package-manager.test.js',
     description: 'Tests installer/package-manager.js against the single-variant (pro) reality: loadVariantConfig validation and caching, selectVariantContent wildcard/array/skipMissing selection, getPackageContents/getPackageSize/validatePackage/getManifestTemplate against real package data, and countFiles/formatBytes',
     expectedTests: 43
+  },
+  {
+    name: 'installer cli',
+    file: 'installer/cli.test.js',
+    description: 'Tests installer/cli.js InteractiveInstaller: error categorization, PathManager-backed path validation, formatBytes, drawProgressBar, and PackageManager integration',
+    // 29 = 39 original tests minus 10 removed: 2 constructor tests asserting
+    // the deleted 3-variant/tool-metadata schema, drawOverallProgress and
+    // displayVerificationReport/performPreInstallationChecks/
+    // generateInstallationReport (7 tests total across 3 methods deleted
+    // from InteractiveInstaller in 3f07e47, v1.10.0, with no replacement),
+    // and 1 constructor assertion repaired in place (not counted as removed).
+    expectedTests: 29
   }
 ];
 
