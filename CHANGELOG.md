@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **`InteractiveInstaller.handleFatalError` now has real test coverage.** Its only
+  prior test was deleted in 3.9.1 as a tautology — it stubbed `categorizeError`
+  and asserted the stub's own return value without ever calling
+  `handleFatalError`. `tests/installer/cli.test.js` gains a `captureFatalError`
+  helper that stubs `process.exit` and `console.log` (the method's
+  `process.exit(1)` is unconditional and would otherwise kill the suite), plus
+  two tests asserting that the error message is printed with exit code 1 and
+  that every advice line from `categorizeError` is printed. Each was proven to
+  fail against a mutated copy of `installer/cli.js` — advice block removed,
+  `exit(1)` changed to `exit(0)`, and the message line removed. The
+  `expectedTests` floor for the suite rises 30 → 32.
+
+---
+
 ## [3.9.1] - 2026-09-16
 
 ### Changed

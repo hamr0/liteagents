@@ -43,6 +43,31 @@ let passedTests = 0;
 let failedTests = 0;
 
 /**
+ * Test helper - calls handleFatalError with process.exit and console.log
+ * stubbed, so the method's unconditional process.exit(1) does not kill the
+ * suite. Returns the captured exit code and printed lines.
+ */
+async function captureFatalError(error) {
+  const installer = new InteractiveInstaller();
+  const realExit = process.exit;
+  const realLog = console.log;
+  const lines = [];
+  let exitCode = null;
+
+  process.exit = code => { exitCode = code; };
+  console.log = (...args) => { lines.push(args.join(' ')); };
+
+  try {
+    await installer.handleFatalError(error);
+  } finally {
+    process.exit = realExit;
+    console.log = realLog;
+  }
+
+  return { exitCode, lines };
+}
+
+/**
  * Test helper - runs a test and tracks results
  */
 async function test(name, fn) {
@@ -231,6 +256,37 @@ async function runTests() {
     );
 
     assert.ok(hasActionableAdvice, 'Advice should contain actionable commands or steps');
+  });
+
+  await test('handleFatalError prints the error message and exits 1', async () => {
+    const error = new Error('permission denied while writing');
+    error.code = 'EACCES';
+
+    const { exitCode, lines } = await captureFatalError(error);
+
+    assert.strictEqual(exitCode, 1, 'Should exit with code 1');
+    assert.ok(
+      lines.some(line => line.includes('permission denied while writing')),
+      'Should print the error message'
+    );
+  });
+
+  await test('handleFatalError prints the advice from categorizeError', async () => {
+    const error = new Error('permission denied while writing');
+    error.code = 'EACCES';
+
+    const installer = new InteractiveInstaller();
+    const expectedAdvice = installer.categorizeError(error).advice;
+
+    const { lines } = await captureFatalError(error);
+
+    assert.ok(expectedAdvice.length > 0, 'Fixture should produce advice to print');
+    expectedAdvice.forEach(advice => {
+      assert.ok(
+        lines.some(line => line.includes(advice)),
+        `Should print advice line: ${advice}`
+      );
+    });
   });
 
   // ===== Group 3: Path Validation =====
