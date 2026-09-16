@@ -1,5 +1,5 @@
 /**
- * Verification System for Agentic Kit Installer
+ * Verification System for liteagents Installer
  * 
  * Validates installations, checks dependencies, and ensures system integrity
  */

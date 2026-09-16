@@ -10,7 +10,7 @@ const colors = {
 
 console.log('');
 console.log(`${colors.green}==========================================`);
-console.log(`  Agentic Kit Installation Complete`);
+console.log(`  liteagents Installation Complete`);
 console.log(`==========================================${colors.reset}`);
 console.log('');
 console.log(`${colors.bright}${colors.yellow}Next step: Run the installer${colors.reset}`);

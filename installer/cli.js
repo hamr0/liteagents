@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Interactive CLI Installer for Agentic Kit
+ * Interactive CLI Installer for liteagents
  * 
  * Provides 4-step installation process:
  * 1. Package variant selection (Lite/Standard/Pro)

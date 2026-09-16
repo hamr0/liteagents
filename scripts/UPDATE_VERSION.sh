@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version Update Script for Agentic Kit
+# Version Update Script for liteagents
 # Updates version across all files and creates git tag
 
 if [ -z "$1" ]; then
@@ -12,7 +12,7 @@ fi
 
 NEW_VERSION=$1
 
-echo "🔄 Updating Agentic Kit to version $NEW_VERSION..."
+echo "🔄 Updating liteagents to version $NEW_VERSION..."
 echo ""
 
 # 1. Update package.json

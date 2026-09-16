@@ -128,7 +128,7 @@ ${colors.cyan}${'='.repeat(70)}${colors.reset}
 ${colors.bright}CI/CD Integration Examples:${colors.reset}
 
 ${colors.yellow}GitHub Actions:${colors.reset}
-${colors.cyan}- name: Install Agentic Kit
+${colors.cyan}- name: Install liteagents
   run: |
     node installer/cli.js \\
       --variant lite \\
@@ -136,7 +136,7 @@ ${colors.cyan}- name: Install Agentic Kit
       --silent${colors.reset}
 
 ${colors.yellow}GitLab CI:${colors.reset}
-${colors.cyan}install_agentic_kit:
+${colors.cyan}install_liteagents:
   script:
     - node installer/cli.js --variant standard --tools claude --silent
   only:
@@ -251,8 +251,8 @@ ${colors.bright}Example CI/CD Script:${colors.reset}
 ${colors.cyan}#!/bin/bash
 set -e  # Exit on error
 
-# Install Agentic Kit in silent mode
-echo "Installing Agentic Kit..."
+# Install liteagents in silent mode
+echo "Installing liteagents..."
 node installer/cli.js \\
     --variant lite \\
     --tools claude \\
@@ -275,7 +275,7 @@ else
     exit 1
 fi
 
-echo "Agentic Kit ready for use!"${colors.reset}
+echo "liteagents ready for use!"${colors.reset}
 
 ${colors.cyan}${'='.repeat(70)}${colors.reset}
 

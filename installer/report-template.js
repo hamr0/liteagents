@@ -125,7 +125,7 @@ class ReportTemplate {
     const timestamp = new Date().toISOString();
     return `
 ╔════════════════════════════════════════════════════════════════╗
-║           AGENTIC-KIT INSTALLATION REPORT                      ║
+║           LITEAGENTS INSTALLATION REPORT                       ║
 ╚════════════════════════════════════════════════════════════════╝
 
 Generated: ${timestamp}

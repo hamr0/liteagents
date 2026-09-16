@@ -1,5 +1,5 @@
 /**
- * Package Manager for Agentic Kit Installer
+ * Package Manager for liteagents Installer
  * 
  * Manages tool-specific variant packages and content selection
  */

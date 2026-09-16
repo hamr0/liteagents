@@ -359,7 +359,7 @@ function generateJsonReport() {
  * Generate Markdown report
  */
 function generateMarkdownReport() {
-  let markdown = `# Agentic Kit Installer - Test Report\n\n`;
+  let markdown = `# liteagents Installer - Test Report\n\n`;
   markdown += `**Generated**: ${results.timestamp}\n\n`;
 
   // Summary table
