@@ -29,6 +29,10 @@ deleted as models improve. That churn is the point.
 ```bash
 npx liteagents          # recommended
 # or: npm install -g liteagents && liteagents   (never sudo)
+
+# updating later:
+npm i -g liteagents@latest   # get the new package
+liteagents                   # copy the new kit into ~/.claude (backs up the old one first)
 ```
 
 <sub>Permission errors? `mkdir -p ~/.npm-global && npm config set prefix '~/.npm-global'`, then add `~/.npm-global/bin` to your `PATH`.</sub>

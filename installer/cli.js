@@ -485,12 +485,12 @@ class InteractiveInstaller {
   showWelcome() {
     console.clear();
     console.log(`
-${colors.bright}${colors.cyan} █████╗  ██████╗ ███████╗███╗   ██╗████████╗██╗ ██████╗    ██╗  ██╗██╗████████╗${colors.reset}
-${colors.bright}${colors.cyan}██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝██║██╔════╝    ██║ ██╔╝██║╚══██╔══╝${colors.reset}
-${colors.bright}${colors.cyan}███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   ██║██║         █████╔╝ ██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   ██║██║         ██╔═██╗ ██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
+${colors.bright}${colors.cyan}██╗     ██╗████████╗███████╗ █████╗  ██████╗ ███████╗███╗   ██╗████████╗███████╗${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║╚══██╔══╝██╔════╝██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝██╔════╝${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║   ██║   █████╗  ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   ███████╗${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║   ██║   ██╔══╝  ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   ╚════██║${colors.reset}
+${colors.bright}${colors.cyan}███████╗██║   ██║   ███████╗██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ███████║${colors.reset}
+${colors.bright}${colors.cyan}╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝${colors.reset}
 
 ${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${CAPABILITY_COUNT} capabilities per tool${colors.reset}
     `);
