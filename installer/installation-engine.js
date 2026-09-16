@@ -1,5 +1,5 @@
 /**
- * Installation Engine for Agentic Kit Installer
+ * Installation Engine for liteagents Installer
  *
  * Handles file operations, installation progress, and rollback functionality
  */

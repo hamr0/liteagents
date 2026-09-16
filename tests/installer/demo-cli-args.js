@@ -63,7 +63,7 @@ ${colors.cyan}2. Uninstall Command Flow${colors.reset}
    ${colors.bright}Example workflow:${colors.reset}
    $ node installer/cli.js --uninstall claude
 
-   ${colors.cyan}Agentic Kit Uninstaller${colors.reset}
+   ${colors.cyan}liteagents Uninstaller${colors.reset}
 
    ${colors.bright}Tool:${colors.reset} Claude Code
    ${colors.bright}Path:${colors.reset} /home/user/.claude
@@ -93,7 +93,7 @@ ${colors.cyan}3. Non-Interactive Mode${colors.reset}
    ${colors.bright}Example workflow:${colors.reset}
    $ node installer/cli.js --variant standard --tools claude,opencode
 
-   ${colors.cyan}Agentic Kit Installer (Non-Interactive Mode)${colors.reset}
+   ${colors.cyan}liteagents Installer (Non-Interactive Mode)${colors.reset}
 
    ${colors.bright}Installation Summary:${colors.reset}
    ${colors.cyan}Variant:${colors.reset} Standard (13 agents, 8 skills)

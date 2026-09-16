@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Interactive CLI Installer for Agentic Kit
+ * Interactive CLI Installer for liteagents
  * 
  * Provides 4-step installation process:
  * 1. Package variant selection (Lite/Standard/Pro)
@@ -485,12 +485,12 @@ class InteractiveInstaller {
   showWelcome() {
     console.clear();
     console.log(`
-${colors.bright}${colors.cyan} █████╗  ██████╗ ███████╗███╗   ██╗████████╗██╗ ██████╗    ██╗  ██╗██╗████████╗${colors.reset}
-${colors.bright}${colors.cyan}██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝██║██╔════╝    ██║ ██╔╝██║╚══██╔══╝${colors.reset}
-${colors.bright}${colors.cyan}███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   ██║██║         █████╔╝ ██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   ██║██║         ██╔═██╗ ██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║╚██████╗    ██║  ██╗██║   ██║${colors.reset}
-${colors.bright}${colors.cyan}╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝ ╚═════╝    ╚═╝  ╚═╝╚═╝   ╚═╝${colors.reset}
+${colors.bright}${colors.cyan}██╗     ██╗████████╗███████╗ █████╗  ██████╗ ███████╗███╗   ██╗████████╗███████╗${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║╚══██╔══╝██╔════╝██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝██╔════╝${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║   ██║   █████╗  ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   ███████╗${colors.reset}
+${colors.bright}${colors.cyan}██║     ██║   ██║   ██╔══╝  ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   ╚════██║${colors.reset}
+${colors.bright}${colors.cyan}███████╗██║   ██║   ███████╗██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ███████║${colors.reset}
+${colors.bright}${colors.cyan}╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝${colors.reset}
 
 ${colors.bright}v${PACKAGE_VERSION} | ${AGENT_COUNT} agents + ${CAPABILITY_COUNT} capabilities per tool${colors.reset}
     `);

@@ -1,5 +1,5 @@
 /**
- * Path Manager for Agentic Kit Installer
+ * Path Manager for liteagents Installer
  * 
  * Handles path validation, permissions, and tool-specific path management
  */

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.1] - 2026-09-16
+
+### Changed
+- **Finishes the "Agentic Kit" → liteagents rename**: the npm post-install message
+  now reads "liteagents Installation Complete", the `~/.liteagents-install.log`
+  report header reads LITEAGENTS INSTALLATION REPORT (its 64-char box width
+  preserved), and `scripts/validate-package.js`, `scripts/UPDATE_VERSION.sh`, the
+  installer demo scripts, and installer file-header comments all follow. The
+  installer banner itself (`installer/cli.js`) already read LITEAGENTS as of
+  3.9.0; `CHANGELOG.md`'s own historical `@hamr0/agentic-kit` references are
+  append-only history and are left alone.
+- **README documents the two-step update commands** under the install block:
+  `npm i -g liteagents@latest`, then re-run `liteagents` to refresh `~/.claude`
+  (backs up the old kit first).
+- **`docs/product/INSTALLER_GUIDE.md`'s welcome-banner transcript now shows
+  `vX.Y.Z`** instead of a literal version number, since the installer reads the
+  real version from `package.json` and a hardcoded example goes stale at every
+  release.
+
+### Fixed
+- **`tests/installer/cli.test.js` had been dead since v1.10.0** (2026-01-19,
+  which deleted the `InteractiveInstaller` methods most of its tests called): it
+  was registered in no runner, so 39 tests — 18 already failing — never ran under
+  `npm test`. Revived against the code that replaced them (`installer/path-manager.js`
+  and friends): 29 tests now pass and are registered, and a missing `await` that
+  let the suite print "0 failed" and then crash on an unhandled rejection is fixed.
+- **Two more unregistered, dead installer test files deleted** (`test-error-handling.js`,
+  `test-install-method.js`, 695 lines): both called installer methods removed in
+  the same v1.10.0 rewrite and never ran. One genuinely unique test — actionable
+  advice text for permission errors — was salvaged into `cli.test.js`; the rest
+  duplicated coverage that already runs elsewhere.
+
+---
+
 ## [3.9.0] - 2026-09-15
 
 ### Changed

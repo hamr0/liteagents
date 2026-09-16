@@ -105,6 +105,22 @@ const testSuites = [
     file: 'installer/package-manager.test.js',
     description: 'Tests installer/package-manager.js against the single-variant (pro) reality: loadVariantConfig validation and caching, selectVariantContent wildcard/array/skipMissing selection, getPackageContents/getPackageSize/validatePackage/getManifestTemplate against real package data, and countFiles/formatBytes',
     expectedTests: 43
+  },
+  {
+    name: 'installer cli',
+    file: 'installer/cli.test.js',
+    description: 'Tests installer/cli.js InteractiveInstaller: error categorization, PathManager-backed path validation, formatBytes, drawProgressBar, and PackageManager integration',
+    // 30 = 39 original tests minus 10 removed: 2 constructor tests asserting
+    // the deleted 3-variant/tool-metadata schema, drawOverallProgress and
+    // displayVerificationReport/performPreInstallationChecks/
+    // generateInstallationReport (7 tests total across 3 methods deleted
+    // from InteractiveInstaller in 3f07e47, v1.10.0, with no replacement),
+    // and 1 constructor assertion repaired in place (not counted as removed),
+    // plus 1 ported from the deleted tests/installer/test-error-handling.js
+    // (unregistered, calling methods deleted in 3f07e47) when that file and
+    // tests/installer/test-install-method.js were removed for being
+    // unregistered duplicates/dead code.
+    expectedTests: 30
   }
 ];
 
@@ -359,7 +375,7 @@ function generateJsonReport() {
  * Generate Markdown report
  */
 function generateMarkdownReport() {
-  let markdown = `# Agentic Kit Installer - Test Report\n\n`;
+  let markdown = `# liteagents Installer - Test Report\n\n`;
   markdown += `**Generated**: ${results.timestamp}\n\n`;
 
   // Summary table

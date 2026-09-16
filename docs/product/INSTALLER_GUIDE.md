@@ -62,11 +62,12 @@ The installer walks you through three steps:
 liteagents
 ```
 
-You'll see the welcome banner and a menu:
+You'll see the welcome banner and a menu (`vX.Y.Z` shows your installed
+version, read from `package.json` — not a literal string):
 
 ```
-                  AGENTIC KIT
-        v3.0.0 | 10 agents + 13 capabilities per tool
+                  LITEAGENTS
+        vX.Y.Z | 10 agents + 13 capabilities per tool
 
 What would you like to do?
 

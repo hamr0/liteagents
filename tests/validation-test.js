@@ -162,7 +162,7 @@ async function runValidationTest() {
 
       const report = reportTemplate.generateReport(testData);
 
-      if (report && report.includes('AGENTIC-KIT INSTALLATION REPORT')) {
+      if (report && report.includes('LITEAGENTS INSTALLATION REPORT')) {
         console.log(`${colors.green}✓ Report generated successfully${colors.reset}`);
         console.log(`  Report length: ${report.length} characters`);
         results.passed++;

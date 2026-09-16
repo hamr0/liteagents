@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Package Validation Script for Agentic Kit v1.2.0+
+ * Package Validation Script for liteagents v1.2.0+
  *
  * Validates the multi-tool installer structure with:
  * - Multiple tool packages (claude, opencode, ampcode, droid)
@@ -297,7 +297,7 @@ function validateTests() {
 }
 
 function main() {
-  console.log(`\n${colors.bright}${colors.cyan}=== Agentic Kit Package Validation ===${colors.reset}\n`);
+  console.log(`\n${colors.bright}${colors.cyan}=== liteagents Package Validation ===${colors.reset}\n`);
   console.log(`${colors.cyan}Multi-Tool Installer Structure (v1.2.0+)${colors.reset}\n`);
 
   // Run all validations
