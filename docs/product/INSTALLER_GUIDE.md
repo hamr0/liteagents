@@ -66,7 +66,7 @@ You'll see the welcome banner and a menu:
 
 ```
                   LITEAGENTS
-        v3.0.0 | 10 agents + 13 capabilities per tool
+        vX.Y.Z | 10 agents + 13 capabilities per tool
 
 What would you like to do?
 
