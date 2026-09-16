@@ -215,6 +215,24 @@ async function runTests() {
     assert.notStrictEqual(perm.advice[0], disk.advice[0], 'Different errors should have different advice');
   });
 
+  await test('categorizeError advice for permission errors is actionable', async () => {
+    const installer = new InteractiveInstaller();
+
+    const error = new Error('Permission denied');
+    error.code = 'EACCES';
+    const result = installer.categorizeError(error);
+
+    const hasActionableAdvice = result.advice.some(advice =>
+      advice.includes('sudo') ||
+      advice.includes('ls -la') ||
+      advice.includes('chmod') ||
+      advice.toLowerCase().includes('try') ||
+      advice.toLowerCase().includes('check')
+    );
+
+    assert.ok(hasActionableAdvice, 'Advice should contain actionable commands or steps');
+  });
+
   // ===== Group 3: Path Validation =====
   // installer.validatePath was removed in 3f07e47 (v1.10.0); path validation
   // now lives on PathManager (installer/path-manager.js), instantiated

@@ -110,13 +110,17 @@ const testSuites = [
     name: 'installer cli',
     file: 'installer/cli.test.js',
     description: 'Tests installer/cli.js InteractiveInstaller: error categorization, PathManager-backed path validation, formatBytes, drawProgressBar, and PackageManager integration',
-    // 29 = 39 original tests minus 10 removed: 2 constructor tests asserting
+    // 30 = 39 original tests minus 10 removed: 2 constructor tests asserting
     // the deleted 3-variant/tool-metadata schema, drawOverallProgress and
     // displayVerificationReport/performPreInstallationChecks/
     // generateInstallationReport (7 tests total across 3 methods deleted
     // from InteractiveInstaller in 3f07e47, v1.10.0, with no replacement),
-    // and 1 constructor assertion repaired in place (not counted as removed).
-    expectedTests: 29
+    // and 1 constructor assertion repaired in place (not counted as removed),
+    // plus 1 ported from the deleted tests/installer/test-error-handling.js
+    // (unregistered, calling methods deleted in 3f07e47) when that file and
+    // tests/installer/test-install-method.js were removed for being
+    // unregistered duplicates/dead code.
+    expectedTests: 30
   }
 ];
 
