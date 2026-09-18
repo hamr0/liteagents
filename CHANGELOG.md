@@ -7,7 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [3.10.0] - 2026-09-18
+
+### Changed
+- **The spec interview in `AGENT_RULES.md` is now six checkable rules instead of
+  "ask what you need to know — no more."** The old wording was toothless in
+  practice: agents asked one or two questions and ran for implementation.
+  Borrowing the design-tree model from Matt Pocock's `grilling` skill, a round
+  now asks only the *frontier* (decisions whose prerequisites are settled),
+  batched, with the agent's own recommended answer under each question; facts
+  the agent could look up are never asked. Depth is capped by resolution rather
+  than a question count — module 0 is pinned down to the decision, later modules
+  are sketched only far enough to know they don't change it — so a portal-style
+  PRD is not grilled to exhaustion. Scope ("what is this *not* doing?") is asked
+  across the whole build. One round is not an interview.
+- **Two new Build Rules in `AGENT_RULES.md` close the software-entropy gap.**
+  *Read before you write; reuse before you add* requires searching for the
+  existing function, class or name before writing a new one, reporting what was
+  reused, and justifying any near-duplicate — one concept, one name, repo-wide.
+  *Don't patch a patch* makes a third fix on the same spot a redesign proposal
+  rather than a fourth patch, and requires a new layer to hide more complexity
+  than its interface adds. Three Red Flags and the CLAUDE.md stub match.
+  `AGENT_RULES.md` is mirror-exempt, so all four kits were hand-synced and
+  verified byte-identical.
+- **`/refactor` now aims at interface depth instead of smaller pieces.** The
+  goal *"smaller functions (single responsibility)"* was a shallow-module
+  machine — it read as "more pieces is better" and fought AGENT_RULES' own "if
+  you split one file into N similar files, stop." It is replaced by *shrink the
+  interface, not the pieces* (a caller must learn less after the refactor, not
+  more) and *apply the deletion test before you create anything* (if deleting
+  the proposed function/class/wrapper makes complexity vanish rather than
+  reappear across its callers, it is a pass-through — don't create it). Both
+  defer to the existing public-API HITL gate, and both are a filter on a
+  bullet's own fix in ledger mode, never a licence to hunt. A new *Where to
+  look* section scopes broad targets by churn (`git log --oneline -- <path>`),
+  since a refactor pays back on the next change to that code.
 
 ### Fixed
 - **`InteractiveInstaller.handleFatalError` now has real test coverage.** Its only
@@ -21,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fail against a mutated copy of `installer/cli.js` — advice block removed,
   `exit(1)` changed to `exit(0)`, and the message line removed. The
   `expectedTests` floor for the suite rises 30 → 32.
+- **`/refactor`'s `argument-hint` now advertises its named-area argument.**
+  The body's "Where to look — broad targets only" section added a third
+  `$ARGUMENTS` shape — a named area — but `argument-hint` still listed only
+  two, so a user reading the hint alone would assume an area argument was
+  unsupported. Fixed by hand in the three kits whose frontmatter carries the
+  key (Claude, Ampcode, Droid); `packages/opencode/command/refactor.md` has
+  no `argument-hint` key and was correctly left alone. Fix ledger: 1 → 0.
 
 ---
 

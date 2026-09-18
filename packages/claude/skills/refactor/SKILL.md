@@ -1,7 +1,7 @@
 ---
 name: refactor
 description: Refactor and optimize [code]
-argument-hint: [file-or-function, or empty for the fix ledger]
+argument-hint: [file-or-function, a named area (e.g. "the auth module"), or empty for the fix ledger]
 allowed-tools: Read, Edit, Grep, Glob, Bash(npm test:*), Bash(npx jest:*), Bash(npx vitest:*), Bash(pnpm test:*), Bash(yarn test:*), Bash(pytest:*), Bash(python:*), Bash(go test:*), Bash(cargo test:*), Bash(make test:*), Bash(git diff:*), Bash(git grep:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git switch:*)
 disable-model-invocation: true
 ---
@@ -82,13 +82,44 @@ refactor and how to close each item.
    field: a run chained the review onto the owner's "commit" and the owner
    objected.
 
+## Where to look — broad targets only
+Empty `$ARGUMENTS` is ledger mode; the surviving bullets are the scope, so skip
+this. When `$ARGUMENTS` names a specific file or function, that is the scope;
+skip this too. When it names a whole area ("the auth module", "clean this
+up"), let
+recent change decide where inside it to start: `git log --oneline -- <path>`
+and weight the files that keep coming back. A refactor is an investment in the
+*next* change to that code, so code nobody edits pays the worst return — say
+which files you picked and what churn you saw.
+
 ## Goals
 - Reduce complexity
 - Improve readability
 - Apply DRY
 - Better naming
-- Smaller functions (single responsibility)
+- **Shrink the interface, not the pieces.** A caller should have to learn
+  *less* after the refactor than before — fewer entry points, fewer
+  parameters, fewer ordering rules and error modes to keep in mind. Splitting
+  one messy function into five that the caller must now sequence itself makes
+  the code worse: the same complexity, spread thinner, behind a bigger surface.
+  Push complexity *inward*; private helpers inside the thing are fine, they are
+  not part of what a caller must learn. This targets the surface callers
+  *inside the change* see — narrowing something outside callers depend on is an
+  API change, which is the public-API gate below, not a free win.
+- **Apply the deletion test before you create anything.** Imagine the new
+  function, class, file, or wrapper already deleted. If the complexity
+  reappears, spread across its callers, it earns its place — create it. If the
+  complexity simply vanishes, it was a pass-through: do not create it. Run the
+  same test on what is already there; a pass-through you find is a deletion,
+  not a refactor target. Deleting one that callers outside this change can see
+  is the same public-API gate.
 - Remove needless work — the performance pass below
+
+In ledger mode these two are a *filter on the bullet's own fix*, never a licence
+to hunt: shape the change a surviving bullet asked for so it shrinks the
+interface, and do not create something the deletion test rejects. A
+pass-through or fat interface you spot elsewhere goes back to the orchestrator
+as a new bullet, exactly like a side perf finding.
 
 ## Performance — part of every targeted refactor
 When `$ARGUMENTS` names a target, look for wasted work as well as messy
