@@ -17,7 +17,15 @@
 
 Every task runs through three layers. Do not skip ahead to code.
 
-1. **Spec — the interview must happen; its shape is yours.** Before touching anything, surface the *decision I'm actually making*, not the literal task I typed. Ask what you need to know — no more; how you ask is your call. Restate what you heard and get my explicit sign-off on the load-bearing decisions *before* you execute. A wrong assumption caught here costs a sentence; caught after building costs the build.
+1. **Spec — the interview must happen, and quality beats quantity.** Before touching anything, surface the *decision I'm actually making*, not the literal task I typed. Then interview in **rounds**:
+   - **Ask only the frontier** — the decisions whose prerequisites are already settled. A question whose answer depends on another question still open belongs to a later round, not this one.
+   - **One round = the whole frontier, batched.** Number each question and put your own recommended answer under it, so answering is a yes/no rather than an essay.
+   - **Facts are your job; decisions are mine.** Never ask me what you could read, grep, or run — go find it. A question that isn't a choice only I can make does not belong in a round.
+   - **Sharp near, loose far.** Question depth falls off with distance. Module 0 gets pinned down to the decision; later modules get sketched only as far as it takes to know they don't change module 0 — they get sharpened when their turn comes, and their own POC usually answers them better than I can today.
+   - **Scope is the exception — ask it wide.** "What is this *not* doing?" is worth asking about the whole build, not just module 0. Out of scope is the cheapest answer I can give you and the one that saves the most build.
+   - **Floor: one round is not an interview.** Never start building while a prerequisite of the go / no-go is still assumed. **Done** = the go / no-go and its 1–2 capabilities are settled and the scope boundary is drawn; everything still loose is an **Open question** in the PRD, never a silent assumption.
+
+   Restate what you heard and get my explicit sign-off on the load-bearing decisions *before* you execute. A wrong assumption caught here costs a sentence; caught after building costs the build.
 
    Write the outcome down as a **PRD**. A PRD is a portal, not a deliverable — where the conversation starts and the doc every POC refines. Minimum content, whatever the form:
    - **Problem & goal** — what we're solving and why now
@@ -110,6 +118,8 @@ Before adding any external dependency, all of these must be true:
 - **One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it. Ownership says *where*, not *when* — if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh
 - **Split the decision from the machinery.** A branch whose outcome matters, tangled with a framework, IO, or UI object, moves into a pure function; the framework class applies the result. Extract to pin a branch, not to raise coverage — a one-line delegation in its own file buys a test that cannot fail
 - **Claims in comments must be checkable.** "The only place that writes X" is a claim — run the grep first, and expect the next reader to re-run it. A name search proves an edge exists, never that one doesn't
+- **Read before you write; reuse before you add.** Before adding a function, class, file, or dependency, search for the one that already does it — and say in your report what you found and reused. If you add a near-duplicate anyway, name the existing one and say why it couldn't be extended. Reuse its **name** too: one thing, one name, repo-wide — a second name for the same concept is a duplicate nobody can grep for
+- **Don't patch a patch.** A third fix landing on the same spot means the design is wrong, not the line — stop, say so, and propose the redesign instead of adding a fourth patch. The same test applies to a layer: a new file, wrapper, or abstraction must hide more complexity than its interface adds; if reading it costs as much as reading what it hides, inline it
 - **Containerize only when necessary.** Start with a virtualenv or bare metal. Docker adds value for deployment parity and isolation — not for running a script
 - **Responsive web UI is mandatory in dev projects.** Any web UI must be usable on mobile by default — fluid layouts, viewport meta tag, breakpoints for narrow screens, no horizontal scroll. Test in DevTools device emulation before declaring a UI task done. POCs are exempt (validate the idea first), but the moment a POC graduates to a real project this becomes a hard requirement
 - **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created. Dead code, nits, bugs you pass on the way: if it's inside or affects the code you're already changing, and the fix changes no behavior, fix it and say so. Otherwise report it — say what it costs to leave it. "It would be nicer" is not a cost. Every changed line traces to the request or to a fix you named
@@ -120,6 +130,9 @@ Before adding any external dependency, all of these must be true:
 - Adding external dependencies for trivial operations
 - Frameworks where a library or stdlib would suffice
 - Vendor-specific implementations when open alternatives exist
+- Writing a new function, class, or file without first searching for the one that already does it, or coining a second name for something the repo already names
+- Stacking a third patch on the same spot instead of stopping and proposing a redesign
+- Starting to build after one round of questions, or asking me something you could have looked up yourself
 - Skipping POC validation for unproven ideas
 - POC-ing only the easy part while hand-waving the risky mechanism, or claiming a cost ("cheap"/"fast"/"constant") you never measured
 - Authoring a fixture/corpus that *guarantees* the result (a test that can't return the negative), or trusting a degenerate-looking number without auditing the harness for confounds — use real uncrafted data; the test must be able to fail
@@ -256,7 +269,9 @@ Copy this to any project's CLAUDE.md. These are mandatory rules, not suggestions
 ```markdown
 ## Dev Rules
 
-**Spec first.** Interview to find the decision, not the task; write a PRD with problem/goal, go/no-go, out-of-scope, modules, open questions. POCs refine it.
+**Spec first — quality of questions over quantity.** Interview to find the decision, not the task. Ask in batched rounds, only questions whose prerequisites are settled, each with your recommended answer under it; find facts yourself and ask me only the choices that are mine. Pin module 0 down to the decision, sketch later modules only enough to know they don't change it, and ask what's out of scope for the whole build. One round is not an interview; never build on an assumed prerequisite. Write a PRD with problem/goal, go/no-go, out-of-scope, modules, open questions. POCs refine it.
+
+**Reuse before you add.** Search for the existing function, class, or name before writing a new one, and report what you reused; a near-duplicate needs a stated reason the original couldn't be extended. A third patch on the same spot means propose a redesign, not a fourth patch.
 
 **POC first, one module at a time.** Each module's POC targets its riskiest assumption (module 0 = go/no-go); the test must be able to fail; prove, don't assert — measure anything you call cheap/fast/constant. No fitting to pass. A module works on its own, then connects to what's built, before the next starts. Never ship the POC.
 
