@@ -1,7 +1,7 @@
 ---
 name: refactor
 description: Refactor and optimize [code]
-argument-hint: [file-or-function, or empty for the fix ledger]
+argument-hint: [file-or-function, a named area (e.g. "the auth module"), or empty for the fix ledger]
 allowed-tools: Read, Edit, Grep, Glob, Bash(npm test:*), Bash(npx jest:*), Bash(npx vitest:*), Bash(pnpm test:*), Bash(yarn test:*), Bash(pytest:*), Bash(python:*), Bash(go test:*), Bash(cargo test:*), Bash(make test:*), Bash(git diff:*), Bash(git grep:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git switch:*)
 disable-model-invocation: true
 ---

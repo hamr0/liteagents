@@ -1,6 +1,6 @@
 ---
 description: Refactor and optimize [code]
-argument-hint: [file-or-function, or empty for the fix ledger]
+argument-hint: [file-or-function, a named area (e.g. "the auth module"), or empty for the fix ledger]
 ---
 Refactor $ARGUMENTS. A targeted refactor includes the performance pass
 below — it is on by default, not a separate command.
