@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [3.10.0] - 2026-09-18
 
 ### Changed
 - **The spec interview in `AGENT_RULES.md` is now six checkable rules instead of
@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fail against a mutated copy of `installer/cli.js` — advice block removed,
   `exit(1)` changed to `exit(0)`, and the message line removed. The
   `expectedTests` floor for the suite rises 30 → 32.
+- **`/refactor`'s `argument-hint` now advertises its named-area argument.**
+  The body's "Where to look — broad targets only" section added a third
+  `$ARGUMENTS` shape — a named area — but `argument-hint` still listed only
+  two, so a user reading the hint alone would assume an area argument was
+  unsupported. Fixed by hand in the three kits whose frontmatter carries the
+  key (Claude, Ampcode, Droid); `packages/opencode/command/refactor.md` has
+  no `argument-hint` key and was correctly left alone. Fix ledger: 1 → 0.
 
 ---
 
