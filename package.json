@@ -19,7 +19,8 @@
     "validate-packages": "node scripts/validate-all-packages.js",
     "prepack": "rm -rf packages/*/plugins/*/plugins/*/node_modules",
     "prepublishOnly": "npm run clean && npm run validate",
-    "postinstall": "node postinstall.js"
+    "postinstall": "node postinstall.js",
+    "check:lockfile": "node scripts/check-lockfile.mjs"
   },
   "keywords": [
     "claude",
@@ -72,7 +73,5 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
-  ],
-  "dependencies": {},
-  "devDependencies": {}
+  ]
 }
