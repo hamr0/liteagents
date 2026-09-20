@@ -135,6 +135,17 @@ the commits, add anything missing, and retitle it `## [X.Y.Z] - YYYY-MM-DD`.
 Otherwise write a new entry under that title. Never leave both. An Added
 entry means at least a minor bump. Past entries are history — leave them.
 
+**Locate the heading safely — the bare string is not a safe anchor.** A
+CHANGELOG that documents release tooling can quote `## [Unreleased]` inside a
+shipped release note's own prose, so a blind find-and-replace on that string
+can rewrite history instead of the draft. Anchor on the full heading with its
+surrounding newlines (`"\n## [Unreleased]\n"`) — only the real heading has
+both. Count matches before writing: exactly one is required; zero or more
+than one is a **stop** — report it, do not guess which one is real. After
+writing, verify every other occurrence of the bare string is byte-identical
+to before, and that the previous version's heading and `---` separators
+survived.
+
 **This is the worker's job, start to finish.** The orchestrator checks the
 entry; it does not redo or patch it.
 
