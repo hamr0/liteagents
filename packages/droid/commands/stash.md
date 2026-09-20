@@ -33,10 +33,28 @@ Save session context for compaction recovery or handoffs.
    supports it. Falls back to writing inline if subagent/background dispatch isn't available
 3. Enables context restoration after compaction
 4. **Consolidation nudge** — whichever actor wrote the file (the subagent, or the session
-   itself on the inline fallback) counts the unprocessed backlog after saving:
-   `unprocessed = (files in .factory/stash/*.md) − (entries in .factory/remember/.processed)`
-   (a missing `.processed` manifest means 0 processed). If `unprocessed >= 5`, end with one line:
-   > 📝 N stashes since last consolidation — run `/remember` to fold them into memory.
+   itself on the inline fallback) counts the unprocessed backlog after saving. `$ROOT` is the
+   absolute repo root — the same one the stash file was just written under. Run these two
+   lines verbatim. Do not substitute a cwd-relative path (the write-up subagent's cwd is not
+   guaranteed to be the repo root) and do not discover the manifest with a `*` glob over the
+   remember dir (`.processed` is a dotfile, and globs skip dotfiles):
+
+   ```bash
+   ls -1 "$ROOT"/.factory/stash/*.md 2>/dev/null | wc -l                    # total
+   test -f "$ROOT/.factory/remember/.processed" \
+     && grep -c '' "$ROOT/.factory/remember/.processed" || echo 0           # processed
+   ```
+
+   `unprocessed = total − processed`. Use `grep -c ''`, not `wc -l`: a manifest whose last
+   entry has no trailing newline undercounts by one under `wc -l`.
+
+   If `$ROOT` cannot be resolved, report the backlog as **UNKNOWN** and name the path that
+   failed — never substitute 0. Substituting 0 maximizes the apparent backlog and fires the
+   nudge on every stash. A resolvable `$ROOT` with no `.processed` file is a genuine 0.
+
+   If `unprocessed >= 5`, end with one line, carrying the raw numbers so a miscount is
+   visible without re-deriving it:
+   > 📝 N unprocessed stashes (T total − P consolidated) — run `/remember` to fold them into memory.
 
    No counter is stored — the count is derived each time, and running `/remember` updates
    `.processed`, so the backlog drops on its own. Just emit the nudge; never run `/remember` automatically.

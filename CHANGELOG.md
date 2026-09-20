@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **`/stash`'s consolidation nudge no longer fires on an already-consolidated
+  backlog.** The count step was written as prose (`stash files − .processed
+  entries`) with an instruction to treat a manifest it could not find as 0. Two
+  ways to not find it: `.processed` is a dotfile, so a `*` glob over the remember
+  dir skips it, and the write-up subagent's cwd is not guaranteed to be the repo
+  root, so a relative path misses. Either way the silent 0 inverted the answer —
+  one real repo with 69 stashes and 67 consolidated (true backlog 2, below the
+  threshold of 5) reported 69 and nudged on every single stash. The step is now
+  two literal commands anchored on an absolute `$ROOT`, never a glob; an
+  unresolvable root reports **UNKNOWN** instead of 0, while a resolvable root with
+  no manifest is still a genuine 0; the count uses `grep -c ''` rather than
+  `wc -l`, which undercounts a manifest whose last entry has no trailing newline;
+  and the nudge now carries its raw numbers so a miscount is visible on sight.
+
 ## [3.10.0] - 2026-09-18
 
 ### Changed
