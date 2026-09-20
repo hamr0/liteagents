@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [3.11.0] - 2026-09-20
 
 ### Fixed
 - **`/stash`'s consolidation nudge no longer fires on an already-consolidated
@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no manifest is still a genuine 0; the count uses `grep -c ''` rather than
   `wc -l`, which undercounts a manifest whose last entry has no trailing newline;
   and the nudge now carries its raw numbers so a miscount is visible on sight.
+- **`/release` Phase 2 no longer retitles `## [Unreleased]` with a global
+  find-and-replace.** The instruction to retitle an existing section never said
+  how to find it, and on this repo the bare string occurs twice — the real
+  heading and shipped v3.8.0 prose that quotes it — so a global replace would
+  rewrite release history. Phase 2 now anchors on the literal `"\n##
+  [Unreleased]\n"`, asserts the match count is exactly 1 before writing, stops
+  on zero or more than one instead of guessing, and verifies afterward that the
+  other occurrence and the surrounding separators survived untouched.
 
 ## [3.10.0] - 2026-09-18
 
