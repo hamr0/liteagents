@@ -44,7 +44,7 @@ Save session context for compaction recovery or handoffs.
    dotfile, and globs skip dotfiles):
 
    ```bash
-   find "$ROOT/.amp/stash" -maxdepth 1 -name '*.md' ! -name '.*' 2>/dev/null | wc -l   # total
+   find "$ROOT/.amp/stash/" -maxdepth 1 -name '*.md' ! -name '.*' 2>/dev/null | wc -l   # total
    if [ -f "$ROOT/.amp/remember/.processed" ]; then grep -c '' "$ROOT/.amp/remember/.processed"; else echo 0; fi   # processed
    ```
 
