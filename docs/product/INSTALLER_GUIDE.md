@@ -570,9 +570,9 @@ is where the per-kit shape lives, and it is already correct:
 | | subagents | commands |
 |---|---|---|
 | claude | `name, description, when_to_use, model, color` | `Bash(git diff:*)` |
-| ampcode | same as claude | `Bash(git diff *)` |
-| droid | `…model, tools: [array]` | `Bash(git diff *)` |
-| opencode | `…mode, temperature, tools: {map}` | `Bash(git diff *)` |
+| ampcode | same as claude | `Bash(git diff:*)` |
+| droid | `…model, tools: [array]` | `description`, optional `argument-hint` — no `Bash()` field |
+| opencode | `…mode, temperature, tools: {map}` | `description`, optional `argument-hint` — no `Bash()` field |
 
 Because frontmatter is meant to differ, it cannot be verified by diffing.
 It is verified against `scripts/frontmatter.json` instead, which is generated
