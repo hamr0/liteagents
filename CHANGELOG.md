@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [3.12.0] - 2026-09-21
 
 ### Added
 - **New `/debrief` skill** — a deliberate action that answers "verify what
@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropped, merged, re-ranked, or weakened. It never fixes anything;
   unaddressed items go to the fix ledger, tagged `nit`/`change`. 13 -> 14
   capabilities, 9 -> 10 deliberate actions.
+- **First tests for the literal shell commands shipped inside skill/command
+  markdown** (`tests/skill-shell/skill-shell.test.js`): the ledger count
+  regex, the docs-only classifier grep, and `/debrief`'s bookmark script,
+  extracted from the shipped files (not re-typed) across all 4 kits and run
+  for real under bash and zsh — 149 tests with zsh present, or a 93-test
+  bash-only floor when it is not, so `npm test` passes either way.
 
 ### Changed
 - **Fix ledger bullets now carry a trailing size tag**, `nit` or `change` —
@@ -64,13 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that the tail stays unwrapped on a bullet's last line. `docs/product/
   branch-review-README.md` and a stale "`/debrief` ... before commit" line
   in the same file are updated to match.
-
-### Added
-- **First tests for the literal shell commands shipped inside skill/command
-  markdown** (`tests/skill-shell/skill-shell.test.js`, 149 tests): the ledger
-  count regex, the docs-only classifier grep, and `/debrief`'s bookmark
-  script, extracted from the shipped files (not re-typed) across all 4 kits
-  and run for real under bash and zsh.
 
 ---
 
