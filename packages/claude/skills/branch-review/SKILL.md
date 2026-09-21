@@ -358,13 +358,19 @@ assumed pass. Then a `checks:` line for the two checks most often cut short:
 does not block.
 
 **Write the review record** to `.claude/remember/last-review.md`, overwriting
-it. `/release` reads this file; a SHA that lives only in a chat message is
-gone after a compaction or a handover, and the only remaining source is the
-orchestrator — the one party this command already refuses to take a review's
-word from. **Write it at the end of every run, unconditionally** — not after
-someone decides what to do about it. The information exists now, and the file
-earns its keep only by surviving a compaction, an abandoned session, or a
-handover to someone who never saw the report. **Carry `debrief-sha:` forward
+it. `/release` reads this file — a chat-only SHA is gone after a compaction
+or handover, and the orchestrator is the only other source (one this command
+already refuses to trust). **Write it at the end of every run,
+unconditionally**, not after someone decides what to do — it earns its keep
+by surviving a compaction, an abandoned session, or an unseen handover.
+
+**Derive `ledger:` before filling the template** — no ledger file → `ledger:
+none`; otherwise run both (first is the total, second is K):
+```
+grep -c '^- ' .claude/remember/fix-ledger.md
+grep -c '^[- ].*· change$' .claude/remember/fix-ledger.md
+```
+N = total − K, M = bullets appended this run. **Carry `debrief-sha:` forward
 first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:
 ```
 sha: <full HEAD sha>
@@ -376,59 +382,53 @@ date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 docs-commit: <full sha | none>
-docs: <space-separated files the sweep changed | none>
+docs: <space-separated paths the sweep changed | none — never prose>
+ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 debrief-sha: <carried forward verbatim, or omitted if absent>
 ```
 
-`sha:` is the HEAD that stages 1-3 reviewed — **before** Stage 4's docs
-commit, if it made one. `docs:` is repo-relative paths on one space-separated
-line — exactly the files in `docs-commit`, nothing implied or assumed beyond
-what's listed. `/release` still compares this SHA to `HEAD`, and its relaxed
-stale rule (see `/release`) is what lets a docs-only commit sit between the
-two without forcing a re-review.
+`sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
+it made one. `docs:` is repo-relative **paths only**, space-separated, or
+`none` — never prose, never reasons; `docs-commit: none` means `docs: none`.
+The per-change sweep table (change · doc `file:line` · added/fixed/already
+correct) belongs in the **report**, never the record. `/release` still
+compares this SHA to `HEAD`; its relaxed stale rule (see `/release`) lets a
+docs-only commit sit between the two without forcing a re-review.
 
-`blockers: none` when the verdict is ready. One line per blocker and nothing
-more: the reasoning belongs in the report, and the non-blocking findings
-belong in the ledger. This exists so a session that never saw the report can
-learn *what* is blocked, not just *that* something is — otherwise the next
-run rediscovers it by re-reviewing the branch, which is the
-non-convergence this command exists to stop.
+`blockers: none` when the verdict is ready — one line per blocker, nothing
+more: reasoning belongs in the report, non-blocking findings in the ledger.
+This lets a session that never saw the report learn *what* is blocked, not
+just *that* something is — otherwise the next run rediscovers it by
+re-reviewing the branch, the non-convergence this command exists to stop.
 
-`coverage` is recorded because a `ready` from a run whose security stage did
-not execute is not the same fact as one where it did, and the reader of this
-file cannot tell them apart otherwise.
+`coverage` is recorded because a `ready` whose security stage didn't run
+isn't the same fact as one where it did, and the reader can't tell them apart
+otherwise.
 
-**There is no override field, and no `verdict: overridden`.** A SHA is
-checkable by anyone; consent is not, so a consent line in a file is forgeable
-by whatever writes the file — and a persisted override is reusable, silently
-covering the next release as well as this one. Releasing over a blocked
-review is a live decision made at `/release`'s hand-back, in conversation.
+**There is no override field, no `verdict: overridden`.** A SHA is checkable
+by anyone; consent isn't, so a consent line is forgeable by whatever writes
+the file, and a persisted override silently covers the next release too.
+Releasing over `blocked` is a live decision at `/release`'s hand-back, in
+conversation.
 
-**Nothing clears this file.** It is overwritten whole on the next run, and the
-`sha:` line is what expires it: fix something, commit, and the recorded hash
-no longer matches HEAD, so the gate reports *stale* and asks for a
-re-review rather than *blocked*. A blocked verdict can only persist while HEAD
-does not move — which means nothing was fixed, which is the correct outcome.
+**Nothing clears this file.** It's overwritten whole next run; the `sha:`
+line expires it — fix something, commit, and the hash no longer matches HEAD,
+so the gate reports *stale*, not *blocked*. A blocked verdict persists only
+while HEAD doesn't move, i.e. nothing was fixed — the correct outcome.
 
 End with:
-- **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
-  tree clean at start; at exit clean or the two `.claude/remember/` paths
-  only.**
-- **Fix ledger: N nits, K changes — M added this run** (M appended this run;
-  no ledger file → **Fix ledger: none**). Else, total and K:
-  ```
-  grep -c '^- ' .claude/remember/fix-ledger.md
-  grep -c '^[- ].*· change$' .claude/remember/fix-ledger.md
-  ```
-  N = total − K; N + K > 0 → add "N + K fixes waiting — run `/refactor` between features."
+- **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
+  clean at start, at exit clean or only the two `.claude/remember/` paths.**
+- **Fix ledger:** the same N/K/M as the record's `ledger:` line (`ledger:
+  none` → **Fix ledger: none**); N + K > 0 → add "N + K fixes waiting — run
+  `/refactor` between features."
 - **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
-- **A run that produces no record is not a review.** If you die mid-flight —
-  a rate limit, a crash, a cancelled turn — there is no report and no
-  `last-review.md`, and silence must never be read as a pass. `/release`
-  already treats a missing record as no review; state it here too so nobody
-  fills the gap from memory of a run that never finished.
+- **A run that produces no record is not a review.** Dying mid-flight — a rate
+  limit, a crash, a cancelled turn — leaves no report and no `last-review.md`;
+  silence is never a pass. `/release` already treats a missing record as no
+  review; say so here too, so nobody fills the gap from memory.
 - **Escalate to the orchestrator** with the findings. It decides what gets
   fixed and by whom. Say plainly what you could not verify.

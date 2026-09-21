@@ -42,6 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check**: every file in the diff since the reviewed SHA must be under
   `docs/` or a `*.md` file at the repo root, replacing the old rule that
   compared against the review record's `docs:` line.
+- **`/branch-review`'s review record gains a `ledger: N nits, K changes, M
+  added` field**, derived from the fix ledger before the record is written
+  so filling it forces the same `grep -c` counts the closing report line
+  repeats. `docs:` is now spelled out as repo-relative paths only,
+  space-separated, or `none` — never prose — after a real run wrote a prose
+  sweep summary into it, which `/release` and the re-review skip both read
+  as a file list.
+- **AGENT_RULES.md now names `/debrief` as the preliminary step before
+  `/branch-review`** in the Operating Flow and the never-commit-to-`main`
+  safeguard — checkable as a debrief report naming the commands it ran and
+  their totals existing before `/branch-review` is proposed.
 
 ---
 

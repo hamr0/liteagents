@@ -291,7 +291,8 @@ verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
 docs-commit: <full sha | none>
-docs: <space-separated files the sweep changed | none>
+docs: <space-separated paths the sweep changed | none — never prose>
+ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
 debrief-sha: <carried forward verbatim, or omitted if absent>
@@ -300,8 +301,12 @@ debrief-sha: <carried forward verbatim, or omitted if absent>
 `sha:` is the HEAD that stages 1-3 reviewed — **before** stage 4's docs commit, if it made
 one; `docs-commit` and `docs:` record that commit and what it touched separately, which is
 what lets `/release` Phase 0.5 (§9) treat a docs-only commit after the reviewed SHA as not
-stale. `docs:` is repo-relative paths on one space-separated line — exactly the files in
-`docs-commit`, nothing implied or assumed beyond what's listed.
+stale. `docs:` is repo-relative **paths only**, space-separated, or the literal `none` —
+never prose, never reasons; `docs-commit: none` means `docs: none`. The per-change sweep
+table (change · doc `file:line` · added/fixed/already correct) belongs in the report, never
+the record. `ledger:` is derived from the fix ledger before the record is written — `N`
+nits and `K` changes from the same two `grep -c` counts the closing report line repeats, `M`
+the bullets appended this run; no ledger file → `ledger: none`.
 
 **`debrief-sha:` is a different command's field, sharing this file.** It's `/debrief`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:

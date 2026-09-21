@@ -558,8 +558,8 @@ sync, or worse, survives as drift.
    to go further if anything is out of step.
 9. **Sync `~/.claude`** from `packages/claude` — the repo is the source of
    truth, never the other way round.
-10. **Commit, then `/branch-review`, then `/release`.** Three separate calls,
-    each needing its own go-ahead.
+10. **Commit, then `/debrief`, `/branch-review`, then `/release`.** Four
+    separate calls, each needing its own go-ahead.
 
 ### Frontmatter
 

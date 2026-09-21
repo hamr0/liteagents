@@ -152,8 +152,8 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 
 ### `/debrief` → `/branch-review` → `/release` → `/refactor`
 
-- **`/debrief`** — everything since the last debrief, committed or not, before you
-  commit. The orchestrator only writes a handoff; one spawned mid-tier worker tries
+- **`/debrief`** — everything since the last debrief, committed or not, before
+  `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
   to break the claims with real runs (works, no regression, bloat, glossed over,
   underspecced, docs) and reports max 5 items in Fix now / Later. It never fixes
   anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or

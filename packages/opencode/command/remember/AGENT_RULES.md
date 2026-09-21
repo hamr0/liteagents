@@ -35,7 +35,7 @@ Every task runs through three layers. Do not skip ahead to code.
    - **Open questions** — unknowns that don't block; never silently assumed
 
    Every POC result updates the PRD; one that flips the go/no-go or a module's assumption is a spec change, not a footnote.
-2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). When the work is done, propose `/branch-review` — a general review plus a full `/security` audit, which reports findings and never fixes them — and then `/release`, which runs `/ship` as the mechanical pre-deploy gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
+2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). When the work is done, first propose `/debrief` — everything since the last debrief, committed or not, checked by a separate mid-tier worker that tries to break the claims with real runs; it only surfaces, never fixes, and is not a gate (checkable: a debrief report naming the commands it ran and their totals exists before `/branch-review` is proposed) — then `/branch-review` — a general review plus a full `/security` audit, which reports findings and never fixes them — and then `/release`, which runs `/ship` as the mechanical pre-deploy gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
 3. **Environment — the standing context.** This file primes every session. Critical-path protections (secrets, auth, schema, CI) are stated as **Always / Ask / Never** below and bind you as written. Where your tool offers a permission allow/ask/deny list, mirror them there so they are enforced and not merely requested.
 
 **Execution order — work the way a program runs, in this order, nothing skipped:**
@@ -69,7 +69,7 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
 - **Never** put secrets in the tree — see [Security & Robustness Invariants §1](#security--robustness-invariants)
-- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/branch-review` followed by `/release`; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
+- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/debrief`, `/branch-review`, and `/release`, in that order; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
 
 ---
 
