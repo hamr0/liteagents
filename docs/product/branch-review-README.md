@@ -231,8 +231,8 @@ git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the 
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
 from a review run lands here as one bullet, and `/debrief` (a separate command covering
-everything since the last debrief, run by a spawned mid-tier worker before commit)
-appends to the same file in the same format. Each bullet carries a trailing tag — the
+everything since the last debrief, committed or not, run by a spawned mid-tier worker
+before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
 redesign. An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
@@ -380,8 +380,8 @@ target from the user:
    one is **retagged `change` in place**, not silently left.
 5. Run the tests, then report fixed / dropped / left, with the reason per left item, ending
    with **N nits, K changes** remaining — counted mechanically (`grep -c '^- '
-   fix-ledger.md` = total, `grep -c '^[- ].*· change$' fix-ledger.md` = K, N = total − K),
-   the same way `/branch-review`'s closing line does.
+   fix-ledger.md` = total, `grep -cE '@ [0-9a-f]{7,40} · change$' fix-ledger.md` = K,
+   N = total − K), the same way `/branch-review`'s closing line does.
 6. Say plainly: commit, then run `/branch-review` on this branch — ledger mode is a fixer,
    not a review, and its own diff gets the ordinary gate like any other change.
 

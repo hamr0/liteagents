@@ -54,6 +54,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   safeguard — checkable as a debrief report naming the commands it ran and
   their totals existing before `/branch-review` is proposed.
 
+### Fixed
+- **`/branch-review`'s and `/refactor`'s ledger `change` count no longer
+  miscounts a wrapped bullet.** The old `grep -c '^[- ].*· change$'` matched
+  any bullet line ending in the word "change", including a wrapped bullet's
+  *first* physical line, when the real trailing tag (on the bullet's *last*
+  line) was `nit`. The count now anchors on the tail itself —
+  `grep -cE '@ [0-9a-f]{7,40} · change$'` — and the ledger format documents
+  that the tail stays unwrapped on a bullet's last line. `docs/product/
+  branch-review-README.md` and a stale "`/debrief` ... before commit" line
+  in the same file are updated to match.
+
+### Added
+- **First tests for the literal shell commands shipped inside skill/command
+  markdown** (`tests/skill-shell/skill-shell.test.js`, 149 tests): the ledger
+  count regex, the docs-only classifier grep, and `/debrief`'s bookmark
+  script, extracted from the shipped files (not re-typed) across all 4 kits
+  and run for real under bash and zsh.
+
 ---
 
 ## [3.11.0] - 2026-09-20

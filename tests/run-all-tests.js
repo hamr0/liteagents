@@ -89,6 +89,12 @@ const testSuites = [
     expectedTests: 24
   },
   {
+    name: 'skill-shell',
+    file: 'skill-shell/skill-shell.test.js',
+    description: 'Tests the literal shell commands shipped inside branch-review/refactor/release/debrief markdown (ledger count, docs-only classifier, debrief bookmark script), extracted from all 4 kits and run for real under bash (and zsh when present)',
+    expectedTests: 149
+  },
+  {
     name: 'installer closing note',
     file: 'installer/closing-note.test.js',
     description: 'Tests installer/cli.js formatBackupClosingNote: silent on a fresh install, ~-substituted backup paths, and never hardcodes the claude-only commands/remember path',

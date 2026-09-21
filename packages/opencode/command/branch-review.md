@@ -311,17 +311,17 @@ Not in the report. **Append** each one as a single bullet to
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
-> not severity; untagged counts as `nit`. Always appended at the end.
+> not severity; untagged counts as `nit`; tail unwrapped on the last line.
+> Always appended at the end.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha> · nit
 ```
 
 **A ledger bullet's failure scenario is subject to stage 3 like any other.**
-Ledger items skip the report, so they are easy to skip verifying too, and an
-unverified consequence written in the bullet's voice reads as established
-fact to whoever fixes it later. Either confirm it, or prefix the scenario
-with `UNVERIFIED:` so `/refactor` retests before acting.
+Ledger items skip the report, so an unverified consequence in the bullet's
+voice reads as fact to whoever fixes it later. Either confirm it, or prefix
+the scenario with `UNVERIFIED:` so `/refactor` retests before acting.
 
 The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
@@ -364,7 +364,7 @@ by surviving a compaction, an abandoned session, or an unseen handover.
 none`; otherwise run both (first is the total, second is K):
 ```
 grep -c '^- ' .opencode/remember/fix-ledger.md
-grep -c '^[- ].*· change$' .opencode/remember/fix-ledger.md
+grep -cE '@ [0-9a-f]{7,40} · change$' .opencode/remember/fix-ledger.md
 ```
 N = total − K, M = bullets appended this run. **Carry `debrief-sha:` forward
 first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:

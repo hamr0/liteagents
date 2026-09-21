@@ -75,7 +75,7 @@ refactor and how to close each item.
    — counted the same mechanical way `/branch-review` does:
    ```
    grep -c '^- ' .opencode/remember/fix-ledger.md
-   grep -c '^[- ].*· change$' .opencode/remember/fix-ledger.md
+   grep -cE '@ [0-9a-f]{7,40} · change$' .opencode/remember/fix-ledger.md
    ```
    First is the total bullet count, second is K; N = total − K.
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
