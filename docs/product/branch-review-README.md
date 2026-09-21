@@ -166,10 +166,13 @@ pass that sets out to confirm reliably misses what an adversarial pass finds.
 state → the wrong output, crash, or exposure that results. If the worker can't write that
 sentence, the finding isn't ready — drop it or mark it uncertain. No vibes.
 
-### Stage 4 — Docs sweep (ready verdicts only, whole branch)
-Runs **once, at the end**, only once the verdict is `ready` — a `blocked` run defers it
-(`docs sweep: deferred — verdict blocked`) rather than sweeping a branch that isn't done
-changing. When it runs, it always sweeps the **whole branch** (`main..HEAD`), never a
+### Stage 4 — Docs sweep (settled reviews only, whole branch)
+Runs **once, at the end**, only once the review is **settled**: verdict `ready`, or every
+open blocker named pushed-through by the user, by name, in the invocation — never assumed.
+Pushing through never changes the verdict (`blocked` stands, no override field, `/release`
+still stops and asks live); it only unblocks the sweep. A blocker neither fixed nor
+pushed through leaves the review **unsettled** → deferred (`docs sweep: deferred —
+unsettled`). When it does run, it always sweeps the **whole branch** (`main..HEAD`), never a
 re-review's narrower `<recorded sha>..HEAD`: a single run at the end, over the whole
 branch, means no narrower range can leave an earlier commit undocumented. The worker lists
 every user-visible change from the commit bodies, diff, and recent `.claude/stash/` notes;

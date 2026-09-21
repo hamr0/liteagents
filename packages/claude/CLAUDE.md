@@ -45,5 +45,5 @@ All resources are auto-discovered from frontmatter in their respective directori
 - **Skills**: `./skills/*/SKILL.md`
 
 Claude Code merged custom commands into skills, so every capability ships as
-`skills/<name>/SKILL.md`. The nine that are deliberate actions carry
+`skills/<name>/SKILL.md`. The ten that are deliberate actions carry
 `disable-model-invocation: true`, so Claude only runs them when you type them.

@@ -172,6 +172,7 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 |---|---|
 | [`/remember`](docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
+| [`/debrief`](docs/product/debrief-README.md) | The handoff → worker → relay flow, the bar, Fix now / Later |
 | [`/branch-review`](docs/product/branch-review-README.md) | The four stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |

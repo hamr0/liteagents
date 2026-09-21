@@ -538,7 +538,7 @@ sync, or worse, survives as drift.
      already there.
    - `README.md` — the capability table and the counts in the header line
    - `docs/product/<name>-README.md` — the capability's own page, if it has
-     one (branch-review, docs-builder, live-canvas, remember all do)
+     one (branch-review, debrief, docs-builder, live-canvas, remember all do)
    - `packages/subagentic-manual.md` — table, install rows, **By category**
      counts
    - `packages/claude/CLAUDE.md`, `packages/droid/AGENTS.md`,

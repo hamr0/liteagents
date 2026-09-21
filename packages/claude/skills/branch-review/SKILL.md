@@ -53,8 +53,8 @@ at the current HEAD SHA.
   config, or tests.
 - **Prove it with two checks, because neither sees what the other does.**
   `git status --porcelain`, at start and again before you report, proves the
-  tree is clean — no code or config changed, and, when Stage 4 ran (`ready`
-  only), that its doc edits landed as the last act before you report. It
+  tree is clean — no code or config changed, and, when Stage 4 ran (review
+  settled), that its doc edits landed as the last act before you report. It
   cannot police your own two `.claude/` writes:
   `.claude/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
@@ -122,10 +122,10 @@ recollection, for the same reason `/release` does. Then:
   the branch name catches a switch, the ancestry check catches a rebase or
   squash under the same name. Otherwise:
 
-- **`sha:` ≠ HEAD, but every file since is forgiven** (`/release` Phase 0.5's
-  rule: under `docs/`, a root `*.md`, or on `docs:`) — `git diff --name-only
-  <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`; every printed path must
-  be on `docs:` too, else fall through — otherwise treat like `sha:` = HEAD.
+- **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` —
+  `/release` Phase 0.5's rule):
+  `git diff --name-only <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`
+  — every path must also be on `docs:`, else fall through, else `sha:`=HEAD.
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
   re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
@@ -247,10 +247,10 @@ inputs or state → the wrong output, crash, or exposure that results. If you
 cannot write that sentence, the finding is not ready — drop it or mark it
 uncertain. No vibes.
 
-## Stage 4 — Docs sweep (ready verdicts only, whole branch)
-Runs **once, at the end**, only on a `ready` verdict — `blocked` skips it
-(`docs sweep: deferred — verdict blocked`) — and always over the **whole
-branch** (`main..HEAD`), never a re-review's narrower `<recorded sha>..HEAD`.
+## Stage 4 — Docs sweep (settled reviews only, whole branch)
+Runs **once, at the end**, only when **settled** (`ready`, or every open
+blocker pushed-through by name — never assumed, never changes `blocked`).
+Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..HEAD`.
 
 1. **List the changes.** Read the commit bodies (not just subjects) and the
    diff, plus the newest one or two notes in `.claude/stash/`, for every
@@ -303,8 +303,7 @@ check before escalating.
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
 `.claude/remember/fix-ledger.md` (header below if missing), tagged `nit` or
-`change` (fix size, not severity; most are `nit`). A pushed-through blocker
-goes here too, on the user's say-so — it does **not** unblock anything.
+`change` — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
 
 ```
 # Fix ledger
@@ -414,13 +413,14 @@ End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
   tree clean at start; at exit clean or the two `.claude/remember/` paths
   only.**
-- **Fix ledger: N nits, K changes — M added this run** (M = appended this
-  run). No ledger file → **Fix ledger: none**. Else `grep -c '^- '
-  .claude/remember/fix-ledger.md` = total, `grep -c '^[- ].*· change$'
-  .claude/remember/fix-ledger.md` = K, N = total − K. N + K > 0 → add: "N + K
-  fixes waiting — run `/refactor` between features."
-- **Docs sweep: N changes documented, commit `<sha | none>`**, or **deferred
-  — verdict blocked**.
+- **Fix ledger: N nits, K changes — M added this run** (M appended this run;
+  no ledger file → **Fix ledger: none**). Else, total and K:
+  ```
+  grep -c '^- ' .claude/remember/fix-ledger.md
+  grep -c '^[- ].*· change$' .claude/remember/fix-ledger.md
+  ```
+  N = total − K; N + K > 0 → add "N + K fixes waiting — run `/refactor` between features."
+- **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** If you die mid-flight —
   a rate limit, a crash, a cancelled turn — there is no report and no
