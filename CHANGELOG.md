@@ -10,13 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **New `/debrief` skill** — a deliberate action, run by the author of a
-  piece of work right before commit, that answers "verify what you
-  delivered, what did you gloss over, what did I miss?" with real runs
-  (tests executed now, not re-asserted) instead of a confident paragraph.
-  Ask-and-surface only — it never fixes anything; unaddressed items go to
-  the fix ledger for the user to pick up later. 13 -> 14 capabilities, 9 ->
-  10 deliberate actions.
+- **New `/debrief` skill** — a deliberate action that answers "verify what
+  you delivered, what did you gloss over, what did I miss?" for everything
+  since the last debrief, committed or not: the orchestrator writes a
+  handoff and spawns one mid-tier worker (never the main session, never the
+  high tier) to try to break the claims with real runs. The range resumes
+  from a `debrief-sha:` bookmark line inside `.claude/remember/last-review.md`
+  (`/debrief`'s only write to that field; `/branch-review` only carries it
+  forward unchanged). The bar — one concrete failure sentence or it's
+  dropped — applies to both the Fix now and Later piles alike. "As-is" relay
+  means same items/order/piles with rewording allowed, nothing added,
+  dropped, merged, re-ranked, or weakened. It never fixes anything;
+  unaddressed items go to the fix ledger, tagged `nit`/`change`. 13 -> 14
+  capabilities, 9 -> 10 deliberate actions.
 
 ### Changed
 - **Fix ledger bullets now carry a trailing size tag**, `nit` or `change` —
@@ -26,10 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode now fixes only surviving `nit` bullets, skipping `change` bullets
   (reported as "left: change") and retagging a `nit` that turns out to need
   a behaviour change in place.
-- **`/branch-review`'s Stage 4 docs sweep now runs once, at the end, only on
-  a `ready` verdict**, and always over the whole branch — never a
-  re-review's narrower `<recorded sha>..HEAD` range. A `blocked` verdict
-  reports `docs sweep: deferred — verdict blocked` instead of running it.
+- **`/branch-review`'s Stage 4 docs sweep now runs once, at the end, only
+  when the review is settled** — verdict `ready`, or every open blocker
+  pushed through by name in the invocation — and always over the whole
+  branch, never a re-review's narrower `<recorded sha>..HEAD` range.
+  Pushing a blocker through never changes the verdict. An unsettled review
+  reports `docs sweep: deferred — unsettled` instead of running it.
 - **`/release` Phase 0.5's stale-review exception is now a simple docs-only
   check**: every file in the diff since the reviewed SHA must be under
   `docs/` or a `*.md` file at the repo root, replacing the old rule that

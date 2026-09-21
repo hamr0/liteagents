@@ -104,22 +104,24 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 was actually read rather than assuming.
 
 **Re-review after fixes: read `.amp/remember/last-review.md` first.** Its
-`sha:` line is the previously-reviewed commit and its `blockers:` list is what
-you owe an answer on — take both from the file, never from the orchestrator's
-recollection, for the same reason `/release` does. Then:
+`sha:` line (never `debrief-sha:`) is the previously-reviewed commit, its
+`blockers:` list what you owe an answer on — take both from the file, never
+the orchestrator's recollection, for the same reason `/release` does. Then:
 
-- **First, check the record belongs to this branch.** There is one record file
-  per repo, not one per branch. Validate `<that sha>` first with
-  `git rev-parse --verify <that sha>` — a value that fails this (e.g. a
-  corrupted or hand-edited record, or one starting with `-`, which git would
-  otherwise parse as an option) is a malformed record; treat it exactly as
-  **No file** below. If it validates, and its `branch:` line differs from the
-  current branch, or `git merge-base --is-ancestor <that sha> HEAD` exits
-  non-zero, the record describes a different or rewritten history — treat it
-  exactly as **No file** below and review the whole branch. Skipping this
-  resolves `<that sha>..HEAD` against a merged, renamed, or rebased sha, which
-  is not a subset of this branch but a range that never existed. Check both:
-  the branch name catches a switch, the ancestry check catches a rebase or
+- **First, check the record belongs to this branch.** There is one record
+  file per repo, not one per branch. No `sha:` line at all (e.g. a file
+  holding only `debrief-sha:`) is the same as **No file** below. Otherwise
+  validate `<that sha>` with `git rev-parse --verify <that sha>` — a value
+  that fails this (e.g. a corrupted or hand-edited record, or one starting
+  with `-`, which git would otherwise parse as an option) is a malformed
+  record; treat it exactly as **No file** below. If it validates, and its
+  `branch:` line differs from the current branch, or
+  `git merge-base --is-ancestor <that sha> HEAD` exits non-zero, the record
+  describes a different or rewritten history — treat it exactly as **No
+  file** below and review the whole branch. Skipping this resolves
+  `<that sha>..HEAD` against a merged, renamed, or rebased sha, which is not
+  a subset of this branch but a range that never existed. Check both: the
+  branch name catches a switch, the ancestry check catches a rebase or
   squash under the same name. Otherwise:
 
 - **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` —
@@ -362,8 +364,8 @@ orchestrator — the one party this command already refuses to take a review's
 word from. **Write it at the end of every run, unconditionally** — not after
 someone decides what to do about it. The information exists now, and the file
 earns its keep only by surviving a compaction, an abandoned session, or a
-handover to someone who never saw the report.
-
+handover to someone who never saw the report. **Carry `debrief-sha:` forward
+first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -377,6 +379,7 @@ docs-commit: <full sha | none>
 docs: <space-separated files the sweep changed | none>
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
+debrief-sha: <carried forward verbatim, or omitted if absent>
 ```
 
 `sha:` is the HEAD that stages 1-3 reviewed — **before** Stage 4's docs

@@ -28,7 +28,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Droid) | /live-canvas |
-| debrief | Verify what you delivered before commit — real runs, not re-assertion | /debrief | - |
+| debrief | Verify what you delivered since the last debrief — real runs, not re-assertion | /debrief | - |
 | refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [target] [level] | - |

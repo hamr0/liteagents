@@ -230,9 +230,10 @@ and is cleared bullet-by-bullet by `/refactor` (§6). It is not necessarily trac
 git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the ledger is
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
-from a review run lands here as one bullet, and `/debrief` (a separate command, run by the
-author of a piece of work right before commit) appends to the same file in the same
-format. Each bullet carries a trailing tag — the **size of the fix**, not its severity:
+from a review run lands here as one bullet, and `/debrief` (a separate command covering
+everything since the last debrief, run by a spawned mid-tier worker before commit)
+appends to the same file in the same format. Each bullet carries a trailing tag — the
+**size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
 redesign. An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
 appended at the end, oldest to newest — no section headers.
@@ -293,6 +294,7 @@ docs-commit: <full sha | none>
 docs: <space-separated files the sweep changed | none>
 blockers:
 - <file:line> · <one-sentence claim>
+debrief-sha: <carried forward verbatim, or omitted if absent>
 ```
 
 `sha:` is the HEAD that stages 1-3 reviewed — **before** stage 4's docs commit, if it made
@@ -300,6 +302,14 @@ one; `docs-commit` and `docs:` record that commit and what it touched separately
 what lets `/release` Phase 0.5 (§9) treat a docs-only commit after the reviewed SHA as not
 stale. `docs:` is repo-relative paths on one space-separated line — exactly the files in
 `docs-commit`, nothing implied or assumed beyond what's listed.
+
+**`debrief-sha:` is a different command's field, sharing this file.** It's `/debrief`'s
+bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
+before overwriting the record whole, it reads any existing `debrief-sha:` line and
+re-appends it unchanged as the new record's last line. `/branch-review` never sets, reads
+the *value* of, or reasons about that line — it only carries it. This is why every reader of
+`sha:` anchors on the line starting exactly `sha:`, never a bare substring match — `debrief-
+sha:` ends in the same four characters and would otherwise be mistaken for it.
 
 It answers one question — was *this commit* reviewed, and what came of it — so only the
 latest answer can be true, which is why it is overwritten rather than appended. The

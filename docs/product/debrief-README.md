@@ -8,8 +8,8 @@ updated: 2026-09-21
 # debrief
 
 `/debrief` answers the owner's habitual question: **"verify what you delivered, what
-did you gloss over, what did I miss?"** It runs right after a piece of work, right
-before you commit it.
+did you gloss over, what did I miss?"** It covers everything since the last debrief —
+committed or not — before `/branch-review`.
 
 ```
 work  ──►  /debrief  ──►  commit  ──►  /branch-review  ──►  /release
@@ -41,7 +41,38 @@ only the facts and told to try to break them, doesn't carry that incentive.
 
 ---
 
-## 2. The six questions
+## 2. The range — since the last debrief
+
+The range covers everything since the last debrief, committed or not: a
+committed-only range would miss today's uncommitted edits, and an
+uncommitted-only range would miss work already committed earlier in the
+session. Neither alone is what "verify what I just did" means.
+
+This works via a **bookmark**: one line, `debrief-sha:`, living inside
+`.claude/remember/last-review.md` — the same record `/branch-review` writes.
+`/debrief` is its only writer; `/branch-review` only carries it forward,
+unread and unedited, each time it overwrites that file.
+
+At the start of every run the orchestrator validates the bookmark exactly the
+way `/branch-review` validates its own record (`git rev-parse --verify`, then
+`git merge-base --is-ancestor … HEAD`) — no branch check, since ancestry alone
+proves the bookmarked commit belongs to this history. Valid → the range is
+`<bookmark>..HEAD`. No bookmark, or one that fails either check → the whole
+branch, `$(git merge-base main HEAD)..HEAD`. Either way, uncommitted changes
+and untracked files are added on top. Range empty **and** the tree clean →
+"nothing new since the last debrief," and no worker is spawned.
+
+**Accepted overlap:** work debriefed while still uncommitted, then committed
+later, gets seen once more on the next run. That's over-work, never a miss —
+the design trades a little redundancy for never silently skipping something.
+
+At the end of every run the orchestrator rewrites the bookmark to the current
+HEAD, touching only that one line — every other line in `last-review.md`
+(`sha:`, `branch:`, `verdict:`, `blockers:`, …) is left exactly as it was.
+
+---
+
+## 3. The six questions
 
 The worker runs real commands — the thing itself, or its tests, now — and asks:
 
@@ -55,21 +86,34 @@ The worker runs real commands — the thing itself, or its tests, now — and as
 - **Docs?** What now reads untrue — surfaced only; `/branch-review` Stage 4 writes
   the fix.
 
-## 3. The bar
+## 4. The bar — Fix now and Later alike
 
-Every item needs one concrete failure sentence: specific input/state → what breaks.
-Can't write that sentence → it's a nit-of-a-nit: dropped, and only the count
-(`dropped: N`) is reported, so the user can see it looked rather than skipped.
+Every item, in **either** pile, needs one concrete failure sentence: specific
+input/state → what breaks. Later is not a lower bar — it's a deferral, not an
+excuse to skip the sentence. "Will mislead the next reader" is a real example
+that got through in the field and shouldn't have: no input named, no state
+named, no break named. Can't write the sentence → it's a nit-of-a-nit: dropped,
+and only the count (`dropped: N`) is reported, so the user can see it looked
+rather than skipped.
 
 Surviving items: **max 5, ranked**, in two piles — **Fix now** (changes whether you
 ship) and **Later**.
 
 ---
 
-## 4. Relay, then ledger
+## 5. Relay as-is, then ledger
 
-The orchestrator relays the worker's report **as-is** — no softening, dropping, or
-re-ranking — and the user picks what to fix now.
+**"As-is" means:** same items, same order, same piles, and each item's failure
+sentence and cited commands/numbers preserved exactly. Rewording to fit the
+user's own output style is fine — a field run under a "plain wording" style
+correctly kept everything else identical while reflowing the sentences.
+Adding, dropping, merging, re-ranking, or weakening an item is **not** "as-is,"
+regardless of how it's justified. The orchestrator may add its own
+recommendation on top, but only clearly marked as its own, separate from the
+worker's items — never blended into them.
+
+The orchestrator relays the worker's report **as-is**, and the user picks what to
+fix now.
 
 Whatever the user does **not** pick goes to `.claude/remember/fix-ledger.md`, in the
 same format `/branch-review` writes: tagged `nit` (a refactor-sized fix) or `change`
@@ -84,7 +128,7 @@ named → it doesn't go in the ledger at all — `/refactor` deletes any bullet 
 anchor has no hit, so an anchor-less one would just die there — and it stays in the
 report instead as "this is a feature — your call."
 
-## 5. Consuming the tags
+## 6. Consuming the tags
 
 `/branch-review`'s closing line and `/refactor`'s ledger-mode report both count the
 same file the same way: every bullet ending `· change` is a `change`, everything else
@@ -92,7 +136,7 @@ is a `nit` — **N nits, K changes**. `/refactor` (no arguments) fixes surviving
 bullets only; a `change` bullet is left for a real refactor pass, or retagged in place
 if a `nit` turns out to need one.
 
-## 6. Loop guard
+## 7. Loop guard
 
 Re-run `/debrief` after fixes until zero **Fix now** items remain — **Later** items
 never count toward that. If a third round still turns up new Fix-now items *caused by

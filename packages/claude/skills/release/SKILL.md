@@ -57,8 +57,10 @@ separate command that must have run first.
 A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
-HEAD` and compare it against the `sha:` line in
-`.claude/remember/last-review.md`, which `/branch-review` writes. Asking the
+HEAD` and compare it against the `sha:` line (the one starting exactly
+`sha:` — never `debrief-sha:`, a separate bookmark `/debrief` owns and
+`/branch-review` only carries forward) in `.claude/remember/last-review.md`,
+which `/branch-review` writes. Asking the
 orchestrator "did a review run?" puts the question to the one party with an
 incentive to say yes, so its word is not evidence — and neither is a SHA
 quoted from a chat message, which is the same claim in another costume and is
