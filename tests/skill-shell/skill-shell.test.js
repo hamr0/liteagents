@@ -141,8 +141,11 @@ function extractLedgerCommands(content, label) {
   return { totalCmd: lines[0].trim(), kCmd: lines[1].trim() };
 }
 
-let canonicalTotalCmd = null;
-let canonicalKCmd = null;
+// One normalized { label, totalCmd, kCmd } per kit/label, path swapped for a
+// LEDGER placeholder — the fixture matrix below runs EVERY kit's own command,
+// not just claude's, so a per-kit drift in these lines would be caught here
+// even on a day mirror.cjs check didn't run.
+const extractedLedgerCmds = [];
 
 for (const kit of KITS) {
   for (const [label, relPath] of [['branch-review', kit.branchReview], ['refactor', kit.refactor]]) {
@@ -160,10 +163,11 @@ for (const kit of KITS) {
     check(`${kit.name}/${label}: ledger commands present, unwrapped`, true);
     check(`${kit.name}/${label}: total command targets ${kit.dir}`, cmds.totalCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.totalCmd);
     check(`${kit.name}/${label}: K command targets ${kit.dir}`, cmds.kCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.kCmd);
-    if (kit.name === 'claude' && label === 'branch-review') {
-      canonicalTotalCmd = cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER');
-      canonicalKCmd = cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER');
-    }
+    extractedLedgerCmds.push({
+      label: `${kit.name}/${label}`,
+      totalCmd: cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+      kCmd: cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+    });
   }
 }
 
@@ -233,21 +237,23 @@ const LEDGER_CASES = [
   },
 ];
 
-if (!canonicalTotalCmd || !canonicalKCmd) {
-  check('ledger fixture matrix: skipped — could not extract canonical commands from claude/branch-review', false,
+if (extractedLedgerCmds.length === 0) {
+  check('ledger fixture matrix: skipped — could not extract any commands', false,
     'see the extraction FAIL above for the reason');
 } else {
   for (const shell of SHELLS) {
-    const dir = tmpDir('skill-shell-ledger-');
-    for (const c of LEDGER_CASES) {
-      const f = path.join(dir, 'fix-ledger.md');
-      fs.writeFileSync(f, c.content);
-      const totalCmd = canonicalTotalCmd.replace('LEDGER', f);
-      const kCmd = canonicalKCmd.replace('LEDGER', f);
-      const totalOut = sh(shell.bin, totalCmd).stdout.trim();
-      const kOut = sh(shell.bin, kCmd).stdout.trim();
-      check(`[${shell.name}] ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
-      check(`[${shell.name}] ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+    for (const entry of extractedLedgerCmds) {
+      const dir = tmpDir('skill-shell-ledger-');
+      for (const c of LEDGER_CASES) {
+        const f = path.join(dir, 'fix-ledger.md');
+        fs.writeFileSync(f, c.content);
+        const totalCmd = entry.totalCmd.replace('LEDGER', f);
+        const kCmd = entry.kCmd.replace('LEDGER', f);
+        const totalOut = sh(shell.bin, totalCmd).stdout.trim();
+        const kOut = sh(shell.bin, kCmd).stdout.trim();
+        check(`[${shell.name}] ${entry.label} ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
+        check(`[${shell.name}] ${entry.label} ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+      }
     }
   }
 }
@@ -272,7 +278,9 @@ function extractDocsGrep(content, label) {
   return lines[0].match(DOCS_LINE_RE)[0];
 }
 
-let canonicalDocsGrep = null;
+// One { label, cmd } per kit/label — run behaviorally below for every kit,
+// not just claude, same rationale as the ledger commands above.
+const extractedDocsGreps = [];
 
 for (const kit of KITS) {
   for (const [label, relPath] of [['release', kit.release], ['branch-review', kit.branchReview]]) {
@@ -285,9 +293,7 @@ for (const kit of KITS) {
       continue;
     }
     check(`${kit.name}/${label}: docs-only grep present exactly once, unwrapped`, true);
-    if (kit.name === 'claude' && label === 'release') {
-      canonicalDocsGrep = cmd;
-    }
+    extractedDocsGreps.push({ label: `${kit.name}/${label}`, cmd });
   }
 }
 
@@ -298,15 +304,17 @@ const DOCS_CASES = [
     expected: 'packages/claude/skills/ship/SKILL.md\nsrc/x.js\nsub/NOTES.md\npackages/subagentic-manual.md' },
 ];
 
-if (!canonicalDocsGrep) {
-  check('docs-only fixture matrix: skipped — could not extract canonical grep from claude/release', false,
+if (extractedDocsGreps.length === 0) {
+  check('docs-only fixture matrix: skipped — could not extract any grep', false,
     'see the extraction FAIL above for the reason');
 } else {
   for (const shell of SHELLS) {
-    for (const c of DOCS_CASES) {
-      const r = sh(shell.bin, canonicalDocsGrep, { input: c.input });
-      const got = r.stdout.replace(/\n$/, '');
-      check(`[${shell.name}] docs-only: ${c.name}`, got === c.expected, `got ${JSON.stringify(got)}`);
+    for (const entry of extractedDocsGreps) {
+      for (const c of DOCS_CASES) {
+        const r = sh(shell.bin, entry.cmd, { input: c.input });
+        const got = r.stdout.replace(/\n$/, '');
+        check(`[${shell.name}] ${entry.label} docs-only: ${c.name}`, got === c.expected, `got ${JSON.stringify(got)}`);
+      }
     }
   }
 }

@@ -92,7 +92,7 @@ const testSuites = [
     name: 'skill-shell',
     file: 'skill-shell/skill-shell.test.js',
     description: 'Tests the literal shell commands shipped inside branch-review/refactor/release/debrief markdown (ledger count, docs-only classifier, debrief bookmark script), extracted from all 4 kits and run for real under bash (and zsh when present)',
-    expectedTests: 93
+    expectedTests: 233
   },
   {
     name: 'installer closing note',
