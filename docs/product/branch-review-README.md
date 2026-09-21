@@ -166,17 +166,18 @@ pass that sets out to confirm reliably misses what an adversarial pass finds.
 state → the wrong output, crash, or exposure that results. If the worker can't write that
 sentence, the finding isn't ready — drop it or mark it uncertain. No vibes.
 
-### Stage 4 — Docs sweep (always runs)
-Runs on every run, at whatever verdict stages 1-3 reach, over the same resolved target
-range as the rest of the review — the whole branch on a first review, `<recorded sha>..HEAD`
-on a re-review; a blocked run still runs it, or a later re-review's narrower range would
-never cover the commits it skipped. The worker lists every user-visible change from the
-commit bodies, diff, and recent `.claude/stash/` notes; finds where the project's
-guide/context doc — and its PRD, README, or findings/learnings doc when relevant —
-describes each one, and adds or fixes it (an edit already made elsewhere on this branch
-still has to be checked, not assumed covered). The `CHANGELOG` stays `/release`'s job. What
-it touched is committed on its own, doc paths only, as the review's last act before the
-record is written.
+### Stage 4 — Docs sweep (ready verdicts only, whole branch)
+Runs **once, at the end**, only once the verdict is `ready` — a `blocked` run defers it
+(`docs sweep: deferred — verdict blocked`) rather than sweeping a branch that isn't done
+changing. When it runs, it always sweeps the **whole branch** (`main..HEAD`), never a
+re-review's narrower `<recorded sha>..HEAD`: a single run at the end, over the whole
+branch, means no narrower range can leave an earlier commit undocumented. The worker lists
+every user-visible change from the commit bodies, diff, and recent `.claude/stash/` notes;
+finds where the project's guide/context doc — and its PRD, README, or findings/learnings
+doc when relevant — describes each one, and adds or fixes it (an edit already made
+elsewhere on this branch still has to be checked, not assumed covered). The `CHANGELOG`
+stays `/release`'s job. What it touched is committed on its own, doc paths only, as the
+review's last act before the record is written.
 
 ---
 
@@ -226,20 +227,30 @@ and is cleared bullet-by-bullet by `/refactor` (§6). It is not necessarily trac
 git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the ledger is
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
-from a review run lands here as one bullet:
+from a review run lands here as one bullet, and `/debrief` (a separate command, run by the
+author of a piece of work right before commit) appends to the same file in the same
+format. Each bullet carries a trailing tag — the **size of the fix**, not its severity:
+`nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
+redesign. An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
+appended at the end, oldest to newest — no section headers.
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review;
-> consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists. Written by /branch-review and
+> /debrief; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
-  scenario · YYYY-MM-DD @ <short sha>
+  scenario · YYYY-MM-DD @ <short sha> · nit
 ```
+
+A blocker the user explicitly pushes through also lands here, on their named say-so,
+tagged by fix size like any other bullet — this never unblocks anything: the review
+record still says `verdict: blocked`, there is no override field, and `/release` still
+stops and asks live.
 
 ---
 
@@ -342,12 +353,17 @@ target from the user:
    is gone, so whatever it pointed at no longer exists in that shape). A hit → re-read the
    surrounding code; if the finding no longer holds, delete it with a one-line reason.
    What survives this pass is the actual work list.
-4. **Fix the survivors, one bullet per change**, under `/refactor`'s ordinary constraints
-   (no behavior changes, public API intact, existing tests pass). **Delete each bullet as
-   its fix lands** — the fix commit becomes the done record for that bullet; there's no
-   separate "mark complete" step to forget.
-5. Run the tests, then report fixed / dropped / left, with the reason per left item, and
-   the remaining bullet count.
+4. **Fix only surviving `nit` bullets** (untagged bullets count as `nit`), one bullet per
+   change, under `/refactor`'s ordinary constraints (no behavior changes, public API
+   intact, existing tests pass). **Delete each bullet as its fix lands** — the fix commit
+   becomes the done record for that bullet; there's no separate "mark complete" step to
+   forget. **Skip surviving `change` bullets**, listed in the report as "left: change" —
+   they need a behaviour change or redesign, not a refactor. A `nit` that turns out to need
+   one is **retagged `change` in place**, not silently left.
+5. Run the tests, then report fixed / dropped / left, with the reason per left item, ending
+   with **N nits, K changes** remaining — counted mechanically (`grep -c '^- '
+   fix-ledger.md` = total, `grep -c '^[- ].*· change$' fix-ledger.md` = K, N = total − K),
+   the same way `/branch-review`'s closing line does.
 6. Say plainly: commit, then run `/branch-review` on this branch — ledger mode is a fixer,
    not a review, and its own diff gets the ordinary gate like any other change.
 
@@ -383,6 +399,9 @@ record that fails either check — a hand-edited or corrupted `sha:`, or one lef
 a merged, renamed, or rebased branch — is treated as if there were no record at all,
 falling through to a full review rather than resolving a range that never existed.
 
+- **`sha:` ≠ HEAD, but every file since is forgiven** — same rule §9 gives `/release`
+  Phase 0.5: under `docs/`, a root `*.md`, or on the record's `docs:` line — treat like
+  `sha:` = HEAD below; nothing to review.
 - **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
 - **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
   tree. A recorded `blocked` verdict means its blockers are unfixed by definition.
@@ -430,19 +449,29 @@ whatever state the ledger file happens to be in.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review — *unless every
-  file* in `git diff --name-only <recorded sha>..HEAD` is listed on the record's `docs:`
-  line (§5b) — i.e. `/branch-review`'s own docs-sweep commit, and nothing else. Any file not
-  on that line — a `README.md`, `CHANGELOG.md`, or other `docs/` file included — is stale
-  regardless, which is why `/release`'s own version-bump commit (it touches `package.json`,
-  never on that line) still makes a second `/release` run stale without a re-review.
-  `/release` runs this diff itself and reports the file list it compared against the
-  `docs:` line, rather than asserting "it's just docs."
+  file* in `git diff --name-only <recorded sha>..HEAD` is **forgiven**: under `docs/`, a
+  `*.md` at the repo root, **or** on the record's `docs:` line — that third case matters
+  because Stage 4 legitimately writes docs outside `docs/`/root too (e.g.
+  `packages/subagentic-manual.md`, `packages/claude/CLAUDE.md`), and its own commit is what
+  put them on `docs:`. `/branch-review`'s own re-review skip (§8) forgives by the identical
+  rule, so the two commands never disagree about what counts as docs-only. Run and read
+  what this prints — every printed path must also be on `docs:`, or it's stale:
+  ```
+  git diff --name-only <recorded sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'
+  ```
+  No output means everything was already under `docs/` or root, also not stale. This is
+  why `/release`'s own version-bump commit (it touches `package.json` — not under
+  `docs/`/root, never on `docs:`) still makes a second `/release` run stale without a
+  re-review, even though that same commit's `CHANGELOG.md` would pass alone. `/release`
+  runs this diff itself and prints the file list it judged, rather than asserting "it's
+  just docs."
 - **The fix ledger is not an exception.** Where `.claude/` is gitignored (as here), an
   append never reaches a commit, HEAD does not move, and the recorded SHA still matches —
   so the question never arises. A repo that tracks `.claude/` instead will see a ledger
-  commit land after the review and make it stale, since the ledger is never a file on the
-  record's `docs:` line — that is the gate working as designed, not a case to
-  special-case: re-review, or leave the ledger uncommitted until the release is cut.
+  commit land after the review and make it stale, since `fix-ledger.md` is neither under
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, never sweeps it) —
+  that is the gate working as designed, not a case to special-case: re-review, or leave the
+  ledger uncommitted until the release is cut.
 - **Reviewed at this SHA with findings still outstanding** → stop; findings are resolved
   before a release is cut.
 
@@ -469,7 +498,8 @@ sequence, including the ones typed by hand.
    low-severity nits. Stage 2 runs full and comes back clean. Stage 3 confirms the High
    and drops one of the three nits as a false positive.
 3. Report: **Ready to merge? Not until these are fixed** — the High blocks. The two
-   surviving low findings are appended to `fix-ledger.md`. Ledger: 2 open, 2 added.
+   surviving low findings are appended to `fix-ledger.md`, tagged `nit`. Fix ledger: 2 nits,
+   0 changes — 2 added this run.
 4. The High is fixed by hand (or by a targeted `/refactor <file>`), committed, and
    `/branch-review abc123..HEAD` re-reviews just that fix commit. Stage 3 confirms the
    prior High is now fixed. Recorded SHA moves to `def456`.
@@ -481,9 +511,9 @@ sequence, including the ones typed by hand.
 1. `feat/b` is committed. `/branch-review` (empty target) resolves against the new
    merge-base and reviews only B's diff — A's history isn't re-read, because it was
    already reviewed and merged.
-2. Stage 1 finds nothing blocking, but two more low-severity findings. Ledger now has
-   2 (carried, unrelated to A or B) + 2 new = 4 open. Report ends: *"4 fixes waiting — run
-   `/refactor` between features."*
+2. Stage 1 finds nothing blocking, but two more low-severity findings, tagged `nit`.
+   Ledger now has 4 nits, 0 changes (2 carried, 2 new). Report ends: *"4 fixes waiting —
+   run `/refactor` between features."*
 3. Before starting a third feature, `/refactor` (no arguments) runs: tree is clean, not on
    main, so it switches to `chore/fix-ledger`. It revalidates all 4 bullets — one anchor no
    longer greps (cleaned by an unrelated change), one no longer holds on re-read, two

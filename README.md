@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 13 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 14 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -63,6 +63,7 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
+| `/debrief` | Verify what you delivered before commit — real runs, not re-assertion |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
 | `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
@@ -74,7 +75,7 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
 
-<sub>Claude Code and Amp ship all 13 as skills; Opencode and Droid expose all 13 as commands. All four also ship agent reference docs.</sub>
+<sub>Claude Code and Amp ship all 14 as skills; Opencode and Droid expose all 14 as commands. All four also ship agent reference docs.</sub>
 
 ---
 

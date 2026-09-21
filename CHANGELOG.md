@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **New `/debrief` skill** — a deliberate action, run by the author of a
+  piece of work right before commit, that answers "verify what you
+  delivered, what did you gloss over, what did I miss?" with real runs
+  (tests executed now, not re-asserted) instead of a confident paragraph.
+  Ask-and-surface only — it never fixes anything; unaddressed items go to
+  the fix ledger for the user to pick up later. 13 -> 14 capabilities, 9 ->
+  10 deliberate actions.
+
+### Changed
+- **Fix ledger bullets now carry a trailing size tag**, `nit` or `change` —
+  the size of the fix, not its severity. An untagged (old-format) bullet
+  counts as `nit`. `/branch-review`'s and `/refactor`'s closing lines report
+  `N nits, K changes` instead of a single open count, and `/refactor` ledger
+  mode now fixes only surviving `nit` bullets, skipping `change` bullets
+  (reported as "left: change") and retagging a `nit` that turns out to need
+  a behaviour change in place.
+- **`/branch-review`'s Stage 4 docs sweep now runs once, at the end, only on
+  a `ready` verdict**, and always over the whole branch — never a
+  re-review's narrower `<recorded sha>..HEAD` range. A `blocked` verdict
+  reports `docs sweep: deferred — verdict blocked` instead of running it.
+- **`/release` Phase 0.5's stale-review exception is now a simple docs-only
+  check**: every file in the diff since the reviewed SHA must be under
+  `docs/` or a `*.md` file at the repo root, replacing the old rule that
+  compared against the review record's `docs:` line.
+
+---
+
 ## [3.11.0] - 2026-09-20
 
 ### Fixed

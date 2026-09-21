@@ -15,8 +15,8 @@
  * fails (e.g. "commands: expected 8, got 7"). Bump the number in EXPECTED
  * to lock in the new, intended contents. Claude has native skills (own dir),
  * Claude Code merged custom commands into skills, and Amp removed commands
- * outright, so both ship all 13 capabilities as skills/<name>/SKILL.md.
- * Droid and opencode still use commands, so their 13 are flat .md files.
+ * outright, so both ship all 14 capabilities as skills/<name>/SKILL.md.
+ * Droid and opencode still use commands, so their 14 are flat .md files.
  *
  * Tests:
  * - Claude + Opencode simultaneous installation
@@ -46,10 +46,10 @@ const COUNT_BY = { agents: 'md', commands: 'md', skills: 'dir', plugins: 'dir' }
 
 // Expected delivered counts per tool. Update deliberately when content changes.
 const EXPECTED = {
-  claude:   { agents: 10, skills: 13, plugins: 1 },
-  opencode: { agents: 10, commands: 13 },
-  ampcode:  { agents: 10, skills: 13 },
-  droid:    { agents: 10, commands: 13 }
+  claude:   { agents: 10, skills: 14, plugins: 1 },
+  opencode: { agents: 10, commands: 14 },
+  ampcode:  { agents: 10, skills: 14 },
+  droid:    { agents: 10, commands: 14 }
 };
 
 // Test results tracker

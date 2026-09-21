@@ -49,9 +49,9 @@ at the current HEAD SHA.
   config, or tests.
 - **Prove it with two checks, because neither sees what the other does.**
   `git status --porcelain`, at start and again before you report, proves the
-  tree is clean — no code or config changed, and Stage 4's doc edits are
-  committed rather than left loose, since that stage's commit is the last act
-  before you report. It cannot police your own two `.opencode/` writes:
+  tree is clean — no code or config changed, and, when Stage 4 ran (`ready`
+  only), that its doc edits landed as the last act before you report. It
+  cannot police your own two `.opencode/` writes:
   `.opencode/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
   status --ignored` does not close it either — it collapses to `!!
@@ -118,9 +118,10 @@ recollection, for the same reason `/release` does. Then:
   the branch name catches a switch, the ancestry check catches a rebase or
   squash under the same name. Otherwise:
 
-- **`sha:` ≠ HEAD, but every file in `git diff --name-only <that sha>..HEAD`
-  is on the record's `docs:` line** → treat this exactly like `sha:` = HEAD
-  below: nothing to review. Say so and stop.
+- **`sha:` ≠ HEAD, but every file since is forgiven** (`/release` Phase 0.5's
+  rule: under `docs/`, a root `*.md`, or on `docs:`) — `git diff --name-only
+  <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`; every printed path must
+  be on `docs:` too, else fall through — otherwise treat like `sha:` = HEAD.
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
   re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
@@ -242,12 +243,10 @@ inputs or state → the wrong output, crash, or exposure that results. If you
 cannot write that sentence, the finding is not ready — drop it or mark it
 uncertain. No vibes.
 
-## Stage 4 — Docs sweep (always runs)
-Runs on **every** run, whatever stages 1-3 conclude, over the same resolved
-target range as the rest of this review — the whole branch on a first
-review, `<recorded sha>..HEAD` on a re-review. A blocked verdict does not
-skip this stage: a later re-review's narrower range would otherwise never
-cover the commits a skipped run left undocumented.
+## Stage 4 — Docs sweep (ready verdicts only, whole branch)
+Runs **once, at the end**, only on a `ready` verdict — `blocked` skips it
+(`docs sweep: deferred — verdict blocked`) — and always over the **whole
+branch** (`main..HEAD`), never a re-review's narrower `<recorded sha>..HEAD`.
 
 1. **List the changes.** Read the commit bodies (not just subjects) and the
    diff, plus the newest one or two notes in `.opencode/stash/`, for every
@@ -299,20 +298,22 @@ check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
-`.opencode/remember/fix-ledger.md` (create the file with the header below if
-missing):
+`.opencode/remember/fix-ledger.md` (header below if missing), tagged `nit` or
+`change` (fix size, not severity; most are `nit`). A pushed-through blocker
+goes here too, on the user's say-so — it does **not** unblock anything.
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review;
-> consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists. Written by /branch-review and
+> /debrief; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
-> `git grep -F "<snippet>" -- <path>` accepts one.
+> `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
+> not severity; untagged counts as `nit`. Always appended at the end.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
-  scenario · YYYY-MM-DD @ <short sha>
+  scenario · YYYY-MM-DD @ <short sha> · nit
 ```
 
 **A ledger bullet's failure scenario is subject to stage 3 like any other.**
@@ -409,12 +410,13 @@ End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
   tree clean at start; at exit clean or the two `.opencode/remember/` paths
   only.**
-- **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
-  add: "N fixes waiting — run `/refactor` between features." The ledger is a
-  local artifact; in the usual case it is gitignored, so writing it moves
-  nothing and leaves HEAD untouched.
-- **Docs sweep: N changes documented (added/fixed/already-correct), commit
-  `<sha | none>`** — the Stage 4 table.
+- **Fix ledger: N nits, K changes — M added this run** (M = appended this
+  run). No ledger file → **Fix ledger: none**. Else `grep -c '^- '
+  .opencode/remember/fix-ledger.md` = total, `grep -c '^[- ].*· change$'
+  .opencode/remember/fix-ledger.md` = K, N = total − K. N + K > 0 → add: "N + K
+  fixes waiting — run `/refactor` between features."
+- **Docs sweep: N changes documented, commit `<sha | none>`**, or **deferred
+  — verdict blocked**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** If you die mid-flight —
   a rate limit, a crash, a cancelled turn — there is no report and no

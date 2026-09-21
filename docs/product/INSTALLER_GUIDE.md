@@ -6,7 +6,7 @@
 A guide to installing and managing liteagents across the supported AI development
 tools, and to changing what those packages ship.
 
-> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents plus all 13 capabilities); there are no Lite/Standard/Pro variants.
+> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents plus all 14 capabilities); there are no Lite/Standard/Pro variants.
 
 ---
 
@@ -67,7 +67,7 @@ version, read from `package.json` — not a literal string):
 
 ```
                   LITEAGENTS
-        vX.Y.Z | 10 agents + 13 capabilities per tool
+        vX.Y.Z | 10 agents + 14 capabilities per tool
 
 What would you like to do?
 
@@ -138,7 +138,7 @@ A log of each run is written to `~/.liteagents-install.log`.
 
 ## Tools
 
-liteagents installs the **same content set into each tool**: 10 specialized agents and all 13 capabilities. Claude Code and Amp ship those 13 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
+liteagents installs the **same content set into each tool**: 10 specialized agents and all 14 capabilities. Claude Code and Amp ship those 14 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
 
 | Tool | Default path | Description |
 |------|--------------|-------------|
@@ -426,7 +426,7 @@ Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
 **Q: Are there different editions or variants?**
-No. Each tool receives the full package — 10 agents and 13 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
+No. Each tool receives the full package — 10 agents and 14 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
 
 **Q: Can I install multiple tools?**
 Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.

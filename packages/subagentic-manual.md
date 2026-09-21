@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 14 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 14 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 14 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 14 commands |
 
-All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
-Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
+All four ship the same 10 subagents and the same 14 capabilities. Claude Code and
+Amp ship all 14 as skills; Droid and OpenCode expose all 14 as commands.
 
 ---
 
@@ -60,15 +60,16 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
+14 capabilities. On Claude Code and Amp all 14 are skills — Claude merged
 commands into skills, Amp removed commands outright. On Droid and OpenCode all
-13 are commands.
+14 are commands.
 
 | Command | What it's for |
 |---|---|
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
+| `/debrief` | Verify what you delivered before commit — real runs, not re-assertion |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
@@ -84,7 +85,7 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
-Code operations (5): refactor, branch-review, security, ship, release ·
+Code operations (6): debrief, refactor, branch-review, security, ship, release ·
 Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
 Design (1): live-canvas.
 
@@ -190,8 +191,8 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
-| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (14), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (14) |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 
