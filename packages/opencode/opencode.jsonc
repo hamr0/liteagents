@@ -119,6 +119,10 @@
       "template": "{file:./command/docs-builder.md}",
       "description": "Reorg a docs corpus, split an oversized doc, keep pages current, index them"
     },
+    "debrief": {
+      "template": "{file:./command/debrief.md}",
+      "description": "Verify what you delivered since the last debrief — real runs, not re-assertion"
+    },
     "live-canvas": {
       "template": "{file:./command/live-canvas.md}",
       "description": "Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode)"

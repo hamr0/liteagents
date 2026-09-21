@@ -76,6 +76,8 @@ test-installation-*/
 !/tests/installer/closing-note.test.js
 !/tests/mirror/
 !/tests/mirror/mirror.test.js
+!/tests/skill-shell/
+!/tests/skill-shell/skill-shell.test.js
 
 # Release artifacts
 liteagents-*.tgz

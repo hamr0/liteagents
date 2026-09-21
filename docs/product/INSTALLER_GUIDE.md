@@ -6,7 +6,7 @@
 A guide to installing and managing liteagents across the supported AI development
 tools, and to changing what those packages ship.
 
-> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents plus all 13 capabilities); there are no Lite/Standard/Pro variants.
+> **The installer is interactive.** It does not take command-line flags — you run it and answer prompts. There is one package per tool (all agents plus all 14 capabilities); there are no Lite/Standard/Pro variants.
 
 ---
 
@@ -67,7 +67,7 @@ version, read from `package.json` — not a literal string):
 
 ```
                   LITEAGENTS
-        vX.Y.Z | 10 agents + 13 capabilities per tool
+        vX.Y.Z | 10 agents + 14 capabilities per tool
 
 What would you like to do?
 
@@ -138,7 +138,7 @@ A log of each run is written to `~/.liteagents-install.log`.
 
 ## Tools
 
-liteagents installs the **same content set into each tool**: 10 specialized agents and all 13 capabilities. Claude Code and Amp ship those 13 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
+liteagents installs the **same content set into each tool**: 10 specialized agents and all 14 capabilities. Claude Code and Amp ship those 14 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
 
 | Tool | Default path | Description |
 |------|--------------|-------------|
@@ -426,7 +426,7 @@ Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
 **Q: Are there different editions or variants?**
-No. Each tool receives the full package — 10 agents and 13 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
+No. Each tool receives the full package — 10 agents and 14 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
 
 **Q: Can I install multiple tools?**
 Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.
@@ -538,7 +538,7 @@ sync, or worse, survives as drift.
      already there.
    - `README.md` — the capability table and the counts in the header line
    - `docs/product/<name>-README.md` — the capability's own page, if it has
-     one (branch-review, docs-builder, live-canvas, remember all do)
+     one (branch-review, debrief, docs-builder, live-canvas, remember all do)
    - `packages/subagentic-manual.md` — table, install rows, **By category**
      counts
    - `packages/claude/CLAUDE.md`, `packages/droid/AGENTS.md`,
@@ -558,8 +558,8 @@ sync, or worse, survives as drift.
    to go further if anything is out of step.
 9. **Sync `~/.claude`** from `packages/claude` — the repo is the source of
    truth, never the other way round.
-10. **Commit, then `/branch-review`, then `/release`.** Three separate calls,
-    each needing its own go-ahead.
+10. **Commit, then `/debrief`, `/branch-review`, then `/release`.** Four
+    separate calls, each needing its own go-ahead.
 
 ### Frontmatter
 
@@ -570,9 +570,9 @@ is where the per-kit shape lives, and it is already correct:
 | | subagents | commands |
 |---|---|---|
 | claude | `name, description, when_to_use, model, color` | `Bash(git diff:*)` |
-| ampcode | same as claude | `Bash(git diff *)` |
-| droid | `…model, tools: [array]` | `Bash(git diff *)` |
-| opencode | `…mode, temperature, tools: {map}` | `Bash(git diff *)` |
+| ampcode | same as claude | `Bash(git diff:*)` |
+| droid | `…model, tools: [array]` | `description`, optional `argument-hint` — no `Bash()` field |
+| opencode | `…mode, temperature, tools: {map}` | `description`, optional `argument-hint` — no `Bash()` field |
 
 Because frontmatter is meant to differ, it cannot be verified by diffing.
 It is verified against `scripts/frontmatter.json` instead, which is generated

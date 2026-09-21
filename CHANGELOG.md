@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.12.0] - 2026-09-21
+
+### Added
+- **New `/debrief` skill** — a deliberate action that answers "verify what
+  you delivered, what did you gloss over, what did I miss?" for everything
+  since the last debrief, committed or not: the orchestrator writes a
+  handoff and spawns one mid-tier worker (never the main session, never the
+  high tier) to try to break the claims with real runs. The range resumes
+  from a `debrief-sha:` bookmark line inside `.claude/remember/last-review.md`
+  (`/debrief`'s only write to that field; `/branch-review` only carries it
+  forward unchanged). The bar — one concrete failure sentence or it's
+  dropped — applies to both the Fix now and Later piles alike. "As-is" relay
+  means same items/order/piles with rewording allowed, nothing added,
+  dropped, merged, re-ranked, or weakened. It never fixes anything;
+  unaddressed items go to the fix ledger, tagged `nit`/`change`. 13 -> 14
+  capabilities, 9 -> 10 deliberate actions.
+- **First tests for the literal shell commands shipped inside skill/command
+  markdown** (`tests/skill-shell/skill-shell.test.js`): the ledger count
+  regex, the docs-only classifier grep, and `/debrief`'s bookmark script,
+  extracted from the shipped files (not re-typed) across all 4 kits and run
+  for real under bash and zsh — 149 tests with zsh present, or a 93-test
+  bash-only floor when it is not, so `npm test` passes either way.
+
+### Changed
+- **Fix ledger bullets now carry a trailing size tag**, `nit` or `change` —
+  the size of the fix, not its severity. An untagged (old-format) bullet
+  counts as `nit`. `/branch-review`'s and `/refactor`'s closing lines report
+  `N nits, K changes` instead of a single open count, and `/refactor` ledger
+  mode now fixes only surviving `nit` bullets, skipping `change` bullets
+  (reported as "left: change") and retagging a `nit` that turns out to need
+  a behaviour change in place.
+- **`/branch-review`'s Stage 4 docs sweep now runs once, at the end, only
+  when the review is settled** — verdict `ready`, or every open blocker
+  pushed through by name in the invocation — and always over the whole
+  branch, never a re-review's narrower `<recorded sha>..HEAD` range.
+  Pushing a blocker through never changes the verdict. An unsettled review
+  reports `docs sweep: deferred — unsettled` instead of running it.
+- **`/release` Phase 0.5's stale-review exception is now a simple docs-only
+  check**: every file in the diff since the reviewed SHA must be under
+  `docs/` or a `*.md` file at the repo root, replacing the old rule that
+  compared against the review record's `docs:` line.
+- **`/branch-review`'s review record gains a `ledger: N nits, K changes, M
+  added` field**, derived from the fix ledger before the record is written
+  so filling it forces the same `grep -c` counts the closing report line
+  repeats. `docs:` is now spelled out as repo-relative paths only,
+  space-separated, or `none` — never prose — after a real run wrote a prose
+  sweep summary into it, which `/release` and the re-review skip both read
+  as a file list.
+- **AGENT_RULES.md now names `/debrief` as the preliminary step before
+  `/branch-review`** in the Operating Flow and the never-commit-to-`main`
+  safeguard — checkable as a debrief report naming the commands it ran and
+  their totals existing before `/branch-review` is proposed.
+
+### Fixed
+- **`/branch-review`'s and `/refactor`'s ledger `change` count no longer
+  miscounts a wrapped bullet.** The old `grep -c '^[- ].*· change$'` matched
+  any bullet line ending in the word "change", including a wrapped bullet's
+  *first* physical line, when the real trailing tag (on the bullet's *last*
+  line) was `nit`. The count now anchors on the tail itself —
+  `grep -cE '@ [0-9a-f]{7,40} · change$'` — and the ledger format documents
+  that the tail stays unwrapped on a bullet's last line. `docs/product/
+  branch-review-README.md` and a stale "`/debrief` ... before commit" line
+  in the same file are updated to match.
+
+---
+
 ## [3.11.0] - 2026-09-20
 
 ### Fixed

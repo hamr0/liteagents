@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 13 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 14 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -63,8 +63,9 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
+| `/debrief` | Verify what you delivered since the last debrief — real runs, not re-assertion |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
-| `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
+| `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
@@ -74,7 +75,7 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
 | `/skill-creator` | Build a new skill |
 
-<sub>Claude Code and Amp ship all 13 as skills; Opencode and Droid expose all 13 as commands. All four also ship agent reference docs.</sub>
+<sub>Claude Code and Amp ship all 14 as skills; Opencode and Droid expose all 14 as commands. All four also ship agent reference docs.</sub>
 
 ---
 
@@ -149,18 +150,26 @@ Two ways it comes back:
 It also ships with real UI direction baked in, so it can generate variations of a screen
 for you to pick from — no more hours spent nudging divs to find out what you actually wanted.
 
-### `/branch-review` → `/release` → `/refactor`
+### `/debrief` → `/branch-review` → `/release` → `/refactor`
 
+- **`/debrief`** — everything since the last debrief, committed or not, before
+  `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
+  to break the claims with real runs (works, no regression, bloat, glossed over,
+  underspecced, docs) and reports max 5 items in Fix now / Later. It never fixes
+  anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or
+  `change`. Not a gate.
 - **`/branch-review`** — the powerhouse. Reviews every change on a branch, medium depth
   by default. Surfaces confirmed blockers only: real bugs, dead and unused code,
   state-ownership breaks, plus a full OWASP-shaped security pass (no leaked keys, no
   injection, trust boundaries checked) that runs at full depth regardless of level.
-  Everything non-blocking goes to the fix ledger. It also sweeps and commits the project's
-  docs — README, PRD, findings — for what the branch changed, on every run.
+  Everything non-blocking goes to the fix ledger. It also sweeps and commits the
+  project's docs — README, PRD, findings — for what the branch changed, once at the
+  end, once the review is settled (ready, or every blocker pushed through by name).
 - **`/release`** — does the last pre-release chore: writes the CHANGELOG entry, bumps the
   version, commits locally. Then it tells you you're ready to merge, and hands the
   sequence back. It never pushes.
-- **`/refactor`** — with no arguments, works the fix ledger. Cumulative by design: nits
+- **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, leaves
+  `change` bullets (bigger than a refactor) for real work. Cumulative by design: nits
   pile up until you choose to clear them, so review and release never drown in them.
 
 ---
@@ -171,6 +180,7 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 |---|---|
 | [`/remember`](docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
+| [`/debrief`](docs/product/debrief-README.md) | The handoff → worker → relay flow, the bar, Fix now / Later |
 | [`/branch-review`](docs/product/branch-review-README.md) | The four stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |

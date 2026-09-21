@@ -53,9 +53,9 @@ at the current HEAD SHA.
   config, or tests.
 - **Prove it with two checks, because neither sees what the other does.**
   `git status --porcelain`, at start and again before you report, proves the
-  tree is clean — no code or config changed, and Stage 4's doc edits are
-  committed rather than left loose, since that stage's commit is the last act
-  before you report. It cannot police your own two `.amp/` writes:
+  tree is clean — no code or config changed, and, when Stage 4 ran (review
+  settled), that its doc edits landed as the last act before you report. It
+  cannot police your own two `.amp/` writes:
   `.amp/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
   status --ignored` does not close it either — it collapses to `!!
@@ -104,27 +104,30 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 was actually read rather than assuming.
 
 **Re-review after fixes: read `.amp/remember/last-review.md` first.** Its
-`sha:` line is the previously-reviewed commit and its `blockers:` list is what
-you owe an answer on — take both from the file, never from the orchestrator's
-recollection, for the same reason `/release` does. Then:
+`sha:` line (never `debrief-sha:`) is the previously-reviewed commit, its
+`blockers:` list what you owe an answer on — take both from the file, never
+the orchestrator's recollection, for the same reason `/release` does. Then:
 
-- **First, check the record belongs to this branch.** There is one record file
-  per repo, not one per branch. Validate `<that sha>` first with
-  `git rev-parse --verify <that sha>` — a value that fails this (e.g. a
-  corrupted or hand-edited record, or one starting with `-`, which git would
-  otherwise parse as an option) is a malformed record; treat it exactly as
-  **No file** below. If it validates, and its `branch:` line differs from the
-  current branch, or `git merge-base --is-ancestor <that sha> HEAD` exits
-  non-zero, the record describes a different or rewritten history — treat it
-  exactly as **No file** below and review the whole branch. Skipping this
-  resolves `<that sha>..HEAD` against a merged, renamed, or rebased sha, which
-  is not a subset of this branch but a range that never existed. Check both:
-  the branch name catches a switch, the ancestry check catches a rebase or
+- **First, check the record belongs to this branch.** There is one record
+  file per repo, not one per branch. No `sha:` line at all (e.g. a file
+  holding only `debrief-sha:`) is the same as **No file** below. Otherwise
+  validate `<that sha>` with `git rev-parse --verify <that sha>` — a value
+  that fails this (e.g. a corrupted or hand-edited record, or one starting
+  with `-`, which git would otherwise parse as an option) is a malformed
+  record; treat it exactly as **No file** below. If it validates, and its
+  `branch:` line differs from the current branch, or
+  `git merge-base --is-ancestor <that sha> HEAD` exits non-zero, the record
+  describes a different or rewritten history — treat it exactly as **No
+  file** below and review the whole branch. Skipping this resolves
+  `<that sha>..HEAD` against a merged, renamed, or rebased sha, which is not
+  a subset of this branch but a range that never existed. Check both: the
+  branch name catches a switch, the ancestry check catches a rebase or
   squash under the same name. Otherwise:
 
-- **`sha:` ≠ HEAD, but every file in `git diff --name-only <that sha>..HEAD`
-  is on the record's `docs:` line** → treat this exactly like `sha:` = HEAD
-  below: nothing to review. Say so and stop.
+- **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` —
+  `/release` Phase 0.5's rule):
+  `git diff --name-only <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`
+  — every path must also be on `docs:`, else fall through, else `sha:`=HEAD.
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range
   `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
   re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
@@ -246,12 +249,10 @@ inputs or state → the wrong output, crash, or exposure that results. If you
 cannot write that sentence, the finding is not ready — drop it or mark it
 uncertain. No vibes.
 
-## Stage 4 — Docs sweep (always runs)
-Runs on **every** run, whatever stages 1-3 conclude, over the same resolved
-target range as the rest of this review — the whole branch on a first
-review, `<recorded sha>..HEAD` on a re-review. A blocked verdict does not
-skip this stage: a later re-review's narrower range would otherwise never
-cover the commits a skipped run left undocumented.
+## Stage 4 — Docs sweep (settled reviews only, whole branch)
+Runs **once, at the end**, only when **settled** (`ready`, or every open
+blocker pushed-through by name — never assumed, never changes `blocked`).
+Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..HEAD`.
 
 1. **List the changes.** Read the commit bodies (not just subjects) and the
    diff, plus the newest one or two notes in `.amp/stash/`, for every
@@ -303,27 +304,28 @@ check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
-`.amp/remember/fix-ledger.md` (create the file with the header below if
-missing):
+`.amp/remember/fix-ledger.md` (header below if missing), tagged `nit` or
+`change` — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review;
-> consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists. Written by /branch-review and
+> /debrief; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
-> `git grep -F "<snippet>" -- <path>` accepts one.
+> `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
+> not severity; untagged counts as `nit`; tail unwrapped on the last line.
+> Always appended at the end.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
-  scenario · YYYY-MM-DD @ <short sha>
+  scenario · YYYY-MM-DD @ <short sha> · nit
 ```
 
 **A ledger bullet's failure scenario is subject to stage 3 like any other.**
-Ledger items skip the report, so they are easy to skip verifying too, and an
-unverified consequence written in the bullet's voice reads as established
-fact to whoever fixes it later. Either confirm it, or prefix the scenario
-with `UNVERIFIED:` so `/refactor` retests before acting.
+Ledger items skip the report, so an unverified consequence in the bullet's
+voice reads as fact to whoever fixes it later. Either confirm it, or prefix
+the scenario with `UNVERIFIED:` so `/refactor` retests before acting.
 
 The **snippet is the anchor**: 20–60 verbatim characters from the line,
 unique enough for `git grep -F` to find it after lines shift. No line
@@ -356,14 +358,20 @@ assumed pass. Then a `checks:` line for the two checks most often cut short:
 does not block.
 
 **Write the review record** to `.amp/remember/last-review.md`, overwriting
-it. `/release` reads this file; a SHA that lives only in a chat message is
-gone after a compaction or a handover, and the only remaining source is the
-orchestrator — the one party this command already refuses to take a review's
-word from. **Write it at the end of every run, unconditionally** — not after
-someone decides what to do about it. The information exists now, and the file
-earns its keep only by surviving a compaction, an abandoned session, or a
-handover to someone who never saw the report.
+it. `/release` reads this file — a chat-only SHA is gone after a compaction
+or handover, and the orchestrator is the only other source (one this command
+already refuses to trust). **Write it at the end of every run,
+unconditionally**, not after someone decides what to do — it earns its keep
+by surviving a compaction, an abandoned session, or an unseen handover.
 
+**Derive `ledger:` before filling the template** — no ledger file → `ledger:
+none`; otherwise run both (first is the total, second is K):
+```
+grep -c '^- ' .amp/remember/fix-ledger.md
+grep -cE '@ [0-9a-f]{7,40} · change$' .amp/remember/fix-ledger.md
+```
+N = total − K, M = bullets appended this run. **Carry `debrief-sha:` forward
+first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -374,56 +382,53 @@ date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 docs-commit: <full sha | none>
-docs: <space-separated files the sweep changed | none>
+docs: <space-separated paths the sweep changed | none — never prose>
+ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
+debrief-sha: <carried forward verbatim, or omitted if absent>
 ```
 
-`sha:` is the HEAD that stages 1-3 reviewed — **before** Stage 4's docs
-commit, if it made one. `docs:` is repo-relative paths on one space-separated
-line — exactly the files in `docs-commit`, nothing implied or assumed beyond
-what's listed. `/release` still compares this SHA to `HEAD`, and its relaxed
-stale rule (see `/release`) is what lets a docs-only commit sit between the
-two without forcing a re-review.
+`sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
+it made one. `docs:` is repo-relative **paths only**, space-separated, or
+`none` — never prose, never reasons; `docs-commit: none` means `docs: none`.
+The per-change sweep table (change · doc `file:line` · added/fixed/already
+correct) belongs in the **report**, never the record. `/release` still
+compares this SHA to `HEAD`; its relaxed stale rule (see `/release`) lets a
+docs-only commit sit between the two without forcing a re-review.
 
-`blockers: none` when the verdict is ready. One line per blocker and nothing
-more: the reasoning belongs in the report, and the non-blocking findings
-belong in the ledger. This exists so a session that never saw the report can
-learn *what* is blocked, not just *that* something is — otherwise the next
-run rediscovers it by re-reviewing the branch, which is the
-non-convergence this command exists to stop.
+`blockers: none` when the verdict is ready — one line per blocker, nothing
+more: reasoning belongs in the report, non-blocking findings in the ledger.
+This lets a session that never saw the report learn *what* is blocked, not
+just *that* something is — otherwise the next run rediscovers it by
+re-reviewing the branch, the non-convergence this command exists to stop.
 
-`coverage` is recorded because a `ready` from a run whose security stage did
-not execute is not the same fact as one where it did, and the reader of this
-file cannot tell them apart otherwise.
+`coverage` is recorded because a `ready` whose security stage didn't run
+isn't the same fact as one where it did, and the reader can't tell them apart
+otherwise.
 
-**There is no override field, and no `verdict: overridden`.** A SHA is
-checkable by anyone; consent is not, so a consent line in a file is forgeable
-by whatever writes the file — and a persisted override is reusable, silently
-covering the next release as well as this one. Releasing over a blocked
-review is a live decision made at `/release`'s hand-back, in conversation.
+**There is no override field, no `verdict: overridden`.** A SHA is checkable
+by anyone; consent isn't, so a consent line is forgeable by whatever writes
+the file, and a persisted override silently covers the next release too.
+Releasing over `blocked` is a live decision at `/release`'s hand-back, in
+conversation.
 
-**Nothing clears this file.** It is overwritten whole on the next run, and the
-`sha:` line is what expires it: fix something, commit, and the recorded hash
-no longer matches HEAD, so the gate reports *stale* and asks for a
-re-review rather than *blocked*. A blocked verdict can only persist while HEAD
-does not move — which means nothing was fixed, which is the correct outcome.
+**Nothing clears this file.** It's overwritten whole next run; the `sha:`
+line expires it — fix something, commit, and the hash no longer matches HEAD,
+so the gate reports *stale*, not *blocked*. A blocked verdict persists only
+while HEAD doesn't move, i.e. nothing was fixed — the correct outcome.
 
 End with:
-- **Reviewed at HEAD `<sha>` on `<branch>`, target `<resolved range or path>`,
-  tree clean at start; at exit clean or the two `.amp/remember/` paths
-  only.**
-- **Fix ledger: N open, M added this run** (N = bullet count). When N > 0,
-  add: "N fixes waiting — run `/refactor` between features." The ledger is a
-  local artifact; in the usual case it is gitignored, so writing it moves
-  nothing and leaves HEAD untouched.
-- **Docs sweep: N changes documented (added/fixed/already-correct), commit
-  `<sha | none>`** — the Stage 4 table.
+- **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
+  clean at start, at exit clean or only the two `.amp/remember/` paths.**
+- **Fix ledger:** the same N/K/M as the record's `ledger:` line (`ledger:
+  none` → **Fix ledger: none**); N + K > 0 → add "N + K fixes waiting — run
+  `/refactor` between features."
+- **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
-- **A run that produces no record is not a review.** If you die mid-flight —
-  a rate limit, a crash, a cancelled turn — there is no report and no
-  `last-review.md`, and silence must never be read as a pass. `/release`
-  already treats a missing record as no review; state it here too so nobody
-  fills the gap from memory of a run that never finished.
+- **A run that produces no record is not a review.** Dying mid-flight — a rate
+  limit, a crash, a cancelled turn — leaves no report and no `last-review.md`;
+  silence is never a pass. `/release` already treats a missing record as no
+  review; say so here too, so nobody fills the gap from memory.
 - **Escalate to the orchestrator** with the findings. It decides what gets
   fixed and by whom. Say plainly what you could not verify.

@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 14 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 14 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 14 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 14 commands |
 
-All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
-Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
+All four ship the same 10 subagents and the same 14 capabilities. Claude Code and
+Amp ship all 14 as skills; Droid and OpenCode expose all 14 as commands.
 
 ---
 
@@ -60,18 +60,19 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
+14 capabilities. On Claude Code and Amp all 14 are skills — Claude merged
 commands into skills, Amp removed commands outright. On Droid and OpenCode all
-13 are commands.
+14 are commands.
 
 | Command | What it's for |
 |---|---|
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
+| `/debrief` | Verify what you delivered since the last debrief — real runs, not re-assertion |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
-| `/refactor` | Clear the fix ledger; with args, refactor and optimize a named area |
+| `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
@@ -84,7 +85,7 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
-Code operations (5): refactor, branch-review, security, ship, release ·
+Code operations (6): debrief, refactor, branch-review, security, ship, release ·
 Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
 Design (1): live-canvas.
 
@@ -151,18 +152,26 @@ you like, all in one pass, then send the batch to the agent.
 It also ships with real UI direction baked in, so it can generate variations of a screen for
 you to pick from — no more hours spent nudging divs to find out what you actually wanted.
 
-### `/branch-review` → `/release` → `/refactor`
+### `/debrief` → `/branch-review` → `/release` → `/refactor`
 
+- **`/debrief`** — everything since the last debrief, committed or not, before
+  `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
+  to break the claims with real runs (works, no regression, bloat, glossed over,
+  underspecced, docs) and reports max 5 items in Fix now / Later. It never fixes
+  anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or
+  `change`. Not a gate.
 - **`/branch-review`** — reviews every change on a branch, medium depth by default. Surfaces
   confirmed blockers only: real bugs, dead and unused code, state-ownership breaks, plus a
   full OWASP-shaped security pass (no leaked keys, no injection, trust boundaries checked)
   that runs at full depth regardless of level. Everything non-blocking goes to the fix ledger.
   It also sweeps and commits the project's docs — README, PRD, findings — for what the branch
-  changed, on every run.
+  changed, once at the end, once the review is settled (ready, or every blocker pushed
+  through by name).
 - **`/release`** — does the last pre-release chore: writes the CHANGELOG entry, bumps the
   version, commits locally. Then it tells you you're ready to merge, and hands the sequence
   back. It never pushes.
-- **`/refactor`** — with no arguments, works the fix ledger. Cumulative by design: nits pile
+- **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, leaves
+  `change` bullets (bigger than a refactor) for real work. Cumulative by design: nits pile
   up until you choose to clear them, so review and release never drown in them.
 
 ---
@@ -190,8 +199,8 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
-| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (14), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (14) |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 
@@ -210,6 +219,7 @@ These live in the repo, not in the installed kit:
 | [Installer guide](https://github.com/hamr0/liteagents/blob/main/docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and the order of operations for changing a command, skill or subagent |
 | [`/remember`](https://github.com/hamr0/liteagents/blob/main/docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](https://github.com/hamr0/liteagents/blob/main/docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
+| [`/debrief`](https://github.com/hamr0/liteagents/blob/main/docs/product/debrief-README.md) | The handoff → worker → relay flow, the bar, Fix now / Later |
 | [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The four stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |

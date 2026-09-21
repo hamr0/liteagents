@@ -68,11 +68,20 @@ refactor and how to close each item.
    "cleaned by other work". Hit → re-read the surrounding code; if the finding
    no longer holds, delete the bullet with a one-line reason. What survives is
    the work list.
-4. **Fix the survivors, one bullet per change**, under the constraints below.
-   Delete each bullet as its fix lands. A fix that turns out to need a
-   behaviour change is not a refactor — leave the bullet, note it in the report.
+4. **Fix only surviving `nit` bullets** (untagged bullets count as `nit`),
+   one bullet per change, under the constraints below. Delete each bullet as
+   its fix lands. **Skip surviving `change` bullets** — list them in the
+   report as "left: change"; they need a behaviour change or redesign, not a
+   refactor. A `nit` that turns out to need one is **retagged `change` in
+   place**, not fixed and not left silently.
 5. Run the tests as described below. Then report: **fixed / dropped / left**
-   with the reason per left item, and the remaining bullet count.
+   with the reason per left item, ending with **N nits, K changes** remaining
+   — counted the same mechanical way `/branch-review` does:
+   ```
+   grep -c '^- ' .amp/remember/fix-ledger.md
+   grep -cE '@ [0-9a-f]{7,40} · change$' .amp/remember/fix-ledger.md
+   ```
+   First is the total bullet count, second is K; N = total − K.
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
    `/branch-review`** on this branch — ledger mode is a fixer, not a review,
    and its diff gets the ordinary gate. That is a sentence you *say*, not a

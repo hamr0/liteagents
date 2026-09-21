@@ -57,8 +57,10 @@ separate command that must have run first.
 A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
-HEAD` and compare it against the `sha:` line in
-`.claude/remember/last-review.md`, which `/branch-review` writes. Asking the
+HEAD` and compare it against the `sha:` line (the one starting exactly
+`sha:` — never `debrief-sha:`, a separate bookmark `/debrief` owns and
+`/branch-review` only carries forward) in `.claude/remember/last-review.md`,
+which `/branch-review` writes. Asking the
 orchestrator "did a review run?" puts the question to the one party with an
 incentive to say yes, so its word is not evidence — and neither is a SHA
 quoted from a chat message, which is the same claim in another costume and is
@@ -70,20 +72,25 @@ that predates this file's introduction has no record, so it does not count.
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
   re-review, **unless every file** in `git diff --name-only <recorded
-  sha>..HEAD` is listed on the record's `docs:` line — `/branch-review`'s own
-  docs-sweep commit, and nothing else. Run that diff yourself and report the
-  file list you compared against the `docs:` line; do not take "it's just
-  docs" on trust. Any file not on that line — including a `README.md`,
-  `CHANGELOG.md`, or other `docs/` file the sweep didn't touch — is not a
-  docs commit, so its presence anywhere in that list means **stale**, stop,
-  re-review. This is what makes "all findings fixed" checkable instead of
-  promised.
-  **No exceptions beyond the `docs:` line — including the fix ledger.** It is
+  sha>..HEAD` is forgiven. A file is forgiven if it's under `docs/`, a `*.md`
+  at the repo root, **or** on the record's `docs:` line — Stage 4 legitimately
+  writes docs outside `docs/`/root too (`packages/subagentic-manual.md`,
+  `packages/claude/CLAUDE.md`, and siblings), and its own commit is what put
+  them on that line. Run this and read what it prints — every printed path
+  must also be on `docs:`, or it's **stale**, stop, re-review; no output means
+  every file was under `docs/` or root already, also not stale:
+  ```
+  git diff --name-only <recorded sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'
+  ```
+  Do not take "it's just docs" on trust. This is what makes "all findings
+  fixed" checkable instead of promised.
+  **No exceptions beyond the three forgiven shapes above.** The fix ledger is
   normally gitignored, so appending to it moves nothing and this never comes
   up. A repo that tracks `.claude/` instead will see a ledger commit land
-  after the review and make it stale. That is the rule working, not a case to
-  carve out: re-review, or leave the ledger uncommitted until after the
-  release.
+  after the review and make it stale — `fix-ledger.md` is neither under
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, it
+  never sweeps it). That is the rule working, not a case to carve out:
+  re-review, or leave the ledger uncommitted until after the release.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
@@ -167,11 +174,12 @@ entry; it does not redo or patch it.
 Then **stop.** Nothing else.
 
 This release commit is the one commit `/release` itself adds after the
-review. It touches `package.json` for the version bump — never a file on the
-record's `docs:` line under Phase 0.5's rule — so it moves HEAD past the
-reviewed SHA with a file that rule doesn't cover. Running `/release` twice on
-the same branch without a re-review therefore still correctly stops as
-stale, as it always did.
+review. It touches `package.json` for the version bump — not under `docs/`
+or root, and never on a `docs:` line, since `/release` isn't `/branch-review`'s
+Stage 4 sweep — so it moves HEAD past the reviewed SHA with a file Phase
+0.5's rule doesn't forgive, even though the same commit's `CHANGELOG.md`
+would be. Running `/release` twice on the same branch without a re-review
+therefore still correctly stops as stale, as it always did.
 
 ## Report — the sequence, for a human to authorize
 Print the evidence, then hand back the exact remaining steps so the
