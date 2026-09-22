@@ -94,22 +94,26 @@ const KITS = [
     branchReview: 'packages/claude/skills/branch-review/SKILL.md',
     refactor: 'packages/claude/skills/refactor/SKILL.md',
     release: 'packages/claude/skills/release/SKILL.md',
-    debrief: 'packages/claude/skills/debrief/SKILL.md' },
+    debrief: 'packages/claude/skills/debrief/SKILL.md',
+    stash: 'packages/claude/skills/stash/SKILL.md' },
   { name: 'ampcode', dir: '.amp',
     branchReview: 'packages/ampcode/skills/branch-review/SKILL.md',
     refactor: 'packages/ampcode/skills/refactor/SKILL.md',
     release: 'packages/ampcode/skills/release/SKILL.md',
-    debrief: 'packages/ampcode/skills/debrief/SKILL.md' },
+    debrief: 'packages/ampcode/skills/debrief/SKILL.md',
+    stash: 'packages/ampcode/skills/stash/SKILL.md' },
   { name: 'droid', dir: '.factory',
     branchReview: 'packages/droid/commands/branch-review.md',
     refactor: 'packages/droid/commands/refactor.md',
     release: 'packages/droid/commands/release.md',
-    debrief: 'packages/droid/commands/debrief.md' },
+    debrief: 'packages/droid/commands/debrief.md',
+    stash: 'packages/droid/commands/stash.md' },
   { name: 'opencode', dir: '.opencode',
     branchReview: 'packages/opencode/command/branch-review.md',
     refactor: 'packages/opencode/command/refactor.md',
     release: 'packages/opencode/command/release.md',
-    debrief: 'packages/opencode/command/debrief.md' },
+    debrief: 'packages/opencode/command/debrief.md',
+    stash: 'packages/opencode/command/stash.md' },
 ];
 
 console.log(`\n${colors.bright}${colors.cyan}skill-shell.test.js${colors.reset}\n`);
@@ -141,8 +145,11 @@ function extractLedgerCommands(content, label) {
   return { totalCmd: lines[0].trim(), kCmd: lines[1].trim() };
 }
 
-let canonicalTotalCmd = null;
-let canonicalKCmd = null;
+// One normalized { label, totalCmd, kCmd } per kit/label, path swapped for a
+// LEDGER placeholder — the fixture matrix below runs EVERY kit's own command,
+// not just claude's, so a per-kit drift in these lines would be caught here
+// even on a day mirror.cjs check didn't run.
+const extractedLedgerCmds = [];
 
 for (const kit of KITS) {
   for (const [label, relPath] of [['branch-review', kit.branchReview], ['refactor', kit.refactor]]) {
@@ -160,10 +167,11 @@ for (const kit of KITS) {
     check(`${kit.name}/${label}: ledger commands present, unwrapped`, true);
     check(`${kit.name}/${label}: total command targets ${kit.dir}`, cmds.totalCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.totalCmd);
     check(`${kit.name}/${label}: K command targets ${kit.dir}`, cmds.kCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.kCmd);
-    if (kit.name === 'claude' && label === 'branch-review') {
-      canonicalTotalCmd = cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER');
-      canonicalKCmd = cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER');
-    }
+    extractedLedgerCmds.push({
+      label: `${kit.name}/${label}`,
+      totalCmd: cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+      kCmd: cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+    });
   }
 }
 
@@ -233,21 +241,23 @@ const LEDGER_CASES = [
   },
 ];
 
-if (!canonicalTotalCmd || !canonicalKCmd) {
-  check('ledger fixture matrix: skipped — could not extract canonical commands from claude/branch-review', false,
+if (extractedLedgerCmds.length === 0) {
+  check('ledger fixture matrix: skipped — could not extract any commands', false,
     'see the extraction FAIL above for the reason');
 } else {
   for (const shell of SHELLS) {
-    const dir = tmpDir('skill-shell-ledger-');
-    for (const c of LEDGER_CASES) {
-      const f = path.join(dir, 'fix-ledger.md');
-      fs.writeFileSync(f, c.content);
-      const totalCmd = canonicalTotalCmd.replace('LEDGER', f);
-      const kCmd = canonicalKCmd.replace('LEDGER', f);
-      const totalOut = sh(shell.bin, totalCmd).stdout.trim();
-      const kOut = sh(shell.bin, kCmd).stdout.trim();
-      check(`[${shell.name}] ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
-      check(`[${shell.name}] ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+    for (const entry of extractedLedgerCmds) {
+      const dir = tmpDir('skill-shell-ledger-');
+      for (const c of LEDGER_CASES) {
+        const f = path.join(dir, 'fix-ledger.md');
+        fs.writeFileSync(f, c.content);
+        const totalCmd = entry.totalCmd.replace('LEDGER', f);
+        const kCmd = entry.kCmd.replace('LEDGER', f);
+        const totalOut = sh(shell.bin, totalCmd).stdout.trim();
+        const kOut = sh(shell.bin, kCmd).stdout.trim();
+        check(`[${shell.name}] ${entry.label} ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
+        check(`[${shell.name}] ${entry.label} ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+      }
     }
   }
 }
@@ -272,7 +282,9 @@ function extractDocsGrep(content, label) {
   return lines[0].match(DOCS_LINE_RE)[0];
 }
 
-let canonicalDocsGrep = null;
+// One { label, cmd } per kit/label — run behaviorally below for every kit,
+// not just claude, same rationale as the ledger commands above.
+const extractedDocsGreps = [];
 
 for (const kit of KITS) {
   for (const [label, relPath] of [['release', kit.release], ['branch-review', kit.branchReview]]) {
@@ -285,9 +297,7 @@ for (const kit of KITS) {
       continue;
     }
     check(`${kit.name}/${label}: docs-only grep present exactly once, unwrapped`, true);
-    if (kit.name === 'claude' && label === 'release') {
-      canonicalDocsGrep = cmd;
-    }
+    extractedDocsGreps.push({ label: `${kit.name}/${label}`, cmd });
   }
 }
 
@@ -298,15 +308,17 @@ const DOCS_CASES = [
     expected: 'packages/claude/skills/ship/SKILL.md\nsrc/x.js\nsub/NOTES.md\npackages/subagentic-manual.md' },
 ];
 
-if (!canonicalDocsGrep) {
-  check('docs-only fixture matrix: skipped — could not extract canonical grep from claude/release', false,
+if (extractedDocsGreps.length === 0) {
+  check('docs-only fixture matrix: skipped — could not extract any grep', false,
     'see the extraction FAIL above for the reason');
 } else {
   for (const shell of SHELLS) {
-    for (const c of DOCS_CASES) {
-      const r = sh(shell.bin, canonicalDocsGrep, { input: c.input });
-      const got = r.stdout.replace(/\n$/, '');
-      check(`[${shell.name}] docs-only: ${c.name}`, got === c.expected, `got ${JSON.stringify(got)}`);
+    for (const entry of extractedDocsGreps) {
+      for (const c of DOCS_CASES) {
+        const r = sh(shell.bin, entry.cmd, { input: c.input });
+        const got = r.stdout.replace(/\n$/, '');
+        check(`[${shell.name}] ${entry.label} docs-only: ${c.name}`, got === c.expected, `got ${JSON.stringify(got)}`);
+      }
     }
   }
 }
@@ -416,6 +428,188 @@ for (const kit of KITS) {
       const dsLines = body.split('\n').filter(l => l.startsWith('debrief-sha:'));
       check(`[${shell.name}] ${kit.name}: no-trailing-newline record — bookmark still lands as its own line`,
         dsLines.length === 1 && dsLines[0] === `debrief-sha: ${sha1}`, JSON.stringify(body));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// d. /stash total + processed counts — extracted per kit from stash markdown.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- stash total/processed counts --${colors.reset}`);
+
+// Extraction is marker-based (trailing "# total" / "# processed" comments),
+// not a single-line regex: the OLD processed command (pre-958f71e) was a
+// backslash-continued two-PHYSICAL-line statement ("test -f ... \" then
+// "&& grep -c ... || echo 0"), and the proof step below temporarily swaps
+// that old form back into the shipped file. A line-anchored regex would
+// just fail to find it; this extracts by comment marker so both the old and
+// new shapes come back as one runnable command string, and a regression
+// shows up as a BEHAVIORAL failure instead of a silent extraction skip.
+// Like extractFence, but tolerant of an indented ```bash opening fence (the
+// stash markdown nests its fence inside a numbered list item) — extractFence
+// only matches a bare, unindented ``` opener.
+function extractIndentedFence(content, marker) {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim().startsWith('```')) continue;
+    let j = i + 1;
+    while (j < lines.length && lines[j].trim() !== '```') j++;
+    const block = lines.slice(i + 1, j).map(l => l.trim());
+    if (block.some(l => l.includes(marker))) return block;
+  }
+  throw new Error(`no fenced block found containing "${marker}"`);
+}
+
+function extractStashCommands(content, label) {
+  const block = extractIndentedFence(content, '# total');
+  const totalIdx = block.findIndex(l => l.includes('# total'));
+  const procIdx = block.findIndex(l => l.includes('# processed'));
+  const totalMarkers = block.filter(l => l.includes('# total')).length;
+  const procMarkers = block.filter(l => l.includes('# processed')).length;
+  if (totalIdx === -1 || procIdx === -1 || procIdx <= totalIdx || totalMarkers !== 1 || procMarkers !== 1) {
+    throw new Error(`${label}: expected exactly one "# total" line followed by exactly one "# processed" line, found total=${totalMarkers} processed=${procMarkers}`);
+  }
+  const totalCmd = block.slice(0, totalIdx + 1).join('\n').replace(/#\s*total\s*$/, '').trim();
+  const processedCmd = block.slice(totalIdx + 1, procIdx + 1).join('\n').replace(/#\s*processed\s*$/, '').trim();
+  return { totalCmd, processedCmd };
+}
+
+// Regression proof: extraction must throw (loud failure), not silently pass,
+// when neither marker is present.
+{
+  let threw = false;
+  try { extractStashCommands('```bash\necho nothing here\n```\n', 'missing-case'); }
+  catch (e) { threw = true; }
+  check('extractStashCommands throws when the commands are absent (loud failure, not silent pass)', threw);
+}
+
+const extractedStashCmds = [];
+for (const kit of KITS) {
+  const content = fs.readFileSync(path.join(ROOT, kit.stash), 'utf8');
+  let cmds;
+  try {
+    cmds = extractStashCommands(content, `${kit.name}/stash`);
+  } catch (e) {
+    check(`${kit.name}/stash: total + processed commands present, unwrapped`, false, e.message);
+    continue;
+  }
+  check(`${kit.name}/stash: total + processed commands present, unwrapped`, true);
+  check(`${kit.name}/stash: total command targets ${kit.dir}`, cmds.totalCmd.includes(`${kit.dir}/stash`), cmds.totalCmd);
+  check(`${kit.name}/stash: processed command targets ${kit.dir}`, cmds.processedCmd.includes(`${kit.dir}/remember/.processed`), cmds.processedCmd);
+  extractedStashCmds.push({ name: kit.name, dir: kit.dir, totalCmd: cmds.totalCmd, processedCmd: cmds.processedCmd });
+}
+
+// Run `cmd` with $ROOT bound to `rootDir`, returning trimmed stdout/stderr.
+function runStash(shell, cmd, rootDir) {
+  return sh(shell.bin, cmd, { env: Object.assign({}, process.env, { ROOT: rootDir }) });
+}
+
+const TOTAL_CASES = [
+  {
+    name: '2 visible .md files',
+    setup: (stashDir) => {
+      fs.mkdirSync(stashDir, { recursive: true });
+      fs.writeFileSync(path.join(stashDir, 'a.md'), 'a');
+      fs.writeFileSync(path.join(stashDir, 'b.md'), 'b');
+    },
+    total: 2,
+  },
+  {
+    name: '2 visible .md + 1 hidden .md',
+    setup: (stashDir) => {
+      fs.mkdirSync(stashDir, { recursive: true });
+      fs.writeFileSync(path.join(stashDir, 'a.md'), 'a');
+      fs.writeFileSync(path.join(stashDir, 'b.md'), 'b');
+      fs.writeFileSync(path.join(stashDir, '.hidden.md'), 'h');
+    },
+    total: 2,
+  },
+  {
+    name: '2 visible .md + 1 non-.md file ignored',
+    setup: (stashDir) => {
+      fs.mkdirSync(stashDir, { recursive: true });
+      fs.writeFileSync(path.join(stashDir, 'a.md'), 'a');
+      fs.writeFileSync(path.join(stashDir, 'b.md'), 'b');
+      fs.writeFileSync(path.join(stashDir, 'notes.txt'), 'n');
+    },
+    total: 2,
+  },
+  {
+    name: 'empty stash dir',
+    setup: (stashDir) => { fs.mkdirSync(stashDir, { recursive: true }); },
+    total: 0,
+    stderrEmpty: true,
+  },
+  {
+    name: 'missing stash dir',
+    setup: () => {},
+    total: 0,
+    stderrEmpty: true,
+  },
+  {
+    name: 'stash dir is a symlink to a dir with 2 .md files',
+    setup: (stashDir) => {
+      const real = stashDir + '-real';
+      fs.mkdirSync(real, { recursive: true });
+      fs.writeFileSync(path.join(real, 'a.md'), 'a');
+      fs.writeFileSync(path.join(real, 'b.md'), 'b');
+      fs.symlinkSync(real, stashDir);
+    },
+    total: 2,
+  },
+];
+
+const PROCESSED_CASES = [
+  {
+    name: 'missing .processed',
+    setup: () => {},
+    processed: 0,
+  },
+  {
+    name: 'empty .processed',
+    setup: (f) => { fs.writeFileSync(f, ''); },
+    processed: 0,
+  },
+  {
+    name: '3 lines, no trailing newline',
+    setup: (f) => { fs.writeFileSync(f, 'a\nb\nc'); },
+    processed: 3,
+  },
+  {
+    name: '3 lines, trailing newline',
+    setup: (f) => { fs.writeFileSync(f, 'a\nb\nc\n'); },
+    processed: 3,
+  },
+];
+
+if (extractedStashCmds.length === 0) {
+  check('stash fixture matrix: skipped — could not extract any commands', false,
+    'see the extraction FAIL above for the reason');
+} else {
+  for (const shell of SHELLS) {
+    for (const entry of extractedStashCmds) {
+      for (const c of TOTAL_CASES) {
+        const rootDir = tmpDir('skill-shell-stash-total-');
+        const stashDir = path.join(rootDir, entry.dir, 'stash');
+        c.setup(stashDir);
+        const r = runStash(shell, entry.totalCmd, rootDir);
+        const out = r.stdout.trim();
+        check(`[${shell.name}] ${entry.name}/stash total: ${c.name}`, out === String(c.total), `got ${JSON.stringify(out)}`);
+        if (c.stderrEmpty) {
+          check(`[${shell.name}] ${entry.name}/stash total: ${c.name} — empty stderr`, r.stderr === '', JSON.stringify(r.stderr));
+        }
+      }
+      for (const c of PROCESSED_CASES) {
+        const rootDir = tmpDir('skill-shell-stash-processed-');
+        const remDir = path.join(rootDir, entry.dir, 'remember');
+        fs.mkdirSync(remDir, { recursive: true });
+        const f = path.join(remDir, '.processed');
+        c.setup(f);
+        const r = runStash(shell, entry.processedCmd, rootDir);
+        const lines = r.stdout.split('\n').filter(l => l.length > 0);
+        check(`[${shell.name}] ${entry.name}/stash processed: ${c.name} — exactly one line`, lines.length === 1, JSON.stringify(r.stdout));
+        check(`[${shell.name}] ${entry.name}/stash processed: ${c.name} — value ${c.processed}`, lines[0] === String(c.processed), JSON.stringify(r.stdout));
+      }
     }
   }
 }

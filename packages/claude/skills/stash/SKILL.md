@@ -37,15 +37,15 @@ Save session context for compaction recovery or handoffs.
 3. Enables context restoration after compaction
 4. **Consolidation nudge** — whichever actor wrote the file (the subagent, or the session
    itself on the inline fallback) counts the unprocessed backlog after saving. `$ROOT` is the
-   absolute repo root — the same one the stash file was just written under. Run these two
-   lines verbatim. Do not substitute a cwd-relative path (the write-up subagent's cwd is not
-   guaranteed to be the repo root) and do not discover the manifest with a `*` glob over the
-   remember dir (`.processed` is a dotfile, and globs skip dotfiles):
+   absolute repo root — the same one the stash file was just written under. Resolve it with
+   `git rev-parse --show-toplevel`. Run these two lines verbatim. Do not substitute a
+   cwd-relative path (the write-up subagent's cwd is not guaranteed to be the repo root) and
+   do not discover the manifest with a `*` glob over the remember dir (`.processed` is a
+   dotfile, and globs skip dotfiles):
 
    ```bash
-   ls -1 "$ROOT"/.claude/stash/*.md 2>/dev/null | wc -l                    # total
-   test -f "$ROOT/.claude/remember/.processed" \
-     && grep -c '' "$ROOT/.claude/remember/.processed" || echo 0           # processed
+   find "$ROOT/.claude/stash/" -maxdepth 1 -name '*.md' ! -name '.*' 2>/dev/null | wc -l   # total
+   if [ -f "$ROOT/.claude/remember/.processed" ]; then grep -c '' "$ROOT/.claude/remember/.processed"; else echo 0; fi   # processed
    ```
 
    `unprocessed = total − processed`. Use `grep -c ''`, not `wc -l`: a manifest whose last
