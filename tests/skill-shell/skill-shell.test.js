@@ -76,14 +76,19 @@ function extractLine(content, re, label) {
   return lines[0].trim();
 }
 
-// Extract a fenced ``` ... ``` block whose body contains `marker`.
-function extractFence(content, marker) {
+// Extract a fenced ``` ... ``` block whose body contains `marker`. By default
+// only a bare, unindented ``` opener matches and lines come back as-is. With
+// `indented`, any line starting with ``` (indented, or with a language tag like
+// ```bash) opens the block and lines come back trimmed — the stash markdown
+// nests its fence inside a numbered list item.
+function extractFence(content, marker, indented = false) {
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== '```') continue;
+    const opens = indented ? lines[i].trim().startsWith('```') : lines[i].trim() === '```';
+    if (!opens) continue;
     let j = i + 1;
     while (j < lines.length && lines[j].trim() !== '```') j++;
-    const block = lines.slice(i + 1, j);
+    const block = lines.slice(i + 1, j).map(l => indented ? l.trim() : l);
     if (block.some(l => l.includes(marker))) return block;
   }
   throw new Error(`no fenced block found containing "${marker}"`);
@@ -494,7 +499,7 @@ for (const kit of KITS) {
   for (const [label, file] of [['branch-review', kit.branchReview], ['refactor', kit.refactor]]) {
   let cmd;
   try {
-    cmd = extractIndentedFence(fs.readFileSync(path.join(ROOT, file), 'utf8'), '-maxdepth 1').join('\n');
+    cmd = extractFence(fs.readFileSync(path.join(ROOT, file), 'utf8'), '-maxdepth 1', true).join('\n');
   } catch (e) {
     check(`${kit.name}/${label}: record-dir hash command extracted`, false, e.message);
     continue;
@@ -526,23 +531,8 @@ console.log(`\n${colors.bright}-- stash total/processed counts --${colors.reset}
 // just fail to find it; this extracts by comment marker so both the old and
 // new shapes come back as one runnable command string, and a regression
 // shows up as a BEHAVIORAL failure instead of a silent extraction skip.
-// Like extractFence, but tolerant of an indented ```bash opening fence (the
-// stash markdown nests its fence inside a numbered list item) — extractFence
-// only matches a bare, unindented ``` opener.
-function extractIndentedFence(content, marker) {
-  const lines = content.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].trim().startsWith('```')) continue;
-    let j = i + 1;
-    while (j < lines.length && lines[j].trim() !== '```') j++;
-    const block = lines.slice(i + 1, j).map(l => l.trim());
-    if (block.some(l => l.includes(marker))) return block;
-  }
-  throw new Error(`no fenced block found containing "${marker}"`);
-}
-
 function extractStashCommands(content, label) {
-  const block = extractIndentedFence(content, '# total');
+  const block = extractFence(content, '# total', true);
   const totalIdx = block.findIndex(l => l.includes('# total'));
   const procIdx = block.findIndex(l => l.includes('# processed'));
   const totalMarkers = block.filter(l => l.includes('# total')).length;
