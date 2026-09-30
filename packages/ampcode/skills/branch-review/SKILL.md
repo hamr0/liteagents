@@ -363,7 +363,8 @@ grep -c '^- ' .amp/remember/fix-ledger.md
 grep -cE '@ [0-9a-f]{7,40} · change$' .amp/remember/fix-ledger.md
 ```
 N = total − K, M = bullets appended this run. **Carry `self-review-sha:` forward
-first** (`/self-review`'s bookmark, never set here), verbatim, as the last line:
+first** (`/self-review`'s bookmark, never set here), verbatim, as the last line
+— or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -379,7 +380,7 @@ docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
-self-review-sha: <carried forward verbatim, or omitted if absent>
+self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
 
 `sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
