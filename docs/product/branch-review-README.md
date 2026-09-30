@@ -488,7 +488,7 @@ whatever state the ledger file happens to be in.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review (a merge or
-  rebase of `origin/main` after the review is never forgiven — it brings non-doc files) —
+  rebase of `origin/main` after the review is never forgiven, even when it brings only docs) —
   *unless every
   file* in `git diff --name-only <recorded sha>..HEAD` is **forgiven**: under `docs/`, a
   `*.md` at the repo root, **or** on the record's `docs:` line — that third case matters
