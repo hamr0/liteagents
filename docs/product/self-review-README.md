@@ -29,7 +29,8 @@ Two parties, one spawn:
    **handoff**: what was done, the claims made to the user (works / tested / done),
    files changed, and the loose ends only it can know — a peer session never told, an
    open question left silent, unshipped state.
-2. It **spawns one mid-tier worker** with that handoff — explicitly, never the
+2. It **spawns one mid-tier worker** with that handoff and this spec's path (a worker
+   has no skill text of its own) — explicitly, never the
    cheapest/fastest tier and never inheriting a default, the same rule every other
    worker-spawning command in this toolkit follows. The worker does the whole self-review
    itself; it must not spawn subagents of its own.
@@ -107,6 +108,7 @@ named, no break named. Can't write the sentence → it's a nit-of-a-nit: dropped
 and only the count (`dropped: N`) is reported, so the user can see it looked
 rather than skipped.
 
+Each item is exactly one kind (failure-sentence or Structure), counted in one cap only.
 Surviving items: **max 5 failure-sentence items and max 5 Structure items, ranked**,
 in two piles — **Fix now** (changes whether you
 ship) and **Later**.
