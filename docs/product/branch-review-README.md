@@ -41,8 +41,10 @@ changed, and stage 4's doc edits are committed rather than left loose, since tha
 the stage's last act. It cannot see the review's own `.claude/` writes: `.claude/` is
 normally gitignored, so porcelain stays empty whether the reviewer wrote the allowed files,
 wrote nothing, or overwrote `MEMORY.md`. `git status --ignored` does not close it either,
-collapsing to the directory rather than the files. An `md5sum` comparison over
-`.claude/remember/` before and after does, and only the ledger and the record may differ. A
+collapsing to the directory rather than the files. Hashing the files there before and after
+(`find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2` — a bare
+`md5sum .claude/remember/*` exits non-zero when the directory holds a subdirectory) does,
+and only the ledger and the record may differ. A
 third check, `git diff --name-only <reviewed sha>..HEAD`, confirms the docs commit touched
 only the files the record's `docs:` line names.
 
@@ -51,6 +53,8 @@ only the files the record's `docs:` line names.
   else it finds is handed back as a finding. It re-runs `git status --porcelain` before
   reporting: clean (stage 4 committed what it touched), or it says what else changed. That
   turns "it never edits code" from a claim into a checked fact, not an assertion.
+- **The orchestrator hands the worker the spec's path.** A spawned worker has no skill text
+  of its own, so the orchestrator passes it this file's path, mid tier stated explicitly.
 - **The worker does its own work.** The review subagent must not spawn subagents of its
   own — everything it reports has to be something it personally read, ran, or grepped. A
   relayed "I executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
@@ -137,15 +141,20 @@ the worker establishes it can actually fail — by reverting the source, not the
 the pre-change file with `git show <base-sha>:<path>` to a temp location *outside* the
 repo (the tree must stay clean at exit), run the test against that old version, and watch
 it go red. A test that passes against both the buggy and the fixed source is a tautology
-and proves nothing; every one found is flagged, and the report says explicitly when tests
+and proves nothing; every one found is flagged. The count is `fail-first N/M files`, where
+M is every test file the diff adds or changes with no exclusions (a file that cannot go red
+still counts, named with its reason — `12/15`, never `12/12`), and the report says whether
+each red was a failed assertion or a load failure against the old source (weaker proof).
+The report also says explicitly when tests
 are the branch's only evidence for its own claims.
 
 ### Stage 2 — Security (always full)
 `/branch-review` doesn't reimplement a checklist; it delegates. It locates and reads the
-installed `security.md` and runs its actual checks — the recurring six (secrets in the
+installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
+and runs its actual checks — the recurring six (secrets in the
 repo *and in git history*, data-access authorization / tenant isolation, rate limiting,
 unhappy-path error handling, authorization beyond authentication, inefficient data access)
-plus injection, auth/session, and trust boundaries. If `security.md` can't be found, it
+plus injection, auth/session, and trust boundaries. If the security spec can't be found, it
 runs what it can from that list and flags the gap — never reports the full checklist as
 passed.
 
@@ -222,7 +231,9 @@ never applied), and **Verdict** (confirmed / uncertain).
 The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full, stage
 3 — each `ran ✓/✗` with its evidence; a stage not actually run is a ✗, never an assumed
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
-count.
+count. Stage 2's evidence is one line per item of the security spec's checklist (`item ·
+ran + evidence`, or `N/A + reason`); `coverage:` says `stage2 ran` only when every item has
+its line, otherwise `stage2 NOT RUN`.
 
 ---
 
@@ -429,7 +440,8 @@ falling through to a full review rather than resolving a range that never existe
   `sha:` = HEAD below; nothing to review.
 - **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
 - **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
-  tree. A recorded `blocked` verdict means its blockers are unfixed by definition.
+  tree. A recorded `blocked` verdict means its blockers are unfixed by definition. No new
+  record is written; the existing one stands.
 - **no file** → no prior review to build on; read the whole branch.
 
 **The range is `<previously-reviewed-sha>..HEAD`.** Stage 1 then
