@@ -66,9 +66,11 @@ that predates this file's introduction has no record, so it does not count.
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
-  re-review (a merge or rebase of `origin/main` after the review is never
-  forgiven — it brings non-doc files), **unless every file** in `git diff --name-only <recorded
-  sha>..HEAD` is forgiven. A file is forgiven if it's under `docs/`, a `*.md`
+  re-review, **unless every file**
+  in `git diff --name-only <recorded sha>..HEAD` is forgiven. **This overrides
+  that:** a merge or rebase of `origin/main` after the review is never forgiven,
+  even when it brings only docs. A file is forgiven
+  if it's under `docs/`, a `*.md`
   at the repo root, **or** on the record's `docs:` line — Stage 4 legitimately
   writes docs outside `docs/`/root too (`packages/subagentic-manual.md`,
   `packages/claude/AGENT.md`, and siblings), and its own commit is what put

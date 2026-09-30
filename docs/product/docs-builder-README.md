@@ -372,6 +372,10 @@ rewrites the moves trigger reach outside `docs/` too (`src/`, `scripts/`, `tests
 unrepaired. A listed file that already carried the user's own uncommitted edits is named in
 `commit-dirty.txt`, and the skill asks before committing. Nothing is ever auto-committed.
 
+A move command that moved nothing but still rewrote `docs/index.md` (or the pointer block) prints a
+fresh recipe too, so the lists never carry an earlier run's files; `reorg` stopping for the
+classification interview writes only `docs/log.md` and prints none.
+
 ---
 
 ## Knowing what changed — the ledger

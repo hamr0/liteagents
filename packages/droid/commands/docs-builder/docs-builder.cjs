@@ -1356,7 +1356,11 @@ const noteGenerated = (...paths) => RUN.generated.push(...paths);
 // adds every moved file's OLD path on top (what `git commit` needs to see, so the rename is
 // recorded against its previous name, even though that path no longer exists on disk).
 function flushCommitAdvisory() {
-  if (!RUN.moved.length) return;
+  // A move command that wrote more than docs/log.md (the rebuilt index, the pointer block)
+  // gets a fresh recipe even with zero moves, so an earlier run's lists are never left over.
+  // `reorg` stopping for the classification interview writes only the log: no recipe yet.
+  const wroteMore = RUN.generated.some(f => f !== 'docs/log.md');
+  if (!RUN.moved.length && !(MOVE_COMMANDS.has(cmd) && wroteMore)) return;
   try {
     const onDisk = f => { try { return fs.existsSync(repoPath(f)); } catch { return false; } };
     const moveSet = Array.from(new Set(RUN.moved)).filter(onDisk);

@@ -74,7 +74,8 @@ drop it, count only (`dropped: N`). **Carve-out:** a Structure item may
 replace the failure sentence with the rule it breaks plus the `file:line`(s)
 that prove it; Structure items always go in **Later**, never **Fix now**,
 unless they do carry a real failure sentence. Each item is one kind, counted
-in one cap only. Max 5 failure-sentence items and max 5 Structure items, ranked, in two piles: **Fix now** (changes
+in one cap only. Max 5 failure-sentence items and max 5 Structure items, ranked,
+in two piles: **Fix now** (changes
 whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
@@ -106,6 +107,7 @@ mv "$F.tmp" "$F"
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**
 never counts; fixing a Later item anyway is new uncommitted work the next
 run checks like any other, not a re-run trigger. A third round with new
-Fix-now caused by the previous fix → stop: "redesign, don't patch again." **Not a gate:** `/branch-review` and
-`/release` don't require this to have run — close with "commit, then
-`/branch-review`," a sentence to **say**, never run.
+Fix-now caused by the previous fix → stop: "redesign, don't patch again."
+**Not a gate:** `/branch-review` and `/release` don't require this to have
+run — close with "commit, then `/branch-review`," a sentence to **say**, never
+run.

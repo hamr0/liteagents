@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.1] - 2026-09-30
+
+### Fixed
+- **live-canvas channel server refuses non-loopback origins (security).** Any
+  web page could POST a fake comment into the session (a `text/plain` POST
+  needs no preflight) or append to `.claude-design/feedback.jsonl`. Requests
+  whose `Origin` is not `localhost`/`127.0.0.1`/`[::1]` now get a 403 before
+  routing; loopback origins are echoed back instead of `*`. A new suite boots
+  the real `server.js`.
+- **docs-builder: a zero-move run that rewrites the index now writes a fresh
+  commit recipe.** It used to leave the previous run's `commit-files.txt` /
+  `commit-add.txt` in place and print no recipe.
+- **`/branch-review` `allowed-tools` gains `Bash(git rev-list:*)`** (claude,
+  ampcode).
+- **`/release` Phase 0.5: a merge or rebase of `origin/main` is never
+  forgiven, even when docs-only.** The per-file rule is applied first.
+- **`/branch-review`: a carried `debrief-sha:` line keeps its name** until
+  `/self-review` rewrites it.
+
+### Changed
+- Over-long spec lines re-wrapped, no wording change.
+- New skill-shell tests pin the `tests:` line writer/reader agreement and the
+  v4 rules (stage 2 single list, repo-scoped N/A, fail-first M, sha=HEAD with
+  no record, spec-path hand-off).
+- `fast-uri` bumped 3.1.7 → 3.1.8 in the live-canvas-channel plugin lockfile
+  (indirect dependency, Dependabot #65).
+
+---
+
 ## [4.0.0] - 2026-09-30
 
 ### Breaking

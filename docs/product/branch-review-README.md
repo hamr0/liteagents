@@ -233,7 +233,8 @@ The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
 count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
 for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
-repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says `stage2 ran` only when every item has
+repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says
+`stage2 ran` only when every item has
 its line, otherwise `stage2 NOT RUN`.
 
 ---
@@ -487,7 +488,7 @@ whatever state the ledger file happens to be in.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
 - **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review (a merge or
-  rebase of `origin/main` after the review is never forgiven — it brings non-doc files) —
+  rebase of `origin/main` after the review is never forgiven, even when it brings only docs) —
   *unless every
   file* in `git diff --name-only <recorded sha>..HEAD` is **forgiven**: under `docs/`, a
   `*.md` at the repo root, **or** on the record's `docs:` line — that third case matters

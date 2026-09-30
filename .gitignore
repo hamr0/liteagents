@@ -78,6 +78,7 @@ test-installation-*/
 !/tests/mirror/mirror.test.js
 !/tests/skill-shell/
 !/tests/skill-shell/skill-shell.test.js
+!/tests/live-canvas/
 
 # Release artifacts
 liteagents-*.tgz
