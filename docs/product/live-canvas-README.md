@@ -47,6 +47,8 @@ The skill asks you which mode you want every time `/live-canvas` runs.
 
 If you pick Live but the session lacks the channels flag, `channel_open` returns `no_channel_capability` and the skill prints the exact relaunch command — it never silently downgrades to JSON. If another live-canvas session is already holding port 8788, `channel_open` takes over (same plugin + same user = safe) and announces it. Foreign processes on 8788 (e.g. a stray dev server) are refused with the holder's pid so you know what to investigate.
 
+The channel server accepts only pages served from `localhost`, `127.0.0.1` or `[::1]` (any port); requests from any other origin, such as a LAN address or a `file://` page, get a 403. This applies to Live mode and to JSON mode's `/feedback-jsonl`.
+
 ---
 
 ## One-time setup (Live mode, Claude Code only)

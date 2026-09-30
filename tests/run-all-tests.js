@@ -95,6 +95,12 @@ const testSuites = [
     expectedTests: 310
   },
   {
+    name: 'live-canvas channel server',
+    file: 'live-canvas/channel-server.test.js',
+    description: 'Tests the real live-canvas channel server.js (with a stub MCP SDK) refuses non-loopback Origins with 403 before routing and echoes loopback ones',
+    expectedTests: 23
+  },
+  {
     name: 'installer closing note',
     file: 'installer/closing-note.test.js',
     description: 'Tests installer/cli.js formatBackupClosingNote: silent on a fresh install, ~-substituted backup paths, and never hardcodes the claude-only commands/remember path',

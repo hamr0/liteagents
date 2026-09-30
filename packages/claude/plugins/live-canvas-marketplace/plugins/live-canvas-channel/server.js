@@ -74,10 +74,20 @@ function readBody(req) {
   });
 }
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+// Only pages served from this machine (localhost / 127.0.0.1 / [::1], any port)
+// may talk to the channel. A request with any other Origin is refused before
+// it reaches a route; requests with no Origin (curl, non-browser) pass.
+const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+function cors(req, res) {
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  if (!LOOPBACK_ORIGIN.test(origin)) return false;
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  return true;
 }
 
 function validate(payload) {
@@ -115,7 +125,7 @@ function buildMeta(target, comment) {
 // ---------- HTTP server (created but not bound) ----------
 
 const server = http.createServer(async (req, res) => {
-  cors(res);
+  if (!cors(req, res)) { res.writeHead(403); res.end(); return; }
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
