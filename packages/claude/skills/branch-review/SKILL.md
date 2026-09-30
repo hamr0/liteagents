@@ -225,13 +225,12 @@ not this stage's job — `/self-review` surfaces it.
 ## Stage 2 — Security (always full)
 **Delegate; do not re-implement.** Locate and **read** the installed
 `security` spec (`security/SKILL.md` or `security.md`, whichever the tool
-ships) and run its actual checklist — the recurring six (secrets in the
-repo *and in git history*, data-access authorization / tenant isolation, rate
-limiting, unhappy-path error handling, authorization beyond authentication,
-inefficient data access) plus injection, auth/session, and trust boundaries.
-
-If the security spec cannot be found, run what you can from the list above and
-**flag that the full checklist was unavailable** — never report it as passed.
+ships) and run its actual checklist: every numbered item of its recurring
+six and every bullet under "Also scan for" — that spec is the only list.
+Fallback, spec missing only: secrets (repo and history), tenant isolation,
+rate limiting, error handling, authorization, injection, auth/session, trust
+boundaries; **flag that the full checklist was unavailable**, never report it
+as passed.
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
@@ -354,8 +353,9 @@ uncertain).
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
 assumed pass. Stage 2's evidence is one line per item of the security spec's
-checklist — `item · ran + evidence (command or file:line)` or `N/A + reason`,
-the per-item coverage that spec already requires. `coverage:` says `stage2
+own checklist, "Also scan for" included — `item · ran + evidence (command or
+file:line)` or `N/A + reason`. N/A must hold for the repo, not the diff:
+"the diff doesn't touch it" is no reason. `coverage:` says `stage2
 ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a `checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
