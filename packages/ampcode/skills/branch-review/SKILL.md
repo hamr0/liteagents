@@ -2,7 +2,7 @@
 name: branch-review
 description: Review a branch before merge [target] [level]
 argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty] [effort level]
-allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
+allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---
 Pre-merge review gate. **General review**, then a **full security audit**,
@@ -55,7 +55,8 @@ at the current HEAD SHA.
   `.amp/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
   status --ignored` does not close it either — it collapses to `!!
-  .amp/`, the directory, not the files. So also hash the files there before you start and again before you report:
+  .amp/`, the directory, not the files. So also hash the files there before
+  you start and again before you report:
   ```
   find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
@@ -356,7 +357,8 @@ assumed pass. Stage 2's evidence is one line per item of the security spec's
 own checklist, "Also scan for" included — `item · ran + evidence (command or
 file:line)` or `N/A + reason`. N/A must hold for the repo, not the diff:
 "the diff doesn't touch it" is no reason. `coverage:` says `stage2
-ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a `checks:` line for the two checks most often cut short:
+ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a
+`checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
 does not block.
@@ -365,7 +367,8 @@ does not block.
 it. `/release` reads this file — a chat-only SHA is gone after a compaction
 or handover, and the orchestrator is the only other source (one this command
 already refuses to trust). **Write it at the end of every run,
-unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after someone decides what to do — it earns its keep
+unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after
+someone decides what to do — it earns its keep
 by surviving a compaction, an abandoned session, or an unseen handover.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
@@ -394,6 +397,9 @@ blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
+
+An old `debrief-sha:` line is carried verbatim, name unchanged; `/self-review`
+reads both names and writes `self-review-sha:` on its next run.
 
 `sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
 it made one. `docs:` is repo-relative **paths only**, space-separated, or

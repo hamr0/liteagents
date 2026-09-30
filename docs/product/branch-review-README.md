@@ -233,7 +233,8 @@ The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
 count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
 for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
-repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says `stage2 ran` only when every item has
+repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says
+`stage2 ran` only when every item has
 its line, otherwise `stage2 NOT RUN`.
 
 ---

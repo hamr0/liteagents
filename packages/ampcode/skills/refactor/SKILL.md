@@ -47,7 +47,8 @@ below — it is on by default, not a separate command.
   ```
   find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
-  and show the comparison: only `fix-ledger.md` may differ. `last-review.md` in particular is `/branch-review`'s to write —
+  and show the comparison: only `fix-ledger.md` may differ. `last-review.md` in
+  particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
 ## Ledger mode — `$ARGUMENTS` empty

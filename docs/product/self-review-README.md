@@ -154,7 +154,8 @@ if a `nit` turns out to need one.
 
 Re-run `/self-review` after fixes until zero **Fix now** items remain — **Later** items
 never count toward that, and fixing a Later item anyway is just new uncommitted work
-the next run checks like any other, not a reason to re-run. If a third round still turns up new Fix-now items *caused by
+the next run checks like any other, not a reason to re-run. If a third round
+still turns up new Fix-now items *caused by
 the previous round's own fix*, stop: "redesign, don't patch again," instead of
 patching a fourth time.
 

@@ -100,25 +100,29 @@ const KITS = [
     refactor: 'packages/claude/skills/refactor/SKILL.md',
     release: 'packages/claude/skills/release/SKILL.md',
     selfReview: 'packages/claude/skills/self-review/SKILL.md',
-    stash: 'packages/claude/skills/stash/SKILL.md' },
+    stash: 'packages/claude/skills/stash/SKILL.md',
+    security: 'packages/claude/skills/security/SKILL.md' },
   { name: 'ampcode', dir: '.amp',
     branchReview: 'packages/ampcode/skills/branch-review/SKILL.md',
     refactor: 'packages/ampcode/skills/refactor/SKILL.md',
     release: 'packages/ampcode/skills/release/SKILL.md',
     selfReview: 'packages/ampcode/skills/self-review/SKILL.md',
-    stash: 'packages/ampcode/skills/stash/SKILL.md' },
+    stash: 'packages/ampcode/skills/stash/SKILL.md',
+    security: 'packages/ampcode/skills/security/SKILL.md' },
   { name: 'droid', dir: '.factory',
     branchReview: 'packages/droid/commands/branch-review.md',
     refactor: 'packages/droid/commands/refactor.md',
     release: 'packages/droid/commands/release.md',
     selfReview: 'packages/droid/commands/self-review.md',
-    stash: 'packages/droid/commands/stash.md' },
+    stash: 'packages/droid/commands/stash.md',
+    security: 'packages/droid/commands/security.md' },
   { name: 'opencode', dir: '.opencode',
     branchReview: 'packages/opencode/command/branch-review.md',
     refactor: 'packages/opencode/command/refactor.md',
     release: 'packages/opencode/command/release.md',
     selfReview: 'packages/opencode/command/self-review.md',
-    stash: 'packages/opencode/command/stash.md' },
+    stash: 'packages/opencode/command/stash.md',
+    security: 'packages/opencode/command/security.md' },
 ];
 
 console.log(`\n${colors.bright}${colors.cyan}skill-shell.test.js${colors.reset}\n`);
@@ -682,6 +686,100 @@ if (extractedStashCmds.length === 0) {
         check(`[${shell.name}] ${entry.name}/stash processed: ${c.name} — value ${c.processed}`, lines[0] === String(c.processed), JSON.stringify(r.stdout));
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// e. Spec rules pinned by phrase — the `tests:` record line (writer vs
+//    reader) and the /branch-review + /self-review rules shipped in v4.0.0.
+//    These pin that the rule text is still in the shipped spec, scoped to the
+//    section it belongs to (whitespace-collapsed, so a re-wrap cannot break
+//    them); they do not prove a worker obeys it.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- spec rules pinned by phrase --${colors.reset}`);
+
+const flat = s => s.replace(/\s+/g, ' ');
+// The text between two markers, whitespace-collapsed; throws if either is missing.
+function section(content, from, to) {
+  const text = flat(content);
+  const a = text.indexOf(from), b = text.indexOf(to, a + 1);
+  if (a === -1 || b === -1) throw new Error(`section "${from}" .. "${to}" not found`);
+  return text.slice(a, b);
+}
+// check() whose failure to even read the spec is a FAIL, not a crash.
+function specCheck(name, fn) {
+  try { const r = fn(); check(name, r === true, r === true ? undefined : String(r)); }
+  catch (e) { check(name, false, e.message); }
+}
+const has = (text, phrase) => text.includes(phrase) || `missing: ${phrase}`;
+const allOf = (...rs) => rs.find(r => r !== true) || true;
+const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+for (const kit of KITS) {
+  const br = read(kit.branchReview);
+
+  // `tests:` line: /branch-review writes it, /release reads it.
+  specCheck(`${kit.name}: tests: record line — writer template and /release reader agree`, () => {
+    const writer = br.split('\n').filter(l => l.startsWith('tests: '));
+    if (writer.length !== 1) return `expected exactly 1 "tests: " template line in branch-review, found ${writer.length}`;
+    const alts = writer[0].match(/build N\/A: <reason>|NOT RUN: <reason>/g) || [];
+    if (alts.length !== 2) return `writer line lost its N/A / NOT RUN alternatives: ${writer[0]}`;
+    if (!/^tests: <command> exit <code>; build <command> exit <code> \|/.test(writer[0])) return `writer line shape changed: ${writer[0]}`;
+    const rel = flat(read(kit.release));
+    return allOf(
+      has(rel, '`tests:` line'),
+      has(rel, 'tests exit 0 **and** build exit 0 or `N/A: <reason>`'),
+      has(rel, '`NOT RUN`'));
+  });
+
+  // (a) Stage 2 holds no second copy of the security checklist.
+  specCheck(`${kit.name}: branch-review stage 2 keeps no copy of the security checklist`, () => {
+    const stage2 = section(br, '## Stage 2', '## Stage 3');
+    const titles = read(kit.security).split('\n')
+      .map(l => l.match(/^\d+\. \*\*([^*]+?)\.\*\*/)).filter(Boolean)
+      .map(m => m[1].replace(/ \(.*$/, '').toLowerCase());
+    if (titles.length !== 6) return `expected 6 numbered items in the ${kit.name} security spec, found ${titles.length}`;
+    // the spec-missing fallback may name a few of them; nothing else may
+    const rest = stage2.replace(/Fallback, spec missing only:.*?as passed\./, '').toLowerCase();
+    const copied = titles.filter(t => rest.includes(t));
+    return copied.length === 0 || `stage 2 restates security items: ${copied.join('; ')}`;
+  });
+  specCheck(`${kit.name}: branch-review stage 2 says the security spec is the only list, one line per item or stage2 NOT RUN`, () => {
+    const stage2 = section(br, '## Stage 2', '## Stage 3');
+    const cov = section(br, 'Stage 2\'s evidence is', 'Then a `checks:` line');
+    return allOf(
+      has(stage2, 'that spec is the only list'),
+      has(cov, 'one line per item of the security spec'),
+      has(cov, '`coverage:` says `stage2 ran` only when every item has its line; otherwise `stage2 NOT RUN`'));
+  });
+
+  // (b) N/A must hold for the repo, not the diff.
+  specCheck(`${kit.name}: branch-review N/A reason must hold for the repo, not the diff`, () =>
+    has(section(br, 'Stage 2\'s evidence is', 'Then a `checks:` line'),
+      'N/A must hold for the repo, not the diff: "the diff doesn\'t touch it" is no reason.'));
+
+  // (c) fail-first M counts every changed test file, says assertion vs load failure.
+  specCheck(`${kit.name}: branch-review fail-first M counts every test file, assertion vs load failure`, () => {
+    const ff = section(br, 'Count them as `fail-first N/M files`', 'Structure (dead code');
+    return allOf(
+      has(ff, 'M is every test file the diff adds or changes, no exclusions'),
+      has(ff, '`12/15`, never `12/12`'),
+      has(ff, 'Say whether each red was a failed assertion or the test failing to load'));
+  });
+
+  // (d) a `sha:` = HEAD stop writes no record.
+  specCheck(`${kit.name}: branch-review sha: = HEAD stop writes no record`, () => {
+    const bullet = section(br, '- **`sha:` = HEAD**', '- **No file**');
+    const write = flat(br).match(/Write it at the end of every run, unconditionally\*\* \([^)]*\)/);
+    return allOf(
+      has(bullet, '**Write no record**: the existing one stands.'),
+      write ? has(write[0], '`sha:` = HEAD stop, which writes nothing') : 'unconditional-write sentence not found');
+  });
+
+  // (e) the orchestrator hands the worker the spec's path.
+  for (const [label, file] of [['branch-review', kit.branchReview], ['self-review', kit.selfReview]]) {
+    specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
+      has(section(read(file), '## Guardrails', ' ## '), 'hand it this file\'s path — a worker has no skill text of its own'));
   }
 }
 
