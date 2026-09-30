@@ -41,8 +41,10 @@ changed, and stage 4's doc edits are committed rather than left loose, since tha
 the stage's last act. It cannot see the review's own `.claude/` writes: `.claude/` is
 normally gitignored, so porcelain stays empty whether the reviewer wrote the allowed files,
 wrote nothing, or overwrote `MEMORY.md`. `git status --ignored` does not close it either,
-collapsing to the directory rather than the files. An `md5sum` comparison over
-`.claude/remember/` before and after does, and only the ledger and the record may differ. A
+collapsing to the directory rather than the files. Hashing the files there before and after
+(`find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2` — a bare
+`md5sum .claude/remember/*` exits non-zero when the directory holds a subdirectory) does,
+and only the ledger and the record may differ. A
 third check, `git diff --name-only <reviewed sha>..HEAD`, confirms the docs commit touched
 only the files the record's `docs:` line names.
 
@@ -51,6 +53,8 @@ only the files the record's `docs:` line names.
   else it finds is handed back as a finding. It re-runs `git status --porcelain` before
   reporting: clean (stage 4 committed what it touched), or it says what else changed. That
   turns "it never edits code" from a claim into a checked fact, not an assertion.
+- **The orchestrator hands the worker the spec's path.** A spawned worker has no skill text
+  of its own, so the orchestrator passes it this file's path, mid tier stated explicitly.
 - **The worker does its own work.** The review subagent must not spawn subagents of its
   own — everything it reports has to be something it personally read, ran, or grepped. A
   relayed "I executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
@@ -71,6 +75,11 @@ the working tree, and the remedy — commit the work, then re-run. It does not f
 the staged diff or the working tree, and it does not review a subset. The most expensive
 failure this command can have is reviewing 800 committed lines while 200 uncommitted lines
 of today's actual work go unread.
+
+Next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
+is behind `origin/main`, the stop names how many commits behind, that reviewing now is
+wasted because syncing afterwards makes the review stale, and the remedy: merge
+`origin/main` (or rebase), then re-run. A never-pushed branch, or no `origin/main`, skips it.
 
 With a clean tree, `$ARGUMENTS` is interpreted in order:
 
@@ -114,35 +123,40 @@ multi-commit ranges it skims `git log <range>` for intent before judging.
 red→green," a bug reproduced, or a test added is something to re-test, not accept.
 Branches are commonly AI-authored now — including the fixes to the fixes — so a review
 that trusts the message is reviewing prose. The worker runs the test suite and the
-typecheck/build itself and cites the command and its exit code.
+typecheck/build itself, cites the command and its exit code, and records the result on the
+review record's `tests:` line.
+A suite that can outlast the tool's default command timeout gets a longer timeout (or a
+background run waited on to exit); a timed-out run is not a pass, and the totals are cited
+with the exit code.
 
 What it looks for: bugs needing a fix (logic errors, off-by-one, null paths, races, wrong
-defaults); dead code (`git grep` the symbol before flagging — easy to be wrong); loose
-ends (TODO/FIXME, half-finished branches, swallowed errors, stub bodies, abandoned feature
-flags); correctness (edge cases, error handling, broken invariants); **state ownership**
-(two or more functions assigning the same field/flag/view property is a finding on its
-own, no failing case required — `git grep` every assignment repo-wide, not just in the
-diff, since the second writer is usually in a file the diff never touched; name both
-writers with `file:line`, and count a write from a callback/thread/lifecycle event as a
-writer too); performance (N+1, blocking calls in hot paths, unbounded loops); test
-quality; maintainability (only when material).
+defaults); loose ends (TODO/FIXME, half-finished branches, swallowed errors, stub bodies,
+abandoned feature flags, commented-out blocks, stray debug output); correctness (edge
+cases, error handling, broken invariants); test quality. Code structure — dead code, state
+ownership, naming, duplication, performance — is not this stage's job; `/self-review`
+surfaces it.
 
 **Test quality is proven, not reasoned about.** For every test the diff adds or changes,
 the worker establishes it can actually fail — by reverting the source, not the test: pull
 the pre-change file with `git show <base-sha>:<path>` to a temp location *outside* the
 repo (the tree must stay clean at exit), run the test against that old version, and watch
 it go red. A test that passes against both the buggy and the fixed source is a tautology
-and proves nothing; every one found is flagged, and the report says explicitly when tests
+and proves nothing; every one found is flagged. The count is `fail-first N/M files`, where
+M is every test file the diff adds or changes with no exclusions (a file that cannot go red
+still counts, named with its reason — `12/15`, never `12/12`), and the report says whether
+each red was a failed assertion or a load failure against the old source (weaker proof).
+The report also says explicitly when tests
 are the branch's only evidence for its own claims.
 
 ### Stage 2 — Security (always full)
 `/branch-review` doesn't reimplement a checklist; it delegates. It locates and reads the
-installed `security.md` and runs its actual checks — the recurring six (secrets in the
-repo *and in git history*, data-access authorization / tenant isolation, rate limiting,
-unhappy-path error handling, authorization beyond authentication, inefficient data access)
-plus injection, auth/session, and trust boundaries. If `security.md` can't be found, it
-runs what it can from that list and flags the gap — never reports the full checklist as
-passed.
+installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
+and runs its actual checks: every numbered item of its recurring six and every bullet
+under its "Also scan for" (Config and Dependencies included). That spec is the only list;
+`/branch-review` keeps no copy of it. Only if the spec can't be found does it fall back to
+a short list (secrets in the repo and history, tenant isolation, rate limiting, error
+handling, authorization, injection, auth/session, trust boundaries), and it flags that the
+full checklist was unavailable — never reports it as passed.
 
 This stage is **repo- and history-scoped, not diff-scoped**: a key committed forty commits
 ago, an unbounded route the diff never touched, or a missing row policy on a table the new
@@ -158,7 +172,6 @@ Findings are claims, not facts. The worker tries to **break** each one, not conf
 pass that sets out to confirm reliably misses what an adversarial pass finds.
 
 - Re-read the cited `file:line` in full context.
-- `git grep` the name across the repo before trusting any dead-code or unused-symbol claim.
 - Mark each **confirmed**, **false positive** (with the reason), or **uncertain** (with
   what would settle it).
 
@@ -176,7 +189,7 @@ unsettled`). When it does run, it always sweeps the **whole branch** (`main..HEA
 re-review's narrower `<recorded sha>..HEAD`: a single run at the end, over the whole
 branch, means no narrower range can leave an earlier commit undocumented. The worker lists
 every user-visible change from the commit bodies, diff, and recent `.claude/stash/` notes;
-finds where the project's guide/context doc — and its PRD, README, or findings/learnings
+finds where the project's guide/context doc — and its PRD, README, `.env.example`, or findings/learnings
 doc when relevant — describes each one, and adds or fixes it (an edit already made
 elsewhere on this branch still has to be checked, not assumed covered). The `CHANGELOG`
 stays `/release`'s job. What it touched is committed on its own, doc paths only, as the
@@ -218,7 +231,10 @@ never applied), and **Verdict** (confirmed / uncertain).
 The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full, stage
 3 — each `ran ✓/✗` with its evidence; a stage not actually run is a ✗, never an assumed
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
-count.
+count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
+for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
+repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says `stage2 ran` only when every item has
+its line, otherwise `stage2 NOT RUN`.
 
 ---
 
@@ -230,8 +246,8 @@ and is cleared bullet-by-bullet by `/refactor` (§6). It is not necessarily trac
 git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the ledger is
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
-from a review run lands here as one bullet, and `/debrief` (a separate command covering
-everything since the last debrief, committed or not, run by a spawned mid-tier worker
+from a review run lands here as one bullet, and `/self-review` (a separate command covering
+everything since the last self-review, committed or not, run by a spawned mid-tier worker
 before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
@@ -242,7 +258,7 @@ appended at the end, oldest to newest — no section headers.
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists. Written by /branch-review and
-> /debrief; consumed by /refactor (ledger mode).
+> /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one.
@@ -290,12 +306,13 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
+tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
-debrief-sha: <carried forward verbatim, or omitted if absent>
+self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
 
 `sha:` is the HEAD that stages 1-3 reviewed — **before** stage 4's docs commit, if it made
@@ -308,12 +325,14 @@ the record. `ledger:` is derived from the fix ledger before the record is writte
 nits and `K` changes from the same two `grep -c` counts the closing report line repeats, `M`
 the bullets appended this run; no ledger file → `ledger: none`.
 
-**`debrief-sha:` is a different command's field, sharing this file.** It's `/debrief`'s
+**`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
-before overwriting the record whole, it reads any existing `debrief-sha:` line and
-re-appends it unchanged as the new record's last line. `/branch-review` never sets, reads
+before overwriting the record whole, it reads any existing `self-review-sha:` line and
+re-appends it unchanged as the new record's last line. A record from before the rename
+holds `debrief-sha:` instead; with no `self-review-sha:` present, that old line is carried
+forward verbatim (`/self-review` reads both names). `/branch-review` never sets, reads
 the *value* of, or reasons about that line — it only carries it. This is why every reader of
-`sha:` anchors on the line starting exactly `sha:`, never a bare substring match — `debrief-
+`sha:` anchors on the line starting exactly `sha:`, never a bare substring match — `self-review-
 sha:` ends in the same four characters and would otherwise be mistaken for it.
 
 It answers one question — was *this commit* reviewed, and what came of it — so only the
@@ -422,7 +441,8 @@ falling through to a full review rather than resolving a range that never existe
   `sha:` = HEAD below; nothing to review.
 - **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
 - **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
-  tree. A recorded `blocked` verdict means its blockers are unfixed by definition.
+  tree. A recorded `blocked` verdict means its blockers are unfixed by definition. No new
+  record is written; the existing one stands.
 - **no file** → no prior review to build on; read the whole branch.
 
 **The range is `<previously-reviewed-sha>..HEAD`.** Stage 1 then
@@ -466,7 +486,9 @@ whatever state the ledger file happens to be in.
   place the difference is visible.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
-- **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review — *unless every
+- **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review (a merge or
+  rebase of `origin/main` after the review is never forgiven — it brings non-doc files) —
+  *unless every
   file* in `git diff --name-only <recorded sha>..HEAD` is **forgiven**: under `docs/`, a
   `*.md` at the repo root, **or** on the record's `docs:` line — that third case matters
   because Stage 4 legitimately writes docs outside `docs/`/root too (e.g.
@@ -497,7 +519,7 @@ This is the only thing guaranteeing the branch was reviewed *and* security-scann
 release, so a missing answer is always treated as a stop, never as a pass.
 
 **One gap the gate cannot close.** Every check in this chain runs on one machine:
-`/branch-review` reads locally, `/ship` runs the suite locally, `/release` never pushes. CI
+`/branch-review` reads locally, `/release` runs its checks locally and never pushes. CI
 is the only differently-configured instrument, and it sees the branch for the first time
 *after* both gates pass. A test that is green locally because of a path, fixture or tool
 that exists only on the author's box fails there and nowhere earlier. `/release`'s hand-back
@@ -522,7 +544,7 @@ sequence, including the ones typed by hand.
    `/branch-review abc123..HEAD` re-reviews just that fix commit. Stage 3 confirms the
    prior High is now fixed. Recorded SHA moves to `def456`.
 5. `/release` runs. Phase 0.5 compares `def456` to `HEAD` — match — and finds no findings
-   outstanding at that SHA. It proceeds through `/ship`, docs, version bump, and stops with
+   outstanding at that SHA. It proceeds through its own mechanical checks (tests are skipped when the record's `tests:` line covers them), version bump, and stops with
    the push/PR/merge/tag/publish sequence for a human to authorize.
 
 **Feature B lands later, on top of the merged A.**

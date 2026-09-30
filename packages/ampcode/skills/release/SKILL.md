@@ -4,25 +4,20 @@ description: Verify, write the CHANGELOG, cut a version — then hand the releas
 allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git fetch:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(pytest:*), Bash(python:*), Bash(go:*), Bash(cargo:*), Bash(make:*)
 disable-model-invocation: true
 ---
-Release **preparation** orchestrator for the **current branch**. It runs your
-existing pre-deploy gate, writes the CHANGELOG, bumps the version and
+Release **preparation** orchestrator for the **current branch**. It runs its own
+short mechanical checks, writes the CHANGELOG, bumps the version and
 commits — then **stops and reports**. It never pushes, opens a PR, merges,
 tags, or publishes: those are yours to authorize by name. The general docs
 sweep runs earlier, in `/branch-review`.
 
-It does not re-implement checks, and it does not review code. Review is a
-separate command that must have run first.
+It does not review code. Review is a separate command that must have run
+first.
 
 ## Guardrails
-- **Spawn a worker and explicitly select your tool's mid tier.** State the
-  tier on the spawn — do not omit it and rely on a default. An omitted tier
-  inherits the *parent's* tier, which is not the same thing as the balanced
-  one. Pick the judgment-capable tier that is cheaper and faster than your top
-  reasoning tier. **Not the cheapest/fastest tier**: on judgment work it
-  measurably degrades (misclassification rates several times higher). Choose by
-  tier, not by a vendor model name copied from this file — names drift, and
-  this command ships to several tools. Fall back to running inline if your tool
-  has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
+  parent's, not the balanced one; not cheapest/fastest either — judgment
+  degrades there; never a vendor model name). Fall back to running inline if
+  your tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a finding
@@ -58,7 +53,7 @@ A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
 HEAD` and compare it against the `sha:` line (the one starting exactly
-`sha:` — never `debrief-sha:`, a separate bookmark `/debrief` owns and
+`sha:` — never `self-review-sha:`, a separate bookmark `/self-review` owns and
 `/branch-review` only carries forward) in `.amp/remember/last-review.md`,
 which `/branch-review` writes. Asking the
 orchestrator "did a review run?" puts the question to the one party with an
@@ -71,7 +66,8 @@ that predates this file's introduction has no record, so it does not count.
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
-  re-review, **unless every file** in `git diff --name-only <recorded
+  re-review (a merge or rebase of `origin/main` after the review is never
+  forgiven — it brings non-doc files), **unless every file** in `git diff --name-only <recorded
   sha>..HEAD` is forgiven. A file is forgiven if it's under `docs/`, a `*.md`
   at the repo root, **or** on the record's `docs:` line — Stage 4 legitimately
   writes docs outside `docs/`/root too (`packages/subagentic-manual.md`,
@@ -91,6 +87,12 @@ that predates this file's introduction has no record, so it does not count.
   `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
+- **`tests:` line** — tests exit 0 **and** build exit 0 or `N/A: <reason>`
+  **and** recorded `sha:` = HEAD → covered, do not re-run. Otherwise (HEAD
+  moved past `sha:` by forgiven commits, line absent, build part missing, or
+  `NOT RUN`) → run the project's real test command, and build if there is
+  one, yourself in Phase 1 and cite command + exit code. Any non-zero exit →
+  **stop**.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
@@ -113,17 +115,24 @@ This is the only thing guaranteeing the branch was reviewed *and* security
 scanned, so treat a missing answer as a **stop**, never as a pass.
 
 ## Phase 1 — Verify
-**Load the real checklist**: locate and **read** the installed `ship.md` so
-you apply its exact checks, not an approximation. If it cannot be found, run
-what you can from its name and **flag that the full checklist was
-unavailable** — never pretend it passed.
+Detect the stack first (`package.json`, `pyproject.toml`, `go.mod`,
+`Cargo.toml`, `Makefile`) and run only what exists. Report each item **pass /
+fail / N/A** with the exact command and exit code; a check not run is a
+**fail**; N/A needs a stated reason. Read the exit code off the bare command
+(`cmd > /tmp/out 2>&1; e=$?`), never a pipeline — `$?` after a pipe is the
+last element's status. A test command that can outlast your tool's default
+command timeout must be run with a longer timeout (or in the background and
+waited on until it exits); a run that timed out is not a pass, and the report
+cites the suite's totals as well as the exit code. Emit a coverage row: `ran? ✓/✗` · evidence · verdict.
+A ✗ is **Blocked 🛑**.
 
-- **`/ship`** — mechanical pre-deploy gate (tests, lint, build, debug
-  leftovers, secrets grep, migrations, docs/config sync, tree state).
-
-Capture **fresh evidence**: the exact command, its exit code, and the result.
-A check you did not actually run is a **FAIL**, never an assumed pass. Emit a
-coverage row: `ran? ✓/✗` · evidence · verdict. A ✗ is **Blocked 🛑**.
+- **Lint / format clean** — only if a linter or formatter is configured.
+- **Migrations ready** — only if the project has a schema / migrations: they
+  apply cleanly and are ordered.
+- **In sync with `origin`** — not behind `origin/main`; a never-pushed branch
+  passes.
+- **Tests / build** — only per the `tests:` bullet in Phase 0.5 (HEAD moved
+  past `sha:`, line absent, build part missing, or `NOT RUN`).
 
 Security is **not** re-run here — it is stage 2 of the review, already
 confirmed in Phase 0.5.
@@ -185,7 +194,7 @@ therefore still correctly stops as stale, as it always did.
 Print the evidence, then hand back the exact remaining steps so the
 orchestrator can run them on the user's named go:
 
-> **Cut ✅ vX.Y.Z on `<branch>`** — `/ship` green, CHANGELOG updated, release
+> **Cut ✅ vX.Y.Z on `<branch>`** — checks green, CHANGELOG updated, release
 > commit made locally. Reviewed at `<sha>`.
 > Ready when you are:
 > 1. `git push -u origin <branch>`
@@ -207,7 +216,7 @@ orchestrator can run them on the user's named go:
 >    tarball's contents), not the working tree
 
 **Every exit code in this sequence is read off the bare command, including
-the ones you type yourself.** `/ship`'s rule is not just for the worker: a
+the ones you type yourself.** The rule is not just for the worker: a
 pipeline reports its last element's status, so `gh run watch --exit-status |
 tail -2; echo $?` prints `0` for a failed run. That has already turned a red
 CI into a green reading in a real release.

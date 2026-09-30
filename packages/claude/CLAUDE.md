@@ -21,7 +21,7 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (14 total)
+### Skills (13 total)
 
 | ID | Description | Usage |
 |---|---|---|
@@ -30,12 +30,11 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | live-canvas | Conduct design interviews, generate UI variations, collect live click-to-annotate feedback via a browser overlay that streams into the session | /live-canvas |
 | skill-creator | Guide for creating effective skills and extending Claude capabilities | /skill-creator <skill-type> <skill-description> |
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
-| debrief | Verify what you delivered since the last debrief — real runs, not re-assertion | /debrief |
+| self-review | Verify what you delivered since the last self-review with real runs, and review its structure | /self-review |
 | refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> |
 | remember | Consolidate stashes + friction into project memory | /remember |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [target] [level] |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] |
-| ship | Mechanical pre-deploy gate — tests, build, tree state | /ship |
 | release | Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence | /release |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
@@ -45,5 +44,5 @@ All resources are auto-discovered from frontmatter in their respective directori
 - **Skills**: `./skills/*/SKILL.md`
 
 Claude Code merged custom commands into skills, so every capability ships as
-`skills/<name>/SKILL.md`. The ten that are deliberate actions carry
+`skills/<name>/SKILL.md`. The nine that are deliberate actions carry
 `disable-model-invocation: true`, so Claude only runs them when you type them.

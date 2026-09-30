@@ -9,15 +9,10 @@ Refactor $ARGUMENTS. A targeted refactor includes the performance pass
 below — it is on by default, not a separate command.
 
 ## Guardrails
-- **Spawn a worker and explicitly select your tool's mid tier.** State the
-  tier on the spawn — do not omit it and rely on a default. An omitted tier
-  inherits the *parent's* tier, which is not the same thing as the balanced
-  one. Pick the judgment-capable tier that is cheaper and faster than your top
-  reasoning tier. **Not the cheapest/fastest tier**: on judgment work it
-  measurably degrades (misclassification rates several times higher). Choose by
-  tier, not by a vendor model name copied from this file — names drift, and
-  this command ships to several tools. Fall back to running inline if your tool
-  has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
+  parent's, not the balanced one; not cheapest/fastest either — judgment
+  degrades there; never a vendor model name). Fall back to running inline if
+  your tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
@@ -47,14 +42,17 @@ below — it is on by default, not a separate command.
   `/branch-review` it is not expected to be empty. It cannot police the
   memory directory: `.amp/` is normally gitignored, so porcelain stays
   empty whether you deleted a fixed bullet, wrote nothing, or overwrote
-  `MEMORY.md`. So also take `md5sum .amp/remember/*` before you start and
-  again before you report, and show the comparison: only `fix-ledger.md` may
-  differ. `last-review.md` in particular is `/branch-review`'s to write —
+  `MEMORY.md`. So also hash the files there before you start and again before
+  you report:
+  ```
+  find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
+  ```
+  and show the comparison: only `fix-ledger.md` may differ. `last-review.md` in particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
 ## Ledger mode — `$ARGUMENTS` empty
 Work through `.amp/remember/fix-ledger.md`, the non-blocking findings
-`/branch-review` has accumulated. Everything below (goals, constraints,
+`/self-review` and `/branch-review` have accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
 
@@ -100,6 +98,12 @@ recent change decide where inside it to start: `git log --oneline -- <path>`
 and weight the files that keep coming back. A refactor is an investment in the
 *next* change to that code, so code nobody edits pays the worst return — say
 which files you picked and what churn you saw.
+
+**Do not edit yet.** After weighting by churn, list candidates — file(s) ·
+what is wrong · the change proposed · strength (strong / worth exploring /
+speculative) — then **stop and hand the list back**. The worker cannot ask;
+the orchestrator asks the user which to do, and only picked candidates are
+edited.
 
 ## Goals
 - Reduce complexity
@@ -180,6 +184,8 @@ honest way to know is to run them.
 3. **Report** pass / fail counts and any failure's name + `file:line`.
 
 **Stop and ask** when (HITL gates — not all the time, only here):
+- `$ARGUMENTS` names a whole area — the candidate list above is handed back
+  before any edit.
 - a test **fails** after the refactor. Don't auto-revert (destroys
   work-in-progress) and don't push forward (the no-behavior-change
   constraint is broken). Present the failure and the options:

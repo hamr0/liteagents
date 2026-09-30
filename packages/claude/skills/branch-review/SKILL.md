@@ -2,7 +2,7 @@
 name: branch-review
 description: Review a branch before merge [target] [level]
 argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty] [effort level]
-allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
+allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---
 Pre-merge review gate. **General review**, then a **full security audit**,
@@ -25,15 +25,11 @@ Run this **before** `/release`. `/release` will refuse to run without a review
 at the current HEAD SHA.
 
 ## Guardrails
-- **Spawn a worker and explicitly select your tool's mid tier.** State the
-  tier on the spawn — do not omit it and rely on a default. An omitted tier
-  inherits the *parent's* tier, which is not the same thing as the balanced
-  one. Pick the judgment-capable tier that is cheaper and faster than your top
-  reasoning tier. **Not the cheapest/fastest tier**: on judgment work it
-  measurably degrades (misclassification rates several times higher). Choose by
-  tier, not by a vendor model name copied from this file — names drift, and
-  this command ships to several tools. Fall back to running inline if your tool
-  has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
+  parent's, not the balanced one; not cheapest/fastest either — judgment
+  degrades there; never a vendor model name), and hand it this file's path — a
+  worker has no skill text of its own. Fall back to running inline if your
+  tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
@@ -59,9 +55,11 @@ at the current HEAD SHA.
   `.claude/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
   status --ignored` does not close it either — it collapses to `!!
-  .claude/`, the directory, not the files. So also take `md5sum
-  .claude/remember/*` before you start and again before you report, and show
-  the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
+  .claude/`, the directory, not the files. So also hash the files there before you start and again before you report:
+  ```
+  find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
+  ```
+  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
   run `git diff --name-only <reviewed sha>..HEAD` before you report: it must
   list only the files on the record's `docs:` line — anything else means an
   edit escaped Stage 4's scope.
@@ -89,6 +87,15 @@ This is forced by the design, not a preference: `/release`'s precondition is a
 review at the current HEAD SHA, and any commit made after the review makes it
 stale. **The only correct order is commit → review → release.**
 
+**Then check the branch is not behind `main`.** Run `git fetch origin`, then
+`git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say
+all three things: (a) the branch is behind `origin/main` by N commits
+(`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted,
+because syncing afterwards makes the review stale; (c) merge `origin/main`
+into the branch (or rebase), then re-run `/branch-review`. A never-pushed
+branch passes; no `origin` remote or no `origin/main` → skip the check and say
+so. The orchestrator runs it before spawning, the worker re-runs it.
+
 With a clean tree, interpret `$ARGUMENTS` in this order:
 1. **Empty** → the current branch vs its merge-base with `main`
    (`git diff $(git merge-base main HEAD)..HEAD`). If that is empty there is
@@ -104,13 +111,13 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 was actually read rather than assuming.
 
 **Re-review after fixes: read `.claude/remember/last-review.md` first.** Its
-`sha:` line (never `debrief-sha:`) is the previously-reviewed commit, its
+`sha:` line (never `self-review-sha:`) is the previously-reviewed commit, its
 `blockers:` list what you owe an answer on — take both from the file, never
 the orchestrator's recollection, for the same reason `/release` does. Then:
 
 - **First, check the record belongs to this branch.** There is one record
   file per repo, not one per branch. No `sha:` line at all (e.g. a file
-  holding only `debrief-sha:`) is the same as **No file** below. Otherwise
+  holding only `self-review-sha:`) is the same as **No file** below. Otherwise
   validate `<that sha>` with `git rev-parse --verify <that sha>` — a value
   that fails this (e.g. a corrupted or hand-edited record, or one starting
   with `-`, which git would otherwise parse as an option) is a malformed
@@ -138,7 +145,8 @@ the orchestrator's recollection, for the same reason `/release` does. Then:
 - **`sha:` = HEAD** → nothing has changed since the last review. Say so and
   stop; re-running against an identical tree can only produce noise. If the
   recorded verdict was `blocked`, its blockers are still unfixed by
-  definition — repeat them rather than re-deriving them.
+  definition — repeat them rather than re-deriving them. **Write no record**:
+  the existing one stands.
 - **No file** → no prior review to build on. Review the whole branch.
 
 **On a re-review, sweep the open ledger bullets for liveness first.** Their
@@ -178,29 +186,21 @@ fixes to the fixes — so a review that trusts the message is reviewing prose.
 Run the test suite and the typecheck/build yourself and cite the command and
 its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
 e=$?`), never off a pipeline — `$?` after a pipe is the last element's
-status, so piping into `tail` reports `0` for a suite that failed. `/ship`
-carries the reproduction.
+status, so piping into `tail` reports `0` for a suite that failed. A suite that
+can outlast your tool's default command timeout needs a longer timeout (or a
+background run waited on to exit); a timed-out run is not a pass, and cite the
+suite's totals with the exit code. The result
+goes on the record's `tests:` line — the build part is required (`build N/A: <reason>`
+if none).
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.
-- **Dead code.** Unreferenced functions / vars / imports / params, unreachable
-  branches, commented-out blocks, legacy paths the diff just obsoleted.
-  `git grep` the symbol before flagging — easy to be wrong.
 - **Loose ends.** TODO / FIXME / XXX added by this diff, half-finished
   branches, silently swallowed errors, stub bodies, mocked-out paths,
-  "temporary" names, abandoned feature flags.
+  "temporary" names, abandoned feature flags, commented-out blocks, debug
+  leftovers (stray `console.log` / `print` / `debugger` / `dbg!`).
 - **Correctness.** Edge cases, error handling, type / contract violations,
   broken invariants.
-- **State ownership.** Two or more functions assigning the same field, flag, or
-  view property. A finding on its own — no failing case required. `git grep`
-  every assignment to that name repo-wide, not just in the diff; the second
-  writer is usually in a file the diff never touched. Name both writers with
-  `file:line` — an unnamed second writer is a hunch, not a finding. Count
-  ordering, not just writers: a write arriving from a callback, thread, or
-  lifecycle event is the dangerous one, and one app writer racing a framework
-  one still counts as two.
-- **Performance.** N+1, blocking calls in hot paths, unbounded loops, indexes
-  the diff actually touches.
 - **Test quality, not just test presence.** For every test the diff adds or
   changes, establish that it **can actually fail**. Reasoning about
   falsifiability does not work; executing it does. **Revert the source, not the
@@ -213,25 +213,31 @@ carries the reproduction.
   the branch's only evidence for its claims. **Required, every test file the
   diff adds or changes — one red run per file is enough; checking a sample of
   the files is a skip.** Count them as `fail-first N/M files` on the
-  `checks:` line.
-- **Maintainability.** Complexity, naming, duplication — only when material.
+  `checks:` line. M is every test file the diff adds or changes, no exclusions;
+  a file that cannot go red (e.g. comment-only) still counts in M, named with
+  its reason — `12/15`, never `12/12`. Say whether each red was a failed
+  assertion or the test failing to load against the old source (missing
+  import/export), which is weaker proof.
+
+Structure (dead code, state ownership, naming, duplication, performance) is
+not this stage's job — `/self-review` surfaces it.
 
 ## Stage 2 — Security (always full)
 **Delegate; do not re-implement.** Locate and **read** the installed
-`security.md` and run its actual checklist — the recurring six (secrets in the
-repo *and in git history*, data-access authorization / tenant isolation, rate
-limiting, unhappy-path error handling, authorization beyond authentication,
-inefficient data access) plus injection, auth/session, and trust boundaries.
-
-If `security.md` cannot be found, run what you can from the list above and
-**flag that the full checklist was unavailable** — never report it as passed.
+`security` spec (`security/SKILL.md` or `security.md`, whichever the tool
+ships) and run its actual checklist: every numbered item of its recurring
+six and every bullet under "Also scan for" — that spec is the only list.
+Fallback, spec missing only: secrets (repo and history), tenant isolation,
+rate limiting, error handling, authorization, injection, auth/session, trust
+boundaries; **flag that the full checklist was unavailable**, never report it
+as passed.
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
 policy on a table the new code now reads are all in scope. **The review range
 never narrows this stage** — even when you were handed `main..HEAD`, the
-secrets scan covers every commit on every branch (`security.md` item 1 has
-the command).
+secrets scan covers every commit on every branch (the security spec's item 1
+has the command).
 
 ## Stage 3 — Verify (adversarial)
 Findings are claims, not facts. **Try to break each one, not to confirm it** —
@@ -239,8 +245,6 @@ a pass that sets out to confirm reliably misses what an adversarial pass
 finds.
 
 - Re-read the cited `file:line` in full context.
-- `git grep` the name across the repo before trusting any dead-code or
-  unused-symbol claim.
 - Mark each **confirmed**, **false positive** (with the reason), or
   **uncertain** (with what would settle it).
 
@@ -259,7 +263,7 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    user-visible change — feature, command, flag, behaviour, fix, dependency
    bump.
 2. **Place each change in the docs.** For every change from step 1, find
-   where the project's guide/context doc — and the PRD, README, or
+   where the project's guide/context doc — and the PRD, README, `.env.example`, or
    findings/learnings doc when the change touches them — describes it now.
    Check every place the topic comes up, not just the first. "This branch
    already edited that doc" is not checked. Nothing describes it → add it.
@@ -311,12 +315,13 @@ Not in the report. **Append** each one as a single bullet to
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists. Written by /branch-review and
-> /debrief; consumed by /refactor (ledger mode).
+> /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
 > not severity; untagged counts as `nit`; tail unwrapped on the last line.
-> Always appended at the end.
+> Always appended at the end. A /self-review Structure item puts the rule it
+> breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha> · nit
@@ -333,17 +338,12 @@ numbers, no TODO comments in code — the ledger is the single writer. Before
 appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
 if it is already there, skip it. Do not touch existing bullets.
 
-**A bullet you disprove is deleted, not annotated.** If you establish that an
-existing bullet's finding no longer holds — or never did — remove the line and
-say why in your report. The ledger is a work list, not an archive: an
-annotated bullet still reads as work, and a bullet arguing with itself is
-worse than none. Deleting on disproof is the one case where a reviewer may
-remove a line, and it is the same judgement `/refactor` makes at
-revalidation. Use plain
-`grep`, never `git grep`, on the ledger: the ledger is normally gitignored,
-and `git grep` searches tracked content only, so it reports "not found" for a
-snippet that is sitting right there — the dedupe would pass every time and
-the same finding would be appended on every run.
+**A bullet you disprove is deleted, not annotated** — if an existing bullet's
+finding no longer holds, or never did, remove the line and say why in your
+report (the one case a reviewer may remove a line; same judgement as
+`/refactor`'s revalidation). Use plain `grep`, never `git grep`, on the
+ledger: it is gitignored, so `git grep` reports "not found" and the dedupe
+passes every time.
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·
@@ -352,7 +352,11 @@ uncertain).
 
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
-assumed pass. Then a `checks:` line for the two checks most often cut short:
+assumed pass. Stage 2's evidence is one line per item of the security spec's
+own checklist, "Also scan for" included — `item · ran + evidence (command or
+file:line)` or `N/A + reason`. N/A must hold for the repo, not the diff:
+"the diff doesn't touch it" is no reason. `coverage:` says `stage2
+ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a `checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
 does not block.
@@ -361,7 +365,7 @@ does not block.
 it. `/release` reads this file — a chat-only SHA is gone after a compaction
 or handover, and the orchestrator is the only other source (one this command
 already refuses to trust). **Write it at the end of every run,
-unconditionally**, not after someone decides what to do — it earns its keep
+unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after someone decides what to do — it earns its keep
 by surviving a compaction, an abandoned session, or an unseen handover.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
@@ -370,8 +374,9 @@ none`; otherwise run both (first is the total, second is K):
 grep -c '^- ' .claude/remember/fix-ledger.md
 grep -cE '@ [0-9a-f]{7,40} · change$' .claude/remember/fix-ledger.md
 ```
-N = total − K, M = bullets appended this run. **Carry `debrief-sha:` forward
-first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:
+N = total − K, M = bullets appended this run. **Carry `self-review-sha:` forward
+first** (`/self-review`'s bookmark, never set here), verbatim, as the last line
+— or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -381,12 +386,13 @@ verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
+tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
-debrief-sha: <carried forward verbatim, or omitted if absent>
+self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
 
 `sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
@@ -397,26 +403,16 @@ correct) belongs in the **report**, never the record. `/release` still
 compares this SHA to `HEAD`; its relaxed stale rule (see `/release`) lets a
 docs-only commit sit between the two without forcing a re-review.
 
-`blockers: none` when the verdict is ready — one line per blocker, nothing
-more: reasoning belongs in the report, non-blocking findings in the ledger.
-This lets a session that never saw the report learn *what* is blocked, not
-just *that* something is — otherwise the next run rediscovers it by
-re-reviewing the branch, the non-convergence this command exists to stop.
+`blockers: none` when ready; otherwise one line per blocker, nothing more —
+reasoning goes in the report, non-blocking findings in the ledger. `coverage`
+is recorded so a `ready` with security not run is distinguishable. `/release`
+reads the `tests:` line instead of re-running the suite on the same commit.
 
-`coverage` is recorded because a `ready` whose security stage didn't run
-isn't the same fact as one where it did, and the reader can't tell them apart
-otherwise.
+**There is no override field, no `verdict: overridden`** — releasing over
+`blocked` is a live decision at `/release`'s hand-back, in conversation.
 
-**There is no override field, no `verdict: overridden`.** A SHA is checkable
-by anyone; consent isn't, so a consent line is forgeable by whatever writes
-the file, and a persisted override silently covers the next release too.
-Releasing over `blocked` is a live decision at `/release`'s hand-back, in
-conversation.
-
-**Nothing clears this file.** It's overwritten whole next run; the `sha:`
-line expires it — fix something, commit, and the hash no longer matches HEAD,
-so the gate reports *stale*, not *blocked*. A blocked verdict persists only
-while HEAD doesn't move, i.e. nothing was fixed — the correct outcome.
+**Nothing clears this file.** Overwritten whole next run; the `sha:` line
+expires it (fix and commit → *stale*, not *blocked*).
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree

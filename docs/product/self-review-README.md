@@ -1,18 +1,18 @@
 ---
 type: reference
-title: debrief
+title: self-review
 status: draft
 updated: 2026-09-21
 ---
 
-# debrief
+# self-review
 
-`/debrief` answers the owner's habitual question: **"verify what you delivered, what
-did you gloss over, what did I miss?"** It covers everything since the last debrief —
+`/self-review` answers the owner's habitual question: **"verify what you delivered, what
+did you gloss over, what did I miss?"** It covers everything since the last self-review —
 committed or not — before `/branch-review`.
 
 ```
-work  ──►  /debrief  ──►  commit  ──►  /branch-review  ──►  /release
+work  ──►  /self-review  ──►  commit  ──►  /branch-review  ──►  /release
 ```
 
 **It is not a gate.** `/branch-review` and `/release` do not require it to have run.
@@ -29,9 +29,10 @@ Two parties, one spawn:
    **handoff**: what was done, the claims made to the user (works / tested / done),
    files changed, and the loose ends only it can know — a peer session never told, an
    open question left silent, unshipped state.
-2. It **spawns one mid-tier worker** with that handoff — explicitly, never the
+2. It **spawns one mid-tier worker** with that handoff and this spec's path (a worker
+   has no skill text of its own) — explicitly, never the
    cheapest/fastest tier and never inheriting a default, the same rule every other
-   worker-spawning command in this toolkit follows. The worker does the whole debrief
+   worker-spawning command in this toolkit follows. The worker does the whole self-review
    itself; it must not spawn subagents of its own.
 
 The main session never grades its own work, and the spawn is never the high tier
@@ -41,17 +42,21 @@ only the facts and told to try to break them, doesn't carry that incentive.
 
 ---
 
-## 2. The range — since the last debrief
+## 2. The range — since the last self-review
 
-The range covers everything since the last debrief, committed or not: a
+The range covers everything since the last self-review, committed or not: a
 committed-only range would miss today's uncommitted edits, and an
 uncommitted-only range would miss work already committed earlier in the
 session. Neither alone is what "verify what I just did" means.
 
-This works via a **bookmark**: one line, `debrief-sha:`, living inside
+This works via a **bookmark**: one line, `self-review-sha:`, living inside
 `.claude/remember/last-review.md` — the same record `/branch-review` writes.
-`/debrief` is its only writer; `/branch-review` only carries it forward,
-unread and unedited, each time it overwrites that file.
+`/self-review` is its only writer; `/branch-review` only carries it forward,
+unedited, each time it overwrites that file. Before the rename to `/self-review`
+the line was called `debrief-sha:`; an old record holding only that name is
+honoured once (read as the bookmark when there is no `self-review-sha:` line —
+the new name wins if both exist) and `/branch-review` carries it forward verbatim
+until `/self-review` next runs and rewrites it.
 
 At the start of every run the orchestrator validates the bookmark exactly the
 way `/branch-review` validates its own record (`git rev-parse --verify`, then
@@ -60,43 +65,52 @@ proves the bookmarked commit belongs to this history. Valid → the range is
 `<bookmark>..HEAD`. No bookmark, or one that fails either check → the whole
 branch, `$(git merge-base main HEAD)..HEAD`. Either way, uncommitted changes
 and untracked files are added on top. Range empty **and** the tree clean →
-"nothing new since the last debrief," and no worker is spawned.
+"nothing new since the last self-review," and no worker is spawned.
 
-**Accepted overlap:** work debriefed while still uncommitted, then committed
+**Accepted overlap:** work self-reviewed while still uncommitted, then committed
 later, gets seen once more on the next run. That's over-work, never a miss —
 the design trades a little redundancy for never silently skipping something.
 
 At the end of every run the orchestrator rewrites the bookmark to the current
-HEAD, touching only that one line — every other line in `last-review.md`
-(`sha:`, `branch:`, `verdict:`, `blockers:`, …) is left exactly as it was.
+HEAD, touching only that one line (and dropping any old `debrief-sha:` line) —
+every other line in `last-review.md` (`sha:`, `branch:`, `verdict:`,
+`blockers:`, …) is left exactly as it was. The rewrite happens when the report
+is relayed, not after the user's Fix now / Later pick: it records what was
+checked; the ledger append follows whenever the pick arrives.
 
 ---
 
-## 3. The six questions
+## 3. The questions
 
 The worker runs real commands — the thing itself, or its tests, now — and asks:
 
 - **Does it work?** The command and the numbers, not a restatement.
 - **No regression?** The full suite, now, compared to before.
-- **Bloat?** Anything the task didn't need — speculative code, redundant tests, an
-  abstraction for one caller.
+- **Structure?** The code-structure checks this command owns (`/branch-review` no
+  longer runs them): speculative code, an abstraction for one caller, redundant tests;
+  dead code; state ownership (two or more functions assigning the same field — both
+  writers named with `file:line`); reuse (a new thing duplicating an existing one);
+  changed lines that trace to no request; complexity, naming, duplication when
+  material; performance, only with evidence.
 - **Glossed over?** Tradeoffs not flagged, claims not tested as shipped, the
   handoff's loose ends — verified, not just repeated.
 - **Underspecced?** What should have been part of this work and isn't.
-- **Docs?** What now reads untrue — surfaced only; `/branch-review` Stage 4 writes
-  the fix.
 
 ## 4. The bar — Fix now and Later alike
 
 Every item, in **either** pile, needs one concrete failure sentence: specific
-input/state → what breaks. Later is not a lower bar — it's a deferral, not an
+input/state → what breaks. **Carve-out:** a Structure item may give the rule it
+breaks plus the `file:line`(s) that prove it instead — and goes in **Later**, never
+**Fix now**, unless it does carry a real failure sentence. Later is not a lower bar — it's a deferral, not an
 excuse to skip the sentence. "Will mislead the next reader" is a real example
 that got through in the field and shouldn't have: no input named, no state
 named, no break named. Can't write the sentence → it's a nit-of-a-nit: dropped,
 and only the count (`dropped: N`) is reported, so the user can see it looked
 rather than skipped.
 
-Surviving items: **max 5, ranked**, in two piles — **Fix now** (changes whether you
+Each item is exactly one kind (failure-sentence or Structure), counted in one cap only.
+Surviving items: **max 5 failure-sentence items and max 5 Structure items, ranked**,
+in two piles — **Fix now** (changes whether you
 ship) and **Later**.
 
 ---
@@ -138,8 +152,9 @@ if a `nit` turns out to need one.
 
 ## 7. Loop guard
 
-Re-run `/debrief` after fixes until zero **Fix now** items remain — **Later** items
-never count toward that. If a third round still turns up new Fix-now items *caused by
+Re-run `/self-review` after fixes until zero **Fix now** items remain — **Later** items
+never count toward that, and fixing a Later item anyway is just new uncommitted work
+the next run checks like any other, not a reason to re-run. If a third round still turns up new Fix-now items *caused by
 the previous round's own fix*, stop: "redesign, don't patch again," instead of
 patching a fourth time.
 
@@ -147,9 +162,9 @@ patching a fourth time.
 
 ## Worked example
 
-The first real run of `/debrief` on this toolkit's own catalog-count sweep is why
-the six questions exist: an earlier pass had already swept every *digit* count (13 →
-14) across READMEs and kit configs, and reported done. `/debrief`'s worker re-ran the
+The first real run of `/self-review` on this toolkit's own catalog-count sweep is why
+the questions exist: an earlier pass had already swept every *digit* count (13 →
+14) across READMEs and kit configs, and reported done. `/self-review`'s worker re-ran the
 diff and grepped for count language a digit-only sweep can't see — and found
 `packages/claude/CLAUDE.md` still saying **"The nine that are deliberate actions"**,
 spelled as a word, one line the earlier pass's search had no way to catch. One
