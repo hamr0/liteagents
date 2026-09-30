@@ -25,15 +25,10 @@ Run this **before** `/release`. `/release` will refuse to run without a review
 at the current HEAD SHA.
 
 ## Guardrails
-- **Spawn a worker and explicitly select your tool's mid tier.** State the
-  tier on the spawn — do not omit it and rely on a default. An omitted tier
-  inherits the *parent's* tier, which is not the same thing as the balanced
-  one. Pick the judgment-capable tier that is cheaper and faster than your top
-  reasoning tier. **Not the cheapest/fastest tier**: on judgment work it
-  measurably degrades (misclassification rates several times higher). Choose by
-  tier, not by a vendor model name copied from this file — names drift, and
-  this command ships to several tools. Fall back to running inline if your tool
-  has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
+  parent's, not the balanced one; not cheapest/fastest either — judgment
+  degrades there; never a vendor model name). Fall back to running inline if
+  your tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
@@ -178,29 +173,17 @@ fixes to the fixes — so a review that trusts the message is reviewing prose.
 Run the test suite and the typecheck/build yourself and cite the command and
 its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
 e=$?`), never off a pipeline — `$?` after a pipe is the last element's
-status, so piping into `tail` reports `0` for a suite that failed. `/ship`
-carries the reproduction.
+status, so piping into `tail` reports `0` for a suite that failed. The result
+goes on the record's `tests:` line.
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.
-- **Dead code.** Unreferenced functions / vars / imports / params, unreachable
-  branches, commented-out blocks, legacy paths the diff just obsoleted.
-  `git grep` the symbol before flagging — easy to be wrong.
 - **Loose ends.** TODO / FIXME / XXX added by this diff, half-finished
   branches, silently swallowed errors, stub bodies, mocked-out paths,
-  "temporary" names, abandoned feature flags.
+  "temporary" names, abandoned feature flags, commented-out blocks, debug
+  leftovers (stray `console.log` / `print` / `debugger` / `dbg!`).
 - **Correctness.** Edge cases, error handling, type / contract violations,
   broken invariants.
-- **State ownership.** Two or more functions assigning the same field, flag, or
-  view property. A finding on its own — no failing case required. `git grep`
-  every assignment to that name repo-wide, not just in the diff; the second
-  writer is usually in a file the diff never touched. Name both writers with
-  `file:line` — an unnamed second writer is a hunch, not a finding. Count
-  ordering, not just writers: a write arriving from a callback, thread, or
-  lifecycle event is the dangerous one, and one app writer racing a framework
-  one still counts as two.
-- **Performance.** N+1, blocking calls in hot paths, unbounded loops, indexes
-  the diff actually touches.
 - **Test quality, not just test presence.** For every test the diff adds or
   changes, establish that it **can actually fail**. Reasoning about
   falsifiability does not work; executing it does. **Revert the source, not the
@@ -214,7 +197,9 @@ carries the reproduction.
   diff adds or changes — one red run per file is enough; checking a sample of
   the files is a skip.** Count them as `fail-first N/M files` on the
   `checks:` line.
-- **Maintainability.** Complexity, naming, duplication — only when material.
+
+Structure (dead code, state ownership, naming, duplication, performance) is
+not this stage's job — `/debrief` surfaces it.
 
 ## Stage 2 — Security (always full)
 **Delegate; do not re-implement.** Locate and **read** the installed
@@ -239,8 +224,6 @@ a pass that sets out to confirm reliably misses what an adversarial pass
 finds.
 
 - Re-read the cited `file:line` in full context.
-- `git grep` the name across the repo before trusting any dead-code or
-  unused-symbol claim.
 - Mark each **confirmed**, **false positive** (with the reason), or
   **uncertain** (with what would settle it).
 
@@ -259,7 +242,7 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    user-visible change — feature, command, flag, behaviour, fix, dependency
    bump.
 2. **Place each change in the docs.** For every change from step 1, find
-   where the project's guide/context doc — and the PRD, README, or
+   where the project's guide/context doc — and the PRD, README, `.env.example`, or
    findings/learnings doc when the change touches them — describes it now.
    Check every place the topic comes up, not just the first. "This branch
    already edited that doc" is not checked. Nothing describes it → add it.
@@ -316,7 +299,8 @@ Not in the report. **Append** each one as a single bullet to
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
 > not severity; untagged counts as `nit`; tail unwrapped on the last line.
-> Always appended at the end.
+> Always appended at the end. A /debrief Structure item puts the rule it
+> breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha> · nit
@@ -333,17 +317,12 @@ numbers, no TODO comments in code — the ledger is the single writer. Before
 appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
 if it is already there, skip it. Do not touch existing bullets.
 
-**A bullet you disprove is deleted, not annotated.** If you establish that an
-existing bullet's finding no longer holds — or never did — remove the line and
-say why in your report. The ledger is a work list, not an archive: an
-annotated bullet still reads as work, and a bullet arguing with itself is
-worse than none. Deleting on disproof is the one case where a reviewer may
-remove a line, and it is the same judgement `/refactor` makes at
-revalidation. Use plain
-`grep`, never `git grep`, on the ledger: the ledger is normally gitignored,
-and `git grep` searches tracked content only, so it reports "not found" for a
-snippet that is sitting right there — the dedupe would pass every time and
-the same finding would be appended on every run.
+**A bullet you disprove is deleted, not annotated** — if an existing bullet's
+finding no longer holds, or never did, remove the line and say why in your
+report (the one case a reviewer may remove a line; same judgement as
+`/refactor`'s revalidation). Use plain `grep`, never `git grep`, on the
+ledger: it is gitignored, so `git grep` reports "not found" and the dedupe
+passes every time.
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·
@@ -381,6 +360,7 @@ verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
+tests: <command> exit <code>[; build <command> exit <code>] | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
@@ -397,26 +377,16 @@ correct) belongs in the **report**, never the record. `/release` still
 compares this SHA to `HEAD`; its relaxed stale rule (see `/release`) lets a
 docs-only commit sit between the two without forcing a re-review.
 
-`blockers: none` when the verdict is ready — one line per blocker, nothing
-more: reasoning belongs in the report, non-blocking findings in the ledger.
-This lets a session that never saw the report learn *what* is blocked, not
-just *that* something is — otherwise the next run rediscovers it by
-re-reviewing the branch, the non-convergence this command exists to stop.
+`blockers: none` when ready; otherwise one line per blocker, nothing more —
+reasoning goes in the report, non-blocking findings in the ledger. `coverage`
+is recorded so a `ready` with security not run is distinguishable. `/release`
+reads the `tests:` line instead of re-running the suite on the same commit.
 
-`coverage` is recorded because a `ready` whose security stage didn't run
-isn't the same fact as one where it did, and the reader can't tell them apart
-otherwise.
+**There is no override field, no `verdict: overridden`** — releasing over
+`blocked` is a live decision at `/release`'s hand-back, in conversation.
 
-**There is no override field, no `verdict: overridden`.** A SHA is checkable
-by anyone; consent isn't, so a consent line is forgeable by whatever writes
-the file, and a persisted override silently covers the next release too.
-Releasing over `blocked` is a live decision at `/release`'s hand-back, in
-conversation.
-
-**Nothing clears this file.** It's overwritten whole next run; the `sha:`
-line expires it — fix something, commit, and the hash no longer matches HEAD,
-so the gate reports *stale*, not *blocked*. A blocked verdict persists only
-while HEAD doesn't move, i.e. nothing was fixed — the correct outcome.
+**Nothing clears this file.** Overwritten whole next run; the `sha:` line
+expires it (fix and commit → *stale*, not *blocked*).
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree

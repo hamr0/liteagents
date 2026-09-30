@@ -139,10 +139,6 @@
       "template": "{file:./command/security.md}",
       "description": "Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes"
     },
-    "ship": {
-      "template": "{file:./command/ship.md}",
-      "description": "Mechanical pre-deploy gate — tests, build, tree state"
-    },
     "release": {
       "template": "{file:./command/release.md}",
       "description": "Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence"

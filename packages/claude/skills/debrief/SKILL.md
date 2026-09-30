@@ -42,23 +42,35 @@ mid-tier worker. **Overlap accepted:** uncommitted work seen again once
 committed is over-work, never a miss.
 
 ## 2. Worker — try to break it, not confirm it
-Real runs, not re-assertion, scoped to the range for bloat/glossed/
-underspecced/docs — the regression check is always the **FULL** suite, never
+Real runs, not re-assertion, scoped to the range for structure/glossed/
+underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
 - **No regression?** Run the FULL suite, cite totals vs. before — no run
   behind a claim counts as not checked.
-- **Bloat?** Speculative code, redundant tests, an abstraction for one caller.
+- **Structure?** Speculative code, an abstraction for one caller, redundant
+  tests. Dead code — grep the symbol repo-wide before flagging. State
+  ownership — two or more functions assigning the same field: name both
+  writers with `file:line`, grep every assignment repo-wide, not just the
+  diff; a write from a callback, thread or lifecycle event counts (one app
+  writer racing a framework one is still two). Reuse — a new function, class,
+  file or name duplicating an existing one: name the existing one. Changed
+  lines that trace to no request. Complexity, naming, duplication only when
+  material. Performance (N+1, blocking calls in hot paths, unbounded loops)
+  only with evidence.
 - **Glossed over?** Tradeoffs not flagged, claims untested as shipped, the
   handoff's loose ends verified, not just repeated.
 - **Underspecced?** What should have been part of this and is missing.
-- **Docs?** What now reads untrue — surface only; `/branch-review` writes it.
 
 **The bar — Fix now and Later alike:** every item needs one concrete failure
 sentence — specific input/state → what breaks. "Will mislead the next
 reader" is not one: no input, no state, no break named. Can't write it →
-drop it, count only (`dropped: N`). Max 5 items, ranked, in two piles:
-**Fix now** (changes whether you ship) and **Later**.
+drop it, count only (`dropped: N`). **Carve-out:** a Structure item may
+replace the failure sentence with the rule it breaks plus the `file:line`(s)
+that prove it; Structure items always go in **Later**, never **Fix now**,
+unless they do carry a real failure sentence. Max 5 failure-sentence items
+and max 5 Structure items, ranked, in two piles: **Fix now** (changes
+whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
 **"As-is":** same items, order, piles; each failure sentence and cited

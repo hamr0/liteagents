@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 14 skills + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 14 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 14 skills |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 14 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
 
-All four ship the same 10 subagents and the same 14 capabilities. Claude Code and
-Amp ship all 14 as skills; Droid and OpenCode expose all 14 as commands.
+All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
+Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
 
 ---
 
@@ -60,9 +60,9 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-14 capabilities. On Claude Code and Amp all 14 are skills — Claude merged
+13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
 commands into skills, Amp removed commands outright. On Droid and OpenCode all
-14 are commands.
+13 are commands.
 
 | Command | What it's for |
 |---|---|
@@ -74,7 +74,6 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
-| `/ship` | Mechanical pre-deploy gate — tests, build, tree state, pass/fail only |
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
 | `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
@@ -85,7 +84,7 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
-Code operations (6): debrief, refactor, branch-review, security, ship, release ·
+Code operations (5): debrief, refactor, branch-review, security, release ·
 Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
 Design (1): live-canvas.
 
@@ -156,19 +155,20 @@ you to pick from — no more hours spent nudging divs to find out what you actua
 
 - **`/debrief`** — everything since the last debrief, committed or not, before
   `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
-  to break the claims with real runs (works, no regression, bloat, glossed over,
-  underspecced, docs) and reports max 5 items in Fix now / Later. It never fixes
+  to break the claims with real runs (works, no regression, structure — dead code, state
+  ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5 items in Fix now / Later. It never fixes
   anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or
   `change`. Not a gate.
 - **`/branch-review`** — reviews every change on a branch, medium depth by default. Surfaces
-  confirmed blockers only: real bugs, dead and unused code, state-ownership breaks, plus a
+  confirmed blockers only: real bugs, test quality, plus a
   full OWASP-shaped security pass (no leaked keys, no injection, trust boundaries checked)
   that runs at full depth regardless of level. Everything non-blocking goes to the fix ledger.
   It also sweeps and commits the project's docs — README, PRD, findings — for what the branch
   changed, once at the end, once the review is settled (ready, or every blocker pushed
   through by name).
-- **`/release`** — does the last pre-release chore: writes the CHANGELOG entry, bumps the
-  version, commits locally. Then it tells you you're ready to merge, and hands the sequence
+- **`/release`** — does the last pre-release chore: short mechanical checks (lint, migrations,
+  in sync with `origin`; tests only if the review record's `tests:` line doesn't cover them),
+  writes the CHANGELOG entry, bumps the version, commits locally. Then it tells you you're ready to merge, and hands the sequence
   back. It never pushes.
 - **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, leaves
   `change` bullets (bigger than a refactor) for real work. Cumulative by design: nits pile
@@ -199,8 +199,8 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (14), plus `plugins/` |
-| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (14) |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 

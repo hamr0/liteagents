@@ -21,7 +21,7 @@ These subagents are available when using Ampcode CLI.
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |
 
-### Skills (14 total)
+### Skills (13 total)
 
 | ID | Description | Usage |
 |---|---|---|
@@ -35,7 +35,6 @@ These subagents are available when using Ampcode CLI.
 | remember | Consolidate stashes + friction into project memory | /remember |
 | branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [target] [level] |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] |
-| ship | Mechanical pre-deploy gate — tests, build, tree state | /ship |
 | release | Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence | /release |
 | stash | Save session context for compaction recovery or handoffs | /stash ["optional-name"] |
 | test-generate | Generate tests, run them, verify each one actually exercises the code | /test-generate <file> |
