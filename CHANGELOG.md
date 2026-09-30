@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.0.0] - 2026-09-30
+## [Unreleased]
 
 ### Breaking
 - **`/ship` is removed; `/release` now runs its own short mechanical checks**
@@ -35,11 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/refactor` with a whole-area argument now lists candidates** (files,
   what is wrong, proposed change, strength) and hands the list back before
   editing anything; only the candidates you pick are changed.
-- **`/release` treats a merge or rebase of `origin/main` after the review as
-  stale** (it brings non-doc files), so it stops and asks for a re-review.
-- **`/branch-review` and `/release` require a longer command timeout for a
-  test suite that outlasts the default.** A run that timed out is not a pass,
-  and the totals are cited with the exit code.
 
 ---
 
