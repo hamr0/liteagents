@@ -42,9 +42,12 @@ below — it is on by default, not a separate command.
   `/branch-review` it is not expected to be empty. It cannot police the
   memory directory: `.claude/` is normally gitignored, so porcelain stays
   empty whether you deleted a fixed bullet, wrote nothing, or overwrote
-  `MEMORY.md`. So also take `md5sum .claude/remember/*` before you start and
-  again before you report, and show the comparison: only `fix-ledger.md` may
-  differ. `last-review.md` in particular is `/branch-review`'s to write —
+  `MEMORY.md`. So also hash the files there before you start and again before
+  you report:
+  ```
+  find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
+  ```
+  and show the comparison: only `fix-ledger.md` may differ. `last-review.md` in particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
 ## Ledger mode — `$ARGUMENTS` empty

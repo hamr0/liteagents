@@ -491,11 +491,12 @@ for (const kit of KITS) {
 console.log(`\n${colors.bright}-- branch-review record-dir hash command --${colors.reset}`);
 
 for (const kit of KITS) {
+  for (const [label, file] of [['branch-review', kit.branchReview], ['refactor', kit.refactor]]) {
   let cmd;
   try {
-    cmd = extractIndentedFence(fs.readFileSync(path.join(ROOT, kit.branchReview), 'utf8'), '-maxdepth 1').join('\n');
+    cmd = extractIndentedFence(fs.readFileSync(path.join(ROOT, file), 'utf8'), '-maxdepth 1').join('\n');
   } catch (e) {
-    check(`${kit.name}/branch-review: record-dir hash command extracted`, false, e.message);
+    check(`${kit.name}/${label}: record-dir hash command extracted`, false, e.message);
     continue;
   }
   for (const shell of SHELLS) {
@@ -506,8 +507,9 @@ for (const kit of KITS) {
     fs.writeFileSync(path.join(d, 'last-review.md'), 'b\n');
     const r = sh(shell.bin, cmd, { cwd });
     const hashLines = r.stdout.split('\n').filter(l => /^[0-9a-f]{32}\s/.test(l));
-    check(`[${shell.name}] ${kit.name}: record-dir hash — exit 0, exactly two hash lines despite a subdirectory`,
+    check(`[${shell.name}] ${kit.name}/${label}: record-dir hash — exit 0, exactly two hash lines despite a subdirectory`,
       r.status === 0 && hashLines.length === 2, `status ${r.status}, lines ${JSON.stringify(hashLines)}, stderr ${r.stderr}`);
+  }
   }
 }
 
