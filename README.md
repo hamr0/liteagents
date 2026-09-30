@@ -172,6 +172,8 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 - **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, leaves
   `change` bullets (bigger than a refactor) for real work. Cumulative by design: nits
   pile up until you choose to clear them, so review and release never drown in them.
+  With a whole-area argument it first lists candidates (what is wrong, the proposed
+  change, strength) and stops; only the ones you pick are edited.
 
 ---
 
