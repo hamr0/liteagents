@@ -99,13 +99,13 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 was actually read rather than assuming.
 
 **Re-review after fixes: read `.claude/remember/last-review.md` first.** Its
-`sha:` line (never `debrief-sha:`) is the previously-reviewed commit, its
+`sha:` line (never `self-review-sha:`) is the previously-reviewed commit, its
 `blockers:` list what you owe an answer on — take both from the file, never
 the orchestrator's recollection, for the same reason `/release` does. Then:
 
 - **First, check the record belongs to this branch.** There is one record
   file per repo, not one per branch. No `sha:` line at all (e.g. a file
-  holding only `debrief-sha:`) is the same as **No file** below. Otherwise
+  holding only `self-review-sha:`) is the same as **No file** below. Otherwise
   validate `<that sha>` with `git rev-parse --verify <that sha>` — a value
   that fails this (e.g. a corrupted or hand-edited record, or one starting
   with `-`, which git would otherwise parse as an option) is a malformed
@@ -174,7 +174,8 @@ Run the test suite and the typecheck/build yourself and cite the command and
 its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
 e=$?`), never off a pipeline — `$?` after a pipe is the last element's
 status, so piping into `tail` reports `0` for a suite that failed. The result
-goes on the record's `tests:` line.
+goes on the record's `tests:` line — the build part is required (`build N/A: <reason>`
+if none).
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.
@@ -199,7 +200,7 @@ goes on the record's `tests:` line.
   `checks:` line.
 
 Structure (dead code, state ownership, naming, duplication, performance) is
-not this stage's job — `/debrief` surfaces it.
+not this stage's job — `/self-review` surfaces it.
 
 ## Stage 2 — Security (always full)
 **Delegate; do not re-implement.** Locate and **read** the installed
@@ -294,12 +295,12 @@ Not in the report. **Append** each one as a single bullet to
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists. Written by /branch-review and
-> /debrief; consumed by /refactor (ledger mode).
+> /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
 > not severity; untagged counts as `nit`; tail unwrapped on the last line.
-> Always appended at the end. A /debrief Structure item puts the rule it
+> Always appended at the end. A /self-review Structure item puts the rule it
 > breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
@@ -349,8 +350,8 @@ none`; otherwise run both (first is the total, second is K):
 grep -c '^- ' .claude/remember/fix-ledger.md
 grep -cE '@ [0-9a-f]{7,40} · change$' .claude/remember/fix-ledger.md
 ```
-N = total − K, M = bullets appended this run. **Carry `debrief-sha:` forward
-first** (`/debrief`'s bookmark, never set here), verbatim, as the last line:
+N = total − K, M = bullets appended this run. **Carry `self-review-sha:` forward
+first** (`/self-review`'s bookmark, never set here), verbatim, as the last line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -360,13 +361,13 @@ verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
-tests: <command> exit <code>[; build <command> exit <code>] | NOT RUN: <reason>
+tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
-debrief-sha: <carried forward verbatim, or omitted if absent>
+self-review-sha: <carried forward verbatim, or omitted if absent>
 ```
 
 `sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if

@@ -3,10 +3,10 @@
 /**
  * skill-shell.test.js — behavioural tests for the literal shell commands
  * shipped inside skill/command markdown (branch-review, refactor, release,
- * debrief), across all 4 kits.
+ * self-review), across all 4 kits.
  *
  * Why this file exists: nothing under tests/ ever ran the commands these
- * specs tell a worker to type. A /debrief worker proved the old ledger
+ * specs tell a worker to type. A /self-review worker proved the old ledger
  * count command (`grep -c '^[- ].*· change$'`) miscounts a wrapped bullet
  * whose first physical line's prose happens to end in "· change" but whose
  * real trailing tag (last line) is `· nit`. This suite:
@@ -15,7 +15,7 @@
  *      test instead of passing silently.
  *   2. Covers the ledger count regex (branch-review + refactor, all 4
  *      kits), the docs-only classifier grep (release + branch-review, all
- *      4 kits), and /debrief's bookmark-rewrite script (all 4 kits, each
+ *      4 kits), and /self-review's bookmark-rewrite script (all 4 kits, each
  *      run against fixtures laid out under that kit's own config dir).
  *
  * Conventions follow tests/sync-rules/sync-rules.test.js and
@@ -94,25 +94,25 @@ const KITS = [
     branchReview: 'packages/claude/skills/branch-review/SKILL.md',
     refactor: 'packages/claude/skills/refactor/SKILL.md',
     release: 'packages/claude/skills/release/SKILL.md',
-    debrief: 'packages/claude/skills/debrief/SKILL.md',
+    selfReview: 'packages/claude/skills/self-review/SKILL.md',
     stash: 'packages/claude/skills/stash/SKILL.md' },
   { name: 'ampcode', dir: '.amp',
     branchReview: 'packages/ampcode/skills/branch-review/SKILL.md',
     refactor: 'packages/ampcode/skills/refactor/SKILL.md',
     release: 'packages/ampcode/skills/release/SKILL.md',
-    debrief: 'packages/ampcode/skills/debrief/SKILL.md',
+    selfReview: 'packages/ampcode/skills/self-review/SKILL.md',
     stash: 'packages/ampcode/skills/stash/SKILL.md' },
   { name: 'droid', dir: '.factory',
     branchReview: 'packages/droid/commands/branch-review.md',
     refactor: 'packages/droid/commands/refactor.md',
     release: 'packages/droid/commands/release.md',
-    debrief: 'packages/droid/commands/debrief.md',
+    selfReview: 'packages/droid/commands/self-review.md',
     stash: 'packages/droid/commands/stash.md' },
   { name: 'opencode', dir: '.opencode',
     branchReview: 'packages/opencode/command/branch-review.md',
     refactor: 'packages/opencode/command/refactor.md',
     release: 'packages/opencode/command/release.md',
-    debrief: 'packages/opencode/command/debrief.md',
+    selfReview: 'packages/opencode/command/self-review.md',
     stash: 'packages/opencode/command/stash.md' },
 ];
 
@@ -324,15 +324,15 @@ if (extractedDocsGreps.length === 0) {
 }
 
 // ---------------------------------------------------------------------------
-// c. /debrief bookmark script — extracted per kit, run against that kit's
+// c. /self-review bookmark script — extracted per kit, run against that kit's
 //    own config-dir layout.
 // ---------------------------------------------------------------------------
-console.log(`\n${colors.bright}-- debrief bookmark script --${colors.reset}`);
+console.log(`\n${colors.bright}-- self-review bookmark script --${colors.reset}`);
 
 function bookmarkScript(kit) {
-  const content = fs.readFileSync(path.join(ROOT, kit.debrief), 'utf8');
+  const content = fs.readFileSync(path.join(ROOT, kit.selfReview), 'utf8');
   const block = extractFence(content, 'mkdir -p');
-  check(`${kit.name}/debrief: bookmark fence targets ${kit.dir}`,
+  check(`${kit.name}/self-review: bookmark fence targets ${kit.dir}`,
     block.some(l => l.includes(`${kit.dir}/remember`)), block.join('\\n'));
   return block.join('\n');
 }
@@ -347,11 +347,11 @@ for (const kit of KITS) {
   try {
     script = bookmarkScript(kit);
   } catch (e) {
-    check(`${kit.name}/debrief: bookmark script extracted`, false, e.message);
+    check(`${kit.name}/self-review: bookmark script extracted`, false, e.message);
     continue;
   }
   for (const shell of SHELLS) {
-    // c1. no config dir -> creates dir + file with exactly one debrief-sha line.
+    // c1. no config dir -> creates dir + file with exactly one self-review-sha line.
     {
       const cwd = tmpDir('skill-shell-bm-fresh-');
       const sha1 = 'a'.repeat(40);
@@ -361,15 +361,15 @@ for (const kit of KITS) {
       check(`[${shell.name}] ${kit.name}: fresh run creates ${kit.dir}/remember/last-review.md`, exists);
       if (exists) {
         const body = fs.readFileSync(recordPath, 'utf8');
-        const dsLines = body.split('\n').filter(l => l.startsWith('debrief-sha:'));
-        check(`[${shell.name}] ${kit.name}: fresh run — exactly one debrief-sha line`, dsLines.length === 1, body);
-        check(`[${shell.name}] ${kit.name}: fresh run — holds the sha`, dsLines[0] === `debrief-sha: ${sha1}`, dsLines[0]);
+        const dsLines = body.split('\n').filter(l => l.startsWith('self-review-sha:'));
+        check(`[${shell.name}] ${kit.name}: fresh run — exactly one self-review-sha line`, dsLines.length === 1, body);
+        check(`[${shell.name}] ${kit.name}: fresh run — holds the sha`, dsLines[0] === `self-review-sha: ${sha1}`, dsLines[0]);
       }
     }
 
     // c2. existing multi-line record (2-item blockers list + a ledger line) ->
     //     every other line byte-identical; run twice with different shas ->
-    //     exactly one debrief-sha line holding the SECOND sha.
+    //     exactly one self-review-sha line holding the SECOND sha.
     {
       const cwd = tmpDir('skill-shell-bm-existing-');
       const recordDir = path.join(cwd, kit.dir, 'remember');
@@ -394,13 +394,13 @@ for (const kit of KITS) {
 
       const body = fs.readFileSync(recordPath, 'utf8');
       const bodyLines = body.split('\n').filter(l => l.length > 0);
-      const dsLines = bodyLines.filter(l => l.startsWith('debrief-sha:'));
-      const otherLines = bodyLines.filter(l => !l.startsWith('debrief-sha:'));
+      const dsLines = bodyLines.filter(l => l.startsWith('self-review-sha:'));
+      const otherLines = bodyLines.filter(l => !l.startsWith('self-review-sha:'));
 
-      check(`[${shell.name}] ${kit.name}: existing record — run twice, exactly one debrief-sha line`,
+      check(`[${shell.name}] ${kit.name}: existing record — run twice, exactly one self-review-sha line`,
         dsLines.length === 1, `lines: ${JSON.stringify(dsLines)}`);
       check(`[${shell.name}] ${kit.name}: existing record — holds the SECOND sha`,
-        dsLines[0] === `debrief-sha: ${sha2}`, dsLines[0]);
+        dsLines[0] === `self-review-sha: ${sha2}`, dsLines[0]);
       check(`[${shell.name}] ${kit.name}: existing record — every other line byte-identical`,
         JSON.stringify(otherLines) === JSON.stringify(original), JSON.stringify(otherLines));
 
@@ -422,12 +422,12 @@ for (const kit of KITS) {
       runBookmark(shell, script, cwd, sha1);
 
       const body = fs.readFileSync(recordPath, 'utf8');
-      const glued = /ledger: nonedebrief-sha:/.test(body);
+      const glued = /ledger: noneself-review-sha:/.test(body);
       check(`[${shell.name}] ${kit.name}: no-trailing-newline record — bookmark NOT glued onto the previous line`,
         !glued, JSON.stringify(body));
-      const dsLines = body.split('\n').filter(l => l.startsWith('debrief-sha:'));
+      const dsLines = body.split('\n').filter(l => l.startsWith('self-review-sha:'));
       check(`[${shell.name}] ${kit.name}: no-trailing-newline record — bookmark still lands as its own line`,
-        dsLines.length === 1 && dsLines[0] === `debrief-sha: ${sha1}`, JSON.stringify(body));
+        dsLines.length === 1 && dsLines[0] === `self-review-sha: ${sha1}`, JSON.stringify(body));
     }
   }
 }

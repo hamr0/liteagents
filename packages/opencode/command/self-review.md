@@ -1,11 +1,8 @@
 ---
-name: debrief
-description: Verify what you delivered since the last debrief — real runs, not re-assertion
-allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git merge-base:*)
-disable-model-invocation: true
+description: Verify what you delivered since the last self-review with real runs, and review its structure
 ---
 Answer "verify what you delivered, what did you gloss over, what did I miss?"
-about everything since the last debrief — committed or not — before
+about everything since the last self-review — committed or not — before
 `/branch-review`. The orchestrator resolves the range and hands off; a
 spawned worker tries to break it.
 
@@ -17,10 +14,10 @@ spawned worker tries to break it.
 - **Ask and surface only. Never fixes anything.** The user picks.
 
 ## 1. Orchestrator — resolve the range, then hand off
-The bookmark is one line, `debrief-sha:`, in `/branch-review`'s record
-(`/debrief` is its only writer):
+The bookmark is one line, `self-review-sha:`, in `/branch-review`'s record
+(`/self-review` is its only writer):
 ```
-grep '^debrief-sha:' .claude/remember/last-review.md
+grep '^self-review-sha:' .opencode/remember/last-review.md
 ```
 Fails either check, or starts with `-` → **no bookmark** (no branch check
 needed — ancestry alone proves it belongs to this history):
@@ -34,7 +31,7 @@ Valid → range `<sha>..HEAD`. No bookmark → whole branch, that commit's
 git diff HEAD
 git status --porcelain
 ```
-Range empty **and** tree clean → "nothing new since the last debrief," stop,
+Range empty **and** tree clean → "nothing new since the last self-review," stop,
 no worker spawned. Otherwise hand off — what was done, claims made (works /
 tested / done), files changed, loose ends only you can know (a peer session
 not told, a silent open question, unshipped state) — and spawn one
@@ -78,20 +75,20 @@ commands/numbers preserved. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
 items. User picks what to fix now; whatever they don't, the **orchestrator**
-(worker's turn is over by then) appends to `.claude/remember/fix-ledger.md`,
+(worker's turn is over by then) appends to `.opencode/remember/fix-ledger.md`,
 `/branch-review`'s format, tagged `nit`/`change`, bullet text verbatim.
-Dedupe with plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`
+Dedupe with plain `grep -F "<snippet>" .opencode/remember/fix-ledger.md`
 (never `git grep` — gitignored). **Anchor rule:** a verbatim snippet `grep
 -F` can find; missing → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead.
 
 **Last act — rewrite only the bookmark line**, never another line in the file:
 ```
-F=.claude/remember/last-review.md
-mkdir -p .claude/remember
+F=.opencode/remember/last-review.md
+mkdir -p .opencode/remember
 touch "$F"
-grep -v '^debrief-sha:' "$F" > "$F.tmp"
-echo "debrief-sha: <full HEAD sha>" >> "$F.tmp"
+grep -v '^self-review-sha:' "$F" > "$F.tmp"
+echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 

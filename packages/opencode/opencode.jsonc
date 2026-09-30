@@ -119,9 +119,9 @@
       "template": "{file:./command/docs-builder.md}",
       "description": "Reorg a docs corpus, split an oversized doc, keep pages current, index them"
     },
-    "debrief": {
-      "template": "{file:./command/debrief.md}",
-      "description": "Verify what you delivered since the last debrief — real runs, not re-assertion"
+    "self-review": {
+      "template": "{file:./command/self-review.md}",
+      "description": "Verify what you delivered since the last self-review with real runs, and review its structure"
     },
     "live-canvas": {
       "template": "{file:./command/live-canvas.md}",

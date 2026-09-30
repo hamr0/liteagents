@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Breaking
+- **`/ship` is removed; `/release` now runs its own short mechanical checks**
+  (lint/format, migrations, in sync with `origin`). Tests and build are run
+  only when the review record's `tests:` line does not cover them. Capability
+  count 14 -> 13 (9 deliberate actions + 4 advisory).
+- **`/debrief` is renamed `/self-review`, and its bookmark line in
+  `.claude/remember/last-review.md` is renamed `self-review-sha:`.** An old
+  `debrief-sha:` bookmark is ignored, so the first `/self-review` run after
+  upgrading re-checks the whole branch.
+
+### Changed
+- **The gates each do one job.** `/self-review` (before commit) owns real runs
+  and all code-structure checks: dead code, state ownership, reuse, naming,
+  performance. `/branch-review` (after commit) owns bugs, test quality,
+  security, verify and the docs sweep; it no longer reports structure.
+  `/self-review` no longer surfaces docs (that is `/branch-review` Stage 4) and
+  caps its report at 5 failure-sentence items plus 5 Structure items.
+- **The review record gains a required `tests:` line** (tests and build
+  command + exit code, `build N/A: <reason>`, or `NOT RUN: <reason>`).
+  `/release` reads it instead of re-running the suite, but only when the
+  recorded `sha:` equals HEAD and the build part is present.
+- **`/refactor` with a whole-area argument now lists candidates** (files,
+  what is wrong, proposed change, strength) and hands the list back before
+  editing anything; only the candidates you pick are changed.
+
+---
+
 ## [3.12.1] - 2026-09-22
 
 ### Fixed

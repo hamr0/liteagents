@@ -53,7 +53,7 @@ A review must have run on this branch **at the current HEAD SHA**.
 
 **Compare the SHAs yourself; do not settle for an answer.** Run `git rev-parse
 HEAD` and compare it against the `sha:` line (the one starting exactly
-`sha:` — never `debrief-sha:`, a separate bookmark `/debrief` owns and
+`sha:` — never `self-review-sha:`, a separate bookmark `/self-review` owns and
 `/branch-review` only carries forward) in `.claude/remember/last-review.md`,
 which `/branch-review` writes. Asking the
 orchestrator "did a review run?" puts the question to the one party with an
@@ -86,11 +86,12 @@ that predates this file's introduction has no record, so it does not count.
   `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
-- **`tests:` line** — a command with exit 0 **and** recorded `sha:` = HEAD →
-  covered, do not re-run. Otherwise (HEAD moved past `sha:` by forgiven
-  commits, line absent, or `NOT RUN`) → run the project's real test command,
-  and build if there is one, yourself in Phase 1 and cite command + exit
-  code. Any non-zero exit → **stop**.
+- **`tests:` line** — tests exit 0 **and** build exit 0 or `N/A: <reason>`
+  **and** recorded `sha:` = HEAD → covered, do not re-run. Otherwise (HEAD
+  moved past `sha:` by forgiven commits, line absent, build part missing, or
+  `NOT RUN`) → run the project's real test command, and build if there is
+  one, yourself in Phase 1 and cite command + exit code. Any non-zero exit →
+  **stop**.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
@@ -127,7 +128,7 @@ A ✗ is **Blocked 🛑**.
 - **In sync with `origin`** — not behind `origin/main`; a never-pushed branch
   passes.
 - **Tests / build** — only per the `tests:` bullet in Phase 0.5 (HEAD moved
-  past `sha:`, line absent, or `NOT RUN`).
+  past `sha:`, line absent, build part missing, or `NOT RUN`).
 
 Security is **not** re-run here — it is stage 2 of the review, already
 confirmed in Phase 0.5.

@@ -49,7 +49,7 @@ below — it is on by default, not a separate command.
 
 ## Ledger mode — `$ARGUMENTS` empty
 Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
-`/debrief` and `/branch-review` have accumulated. Everything below (goals, constraints,
+`/self-review` and `/branch-review` have accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
 

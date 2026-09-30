@@ -69,7 +69,7 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
-| `/debrief` | Verify what you delivered since the last debrief — real runs, not re-assertion |
+| `/self-review` | Verify what you delivered since the last self-review with real runs, and review its structure |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
@@ -84,7 +84,7 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
-Code operations (5): debrief, refactor, branch-review, security, release ·
+Code operations (5): self-review, refactor, branch-review, security, release ·
 Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
 Design (1): live-canvas.
 
@@ -151,12 +151,13 @@ you like, all in one pass, then send the batch to the agent.
 It also ships with real UI direction baked in, so it can generate variations of a screen for
 you to pick from — no more hours spent nudging divs to find out what you actually wanted.
 
-### `/debrief` → `/branch-review` → `/release` → `/refactor`
+### `/self-review` → `/branch-review` → `/release` → `/refactor`
 
-- **`/debrief`** — everything since the last debrief, committed or not, before
+- **`/self-review`** — everything since the last self-review, committed or not, before
   `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
   to break the claims with real runs (works, no regression, structure — dead code, state
-  ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5 items in Fix now / Later. It never fixes
+  ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5
+  failure-sentence items plus max 5 Structure items in Fix now / Later. It never fixes
   anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or
   `change`. Not a gate.
 - **`/branch-review`** — reviews every change on a branch, medium depth by default. Surfaces
@@ -219,7 +220,7 @@ These live in the repo, not in the installed kit:
 | [Installer guide](https://github.com/hamr0/liteagents/blob/main/docs/product/INSTALLER_GUIDE.md) | Install, custom paths, uninstall, troubleshooting, FAQ — and the order of operations for changing a command, skill or subagent |
 | [`/remember`](https://github.com/hamr0/liteagents/blob/main/docs/product/remember-README.md) | The `/stash` → `/remember` pipeline, friction sensor, antigen ledger |
 | [`/docs-builder`](https://github.com/hamr0/liteagents/blob/main/docs/product/docs-builder-README.md) | Reorg and cleanup modes, measured cost, the drift ledger |
-| [`/debrief`](https://github.com/hamr0/liteagents/blob/main/docs/product/debrief-README.md) | The handoff → worker → relay flow, the bar, Fix now / Later |
+| [`/self-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/self-review-README.md) | The handoff → worker → relay flow, the bar, Fix now / Later |
 | [`/branch-review`](https://github.com/hamr0/liteagents/blob/main/docs/product/branch-review-README.md) | The four stages, what blocks, the fix-ledger loop |
 | [`/live-canvas`](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-README.md) | Both modes, the click-to-annotate overlay, and setup |
 | [live-canvas-channel](https://github.com/hamr0/liteagents/blob/main/docs/product/live-canvas-channel-README.md) | The Claude Code MCP channel plugin — install, protocol, debugging |
