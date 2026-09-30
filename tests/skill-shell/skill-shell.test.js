@@ -433,6 +433,57 @@ for (const kit of KITS) {
 }
 
 // ---------------------------------------------------------------------------
+// c4. old `debrief-sha:` bookmark is honoured once, then rewritten under the
+//     new name. Commands run AS PRINTED in each kit's self-review markdown.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- self-review old-bookmark fallback --${colors.reset}`);
+
+for (const kit of KITS) {
+  let script, readCmd;
+  try {
+    const content = fs.readFileSync(path.join(ROOT, kit.selfReview), 'utf8');
+    script = extractFence(content, 'mkdir -p').join('\n');
+    readCmd = extractFence(content, "grep '^self-review-sha:'").join('\n');
+  } catch (e) {
+    check(`${kit.name}/self-review: old-bookmark commands extracted`, false, e.message);
+    continue;
+  }
+  const oldSha = 'e'.repeat(40), newSha = 'f'.repeat(40);
+  const setup = (prefix, body) => {
+    const cwd = tmpDir(prefix);
+    const d = path.join(cwd, kit.dir, 'remember');
+    fs.mkdirSync(d, { recursive: true });
+    const rec = path.join(d, 'last-review.md');
+    fs.writeFileSync(rec, body);
+    return { cwd, rec };
+  };
+  // the read command prints the bookmark line; the sha is what follows "<name>-sha: "
+  const readSha = (shell, cwd) => sh(shell.bin, readCmd, { cwd }).stdout.trim().replace(/^[a-z-]+-sha: /, '');
+
+  for (const shell of SHELLS) {
+    const t = `[${shell.name}] ${kit.name}`;
+    // (1) only the old line -> its sha is read.
+    const only = setup('skill-shell-bm-old-', `sha: ${'1'.repeat(40)}\ndebrief-sha: ${oldSha}\n`);
+    check(`${t}: old debrief-sha only — read command yields the old sha`,
+      readSha(shell, only.cwd) === oldSha, readSha(shell, only.cwd));
+    // (2) both lines -> the new name wins.
+    const both = setup('skill-shell-bm-both-', `debrief-sha: ${oldSha}\nself-review-sha: ${newSha}\n`);
+    check(`${t}: both lines — read command yields the self-review-sha one`,
+      readSha(shell, both.cwd) === newSha, readSha(shell, both.cwd));
+    // (3) rewrite drops debrief-sha, leaves one self-review-sha, other lines byte-unchanged.
+    const others = ['sha: ' + '1'.repeat(40), 'verdict: ready', 'ledger: none'];
+    const rw = setup('skill-shell-bm-rw-', others.slice(0, 2).join('\n') + `\ndebrief-sha: ${oldSha}\n` + others[2]);
+    runBookmark(shell, script, rw.cwd, newSha);
+    const lines = fs.readFileSync(rw.rec, 'utf8').split('\n').filter(l => l.length > 0);
+    check(`${t}: rewrite drops debrief-sha, keeps exactly one self-review-sha`,
+      lines.filter(l => l.startsWith('debrief-sha:')).length === 0 &&
+      lines.filter(l => l === `self-review-sha: ${newSha}`).length === 1, JSON.stringify(lines));
+    check(`${t}: rewrite leaves every other line byte-unchanged`,
+      JSON.stringify(lines.filter(l => !l.endsWith(`-sha: ${newSha}`))) === JSON.stringify(others), JSON.stringify(lines));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // d. /stash total + processed counts — extracted per kit from stash markdown.
 // ---------------------------------------------------------------------------
 console.log(`\n${colors.bright}-- stash total/processed counts --${colors.reset}`);

@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   count 14 -> 13 (9 deliberate actions + 4 advisory).
 - **`/debrief` is renamed `/self-review`, and its bookmark line in
   `.claude/remember/last-review.md` is renamed `self-review-sha:`.** An old
-  `debrief-sha:` bookmark is ignored, so the first `/self-review` run after
-  upgrading re-checks the whole branch.
+  `debrief-sha:` bookmark is honoured once (same validity checks), then
+  rewritten under the new name by the first `/self-review` run.
 
 ### Changed
 - **`/branch-review` now stops up front when the branch is behind

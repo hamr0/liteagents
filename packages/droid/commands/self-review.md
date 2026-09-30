@@ -9,18 +9,22 @@ spawned worker tries to break it.
 ## Guardrails
 - **Spawn a worker, mid tier stated explicitly** (omitted inherits the
   parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name). **No delegation, no
-  sub-spawning** — every command the worker cites is one it ran itself.
+  degrades there; never a vendor model name — this spec names the tier,
+  you translate it to whatever your spawn tool calls its mid tier). **No
+  delegation, no sub-spawning** — every command the worker cites is one it
+  ran itself.
 - **Ask and surface only. Never fixes anything.** The user picks.
 
 ## 1. Orchestrator — resolve the range, then hand off
 The bookmark is one line, `self-review-sha:`, in `/branch-review`'s record
 (`/self-review` is its only writer):
 ```
-grep '^self-review-sha:' .factory/remember/last-review.md
+grep '^self-review-sha:' .factory/remember/last-review.md || grep '^debrief-sha:' .factory/remember/last-review.md
 ```
-Fails either check, or starts with `-` → **no bookmark** (no branch check
-needed — ancestry alone proves it belongs to this history):
+No `self-review-sha:` line → the old `debrief-sha:` name, once (that is what
+the `||` does; the new name wins if both exist). Fails either check, or
+starts with `-` → **no bookmark** (no branch check needed — ancestry alone
+proves it belongs to this history):
 ```
 git rev-parse --verify <sha>
 git merge-base --is-ancestor <sha> HEAD
@@ -82,18 +86,22 @@ Dedupe with plain `grep -F "<snippet>" .factory/remember/fix-ledger.md`
 -F` can find; missing → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead.
 
-**Last act — rewrite only the bookmark line**, never another line in the file:
+**Last act — rewrite only the bookmark line**, never another line in the file.
+Write it when you relay the report — it records what was checked and does not
+wait for the user's pick; the ledger append happens whenever the pick arrives.
+It also drops any old `debrief-sha:` line:
 ```
 F=.factory/remember/last-review.md
 mkdir -p .factory/remember
 touch "$F"
-grep -v '^self-review-sha:' "$F" > "$F.tmp"
+grep -vE '^(self-review|debrief)-sha:' "$F" > "$F.tmp"
 echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**
-never counts. A third round with new Fix-now caused by the previous fix →
-stop: "redesign, don't patch again." **Not a gate:** `/branch-review` and
+never counts; fixing a Later item anyway is new uncommitted work the next
+run checks like any other, not a re-run trigger. A third round with new
+Fix-now caused by the previous fix → stop: "redesign, don't patch again." **Not a gate:** `/branch-review` and
 `/release` don't require this to have run — close with "commit, then
 `/branch-review`," a sentence to **say**, never run.
