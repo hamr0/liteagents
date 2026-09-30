@@ -484,6 +484,34 @@ for (const kit of KITS) {
 }
 
 // ---------------------------------------------------------------------------
+// c5. /branch-review's "hash the record dir" command: must exit 0 and hash
+//     only the regular files even when the dir holds a subdirectory (the old
+//     `md5sum .claude/remember/*` exited non-zero on `friction/`).
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- branch-review record-dir hash command --${colors.reset}`);
+
+for (const kit of KITS) {
+  let cmd;
+  try {
+    cmd = extractIndentedFence(fs.readFileSync(path.join(ROOT, kit.branchReview), 'utf8'), '-maxdepth 1').join('\n');
+  } catch (e) {
+    check(`${kit.name}/branch-review: record-dir hash command extracted`, false, e.message);
+    continue;
+  }
+  for (const shell of SHELLS) {
+    const cwd = tmpDir('skill-shell-md5-');
+    const d = path.join(cwd, kit.dir, 'remember');
+    fs.mkdirSync(path.join(d, 'friction'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'fix-ledger.md'), 'a\n');
+    fs.writeFileSync(path.join(d, 'last-review.md'), 'b\n');
+    const r = sh(shell.bin, cmd, { cwd });
+    const hashLines = r.stdout.split('\n').filter(l => /^[0-9a-f]{32}\s/.test(l));
+    check(`[${shell.name}] ${kit.name}: record-dir hash — exit 0, exactly two hash lines despite a subdirectory`,
+      r.status === 0 && hashLines.length === 2, `status ${r.status}, lines ${JSON.stringify(hashLines)}, stderr ${r.stderr}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // d. /stash total + processed counts — extracted per kit from stash markdown.
 // ---------------------------------------------------------------------------
 console.log(`\n${colors.bright}-- stash total/processed counts --${colors.reset}`);

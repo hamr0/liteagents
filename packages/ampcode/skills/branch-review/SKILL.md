@@ -27,8 +27,9 @@ at the current HEAD SHA.
 ## Guardrails
 - **Spawn a worker, mid tier stated explicitly** (omitted inherits the
   parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name). Fall back to running inline if
-  your tool has no subagent mechanism.
+  degrades there; never a vendor model name), and hand it this file's path — a
+  worker has no skill text of its own. Fall back to running inline if your
+  tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
@@ -54,9 +55,11 @@ at the current HEAD SHA.
   `.amp/` is normally gitignored, so porcelain stays empty whether you
   wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
   status --ignored` does not close it either — it collapses to `!!
-  .amp/`, the directory, not the files. So also take `md5sum
-  .amp/remember/*` before you start and again before you report, and show
-  the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
+  .amp/`, the directory, not the files. So also hash the files there before you start and again before you report:
+  ```
+  find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
+  ```
+  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
   run `git diff --name-only <reviewed sha>..HEAD` before you report: it must
   list only the files on the record's `docs:` line — anything else means an
   edit escaped Stage 4's scope.
@@ -142,7 +145,8 @@ the orchestrator's recollection, for the same reason `/release` does. Then:
 - **`sha:` = HEAD** → nothing has changed since the last review. Say so and
   stop; re-running against an identical tree can only produce noise. If the
   recorded verdict was `blocked`, its blockers are still unfixed by
-  definition — repeat them rather than re-deriving them.
+  definition — repeat them rather than re-deriving them. **Write no record**:
+  the existing one stands.
 - **No file** → no prior review to build on. Review the whole branch.
 
 **On a re-review, sweep the open ledger bullets for liveness first.** Their
@@ -209,27 +213,32 @@ if none).
   the branch's only evidence for its claims. **Required, every test file the
   diff adds or changes — one red run per file is enough; checking a sample of
   the files is a skip.** Count them as `fail-first N/M files` on the
-  `checks:` line.
+  `checks:` line. M is every test file the diff adds or changes, no exclusions;
+  a file that cannot go red (e.g. comment-only) still counts in M, named with
+  its reason — `12/15`, never `12/12`. Say whether each red was a failed
+  assertion or the test failing to load against the old source (missing
+  import/export), which is weaker proof.
 
 Structure (dead code, state ownership, naming, duplication, performance) is
 not this stage's job — `/self-review` surfaces it.
 
 ## Stage 2 — Security (always full)
 **Delegate; do not re-implement.** Locate and **read** the installed
-`security.md` and run its actual checklist — the recurring six (secrets in the
+`security` spec (`security/SKILL.md` or `security.md`, whichever the tool
+ships) and run its actual checklist — the recurring six (secrets in the
 repo *and in git history*, data-access authorization / tenant isolation, rate
 limiting, unhappy-path error handling, authorization beyond authentication,
 inefficient data access) plus injection, auth/session, and trust boundaries.
 
-If `security.md` cannot be found, run what you can from the list above and
+If the security spec cannot be found, run what you can from the list above and
 **flag that the full checklist was unavailable** — never report it as passed.
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
 policy on a table the new code now reads are all in scope. **The review range
 never narrows this stage** — even when you were handed `main..HEAD`, the
-secrets scan covers every commit on every branch (`security.md` item 1 has
-the command).
+secrets scan covers every commit on every branch (the security spec's item 1
+has the command).
 
 ## Stage 3 — Verify (adversarial)
 Findings are claims, not facts. **Try to break each one, not to confirm it** —
@@ -344,7 +353,10 @@ uncertain).
 
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
-assumed pass. Then a `checks:` line for the two checks most often cut short:
+assumed pass. Stage 2's evidence is one line per item of the security spec's
+checklist — `item · ran + evidence (command or file:line)` or `N/A + reason`,
+the per-item coverage that spec already requires. `coverage:` says `stage2
+ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a `checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
 does not block.
@@ -353,7 +365,7 @@ does not block.
 it. `/release` reads this file — a chat-only SHA is gone after a compaction
 or handover, and the orchestrator is the only other source (one this command
 already refuses to trust). **Write it at the end of every run,
-unconditionally**, not after someone decides what to do — it earns its keep
+unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after someone decides what to do — it earns its keep
 by surviving a compaction, an abandoned session, or an unseen handover.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
