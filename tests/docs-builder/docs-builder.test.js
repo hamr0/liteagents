@@ -2411,14 +2411,44 @@ function commitAdvisoryReported() {
     addLines.length > 0 && addLines.every(l => !/-u\b|-A\b/.test(l)));
 }
 
-function commitAdvisorySkippedOnNoOp() {
-  group('27b. commit advisory — silent on a no-op re-run (nothing moved)');
+function commitAdvisoryFreshOnZeroMove() {
+  group('27b. commit advisory — a zero-move apply-reorg writes a fresh recipe; the interview stop stays silent');
 
   const d = repo({ 'docs/product/GUIDE.md': DOC('Guide') });
-  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [] }) });
+  // Leftovers from an earlier run: must not survive a run that rewrites index.md and log.md.
+  write(d, {
+    'docs/.docs-builder/commit-files.txt': 'docs/old/GONE.md\n',
+    'docs/.docs-builder/commit-add.txt': 'docs/old/GONE.md\n',
+    'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [] }),
+    'src/unrelated.js': 'const x = 1;\n',
+  });
   const r = db(d, ['apply-reorg']);
   ok('apply-reorg exits clean on an empty plan', r.code, 0);
-  okTrue('(b) no advisory printed when nothing moved', !/rename\(s\) this run/.test(r.out));
+  const line = recipeLine(r.out);
+  okTrue('a recipe line is printed even though nothing moved', !!line);
+  for (const name of ['commit-files.txt', 'commit-add.txt']) {
+    const list = commitList(d, name);
+    okTrue(`${name} lists docs/index.md and docs/log.md`,
+      list.includes('docs/index.md') && list.includes('docs/log.md'));
+    okTrue(`${name} no longer carries the previous run's docs/old/GONE.md`,
+      !list.includes('docs/old/GONE.md'));
+  }
+  if (line) {
+    const res = spawnSync('bash', ['-c', line], { cwd: d, encoding: 'utf8' });
+    ok('the printed recipe runs clean', res.status, 0);
+    const committed = git(d, ['show', '--name-only', '--format=', 'HEAD']).split('\n');
+    okTrue('the recipe committed docs/index.md and docs/log.md',
+      committed.includes('docs/index.md') && committed.includes('docs/log.md'));
+    okTrue('the recipe committed only listed files (not src/unrelated.js)',
+      !committed.includes('src/unrelated.js'));
+  }
+
+  // `reorg` stopping for the classification interview writes only docs/log.md: no recipe yet.
+  const d2 = repo({ 'docs/product/GUIDE.md': DOC('Guide') });
+  const r2 = db(d2, ['reorg']);
+  ok('reorg stopping at the interview exits clean', r2.code, 0);
+  okTrue('the interview stop prints no commit recipe', !recipeLine(r2.out));
+  okTrue('the interview stop prints no rename summary', !/rename\(s\) this run/.test(r2.out));
 }
 
 function commitAdvisoryOnArchive() {
@@ -3379,7 +3409,7 @@ function logsGroupOutsideDocsIsScannedFolder() {
     cleanupCmd, cleanupRefusesConcurrentSplit, cleanupApplyRestoresInboundLinks, applyReorgNamesCleanup,
     cleanupShape, corePlanNaming, cleanupApplyGate, cleanupApplyFullCycle,
     logsIdempotentAndIndexed, emptyDirCleanup, cleanupPreservesWholeCorpusIndex,
-    commitAdvisoryReported, commitAdvisorySkippedOnNoOp, commitAdvisoryOnArchive,
+    commitAdvisoryReported, commitAdvisoryFreshOnZeroMove, commitAdvisoryOnArchive,
     commitAdvisoryNamesOutsideDocsPaths, commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork,
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
