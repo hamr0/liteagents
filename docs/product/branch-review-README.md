@@ -151,12 +151,12 @@ are the branch's only evidence for its own claims.
 ### Stage 2 — Security (always full)
 `/branch-review` doesn't reimplement a checklist; it delegates. It locates and reads the
 installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
-and runs its actual checks — the recurring six (secrets in the
-repo *and in git history*, data-access authorization / tenant isolation, rate limiting,
-unhappy-path error handling, authorization beyond authentication, inefficient data access)
-plus injection, auth/session, and trust boundaries. If the security spec can't be found, it
-runs what it can from that list and flags the gap — never reports the full checklist as
-passed.
+and runs its actual checks: every numbered item of its recurring six and every bullet
+under its "Also scan for" (Config and Dependencies included). That spec is the only list;
+`/branch-review` keeps no copy of it. Only if the spec can't be found does it fall back to
+a short list (secrets in the repo and history, tenant isolation, rate limiting, error
+handling, authorization, injection, auth/session, trust boundaries), and it flags that the
+full checklist was unavailable — never reports it as passed.
 
 This stage is **repo- and history-scoped, not diff-scoped**: a key committed forty commits
 ago, an unbounded route the diff never touched, or a missing row policy on a table the new
@@ -231,8 +231,9 @@ never applied), and **Verdict** (confirmed / uncertain).
 The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full, stage
 3 — each `ran ✓/✗` with its evidence; a stage not actually run is a ✗, never an assumed
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
-count. Stage 2's evidence is one line per item of the security spec's checklist (`item ·
-ran + evidence`, or `N/A + reason`); `coverage:` says `stage2 ran` only when every item has
+count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
+for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
+repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says `stage2 ran` only when every item has
 its line, otherwise `stage2 NOT RUN`.
 
 ---
