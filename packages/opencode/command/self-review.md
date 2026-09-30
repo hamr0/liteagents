@@ -10,7 +10,8 @@ spawned worker tries to break it.
 - **Spawn a worker, mid tier stated explicitly** (omitted inherits the
   parent's, not the balanced one; not cheapest/fastest either — judgment
   degrades there; never a vendor model name — this spec names the tier,
-  you translate it to whatever your spawn tool calls its mid tier). **No
+  you translate it to whatever your spawn tool calls its mid tier), and hand
+  it this file's path — a worker has no skill text of its own. **No
   delegation, no sub-spawning** — every command the worker cites is one it
   ran itself.
 - **Ask and surface only. Never fixes anything.** The user picks.
@@ -69,8 +70,8 @@ reader" is not one: no input, no state, no break named. Can't write it →
 drop it, count only (`dropped: N`). **Carve-out:** a Structure item may
 replace the failure sentence with the rule it breaks plus the `file:line`(s)
 that prove it; Structure items always go in **Later**, never **Fix now**,
-unless they do carry a real failure sentence. Max 5 failure-sentence items
-and max 5 Structure items, ranked, in two piles: **Fix now** (changes
+unless they do carry a real failure sentence. Each item is one kind, counted
+in one cap only. Max 5 failure-sentence items and max 5 Structure items, ranked, in two piles: **Fix now** (changes
 whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
