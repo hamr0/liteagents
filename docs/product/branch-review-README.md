@@ -300,7 +300,7 @@ docs: <space-separated paths the sweep changed | none — never prose>
 ledger: <N> nits, <K> changes, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
-self-review-sha: <carried forward verbatim, or omitted if absent>
+self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
 
 `sha:` is the HEAD that stages 1-3 reviewed — **before** stage 4's docs commit, if it made
@@ -316,7 +316,9 @@ the bullets appended this run; no ledger file → `ledger: none`.
 **`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
 before overwriting the record whole, it reads any existing `self-review-sha:` line and
-re-appends it unchanged as the new record's last line. `/branch-review` never sets, reads
+re-appends it unchanged as the new record's last line. A record from before the rename
+holds `debrief-sha:` instead; with no `self-review-sha:` present, that old line is carried
+forward verbatim (`/self-review` reads both names). `/branch-review` never sets, reads
 the *value* of, or reasons about that line — it only carries it. This is why every reader of
 `sha:` anchors on the line starting exactly `sha:`, never a bare substring match — `self-review-
 sha:` ends in the same four characters and would otherwise be mistaken for it.

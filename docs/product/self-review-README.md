@@ -51,7 +51,11 @@ session. Neither alone is what "verify what I just did" means.
 This works via a **bookmark**: one line, `self-review-sha:`, living inside
 `.claude/remember/last-review.md` — the same record `/branch-review` writes.
 `/self-review` is its only writer; `/branch-review` only carries it forward,
-unread and unedited, each time it overwrites that file.
+unedited, each time it overwrites that file. Before the rename to `/self-review`
+the line was called `debrief-sha:`; an old record holding only that name is
+honoured once (read as the bookmark when there is no `self-review-sha:` line —
+the new name wins if both exist) and `/branch-review` carries it forward verbatim
+until `/self-review` next runs and rewrites it.
 
 At the start of every run the orchestrator validates the bookmark exactly the
 way `/branch-review` validates its own record (`git rev-parse --verify`, then
@@ -67,8 +71,11 @@ later, gets seen once more on the next run. That's over-work, never a miss —
 the design trades a little redundancy for never silently skipping something.
 
 At the end of every run the orchestrator rewrites the bookmark to the current
-HEAD, touching only that one line — every other line in `last-review.md`
-(`sha:`, `branch:`, `verdict:`, `blockers:`, …) is left exactly as it was.
+HEAD, touching only that one line (and dropping any old `debrief-sha:` line) —
+every other line in `last-review.md` (`sha:`, `branch:`, `verdict:`,
+`blockers:`, …) is left exactly as it was. The rewrite happens when the report
+is relayed, not after the user's Fix now / Later pick: it records what was
+checked; the ledger append follows whenever the pick arrives.
 
 ---
 
@@ -144,7 +151,8 @@ if a `nit` turns out to need one.
 ## 7. Loop guard
 
 Re-run `/self-review` after fixes until zero **Fix now** items remain — **Later** items
-never count toward that. If a third round still turns up new Fix-now items *caused by
+never count toward that, and fixing a Later item anyway is just new uncommitted work
+the next run checks like any other, not a reason to re-run. If a third round still turns up new Fix-now items *caused by
 the previous round's own fix*, stop: "redesign, don't patch again," instead of
 patching a fourth time.
 
