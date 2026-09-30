@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.0.0] - 2026-09-30
 
 ### Breaking
 - **`/ship` is removed; `/release` now runs its own short mechanical checks**
@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **`/branch-review` now stops up front when the branch is behind
   `origin/main`**, so a sync never invalidates a finished review.
+- **`/release` treats a merge or rebase of `origin/main` after the review as
+  stale**, since it brings non-doc files; it stops and asks for a re-review
+  instead of forgiving the commit.
 - **The gates each do one job.** `/self-review` (before commit) owns real runs
   and all code-structure checks: dead code, state ownership, reuse, naming,
   performance. `/branch-review` (after commit) owns bugs, test quality,
@@ -35,6 +38,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/refactor` with a whole-area argument now lists candidates** (files,
   what is wrong, proposed change, strength) and hands the list back before
   editing anything; only the candidates you pick are changed.
+
+### Fixed
+- **`/branch-review` Stage 2 walks the installed security spec's own
+  checklist** (every numbered item plus every "Also scan for" bullet) instead
+  of a shortened copy that let a worker skip Config and Dependencies, and
+  reports one line per item; `coverage:` says `stage2 ran` only when every
+  item has its line. An N/A reason must be true of the repo, not the diff.
+  The spec path is now kit-neutral (`security/SKILL.md` or `security.md`).
+- **The record-directory hash check works when `.claude/remember` holds a
+  subdirectory** (`find .claude/remember -maxdepth 1 -type f -exec md5sum {}
+  + | sort -k2`) in both `/branch-review` and `/refactor`; tests run it per
+  kit and shell.
+- **`/branch-review`'s fail-first count is honest:** M counts every test file
+  the diff adds or changes, and says whether each red was a failed assertion
+  or a load failure. A run with `sha:` = HEAD writes no new record.
+- **`/branch-review`'s orchestrator hands the spawned worker the spec's
+  path** instead of a paraphrase of it.
+- **`/branch-review` carries an old `debrief-sha:` bookmark forward** when no
+  `self-review-sha:` exists.
+- **`/self-review` hands its worker the spec path** instead of a paraphrase,
+  and each item is one kind (failure-sentence or Structure), counted in one
+  cap only. Also clarified: the bookmark is written when the report is
+  relayed, "mid tier" is translated to the tool's own spawn name, and the
+  loop guard covers Later-only fixes.
+- **Long test runs:** a suite that outlasts the default command timeout needs
+  a longer one; a timed-out run is not a pass and totals are cited with the
+  exit code.
 
 ---
 
