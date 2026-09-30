@@ -72,6 +72,11 @@ the staged diff or the working tree, and it does not review a subset. The most e
 failure this command can have is reviewing 800 committed lines while 200 uncommitted lines
 of today's actual work go unread.
 
+Next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
+is behind `origin/main`, the stop names how many commits behind, that reviewing now is
+wasted because syncing afterwards makes the review stale, and the remedy: merge
+`origin/main` (or rebase), then re-run. A never-pushed branch, or no `origin/main`, skips it.
+
 With a clean tree, `$ARGUMENTS` is interpreted in order:
 
 | Input | Resolves to |

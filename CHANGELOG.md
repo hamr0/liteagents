@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   upgrading re-checks the whole branch.
 
 ### Changed
+- **`/branch-review` now stops up front when the branch is behind
+  `origin/main`**, so a sync never invalidates a finished review.
 - **The gates each do one job.** `/self-review` (before commit) owns real runs
   and all code-structure checks: dead code, state ownership, reuse, naming,
   performance. `/branch-review` (after commit) owns bugs, test quality,

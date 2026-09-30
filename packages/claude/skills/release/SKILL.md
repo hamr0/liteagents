@@ -66,7 +66,8 @@ that predates this file's introduction has no record, so it does not count.
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
-  re-review, **unless every file** in `git diff --name-only <recorded
+  re-review (a merge or rebase of `origin/main` after the review is never
+  forgiven — it brings non-doc files), **unless every file** in `git diff --name-only <recorded
   sha>..HEAD` is forgiven. A file is forgiven if it's under `docs/`, a `*.md`
   at the repo root, **or** on the record's `docs:` line — Stage 4 legitimately
   writes docs outside `docs/`/root too (`packages/subagentic-manual.md`,
@@ -119,7 +120,10 @@ Detect the stack first (`package.json`, `pyproject.toml`, `go.mod`,
 fail / N/A** with the exact command and exit code; a check not run is a
 **fail**; N/A needs a stated reason. Read the exit code off the bare command
 (`cmd > /tmp/out 2>&1; e=$?`), never a pipeline — `$?` after a pipe is the
-last element's status. Emit a coverage row: `ran? ✓/✗` · evidence · verdict.
+last element's status. A test command that can outlast your tool's default
+command timeout must be run with a longer timeout (or in the background and
+waited on until it exits); a run that timed out is not a pass, and the report
+cites the suite's totals as well as the exit code. Emit a coverage row: `ran? ✓/✗` · evidence · verdict.
 A ✗ is **Blocked 🛑**.
 
 - **Lint / format clean** — only if a linter or formatter is configured.

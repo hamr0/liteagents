@@ -81,6 +81,15 @@ This is forced by the design, not a preference: `/release`'s precondition is a
 review at the current HEAD SHA, and any commit made after the review makes it
 stale. **The only correct order is commit → review → release.**
 
+**Then check the branch is not behind `main`.** Run `git fetch origin`, then
+`git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say
+all three things: (a) the branch is behind `origin/main` by N commits
+(`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted,
+because syncing afterwards makes the review stale; (c) merge `origin/main`
+into the branch (or rebase), then re-run `/branch-review`. A never-pushed
+branch passes; no `origin` remote or no `origin/main` → skip the check and say
+so. The orchestrator runs it before spawning, the worker re-runs it.
+
 With a clean tree, interpret `$ARGUMENTS` in this order:
 1. **Empty** → the current branch vs its merge-base with `main`
    (`git diff $(git merge-base main HEAD)..HEAD`). If that is empty there is
@@ -170,7 +179,10 @@ fixes to the fixes — so a review that trusts the message is reviewing prose.
 Run the test suite and the typecheck/build yourself and cite the command and
 its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
 e=$?`), never off a pipeline — `$?` after a pipe is the last element's
-status, so piping into `tail` reports `0` for a suite that failed. The result
+status, so piping into `tail` reports `0` for a suite that failed. A suite that
+can outlast your tool's default command timeout needs a longer timeout (or a
+background run waited on to exit); a timed-out run is not a pass, and cite the
+suite's totals with the exit code. The result
 goes on the record's `tests:` line — the build part is required (`build N/A: <reason>`
 if none).
 
