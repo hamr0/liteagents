@@ -121,6 +121,9 @@ Branches are commonly AI-authored now — including the fixes to the fixes — s
 that trusts the message is reviewing prose. The worker runs the test suite and the
 typecheck/build itself, cites the command and its exit code, and records the result on the
 review record's `tests:` line.
+A suite that can outlast the tool's default command timeout gets a longer timeout (or a
+background run waited on to exit); a timed-out run is not a pass, and the totals are cited
+with the exit code.
 
 What it looks for: bugs needing a fix (logic errors, off-by-one, null paths, races, wrong
 defaults); loose ends (TODO/FIXME, half-finished branches, swallowed errors, stub bodies,
@@ -468,7 +471,9 @@ whatever state the ledger file happens to be in.
   place the difference is visible.
 - **No record file, or no `sha:` line in it** → no review, full stop: *"No review at
   `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."*
-- **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review — *unless every
+- **Recorded SHA ≠ current HEAD** → **stale**, stop and ask for a re-review (a merge or
+  rebase of `origin/main` after the review is never forgiven — it brings non-doc files) —
+  *unless every
   file* in `git diff --name-only <recorded sha>..HEAD` is **forgiven**: under `docs/`, a
   `*.md` at the repo root, **or** on the record's `docs:` line — that third case matters
   because Stage 4 legitimately writes docs outside `docs/`/root too (e.g.
