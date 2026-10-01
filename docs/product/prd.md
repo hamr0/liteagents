@@ -85,7 +85,7 @@ Owner rule: one review and one release for both trims.
   - bump the manifest stamp (liteagents_version).
 - [ ] agentic-toolkit mirror plus tag.
 - [ ] Then come back for the fix-ledger cleanup (/refactor) and the nits in section 3.
-- [ ] Run /remember for real once. First live run of the trimmed skill (still pending from last round).
+- [x] Run /remember for real once. Done 2026-10-01 on the installed trimmed skill; one crash (exit 137, chained commands) fixed in cda6549.
 - [ ] One real interactive /live-canvas Live run. The "ready block" slot placement and the full skill flow were only tested headless.
 
 ## 3. Open ledger
@@ -95,6 +95,10 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 - The 2 live-canvas server bullets (Origin check, bounded /feedback-jsonl) are fixed in code (839bf7f).
 - Several other bullets were fixed last round (stale "committed or not" lines, s2 slot, fail-first, friction skip list).
 - Drop them all through /refactor revalidation. Never by hand.
+- Nits found this round and Parked items are now also in the fix ledger (2026-10-01) so /refactor sees them.
+- [ ] `git rev-list --merges` misses a fast-forward pull of main (rare).
+- [ ] branch-review spec gaps C-H left as-is by owner choice: diff scope in hash mode, unreachable main Stage-4 branch, NOT RUN slot gap, blockers-none shapes, pushed-through mechanism unspecified, grep vs git grep.
+- [ ] No /branch-review A/B or real run has exercised a ready-verdict target (ready record, re-review marking a blocker fixed, Stage 4 docs commit on a settled review).
 
 ### Nits found this round
 - [ ] /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
