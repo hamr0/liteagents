@@ -18,7 +18,7 @@ only — the docs it sweeps, committed as their own docs-only commit. Fixing cod
 a separate, separately authorized action, handled by `/refactor` in ledger mode.
 
 ```
-commit  ──►  /branch-review [target] [level]  ──►  fix ledger + blocking findings
+commit  ──►  /branch-review [commit hashes | from..to | blank = this branch] [low|medium|high|max]  ──►  fix ledger + blocking findings
                  ├─ stage 1: general review (effort-governed)
                  ├─ stage 2: security (always full)
                  ├─ stage 3: verify (adversarial)

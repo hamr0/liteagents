@@ -1,7 +1,7 @@
 ---
 name: branch-review
-description: Review a branch before merge [target] [level]
-argument-hint: [commit hash ... | a..b] or empty [effort level]
+description: Review a branch before merge
+argument-hint: [commit hashes | from..to | blank = this branch] [low|medium|high|max]
 allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---

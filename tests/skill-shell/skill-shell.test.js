@@ -1328,6 +1328,14 @@ for (const kit of KITS) {
     specCheck(`${kit.name}/branch-review: rule pinned — ${name}`, () => allOf(...phrases.map(p => has(brs, p))));
   }
 
+  // argument-hint names the three targets. opencode carries no argument-hint in either file.
+  const hintOf = rel => (read(rel).split('\n---')[0].match(/^argument-hint: (.*)$/m) || [])[1];
+  const HINTS = kit.name === 'opencode' ? [undefined, undefined] : [
+    '[commit hashes | from..to | blank = this branch] [low|medium|high|max]',
+    '[commit hashes | from..to | blank = since last self-review]'];
+  specCheck(`${kit.name}/branch-review: argument-hint`, () => hintOf(kit.branchReview) === HINTS[0] || `got ${hintOf(kit.branchReview)}`);
+  specCheck(`${kit.name}/self-review: argument-hint`, () => hintOf(kit.selfReview) === HINTS[1] || `got ${hintOf(kit.selfReview)}`);
+
   // Record template: the field names, in this order, and nothing else.
   specCheck(`${kit.name}/branch-review: record template fields in order`, () => {
     const block = extractFence(read(kit.branchReview), 'sha: <full HEAD sha>');

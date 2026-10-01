@@ -1,5 +1,5 @@
 ---
-description: Review a branch before merge [target] [level]
+description: Review a branch before merge [commit hashes | from..to | blank = this branch] [low|medium|high|max]
 ---
 Pre-merge review gate. **General review**, then a **full security audit**, then an adversarial verify pass, then a **docs sweep**. It **never edits code**: findings are reported and handed back, and fixing is a separate, separately authorized action. The docs sweep is the one stage that writes, and only to docs — it updates the project's docs for what this branch changed and commits exactly that.
 
