@@ -1293,6 +1293,8 @@ for (const kit of KITS) {
     ['no override field; a run with no record is not a review', [
       '**There is no override field, no `verdict: overridden`**',
       '**A run that produces no record is not a review**', 'Say plainly what you could not verify.']],
+    ['closing block ends with the escalate-to-orchestrator hand-off', [
+      '- **Escalate to the orchestrator** with the findings. It decides what gets fixed and by whom. Say plainly what you could not verify.']],
   ];
   for (const [name, phrases] of RULE_PINS) {
     specCheck(`${kit.name}/branch-review: rule pinned — ${name}`, () => allOf(...phrases.map(p => has(brs, p))));

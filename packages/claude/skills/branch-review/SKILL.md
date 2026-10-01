@@ -300,5 +300,5 @@ End with:
   (same numbers as the `sweep:` line), or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review; nobody fills the gap from memory.
-- Say plainly what you could not verify.
+- **Escalate to the orchestrator** with the findings. It decides what gets fixed and by whom. Say plainly what you could not verify.
 
