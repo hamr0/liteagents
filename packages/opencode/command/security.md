@@ -65,17 +65,17 @@ End with the coverage block — all 11 lines, these keys, this order, each
 filled with exactly one of `ran` / `N/A` / `NOT RUN`. A missing line counts as
 NOT RUN. N/A must hold for the whole repo, not the diff.
 ```
-- secrets · ran: <evidence: command run or file:line read; the history command's hit count, `0 hits` included> | N/A: <reason> | NOT RUN: <reason>
-- tenant-isolation · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- rate-limiting · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- error-handling · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- authorization · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- data-access · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- injection · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- auth-session · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- trust-boundaries · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- config · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
-- dependencies · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- secrets · ran: <whole-repo evidence: command run or file:line read; the history command's hit count, `0 hits` included> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- tenant-isolation · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- rate-limiting · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- error-handling · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- authorization · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- data-access · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- injection · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- auth-session · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- trust-boundaries · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- config · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
+- dependencies · ran: <whole-repo evidence: command run or file:line read> | N/A: <why it holds for the whole repo, not just this diff> | NOT RUN: <reason>
 ```
 
 ## After the scan — verify, then escalate

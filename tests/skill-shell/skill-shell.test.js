@@ -304,8 +304,9 @@ if (extractedLedgerCmds.length === 0) {
 // builds change/idea bullets in ledger mode.
 for (const kit of KITS) {
   const flat = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\s+/g, ' ');
-  check(`${kit.name}/self-review: appends every item to the ledger at relay time`,
-    flat(kit.selfReview).includes('appends **every** item'));
+  check(`${kit.name}/self-review: appends every anchorable item at relay time, anchor rule wins, ledger: relay line`,
+    flat(kit.selfReview).includes('appends **every anchorable** item') &&
+    flat(kit.selfReview).includes('`ledger: <N> items → <A> appended, <D> already there, <Y> your call`'));
   const ref = flat(kit.refactor);
   check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
     ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
@@ -868,6 +869,14 @@ for (const kit of KITS) {
       same(sec, S2_KEYS) || `security keys: ${sec.join(',')}`,
       same(rec, sec) || `branch-review keys: ${rec.join(',')}`,
       same(rel, sec) || `release keys: ${rel.join(',')}`);
+  });
+
+  specCheck(`${kit.name}: every stage-2 blank states the whole-repo scope (security 11 lines, branch-review 11 s2 lines)`, () => {
+    const sec = read(kit.security).split('\n').filter(l => /^- \S+ · ran: /.test(l));
+    const rec = read(kit.branchReview).split('\n').filter(l => /^s2 \S+: /.test(l));
+    return allOf(
+      sec.every(l => l.includes('ran: <whole-repo evidence:') && l.includes('N/A: <why it holds for the whole repo, not just this diff>')) || 'security blank lacks whole-repo wording',
+      rec.every(l => l.includes('ran: whole-repo command or file:line') && l.includes('N/A: why it holds repo-wide, not just this diff')) || 'branch-review s2 blank lacks whole-repo wording');
   });
 
   for (const shell of SHELLS) {

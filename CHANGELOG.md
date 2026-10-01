@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added`); an idea is never counted as a nit.
 
 ### Changed
+- **Stage-2 blanks name their scope.** A blind run judged 3 of 11 stage-2 lines
+  by the diff, not the repo. `/security`'s coverage lines and `/branch-review`'s
+  `s2` lines now read `ran: <whole-repo evidence…>` and `N/A: <why it holds for
+  the whole repo, not just this diff>`; keys and order unchanged.
+- **`/self-review` ledger rule no longer contradicts itself.** It appends every
+  *anchorable* item (the anchor rule wins); an item with no line to name is
+  "your call". The relay carries `ledger: <N> items → <A> appended, <D> already
+  there, <Y> your call` so a dropped append is visible.
 - **Required steps get a slot in the output, not more wording.** A worker
   could skip a step near the end of a spec and nothing showed it. Each slot is
   filled with the result or `NOT RUN: <reason>`: `/root-cause` gains a

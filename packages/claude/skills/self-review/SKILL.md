@@ -91,7 +91,7 @@ commands/numbers preserved. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
 items. When you relay the report, the **orchestrator** (worker's turn is over
-by then) appends **every** item, both piles, to `.claude/remember/fix-ledger.md`
+by then) appends **every anchorable** item, both piles, to `.claude/remember/fix-ledger.md`
 right away, `/branch-review`'s format, tagged `nit`/`change`/`idea` (Underspecced
 items → `idea`: missing, an option not debt), bullet text verbatim. Then ask
 which, if any, to remove: no answer → they all stay; remove only on the
@@ -101,7 +101,9 @@ longer holds.
 Dedupe with plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`
 (never `git grep` — gitignored). **Anchor rule:** a verbatim snippet `grep
 -F` can find; missing (usually an `idea`) → anchor where it should go; no line to name → no
-ledger entry, report it as "your call" instead.
+ledger entry, report it as "your call" instead — the anchor rule wins over
+"every". Relay one line, filled (A + D + Y = N), so a dropped append shows:
+`ledger: <N> items → <A> appended, <D> already there, <Y> your call`
 
 **Last act — rewrite only the bookmark line**, never another line in the file.
 Write it when you relay the report — it records what was checked and does not

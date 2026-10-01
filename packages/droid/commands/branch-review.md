@@ -390,17 +390,17 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
-s2 secrets: <ran: … | N/A: … | NOT RUN: …>
-s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
-s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
-s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
-s2 authorization: <ran: … | N/A: … | NOT RUN: …>
-s2 data-access: <ran: … | N/A: … | NOT RUN: …>
-s2 injection: <ran: … | N/A: … | NOT RUN: …>
-s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
-s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
-s2 config: <ran: … | N/A: … | NOT RUN: …>
-s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
+s2 secrets: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 tenant-isolation: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 rate-limiting: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 error-handling: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 authorization: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 data-access: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 injection: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 auth-session: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 trust-boundaries: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 config: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 dependencies: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
