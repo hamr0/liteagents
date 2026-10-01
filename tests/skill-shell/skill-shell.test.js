@@ -993,6 +993,92 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/docs-builder: validate: line precedes finish: in the run's final output`, () =>
     has(db, 'validate: PASS exit 0 | FAIL | NOT RUN: <reason> finish: committed <sha>'));
 
+  const dbRaw = read(skillPath(kit, 'docs-builder'));
+  specCheck(`${kit.name}/docs-builder: picker has exactly two options, never auto-detects; search is never a picker option`, () => allOf(
+    ...['**Bare `/docs-builder` — ALWAYS ask, never auto-detect.**',
+      'header `Mode`, exactly these two options',
+      '**First run** — sort root-level `.md` files and everything under `docs/` into > product/wiki/logs/archive, then split anything too big into pages and index them.',
+      '**Docs drift** — docs moved on since the last run: report what changed, rebuild the > index, re-run lint. Nothing is restructured and nothing is split.',
+      'Do not offer a third option and do not recommend one.',
+      'If `due` cannot run, say so plainly and ask anyway.',
+      '**`search` is explicit-argument only, never a third picker option:**'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: one-line hard rules (only .md, never-moved list, approval gate, no split on an unseen list, reorg never splits)`, () => allOf(
+    ...['**This does NOT make docs cheaper to read — never sell it as a token saving.**',
+      'Never search the target repo for it',
+      '**Only `.md` files are ever opened, read, edited or listed**',
+      '**Never moved, enforced in code:** `README.md`, `index.md`, `log.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CLAUDE.md`, `AGENTS.md`, `AGENT.md` (case-insensitive, any depth)',
+      '**Nothing moves before the user approves the table.** Only after approval does `apply-reorg` run',
+      '**Never split N files in one shot on a list the user has not seen.**',
+      '**`reorg` never splits.** `cleanup <file.md>` is the ONLY entry to the split pipeline',
+      'Never name a vendor model.'].map(p => has(db, p)),
+    /Haiku|Sonnet|Opus/.test(db) ? 'vendor model name present' : true));
+  specCheck(`${kit.name}/docs-builder: one-line rules for cleanup-apply, archive, index.md, link exemptions`, () => allOf(
+    ...['**`cleanup-apply` refuses without a `labels.json` that has exactly one `core: true` theme.**',
+      '**The original is always archived byte-identical**',
+      'every cleanup output is a new file, nothing edits a source doc.',
+      '**`docs/index.md` has exactly one writer: `index-flat`**',
+      '**Never rewrite `CHANGELOG.md` or `log.md` links (any depth).** Nothing under `docs/archive/` is ever a rewrite target; links elsewhere that point at an archived file are still repaired.'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: finish rules — pathspec recipe literal, never -A/-u/-a, relay BRANCH/QUESTION/WARN, ledger after commit`, () => allOf(
+    ...['**Commit only through the printed pathspec recipe; never `git add -A`, `git add -u` or `git commit -a`.**',
+      'git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt',
+      '`BRANCH: <name>` — on `main`/`master` it reads `do NOT commit`: obey it',
+      '`QUESTION: Commit these N files now?`',
+      'relay that line via `AskUserQuestion`, header `Commit`: **Commit** (run the printed recipe) / **Leave uncommitted** (say what is pending; nothing this run did gets undone).',
+      '`WARN: docs/.docs-builder/ is not gitignored',
+      'If it errors or names a missing path that is a BUG: stop and report it',
+      'After a successful commit run `node $DB ledger` to stamp the consolidation.'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: cleanup rules — KEY delimiter, page criterion in the writer step, exit table incl. cleanup-apply 2, link restore`, () => allOf(
+    ...['<<<KEY>>>the exact key text<<<END>>>',
+      'Never emit a positional index.',
+      'A page counts as written only with YAML frontmatter and at least 10 lines',
+      'Hand each writer agent its `task-<theme>.json`: the writer brief is inside it.',
+      'Refuses before doing anything if `labels.json` is missing or has no `core: true` theme.',
+      '| `2` | the file **moved**, but a follow-up failed (`archive`: outline/labels sync or link rewrite; `cleanup-apply`: core page not relocated, index not rebuilt) |',
+      'restores inbound links from the archive to that core page (the split pages keep their archive citations)',
+      'Nothing past it runs — no archive, no page, no model call — until the interview below is answered.',
+      'Act on `supersession` declared in a heading',
+      '`/remember` also runs `index-flat` on any drift'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: final report block lists all eight slots in order, validate: and finish: last`, () => {
+    const i = db.indexOf('The final message ends with these eight lines, in this order');
+    const blk = i < 0 ? '' : db.slice(i);
+    const at = ['mode: first-run | drift | reorg <dir> | cleanup <file> | search · asked: yes | N/A (argument given)',
+      'due: <one-line verdict> | NOT RUN: <reason>',
+      'classify: <N> rows · approved | corrected <K> | aborted | N/A (nothing unclassified)',
+      'split: <N> oversized offered · chose <files | none> | N/A (none oversized)',
+      'cleanup: interview confirm | correct · pages <done>/<total> · PARTIAL 0 · archive exit <0|1|2> | N/A',
+      'gitignore: ignored | added | NOT ignored: <reason>',
+      'validate: PASS exit 0 | FAIL | NOT RUN: <reason>',
+      'finish: committed <sha> | left uncommitted (N files)'].map(p => blk.indexOf(p));
+    return i >= 0 && at.every((x, k) => x >= 0 && (k === 0 || x > at[k - 1])) ? true : 'final report block missing or slots out of order';
+  });
+  specCheck(`${kit.name}/docs-builder: every printed command is one line, parses under bash, no brace expansion or continuation`, () => {
+    const cmds = [];
+    let inFence = false;
+    for (const line of dbRaw.split('\n')) {
+      if (line.startsWith('```')) { inFence = !inFence; continue; }
+      if (inFence && /^(node \$DB|PREVIEW=1 node \$DB|git add )/.test(line)) cmds.push(line);
+    }
+    const bad = cmds.filter(c => c.endsWith('\\') || /\{[^}]*,[^}]*\}/.test(c)
+      || spawnSync('bash', ['-n', '-c', c]).status !== 0);
+    const inline = [...dbRaw.matchAll(/`(node \$DB [^`]+)`/g)].map(m => m[1]);
+    const all = [...cmds, ...inline];
+    const need = ['node $DB discover', 'PREVIEW=1 node $DB apply-reorg', 'node $DB apply-reorg', 'node $DB cleanup docs/BIG.md',
+      'node $DB validate', 'node $DB cleanup-apply docs/BIG.md', 'node $DB plan', 'node $DB archive docs/BIG.md'];
+    const miss = need.filter(n => !all.includes(n));
+    return allOf(bad.length ? `bad commands: ${bad.join(' ; ')}` : true,
+      miss.length ? `missing single-line commands: ${miss.join(' ; ')}` : true,
+      /\\\n\s*(docs\/|node)/.test(dbRaw) ? 'a command still continues across lines' : true);
+  });
+  specCheck(`${kit.name}/docs-builder: states the link rewriter is fence-aware; stale claims are gone`, () => allOf(
+    has(db, 'fenced code blocks are never rewritten; a backticked exact path in prose IS rewritten, a link-shaped string inside an inline code span is not'),
+    has(db, 'Bare `node $DB reorg` prints the `due` summary first (if a ledger stamp exists), runs `discover`, and **stops only for rows with no bucket**'),
+    has(db, 'After a first sort the plan keeps each file\'s new path and approved bucket, so edited files do not re-ask.'),
+    ...['not fence-aware', 'NOT fence-aware', 'carries its prior classifications forward automatically', 'common, cheap case',
+      'ARCHIVE_WARN_ROWS', 'zero `WARN ... PARTIAL`', 'OUT=docs/.docs-builder', '{outline,labels}', '$0.39', 'Haiku', 'Sonnet'
+    ].map(p => db.includes(p) ? `stale text still present: ${p}` : true)));
+  specCheck(`${kit.name}/docs-builder: stays trimmed (at most 330 lines)`, () =>
+    dbRaw.split('\n').length <= 330 || `docs-builder is ${dbRaw.split('\n').length} lines`);
+
   const brs = flat(read(skillPath(kit, 'branch-review')));
   specCheck(`${kit.name}/branch-review: sweep counts A + F + C = N, closing line reports checked/added/fixed/already correct`, () => allOf(
     has(brs, "N is every change in the sweep's change table, each counted exactly once in A, F or C, so A + F + C = N; a change already documented counts in C."),

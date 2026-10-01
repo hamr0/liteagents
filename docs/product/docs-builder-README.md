@@ -1,23 +1,25 @@
 ---
 type: reference
 title: docs-builder
-status: draft
-updated: 2026-08-24
+status: current
+updated: 2026-10-01
 ---
 
 # docs-builder
 
 `/docs-builder` splits a documentation file once it outgrows its row in `docs/index.md`,
-keeps the resulting pages current, and generates an index so they can be found. It is a
-**slash command**, not a skill: `commands/docs-builder.md` plus a bundled
-`commands/docs-builder/docs-builder.cjs` (vanilla Node, zero deps, fourteen subcommands) —
+keeps the resulting pages current, and generates an index so they can be found. The
+instructions are `skills/docs-builder/SKILL.md` on Claude and Amp (`commands/docs-builder.md`
+on Droid, `command/docs-builder.md` on opencode), with the bundled `docs-builder.cjs`
+(vanilla Node, zero deps, fourteen subcommands) in the `docs-builder/` directory beside it —
 the same shape as `/remember`.
 
 It ships in all four packages. `docs-builder.cjs` hardcodes no tool-specific paths, so it
-is **byte-identical** across `claude`, `droid`, `opencode`, and `ampcode`; only the command
-doc differs, by the one line naming the tool's config file (`CLAUDE.md` / `AGENTS.md` /
-`AGENT.md`). This is a stronger guarantee than `friction.cjs`, which does bake in tool paths
-and therefore has to be maintained as four near-copies.
+is **byte-identical** across `claude`, `droid`, `opencode`, and `ampcode` (a test pins the
+four copies). The instruction doc differs per package in more than one line: its
+frontmatter, and the config file the docs pointer goes to (`CLAUDE.md` / `AGENTS.md`). This
+is a stronger guarantee than `friction.cjs`, which does bake in tool paths and therefore has
+to be maintained as four near-copies.
 
 ---
 
@@ -80,7 +82,7 @@ snippet, and every H3 with its own start/end line so a page writer can pull a su
 alone.
 
 ```bash
-REPO=<repo> OUT=outline.json node docs-builder.cjs scan docs/BIG.md
+REPO=<repo> node docs-builder.cjs scan docs/BIG.md   # -> docs/.docs-builder/outline.json
 ```
 
 **2a. Propose themes (cheap tier, one call over everything)** — feed every `records[].key` plus
@@ -96,14 +98,14 @@ already guaranteed it's unique.
 failing chunk.
 
 ```bash
-node docs-builder.cjs validate outline.json labels.json
+node docs-builder.cjs validate   # outline.json + labels.json default to docs/.docs-builder/
 ```
 
 **4. Plan (script)** — writes `task-<theme>.json` per page and prints the estimated write
 cost.
 
 ```bash
-OUT=tasks node docs-builder.cjs plan outline.json labels.json
+node docs-builder.cjs plan   # -> docs/.docs-builder/tasks/
 ```
 
 **5. Write pages (mid tier, one agent per page)** — each agent reads only its own line ranges.
@@ -136,7 +138,7 @@ REPO=<repo> node docs-builder.cjs index-flat                # -> docs/index.md
 **Lint (script)** — declared-only checks.
 
 ```bash
-REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
+REPO=<repo> node docs-builder.cjs lint $(git ls-files 'docs/*.md')   # -> docs/.docs-builder/lint.json
 ```
 
 ---
@@ -146,8 +148,8 @@ REPO=<repo> OUT=lint.json node docs-builder.cjs lint $(git ls-files 'docs/*.md')
 **The script lives next to the command, not in your repo.** Every `node
 docs-builder/docs-builder.cjs …` in the spec is relative to the command's own directory
 (`~/.claude/skills/` once installed); the target repo is whatever `REPO=` names, defaulting
-to the cwd. The spec now says so up front — before it did, a run on an external repo searched
-the target tree for the script, found nothing, and refused (see History).
+to the cwd. The skill says so up front — before it did, a run on an external repo searched
+the target tree for the script, found nothing, and refused.
 
 **Bare `/docs-builder` never guesses.** It runs `due` for context, then asks — two
 options, no recommendation, no third:
@@ -180,8 +182,8 @@ has the model fill `bucket` (`product`/`wiki`/`logs`/`archive`) for every row, a
 the full table shown for approval via `AskUserQuestion` (approve all / correct specific
 rows / abort) — that stop guards **correctness**: `apply-reorg` refuses outright to run
 while any row's `bucket` is still empty, so nothing moves on an unreviewed plan. After the
-moves, the oversized-file list is printed with line counts and an estimated cost and you
-pick which to split — that stop guards **cost** (~$0.39 per 1,000 source lines). Never
+moves, the oversized-file list is printed with line counts (`cleanup` itself prints the
+estimated cost for the one file you pick) and you choose which to split — that stop guards **cost** (~$0.39 per 1,000 source lines). Never
 split N files in one shot on a list you haven't seen. Oversized files are sorted into a
 bucket like every other file — size only decides whether a doc is *splittable*, it no
 longer decides where a doc is filed.
@@ -197,8 +199,9 @@ predicts the other, which is why "Docs drift" will never surface an oversized fi
 | Mode | Menu option | Does | Destructive |
 |---|---|---|---|
 | `/docs-builder reorg` (discover, classification interview, confirm, then apply-reorg) | *First run*, steps 1-3 | classify a WHOLE corpus into product/wiki/logs/archive | no (moves are `git mv`, plan classified and reviewed first) |
-| `/docs-builder cleanup <file.md>` | *First run*, step 4 | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
-| `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → (stops here if anything is still unclassified) → apply-reorg → lint, whole corpus | no |
+| `/docs-builder cleanup <file.md>` | *First run*, step 3's split question | measure ONE named oversized doc (cost, scan, heading shape) → **stops for the interview** | no (measure-only; original preserved) |
+| `/docs-builder reorg` (bare `docs-builder.cjs reorg`) | *Docs drift* | `due`'s drift summary (if a ledger stamp exists) + discover → (stops here if any row has no `bucket`) → apply-reorg → lint, whole corpus | no |
+| `/docs-builder search <query words...>` | *(none — explicit-argument mode only, never in the bare picker)* | BM25-rank sections of `docs/.docs-builder/outline.json` against the query, read-only | no |
 
 `reorg` and `cleanup` solve different problems and compose: `reorg` sorts a whole messy
 `docs/` tree into the product/wiki/logs/archive layout in one pass and **never splits anything
@@ -217,8 +220,8 @@ different starting state. What `reconcile`'s `validate`/`index` steps did has no
 `reorg`, and that is not a loss — those two need a theme assignment (`labels.json`) that only
 the model's grouping step produces, and `reorg` never calls a model by default and never
 splits anything. That capability didn't move; it stayed exactly where it already lived — the
-standalone `validate` and themed `index` subcommands, unchanged, still runnable by hand once
-a `labels.json` exists. The old `archive-cleanup` command (pruning `docs/archive/`) was
+standalone `validate` and `index-flat` subcommands, unchanged, still runnable by hand once
+a `labels.json` exists. (The themed `index` subcommand was removed on 2026-08-24.) The old `archive-cleanup` command (pruning `docs/archive/`) was
 removed outright, not renamed — pruning `docs/archive/` is now the user's own call via
 `git rm`; nothing in the pipeline does it automatically. `index-flat`'s archive-row count
 grows a console-only `WARN` past `ARCHIVE_WARN_ROWS` (default 100) as the only remaining
@@ -232,8 +235,9 @@ docs/
                        WHOLE-CORPUS map — the only file with a completeness guarantee.
                        Three sections: ## Product, ## Logs (grouped by subdir), ## Archive.
   log.md               append-only:  ## [DATE] operation | description — written by
-                       `archive`, `apply-reorg`, `validate`, `reorg`; not by read-only
-                       commands (`due`, `search`, `discover`).
+                       `archive`, `apply-reorg`, `validate`, `reorg`, `index-flat` (so
+                       `cleanup-apply` too); not by read-only commands (`due`, `search`,
+                       `discover`).
   product/            docs ABOUT THE PRODUCT ITSELF — the default. FLAT, no subdirs.
                        `apply-reorg` MOVES files here (`git mv`); content is never rewritten.
                        Re-checked every reorg (only archive/ stays frozen).
@@ -258,7 +262,7 @@ docs/
                        automatically.
   .docs-builder/       machine-only state: ledger.json, outline.json, cleanup-shape.json,
                        labels.json, reorg-plan.json, validate.json, failures.json,
-                       lint.json, tasks/
+                       lint.json, tasks/, commit-add.txt, commit-files.txt, commit-dirty.txt
 ```
 
 **`index.md` deliberately stays visible.** It is the thing a reader (or an agent) opens
@@ -276,8 +280,7 @@ not only once the corpus already looks too big to read.
 There used to be a second, themed per-split index, and it was never asked for: it caused a
 corpus-map clobber, an `outline.json` clobber across concurrent splits, and a lowercasing bug
 that displayed a real page as "pending". Splitting it into its own file only relocated the
-problem, so it was **removed outright on 2026-08-24** — see "History of things that were
-wrong".
+problem, so it was **removed outright on 2026-08-24**.
 
 **Never moved — enforced in code, not just documented.** Two guards in `docs-builder.cjs`:
 
@@ -342,12 +345,13 @@ that is done.
 `discover` carries an already-classified row's `bucket` forward for any file it still sees
 at the same path — it does not re-litigate a decision the interview already made. Only a
 file `discover` has never classified before (new, or reappeared after a manual revert)
-starts unclassified. This is why bare `reorg` (Mode 2) can compose `discover` with
-`apply-reorg` with no stop on an already-sorted corpus: nothing new to classify, so the
-gate never fires. Carry-forward only accepts a currently-valid bucket — a legacy pre-v3
+starts unclassified. `apply-reorg` records each moved file's NEW path and its bucket in the
+plan (it is the only command that changes a path), so after a first sort the next bare
+`reorg` matches every file again and stops only for rows with no bucket (new files, or files
+moved since). Before 2026-10-01 the plan kept the OLD paths, so the first drift run after a
+sort re-asked for every file. Carry-forward only accepts a currently-valid bucket — a legacy pre-v3
 value (`oversized`, `review`) is dropped rather than carried, so that row starts
-unclassified instead of making `apply-reorg` refuse the whole plan as stale schema (see
-*History*).
+unclassified instead of making `apply-reorg` refuse the whole plan as stale schema.
 
 **`apply-reorg` now writes a docs pointer into the repo's own agent config file.** A
 marker-wrapped `<!-- DOCS_INDEX:START -->`/`<!-- DOCS_INDEX:END -->` block naming
@@ -362,8 +366,7 @@ duplicated; the rest of the file is left alone.
 immediately — nothing in this tool's output ever said so, and it was confirmed twice, in two
 different repos, where another session's `git add -A` silently folded the staged renames into
 an unrelated commit. The advisory names the staged rename count, the unstaged link-rewrite
-count, and the distinct top-level locations outside `docs/` that were touched, then prints a
-one-line recipe (`git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git
+count, and the number of `.md` files with link rewrites, then prints a one-line recipe (`git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git
 commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt`) that
 captures both in ONE commit — exactly this run's files, renames kept, and nothing else the
 user has staged or edited. It is deliberately never scoped to `docs` alone, since the link
@@ -414,3 +417,253 @@ crash-isolated so it can never block a memory write. It stays silent in a repo w
 one line when a reorg is due. `/remember` never consolidates — `/docs-builder` owns the
 ledger, `/remember` only reads it.
 
+
+---
+
+## Why the skill works this way
+
+`packages/claude/skills/docs-builder/SKILL.md` holds the steps, the exact menu and
+interview text, the hard rules (one line each, each pinned in
+`tests/skill-shell/skill-shell.test.js`) and one final report block. Everything below is the
+reasoning and the evidence behind them, moved out of the skill so it can stay short.
+
+### Model tiers
+
+| step | tier | why |
+|---|---|---|
+| propose + assign themes, read a doc for the interview | **cheapest tier** | structured labelling against a fixed list; no synthesis |
+| write pages | **mid tier** | semantic synthesis, cheaper and faster than the top reasoning tier |
+
+The skill never names a vendor model: names drift, and an omitted tier silently inherits the
+parent's, so the skill says to state the tier explicitly. The numbers below were measured on
+Claude Haiku 4.5 (cheap) and Sonnet 5 (mid) in August 2026 — the ratios and shapes carry over,
+the absolute prices do not.
+
+### The script owns the mechanics
+
+Bookkeeping done by a script is 100% correct; done by a model it measured 27%. So the model
+is used for exactly two things and the script does the rest. The same reasoning keeps moving
+hand-built output into the script: the approval table's destination column (collision
+suffixes, the `logs/` group, sort order) was the riskiest thing the model computed by hand.
+
+What the script prints for the model to relay, so it never composes them:
+
+- `PREVIEW=1 node $DB apply-reorg` — `approval table — N row(s), sorted by destination`, rows
+  `file | lines | → destination | bucket`, then `preview only — nothing moved, nothing
+  written.`; exit 1 on an unclassified plan. It shares `destinationsFor()` with the real run,
+  so the preview can never disagree with the move. It has no `why` column: the reason is
+  the model's judgment, added when it shows the table.
+- The commit advisory tail — `BRANCH: <name>` (on `main`/`master`: `do NOT commit`),
+  `QUESTION: Commit these N files now?` (naming files that already carried the operator's own
+  edits), and `WARN: docs/.docs-builder/ is not gitignored — …` via `git check-ignore`. The
+  script never edits `.gitignore` (it only ever writes `.md` files plus its own state).
+- Every task file carries a `brief` field with the page-writer rules (frontmatter, at least
+  10 lines, citations, 250-line ceiling). Before it existed the criterion was told to the
+  writers only if the orchestrator remembered; a bareagent field run documented it only in
+  the lint section, so the first wave produced `PARTIAL` pages and had to be redone.
+- `validate`, `plan`, `cleanup-apply` default their outline and labels to
+  `docs/.docs-builder/outline.json` and `labels.json`; `search` defaults its outline the same
+  way (a first argument ending in `.json` is the outline path, so a typo errors instead of
+  becoming a query word). That made the five multi-line, brace-expanded commands single-line.
+
+### Why bare `/docs-builder` always asks
+
+Auto-detecting the mode was considered and rejected: the two options differ in cost (an
+unreviewed first-run plan versus a cheap drift check), and a wrong guess on the first one is
+expensive to unwind. `search` is deliberately not a third picker option: it is read-only and
+costs nothing, so it is not a decision that needs a recommendation.
+
+### The two stops in First run
+
+Step 2 (the interview and approval) guards correctness. The split question after
+`apply-reorg` guards cost: splitting is about $0.39 per 1,000 source lines and the user has
+seen neither the list nor the number when picking "First run". Never split N files in one
+shot on an unseen list.
+
+### Drift
+
+Bare `reorg` composes `discover` and `apply-reorg`. Discover carries a row's `bucket` forward
+by file path. Until 2026-10-01 `apply-reorg` left each moved row at its OLD path, so the
+first drift run after a sort printed "N of N row(s) still need classification" and stopped.
+Now `apply-reorg` writes each moved row's new path (and bucket) back into the plan, so a bare
+`reorg` stops only for rows with no bucket. `/remember` also runs `index-flat` on any drift
+(not only when a reorg is due), which is why `docs/index.md` and `docs/log.md` can change
+under a `/remember` run.
+
+### `suggested` — the mechanical prior
+
+First match wins:
+
+| suggested | rule |
+|---|---|
+| `archive` | path already under `archive/old/reports/phases`, **or** the doc's own opening declares a SHOUTED status word (`CLOSED`, `DEPRECATED`, `SUPERSEDED`, `WITHDRAWN`, `RETRACTED`, `REFUTED`, `ARCHIVAL`, `ARCHIVED`), **or** the filename has an archive-shaped prefix (`REPORT`, `STATUS`, `SUMMARY`, `FIX_`, `PHASE_`, `SPRINT_`, `DRAFT`, `WIP`, `OLD`, `TEMP` + `-`/`_`, case-insensitive) |
+| `logs` | filename carries an experiment-record token — `PREREG`, `LEARNINGS`, `REPORT`, `RESULTS`, `POSTMORTEM`, `RETRO` (case-sensitive, word-boundary, checked only after the archive rules) |
+| *(residency)* | already under `docs/product/`, `docs/wiki/` or `docs/logs/` — its own bucket is its prior; a stronger signal above can override |
+| `archive`/`logs`/`wiki` | a weaker, case-insensitive prior from the H1 + first 3 H2s ("Postmortem"/"Retrospective"/"Investigation" → `logs`; "deprecated"/"retired"/"superseded" → `archive`; "Conventions"/"How-to"/"Style Guide"/"Glossary" → `wiki`). Bare "guide"/"reference" were tried and dropped after false-positiving |
+| `product` | has an H1 and no other signal (the default) |
+| `product` | no H1 but an include stub (≤3 lines of include directives and/or links) — a live pointer, not an unknown doc (uv's `docs/reference/contributing.md`) |
+| `product` | no H1, not a stub — no signal either way; the interview decides |
+
+### Why classification is the model's job, behind a gate
+
+The FROZEN incident (below) is usually read as proof a model must not classify. The failure
+was a mechanical rule that moved files with no gate at all: the silent move, not the
+judgement. The approval gate is the safety property and it is strictly stronger than a rule
+that moves files unreviewed.
+
+### Why the status check wants SHOUTED caps, case-sensitively
+
+Tried case-insensitive first, against a real, uncrafted corpus. It false-positived three ways:
+`"Supersedes **nothing**"` (negation), `"this rung BUILDS three frozen records"` (an input
+being described), `"archived spines"` (data the doc references). Restricting to ALL-CAPS fixed
+all three, because that corpus's own convention SHOUTS a real self-declaration
+(`**Status: CLOSED**`). `FROZEN` was in the list until 2026-08-23: on bareloop's real docs
+(37 files) 10 of its 12 `archive` calls were false positives (`"design FROZEN... build follows
+this record"` means locked and still current). It was dropped with no replacement, trading 2
+real misses (`"Frozen 2026-07-26"`) for precision; a miss lands the doc in `product`, one
+bucket short of ideal, never mis-archived. A dated filename as a staleness signal was also
+dropped: `2026-07-28-p-palette-design.md` is a current, locked spec.
+
+### Why `logs/` exists
+
+On bareloop's real `product/` (27 files) 11 were experiment records (8 `*-PREREG`, 2
+`*-LEARNINGS`, others) next to 14 real specs: 41% of the bucket was run history, which made
+it useless for finding specs. `logs/` is history that still matters; `archive/` is history
+that is done.
+
+### One index, one writer
+
+A second, themed per-split index once existed beside `docs/index.md`. Running a PRD split
+after a reorg overwrote the 37-row whole-corpus map with that split's 7-row view: 30 files
+vanished from a file that still claimed completeness. Separating them into two files only
+moved the problem (it then clobbered `outline.json` across concurrent splits), so the themed
+index was removed outright on 2026-08-24. `index.md` deliberately stays visible, outside
+`.docs-builder/`: the measured winning arm is pages plus a coarse index.
+
+### After a move: what is repaired
+
+All moves go through one function, `moveDoc`, so no follow-up can be added to one mover and
+missed by the other (that exact miss shipped three times). It throws only if the move failed;
+a failed follow-up is collected so a moved file is never reported as needing a re-move.
+
+- **Pipeline artifacts:** `rewriteArchivedPath` syncs `outline.json` / `labels.json`
+  (`records[].file` and the `<file> :: ` key prefix).
+- **Inbound links:** every tracked-or-untracked-not-ignored `.md` file (untracked so a split's
+  brand-new pages are fixed too). Repo-rooted exact paths are matched with a lookbehind and
+  lookahead (`xdocs/A.md`, `./docs/A.md`, `docs/A.md.bak` are not matches; a sentence-final
+  `docs/A.md.` is). Relative markdown links (`[t](../x.md)`, `[l]: ./y.md`) are resolved from
+  the scanning file's directory and rewritten with `#fragment` kept; the moved file's own
+  relative links are re-based so a link whose source and target both move still resolves.
+  **Fence-aware:** a fenced code block is never rewritten by either pass (a path in a snippet
+  is something the reader copies verbatim). An inline code span is skipped by the
+  relative-link pass (`map[key](arg)` is code, not a link) but NOT by the exact-path pass: a
+  backticked `docs/GUIDE.md` in prose is a real reference to the moved file. Earlier versions
+  of the skill claimed the rewrite was not fence-aware; that was stale.
+- **Why rewriting is safe when the dangling-reference lint was cut:** the lint had to infer
+  that `P95` was a reference (1/27 precision); the rewriter holds the old and new path at the
+  instant it breaks the link and infers nothing.
+- **Never rewritten:** `CHANGELOG.md` and `log.md` at any depth (a record of where a file was
+  is not a broken link); anything resident under `docs/archive/` (evaluated on a row's
+  destination, since a reorg fills the archive mid-run — otherwise an earlier row's sweep edited
+  the doc before it moved in, measured). Links elsewhere that point AT an archived file are
+  still repaired.
+- **Only `.md` files:** bareloop, 2026-09-10, a version that also scanned `.js`/`.cjs`/`.mjs`/
+  `.json`/`.yml` rewrote 6 signed JSON job specs (breaking their hashes), a byte-signed
+  `.mjs`, and a code comment that tripped a commit gate.
+- **Restore pass:** `cleanup-apply` archives the original (every inbound link now aims at
+  `docs/archive/`), then relocates the core page back to the original path, then walks the
+  inbound links back from the archive to the core page. The split's own pages are exempt:
+  they cite the original by line number, so their `sources:` and citations stay on the frozen
+  copy. On a real split that was 33 references across 15 files outside `docs/`.
+
+### Finishing a run
+
+`apply-reorg`/`archive`/`cleanup-apply` never auto-commit; `git mv` stages a rename
+immediately, and twice, in two repos, another session's `git add -A` folded the staged renames
+into an unrelated commit. The recipe is a pathspec-from-file pair so exactly this run's files
+(renames kept) land in one commit. A hand-rolled recipe once omitted `docs/log.md` and the
+operator quietly added it (privcloud first field run): a silent repair is a lost bug report,
+so a recipe error is reported, not repaired. The ledger stamp must follow the commit or `due`
+stays NOT due forever and `/remember`'s nudge never fires. Both picker flows end with it.
+
+### Cleanup
+
+The original always ends up in `docs/archive/` byte-identical; everything the split produces
+is a new file, the core page included (it takes the original's basename and goes back to the
+original's directory, so a reader who knows where "the PRD" lives still finds it — before
+that, a split left `CLAUDE.md`'s canonical-PRD reference pointing into the archive). `cleanup`
+is a measure step: it prints the shape (`86 sections: "§N ..." — 11 sections, 193 lines (3%);
+"Addendum vN.N ..." — 75 sections, 5,476 lines (97%)`) from heading text alone, never from what
+a section is about. The interview's "mainly" answer must change what gets built or it is
+auto-detect in a costume.
+
+- **Key format** is always `<file> :: <heading>`; it once dropped the prefix for a
+  single-file scan, so a `labels.json` from a single-doc cleanup stopped matching after a
+  corpus-wide rescan.
+- **2a is load-bearing:** assigning directly gave 68 themes for 86 sections, 57 singletons —
+  perfect key accuracy, useless grouping. Chunking fixes misalignment; only global sight fixes
+  convergence.
+- **2b rules, each paid for:** one call over 97 sections keyed on `{index, id}` dropped 1,
+  shifted 41 IDs and repeated a heading; a bare `KEY: <text>` line made the model glue snippet
+  text onto 6 of 86 keys (a key truncated mid-sentence has no visible end), hence the
+  `<<<KEY>>>…<<<END>>>` delimiter; the script also trims keys because a truncation landing on
+  a space produced 5 more failures.
+- **Pages:** 250 lines is a ceiling; measured, every page came in under it unprompted; 294
+  citations, 0 bad. The concurrency cap of 3 is a checkpointing choice, not a measured one.
+- **`validate` `links`** checks every relative `.md` link in `INDEX`; it once scoped itself to
+  `PAGES` links for the themed index that is gone, which on the whole-corpus index silently
+  skipped most rows.
+- **Archive exit codes:** 0, 1 (nothing moved), 2 (moved, follow-up failed). `cleanup-apply`
+  also exits 2 when the original moved but the core page was not relocated and the index was
+  not rebuilt: do not re-run it (the file is gone); relocate the core page and run
+  `index-flat`.
+
+### Search
+
+Row count decides whether an index helps or hurts: 16 rows fine, 97 rows won, 364 rows lost
+(an H3-grain outline as a reader index was the worst arm). Past about a hundred rows, look
+sections up. `search` can only rank what has a record: `apply-reorg` re-scans the whole corpus
+into `outline.json` every run. Before that, on a real 37-doc corpus `outline.json` held
+records for the 12 files a split had touched and none of the 24 `docs/product/` files, so
+search was blind to them. `index-flat` warns on archive growth at 100 rows (`ARCHIVE_WARN_ROWS`,
+a hard-coded constant, not an env var; `OVERSIZED_LINES` is an env var).
+
+### Lint
+
+| check | precision | how to treat it |
+|---|---|---|
+| `supersession` (declared in a HEADING) | 24/24 across 4 repos | act on it |
+| `supersessionInBody` | not measured | read, never act |
+| `uncited` (repo-wide sweep) | fact, not a verdict | propose only |
+| `redundant` (shared verbatim sentences) | 1/4 | propose only |
+
+Observed beats inferred: declared scored 100%, inferred 4–25%. Dangling-ID and duplicate-ID
+checks are cut (`P95` is a percentile). `uncited` must be repo-wide (scoped to the corpus it
+flagged two live docs cited from a logs file and `CHANGELOG.md`), and uncited is not deletable
+(`O2`–`O4` are the middle of a coherent series). Frontmatter makes a low-precision flag safe:
+a flag is a proposal and confirmation is recorded in the file (`type` required; `title`,
+`status`, `sources`, `verified`, `stale_after` optional, `stale_after` only when asked and
+answered).
+
+### Cost
+
+End to end on a 5,669-line doc → 10 pages: $2.20, or $0.39 per 1,000 source lines (group step
+$0.23, write step $1.97). The script prints the write law: `$0.083 per page + $0.200 per 1,000
+source lines` (n=10, R² 0.96); 42% of the write bill is per-page overhead. Cheap-tier group
+calls were flat at 35–41K tokens regardless of input size, which does not generalise: the
+mid-tier write calls are ~58% input-driven.
+
+### Open
+
+1. Chunk 40–50 versus 20 is untested (under 5% of the bill).
+2. The concurrency cap of 3 is not tuned; its original justification described lost cost
+   accounting, not lost pages. A quality hypothesis, untested.
+3. Mechanical clustering is cut: tf-idf gave a 42% blob and a naive sequential chop beat it,
+   but that corpus was an append-only log. n=1.
+4. Page density is unjudged: CLI-written pages ran about half the prose of subagent-written
+   ones at the same citation count.
+5. The 500-line oversized ceiling is a stated default, not a measured one.
+6. `reorg` was validated on one real corpus family (bareloop's `docs/`); the SHOUTED-caps rule
+   leans on that corpus's convention. A repo that never shouts status gets fewer `archive`
+   hits (recall loss, not false-archive risk). Inferred, n=1.
+7. `reorg` has not been run on a repo whose content this project did not control.
