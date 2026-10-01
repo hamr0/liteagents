@@ -572,8 +572,10 @@ sequence, including the ones typed by hand.
    surviving low findings are appended to `fix-ledger.md`, tagged `nit`. Fix ledger: 2 nits,
    0 changes — 2 added this run.
 4. The High is fixed by hand (or by a targeted `/refactor <file>`), committed, and
-   `/branch-review abc123..HEAD` re-reviews just that fix commit. Stage 3 confirms the
-   prior High is now fixed. Recorded SHA moves to `def456`.
+   `/branch-review` (empty target again) reads the record, re-reviews just
+   `abc123..HEAD` (the fix commit), and Stage 3 confirms the prior High is now fixed.
+   Recorded SHA moves to `def456`. (Passing `abc123..HEAD` as an argument would be a
+   range review: no record written.)
 5. `/release` runs. Phase 0.5 compares `def456` to `HEAD` — match — and finds no findings
    outstanding at that SHA. It proceeds through its own mechanical checks (tests are skipped when the record's `tests:` line covers them), version bump, and stops with
    the push/PR/merge/tag/publish sequence for a human to authorize.
