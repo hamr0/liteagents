@@ -50,7 +50,7 @@
 // `require` below throws before the first line of work. `.cjs` pins CommonJS regardless of
 // the host project. Found the hard way: bareloop is such a project.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 
 const REPO = process.env.REPO || process.cwd();
 const clean = s => s.replace(/\s+/g, ' ').trim();
@@ -517,7 +517,7 @@ function doValidate(outlineF, labelsF) {
   return res;
 }
 
-function validate(outlineF, labelsF) {
+function validate(outlineF = DEFAULT_OUTLINE, labelsF = DEFAULT_LABELS) {
   if (!outlineF || !labelsF) die('usage: docs-builder.cjs validate <outline.json> <labels.json>');
   const res = doValidate(outlineF, labelsF);
   process.exit(res.verdict === 'PASS' ? 0 : 1);
@@ -648,8 +648,14 @@ function warnUnarchivedSplits(o, l, pages, slugs) {
       + `Run \`archive ${w.file}\` to finish the split.`);
 }
 
-function plan(outlineF, labelsF) {
-  if (!outlineF || !labelsF) die('usage: docs-builder.cjs plan <outline.json> <labels.json>');
+// Embedded in every task file, so a page-writing agent gets the criterion without the
+// orchestrator having to remember to restate it. `pageStatus()` below enforces it.
+const WRITER_BRIEF = 'Write ONE page from your own line ranges only (the `sections` above): read only '
+  + 'those ranges. The page must start with YAML frontmatter and be at least '
+  + `${MIN_PAGE_LINES} lines — anything shorter is PARTIAL and gets rewritten. Every claim carries a `
+  + 'line citation back to the source, as (<file>:<start>-<end>), never to a line outside your own '
+  + 'ranges. 250 lines is a ceiling, never a target.';
+function plan(outlineF = DEFAULT_OUTLINE, labelsF = DEFAULT_LABELS) {
   const [o, l] = loadPair(outlineF, labelsF);
   const gloss = new Map((l.themes || []).map(t => [t.name, t.gloss || '']));
   const dir = process.env.OUT || tasksDirDefault();
@@ -670,7 +676,8 @@ function plan(outlineF, labelsF) {
       n: recs.length,
       lines: recs.reduce((a, r) => a + r.lines, 0),
       chars: recs.reduce((a, r) => a + r.chars, 0),
-      sections: recs.map(r => ({ file: r.file, h2: r.h2, s: r.s, e: r.e, lines: r.lines, sub: r.h3.length }))
+      sections: recs.map(r => ({ file: r.file, h2: r.h2, s: r.s, e: r.e, lines: r.lines, sub: r.h3.length })),
+      brief: WRITER_BRIEF
     };
     fs.writeFileSync(path.join(dir, `task-${slug}.json`), JSON.stringify(task, null, 1));
     rows.push({ theme: slug, sections: task.n, lines: task.lines,
@@ -927,9 +934,15 @@ function bm25Rank(records, queryText, n) {
   return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, n);
 }
 
-function search(outlineF, queryWords) {
-  if (!outlineF || !queryWords.length)
-    die('usage: docs-builder.cjs search <outline.json> <query words...>');
+// The outline path is optional: when the first argument does not end in .json, every argument
+// is the query and the outline defaults to the scan's own output. A first argument that DOES end
+// in .json is the outline — a typo'd path errors in readArtifactJSON, never becomes a query word.
+function search(args) {
+  const explicit = args.length && /\.json$/i.test(args[0]);
+  const outlineF = explicit ? args[0] : DEFAULT_OUTLINE;
+  const queryWords = explicit ? args.slice(1) : args;
+  if (!queryWords.length)
+    die('usage: docs-builder.cjs search [outline.json] <query words...>');
   const o = readArtifactJSON(outlineF);
   if (!Array.isArray(o.records) || !o.records.length) die('outline.json has no records[]');
   const query = queryWords.join(' ');
@@ -1436,6 +1449,22 @@ function flushCommitAdvisory() {
       const gitCmd = repoAbs === process.cwd() ? 'git' : `git -C '${repoAbs}'`;
       console.log(`  ${gitCmd} add --pathspec-from-file=${ARTIFACTS_REL}/commit-add.txt && `
         + `${gitCmd} commit -m "docs: reorg" --pathspec-from-file=${ARTIFACTS_REL}/commit-files.txt`);
+      // Ready-made lines for the operator-facing step, so the model relays them instead of
+      // composing them: the branch (never commit on main/master), the commit question (names
+      // the operator's own already-edited files), and the gitignore state of the data dir.
+      let branch = '';
+      try { branch = gitOrThrow(['branch', '--show-current'], 'reading the current branch'); } catch { /* not a git repo */ }
+      if (branch) console.log(/^(main|master)$/.test(branch)
+        ? `BRANCH: ${branch} — do NOT commit: tell the user the files are ready and to switch to a branch first`
+        : `BRANCH: ${branch}`);
+      console.log(`QUESTION: Commit these ${commitFiles.length} files now?`
+        + (dirtyOnList.length ? ' Note: these files also carry your own uncommitted edits, which will be '
+          + `committed too: ${dirtyOnList.join(', ')}` : ''));
+      // exit 0 = ignored, 1 = NOT ignored, anything else (128: not a repo) = say nothing.
+      const ign = spawnSync('git', ['-C', REPO, 'check-ignore', '-q', `${ARTIFACTS_REL}/commit-add.txt`]);
+      if (ign.status === 1)
+        console.log(`WARN: ${ARTIFACTS_REL}/ is not gitignored — add it to .gitignore before the first commit `
+          + '(machine state, regenerated every run; this script never edits .gitignore)');
     }
   } catch (e) {
     console.error(`  WARN could not print the commit advisory: ${e.message}`);
@@ -2138,6 +2167,70 @@ function injectClaudeMdPointer() {
 // hasn't happened, and a stale 'oversized'/'review' bucket means the plan predates this
 // version's schema. Oversized rows are no longer skipped — they move like everything else
 // (size decides splittable, not sorted) and come back as split candidates at their NEW path.
+// Gap 6: `logs` is the ONE bucket that may nest, ONE level. product/wiki/archive stay flat
+// (REORG_DEST[row.bucket] alone). The group is the FIRST path segment under docs/ — a
+// special subfolder is one self-explanatory group, e.g. every one of a repo's POCs under
+// docs/fwd/ stays together as `fwd`, however deep a given file actually sits inside it —
+// UNLESS that first segment is itself a bucket name: `product`/`wiki`/`archive` mean flat,
+// never a group, and `logs` means the group is the SECOND segment instead (an existing
+// docs/logs/<group>/... keeps its own group on a re-check, rather than a ratchet). A file
+// with no first segment at all — loose at the repo root, or sitting directly in docs/ —
+// is flat. REJECTED first attempt (orchestrator review, real bugs): "the file's own
+// immediate parent directory name" — that put docs/product/x.md (bucket-name parent) under
+// docs/logs/product/ instead of flat, and put docs/fwd/poc/deep/y.md under docs/logs/deep/
+// (its own parent) instead of docs/logs/fwd/ (the group it actually belongs with). One
+// function, used by both the pre-reservation pass and the move pass right below it, so they
+// can never compute two different answers for the same row.
+function destDirFor(row) {
+  if (row.bucket !== 'logs') return REORG_DEST[row.bucket];
+  const segs = row.file.split(path.sep).join('/').split('/');
+  const dirSegs = segs.slice(0, -1); // drop the filename itself
+  const under = dirSegs[0] === 'docs' ? dirSegs.slice(1) : dirSegs; // strip a leading docs/
+  const seg1 = under[0];
+  if (seg1 === undefined || seg1 === 'product' || seg1 === 'wiki' || seg1 === 'archive')
+    return REORG_DEST.logs; // loose (root, or directly in docs/), or a bucket name: flat
+  if (seg1 === 'logs') {
+    const seg2 = under[1]; // e.g. resident docs/logs/<seg2>/x.md: keep its own group
+    return seg2 ? path.posix.join(REORG_DEST.logs, seg2) : REORG_DEST.logs;
+  }
+  // A real, non-bucket subdir name (under docs/, or outside docs/ via an explicit
+  // `discover <dir>` scan) IS the group — one level, no matter how deep the file actually
+  // sits inside it (docs/fwd/poc/deep/y.md flattens to docs/logs/fwd/y.md, not .../deep/).
+  return path.posix.join(REORG_DEST.logs, seg1);
+}
+// Gap 4 fallout: a resident row (already correctly bucketed, discovered in PLACE — new
+// since product/wiki/logs are now re-checked every run) must keep its OWN name even when a
+// DIFFERENT row elsewhere shares the same basename and is scheduled to move into the same
+// destDir. REPRODUCED pre-fix: docs/product/TAKEN.md (resident) got bumped to
+// docs/product/TAKEN-2.md because a loose docs/TAKEN.md, sharing the basename, happened to
+// be visited first in the single collision-counting pass and claimed the name first. Fix:
+// pre-reserve every resident row's own slot before any row's name gets disambiguated, so a
+// moving row is the one that yields, never the file that was already correctly in place.
+// The loop that used to sit inline in applyReorg, hoisted so `PREVIEW=1 apply-reorg` prints the
+// SAME destinations the real run moves to — one function, never two copies of the collision
+// logic. Returns one destination path per row, in row order.
+function destinationsFor(rows) {
+  const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
+  for (const row of rows) {
+    const destDir0 = destDirFor(row);
+    const key0 = destDir0 + '/' + path.basename(row.file);
+    if (path.join(destDir0, path.basename(row.file)) === row.file) usedNames.set(key0, 1);
+  }
+  return rows.map(row => {
+    const destDir = destDirFor(row);
+    const base = path.basename(row.file);
+    // Already reserved for itself above — never disambiguated away from its own path.
+    if (path.join(destDir, base) === row.file) return row.file;
+    // Reserve/disambiguate the name FIRST: a row scheduled to move here claims its own name
+    // so a LATER row cannot collide onto it either.
+    const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
+    usedNames.set(destDir + '/' + base, n);
+    if (n === 1) return path.join(destDir, base);
+    const ext = path.extname(base);
+    return path.join(destDir, base.slice(0, -ext.length) + `-${n}` + ext);
+  });
+}
+
 function applyReorg(planFile) {
   const f = planFile || path.join(ARTIFACTS, 'reorg-plan.json');
   if (!fs.existsSync(f)) die(`no plan at ${planFile || 'docs/.docs-builder/reorg-plan.json'} — run \`discover\` first`);
@@ -2153,6 +2246,22 @@ function applyReorg(planFile) {
         : ' Run the classification interview (docs-builder.md): fill every row\'s `bucket` '
           + '(product/wiki/logs/archive), get the user\'s approval, then re-run.'));
   }
+  // PREVIEW=1: print the approval table the operator is shown BEFORE saying yes, then stop.
+  // Reads the plan, computes the destinations the real run would use, and touches nothing —
+  // no move, no index, no log line, no file written. Sorted by destination so every
+  // `archive` row sits together, then `logs`, then `product`: a misfiled doc stands out
+  // against its neighbours.
+  if (process.env.PREVIEW === '1') {
+    const dests = destinationsFor(plan.rows);
+    const table = plan.rows.map((r, i) => ({ r, dest: dests[i].split(path.sep).join('/') }))
+      .sort((a, b) => a.dest < b.dest ? -1 : a.dest > b.dest ? 1 : a.r.file < b.r.file ? -1 : 1);
+    console.log(`approval table — ${table.length} row(s), sorted by destination`);
+    console.log('file | lines | → destination | bucket');
+    for (const { r, dest } of table)
+      console.log(`${r.file} | ${r.lines}${r.oversized ? ' (oversized)' : ''} | → ${dest} | ${r.bucket}`);
+    console.log('preview only — nothing moved, nothing written.');
+    return;
+  }
   const results = { moved: 0, skipped: 0, unchanged: 0, artifactsSynced: 0, linksRewritten: 0,
                     syncFailed: 0, dirsRemoved: 0, claudeMdUpdated: false };
   // Set once, up front, from the SAME plan the loop below reads row.file from — every row
@@ -2160,73 +2269,15 @@ function applyReorg(planFile) {
   // from the very first move, not only once it has actually landed there. See
   // plannedArchiveSrc's definition next to isRewriteExempt for the ordering bug this closes.
   plannedArchiveSrc = new Set(plan.rows.filter(r => r.bucket === 'archive').map(r => r.file));
-  const usedNames = new Map(); // collision guard, same defensive pattern as theme slugs
   const splitCandidates = []; // oversized rows, at their NEW path — ordered logs-last below
   const sourceDirs = [];
   const linkFilesTouched = []; // dedup'd by flushCommitAdvisory() at the end of the run
   const movedDestPaths = []; // every successful move's NEW path, same accumulator
 
-  // Gap 6: `logs` is the ONE bucket that may nest, ONE level. product/wiki/archive stay flat
-  // (REORG_DEST[row.bucket] alone). The group is the FIRST path segment under docs/ — a
-  // special subfolder is one self-explanatory group, e.g. every one of a repo's POCs under
-  // docs/fwd/ stays together as `fwd`, however deep a given file actually sits inside it —
-  // UNLESS that first segment is itself a bucket name: `product`/`wiki`/`archive` mean flat,
-  // never a group, and `logs` means the group is the SECOND segment instead (an existing
-  // docs/logs/<group>/... keeps its own group on a re-check, rather than a ratchet). A file
-  // with no first segment at all — loose at the repo root, or sitting directly in docs/ —
-  // is flat. REJECTED first attempt (orchestrator review, real bugs): "the file's own
-  // immediate parent directory name" — that put docs/product/x.md (bucket-name parent) under
-  // docs/logs/product/ instead of flat, and put docs/fwd/poc/deep/y.md under docs/logs/deep/
-  // (its own parent) instead of docs/logs/fwd/ (the group it actually belongs with). One
-  // function, used by both the pre-reservation pass and the move pass right below it, so they
-  // can never compute two different answers for the same row.
-  const destDirFor = row => {
-    if (row.bucket !== 'logs') return REORG_DEST[row.bucket];
-    const segs = row.file.split(path.sep).join('/').split('/');
-    const dirSegs = segs.slice(0, -1); // drop the filename itself
-    const under = dirSegs[0] === 'docs' ? dirSegs.slice(1) : dirSegs; // strip a leading docs/
-    const seg1 = under[0];
-    if (seg1 === undefined || seg1 === 'product' || seg1 === 'wiki' || seg1 === 'archive')
-      return REORG_DEST.logs; // loose (root, or directly in docs/), or a bucket name: flat
-    if (seg1 === 'logs') {
-      const seg2 = under[1]; // e.g. resident docs/logs/<seg2>/x.md: keep its own group
-      return seg2 ? path.posix.join(REORG_DEST.logs, seg2) : REORG_DEST.logs;
-    }
-    // A real, non-bucket subdir name (under docs/, or outside docs/ via an explicit
-    // `discover <dir>` scan) IS the group — one level, no matter how deep the file actually
-    // sits inside it (docs/fwd/poc/deep/y.md flattens to docs/logs/fwd/y.md, not .../deep/).
-    return path.posix.join(REORG_DEST.logs, seg1);
-  };
-  // Gap 4 fallout: a resident row (already correctly bucketed, discovered in PLACE — new
-  // since product/wiki/logs are now re-checked every run) must keep its OWN name even when a
-  // DIFFERENT row elsewhere shares the same basename and is scheduled to move into the same
-  // destDir. REPRODUCED pre-fix: docs/product/TAKEN.md (resident) got bumped to
-  // docs/product/TAKEN-2.md because a loose docs/TAKEN.md, sharing the basename, happened to
-  // be visited first in the single collision-counting pass and claimed the name first. Fix:
-  // pre-reserve every resident row's own slot before any row's name gets disambiguated, so a
-  // moving row is the one that yields, never the file that was already correctly in place.
-  for (const row of plan.rows) {
-    const destDir0 = destDirFor(row);
-    const key0 = destDir0 + '/' + path.basename(row.file);
-    if (path.join(destDir0, path.basename(row.file)) === row.file) usedNames.set(key0, 1);
-  }
-  for (const row of plan.rows) {
+  const dests = destinationsFor(plan.rows);
+  for (const [i, row] of plan.rows.entries()) {
     const destDir = destDirFor(row);
-    let base = path.basename(row.file);
-    const naiveDest = path.join(destDir, base);
-    let dest;
-    if (naiveDest === row.file) {
-      // Already reserved for itself above — never disambiguated away from its own path.
-      dest = row.file;
-    } else {
-      // Reserve/disambiguate the name FIRST, same order as before a `reorg <dir>` re-check
-      // could land here — a row scheduled to move here still claims its own name so a LATER
-      // row cannot collide onto it either.
-      const n = (usedNames.get(destDir + '/' + base) || 0) + 1;
-      usedNames.set(destDir + '/' + base, n);
-      if (n > 1) { const ext = path.extname(base); base = base.slice(0, -ext.length) + `-${n}` + ext; }
-      dest = path.join(destDir, base);
-    }
+    const dest = dests[i];
     // `reorg <dir>` re-checks files ALREADY inside their bucket (Change 3) — a row whose
     // destination equals its current path used to reach moveDoc anyway and fail doArchive's
     // "refusing to overwrite" guard (the destination is itself), counted as a false SKIP. It's
@@ -2260,7 +2311,16 @@ function applyReorg(planFile) {
       console.error(`  WARN ${row.file} MOVED, but ${f}`);
       results.syncFailed++;
     }
+    row.file = r.rel; // last: everything above reports the OLD path; the write-back below saves the new
   }
+  // The plan is the one record of which rows are already sorted, and discover's carry-forward
+  // matches it by row.file. A moved row left at its OLD path would match nothing on the next
+  // bare `reorg` (the file now sits at its new path), so every row would come back unclassified
+  // and re-ask a question the user just answered. So apply-reorg — the only command that
+  // changes a path — records each moved row's NEW path here, keeping its bucket. Skipped rows
+  // never moved and keep their old path. Written whenever anything moved, after the loop, so
+  // later steps failing can't leave the plan describing a tree that no longer exists.
+  if (results.moved) fs.writeFileSync(f, JSON.stringify(plan, null, 1));
   // Only directories the moves THIS RUN emptied are candidates — never a dir this run never
   // touched, even if it happens to be empty already (that's not ours to remove).
   // resolve, not join: with a relative REPO and root '.', join yields 'src' — never prefixed by
@@ -2551,9 +2611,9 @@ function coreFileInfo(o, l) {
   return { coreName, dir: path.posix.dirname(files[0]), base: path.basename(files[0]) };
 }
 
-function cleanupApply(file, outlineF, labelsF) {
-  if (!file || !outlineF || !labelsF)
-    die('usage: docs-builder.cjs cleanup-apply <file.md> <outline.json> <labels.json>');
+function cleanupApply(file, outlineF = DEFAULT_OUTLINE, labelsF = DEFAULT_LABELS) {
+  if (!file)
+    die('usage: docs-builder.cjs cleanup-apply <file.md> [outline.json] [labels.json]');
   if (!fs.existsSync(labelsF))
     die(`cleanup-apply: no labels.json at ${labelsF} — the interview has not happened yet. `
       + 'Run `cleanup <file>`, answer the interview it prints, then have the model '
@@ -2673,6 +2733,9 @@ function cleanupApply(file, outlineF, labelsF) {
 // scatter JSON into whatever directory the user happened to be standing in.
 const ARTIFACTS_REL = 'docs/.docs-builder';
 const ARTIFACTS = path.join(REPO, ARTIFACTS_REL);
+// validate / plan / cleanup-apply / search default to these when no path is given.
+const DEFAULT_OUTLINE = path.join(ARTIFACTS, 'outline.json');
+const DEFAULT_LABELS = path.join(ARTIFACTS, 'labels.json');
 function write(obj, fallback) {
   const dest = process.env.OUT || path.join(ARTIFACTS, fallback);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -2689,7 +2752,7 @@ switch (cmd) {
   case 'validate':    validate(rest[0], rest[1]); break;
   case 'plan':        plan(rest[0], rest[1]); break;
   case 'index-flat':  indexFlat(); break;
-  case 'search':      search(rest[0], rest.slice(1)); break;
+  case 'search':      search(rest); break;
   case 'archive':     archive(rest[0], rest[1]); break;
   case 'ledger':      ledger(); break;
   case 'due':         due(); break;
@@ -2703,10 +2766,10 @@ switch (cmd) {
     die('usage: docs-builder.cjs <scan|validate|plan|index-flat|search|archive|ledger|due|lint|'
       + 'discover|apply-reorg|reorg|cleanup|cleanup-apply> [args]\n'
       + '  scan        <file.md...>                 -> outline.json\n'
-      + '  validate    <outline.json> <labels.json> -> PASS/FAIL (exit 1 on FAIL)\n'
-      + '  plan        <outline.json> <labels.json> -> task-<theme>.json per page\n'
+      + '  validate    [outline.json] [labels.json] -> PASS/FAIL (exit 1 on FAIL)\n'
+      + '  plan        [outline.json] [labels.json] -> task-<theme>.json per page\n'
       + '  index-flat                                -> index.md, the ONE index (whole corpus, no labels needed)\n'
-      + '  search      <outline.json> <query...>     -> ranked sections (BM25, no deps)\n'
+      + '  search      [outline.json] <query...>     -> ranked sections (BM25, no deps)\n'
       + '  archive     <src.md> [dest.md]            -> verified MOVE into docs/archive/\n'
       + '  ledger                                    -> record current state of docs/\n'
       + '  due                                       -> what changed since the ledger\n'
@@ -2720,7 +2783,8 @@ switch (cmd) {
       + '  cleanup-apply <file.md> [outline] [labels] -> plan + pages + archive, after the cleanup interview\n'
       + 'env: REPO (default cwd), OUT (output path), INDEX (default docs/index.md), '
       + 'PAGES (default docs/wiki), TASKS (default docs/.docs-builder/tasks), '
-      + 'N (search result count, default 10), OVERSIZED_LINES (default 500)');
+      + 'N (search result count, default 10), OVERSIZED_LINES (default 500), '
+      + 'PREVIEW=1 (apply-reorg: print the approval table, move nothing)');
 }
 
 // The run's ONE commit recipe, printed last, after every step of whichever subcommand ran.

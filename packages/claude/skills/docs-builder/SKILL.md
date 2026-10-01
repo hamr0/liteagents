@@ -186,7 +186,7 @@ Pruning the archive is the user's own `git rm`; nothing here deletes.
 mode: first-run | drift | reorg <dir> | cleanup <file> | search · asked: yes | N/A (argument given)
 due: <one-line verdict> | NOT RUN: <reason>
 classify: <N> rows · approved | corrected <K> | aborted | N/A (nothing unclassified)
-split: <N> oversized offered · chose <files | none> | N/A (none oversized)
+split: <N> oversized offered · chose <files | none> | N/A (none oversized | cleanup mode: not offered)
 cleanup: interview confirm | correct · pages <done>/<total> · PARTIAL 0 · archive exit <0|1|2> | N/A
 gitignore: ignored | added | NOT ignored: <reason>
 validate: PASS exit 0 | FAIL | NOT RUN: <reason>
