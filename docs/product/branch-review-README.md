@@ -338,7 +338,11 @@ never prose, never reasons; `docs-commit: none` means `docs: none`. `sweep:` is 
 `docs: none` after a sweep that found nothing from a sweep that never ran. Each `s2` line and
 `sweep:` is filled by keeping one alternative; `/release` reads them mechanically. The per-change sweep
 table (change · doc `file:line` · added/fixed/already correct) belongs in the report, never
-the record. `ledger:` is derived from the fix ledger before the record is written — `N`
+the record. In `sweep:`, N is every change in that table, each counted once in A, F or C
+(A + F + C = N; an already-documented change counts in C), and the closing line repeats
+the same numbers: `Docs sweep: N changes checked — A added, F fixed, C already correct,
+commit <sha|none>`. A stale ledger header (no `idea` definition) is replaced, bullets
+untouched. `ledger:` is derived from the fix ledger before the record is written — `N`
 nits, `K` changes and `I` ideas from the same three `grep -c` counts the closing report line
 repeats (N = total − K − I), `M` the bullets appended this run; no ledger file → `ledger: none`.
 

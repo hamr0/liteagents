@@ -118,7 +118,11 @@ ship) and **Later**.
 ## 5. Relay as-is, then ledger
 
 **"As-is" means:** same items, same order, same piles, and each item's failure
-sentence and cited commands/numbers preserved exactly. Rewording to fit the
+sentence and cited commands/numbers preserved exactly; the worker's four report
+lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`) are relayed too, and
+every relayed item keeps its `nit`/`change`/`idea` tag and its `file:line`. The
+two added lines read `<N> items` or `none found: <what was checked>`, so "checked,
+found nothing" never looks like "skipped". Rewording to fit the
 user's own output style is fine — a field run under a "plain wording" style
 correctly kept everything else identical while reflowing the sentences.
 Adding, dropping, merging, re-ranking, or weakening an item is **not** "as-is,"
@@ -139,7 +143,9 @@ over by then, so the entity present when the ledger entry needs writing is the o
 holding the conversation. It then asks which items, if any, to remove; no answer means
 they all stay, and removal happens only on the user's explicit say-so naming the items.
 Items the user fixes now are not removed by hand — `/refactor`'s next revalidation
-drops them once the finding no longer holds.
+drops them once the finding no longer holds. The bullet shape is inlined in the spec,
+and a stale ledger header (no `idea` definition) is replaced with `/branch-review`'s
+current one, bullets untouched — `/branch-review` applies the same rule.
 
 **Anchor rule.** A bullet needs a verbatim snippet `grep -F` can still find. For
 something *missing* (usually an `idea`), that's the existing line where it should go. No line can be
