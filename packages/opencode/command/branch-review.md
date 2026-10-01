@@ -224,10 +224,9 @@ not this stage's job — `/self-review` surfaces it.
 `security` spec (`security/SKILL.md` or `security.md`, whichever the tool
 ships) and run its actual checklist: every numbered item of its recurring
 six and every bullet under "Also scan for" — that spec is the only list.
-Fallback, spec missing only: secrets (repo and history), tenant isolation,
-rate limiting, error handling, authorization, injection, auth/session, trust
-boundaries; **flag that the full checklist was unavailable**, never report it
-as passed.
+Fallback, spec missing only: every `s2` line of the record reads `NOT RUN:
+security spec unavailable`, so `coverage:` says `stage2 NOT RUN` — **flag that
+the full checklist was unavailable**, never report it as passed.
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
@@ -270,8 +269,9 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    with the version. If this stage corrects a line that a fix-ledger bullet
    also names, that is ordinary sweep work — the doc changed with the
    feature, so it was already yours to update — but **do not delete the
-   bullet**. `/refactor` is the only deleter; its revalidation drops the
-   bullet once it finds the finding no longer holds.
+   bullet**. Only `/refactor` (revalidation, or the user's "drop"), `/self-review`
+   (a removal the user names), and `/branch-review` (a bullet it disproves) delete
+   bullets; revalidation drops this one once the finding no longer holds.
 4. **Commit what you touched.** Doc files only — never code, skills, config,
    or tests. Stage the exact paths you edited by name (never `git add
    -A`/`-u`) and commit `docs: sweep for <short sha range>`. Nothing changed
@@ -305,19 +305,24 @@ check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
-`.opencode/remember/fix-ledger.md` (header below if missing), tagged `nit` or
-`change` — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
+`.opencode/remember/fix-ledger.md` (header below if missing; if ``grep -F '`idea` =' .opencode/remember/fix-ledger.md`` finds nothing, the header is stale — replace it with this one, never touching bullets), tagged `nit` or
+`change` (never `idea` — that is `/self-review`'s) — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review and
-> /self-review; consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists — only /refactor (revalidation,
+> or the user's "drop"), /self-review (a removal the user names) and /branch-review
+> (a bullet it disproves) delete.
+> Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
 > not severity; untagged counts as `nit`; tail unwrapped on the last line.
-> Always appended at the end. A /self-review Structure item puts the rule it
+> `nit` = small fix, no behaviour change. `change` = something that exists is
+> wrong; needs a behaviour fix or redesign. `idea` = something missing that
+> might be worth building; an option, not debt.
+> Always appended at the end. A /self-review Cleanup item puts the rule it
 > breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
@@ -349,11 +354,11 @@ uncertain).
 
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
-assumed pass. Stage 2's evidence is one line per item of the security spec's
-own checklist, "Also scan for" included — `item · ran + evidence (command or
-file:line)` or `N/A + reason`. N/A must hold for the repo, not the diff:
-"the diff doesn't touch it" is no reason. `coverage:` says `stage2
-ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a
+assumed pass. Stage 2's evidence is the coverage block at the end of the security spec's
+Output — copy its lines into the record as the `s2` lines (below).
+N/A must hold for the repo, not the diff: "the diff doesn't touch it" is no
+reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present
+and none says `NOT RUN`; otherwise `stage2 NOT RUN`. Then a
 `checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
@@ -368,12 +373,13 @@ someone decides what to do — it earns its keep
 by surviving a compaction, an abandoned session, or an unseen handover.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
-none`; otherwise run both (first is the total, second is K):
+none`; otherwise run all three (total, K, I):
 ```
 grep -c '^- ' .opencode/remember/fix-ledger.md
 grep -cE '@ [0-9a-f]{7,40} · change$' .opencode/remember/fix-ledger.md
+grep -cE '@ [0-9a-f]{7,40} · idea$' .opencode/remember/fix-ledger.md
 ```
-N = total − K, M = bullets appended this run. **Carry `self-review-sha:` forward
+N = total − K − I, M = bullets appended this run. **Carry `self-review-sha:` forward
 first** (`/self-review`'s bookmark, never set here), verbatim, as the last line
 — or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
 ```
@@ -384,15 +390,41 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
+s2 secrets: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 tenant-isolation: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 rate-limiting: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 error-handling: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 authorization: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 data-access: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 injection: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 auth-session: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 trust-boundaries: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 config: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 dependencies: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
-ledger: <N> nits, <K> changes, <M> added
+sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
+ledger: <N> nits, <K> changes, <I> ideas, <M> added
+prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review
+ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
+
+Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the
+rest — `s2 secrets: ran: <command, N hits>`; `sweep: ran: 3 changes — 2 added,
+1 fixed, 0 already correct`. `/release` reads them mechanically: a line left as
+the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
+that found nothing from one that never ran; `sweep:` can.
+
+In `sweep:`, N is every change in the sweep's change table, each counted exactly
+once in A, F or C, so A + F + C = N; a change already documented counts in C.
+
+`prior-blockers:` and `ledger-liveness:` are filled on a re-review (one entry per recorded
+blocker; the liveness sweep's counts) and `n/a: first review` otherwise.
 
 An old `debrief-sha:` line is carried verbatim, name unchanged; `/self-review`
 reads both names and writes `self-review-sha:` on its next run.
@@ -419,10 +451,12 @@ expires it (fix and commit → *stale*, not *blocked*).
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
   clean at start, at exit clean or only the two `.opencode/remember/` paths.**
-- **Fix ledger:** the same N/K/M as the record's `ledger:` line (`ledger:
+- **Fix ledger:** the same N/K/I/M as the record's `ledger:` line (`ledger:
   none` → **Fix ledger: none**); N + K > 0 → add "N + K fixes waiting — run
-  `/refactor` between features."
-- **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
+  `/refactor` between features"; I > 0 → add "I ideas to triage" (ideas are
+  not fixes waiting).
+- **Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**
+  (same numbers as the `sweep:` line), or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** Dying mid-flight — a rate
   limit, a crash, a cancelled turn — leaves no report and no `last-review.md`;

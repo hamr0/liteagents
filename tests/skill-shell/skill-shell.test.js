@@ -142,16 +142,16 @@ console.log(`${colors.bright}-- ledger count --${colors.reset}`);
 // step failing to find text it was told to expect verbatim.
 const LEDGER_LINE_RE = /^\s*grep -c\S* '.*' \S+\/remember\/fix-ledger\.md\s*$/;
 
-// Extract exactly 2 ledger count commands (total, then K) from a shipped
+// Extract exactly 3 ledger count commands (total, then K, then I) from a shipped
 // file. Throws on anything else — including 0 (command deleted), 1 (one of
 // the pair missing), or >2 (an extra line that also matches the shape) —
 // but ever throw is caught at the call site, never left to crash the suite.
 function extractLedgerCommands(content, label) {
   const lines = content.split('\n').filter(l => LEDGER_LINE_RE.test(l));
-  if (lines.length !== 2) {
-    throw new Error(`${label}: expected exactly 2 ledger count commands (total, K), found ${lines.length}`);
+  if (lines.length !== 3) {
+    throw new Error(`${label}: expected exactly 3 ledger count commands (total, K, I), found ${lines.length}`);
   }
-  return { totalCmd: lines[0].trim(), kCmd: lines[1].trim() };
+  return { totalCmd: lines[0].trim(), kCmd: lines[1].trim(), iCmd: lines[2].trim() };
 }
 
 // One normalized { label, totalCmd, kCmd } per kit/label, path swapped for a
@@ -176,10 +176,12 @@ for (const kit of KITS) {
     check(`${kit.name}/${label}: ledger commands present, unwrapped`, true);
     check(`${kit.name}/${label}: total command targets ${kit.dir}`, cmds.totalCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.totalCmd);
     check(`${kit.name}/${label}: K command targets ${kit.dir}`, cmds.kCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.kCmd);
+    check(`${kit.name}/${label}: I command targets ${kit.dir}`, cmds.iCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.iCmd);
     extractedLedgerCmds.push({
       label: `${kit.name}/${label}`,
       totalCmd: cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
       kCmd: cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+      iCmd: cmds.iCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
     });
   }
 }
@@ -239,6 +241,25 @@ const LEDGER_CASES = [
     total: 1, k: 1,
   },
   {
+    name: 'one-line idea is not a nit',
+    content: `- \`x.js\` ${dot} "snip" ${dot} desc ${dot} scenario ${dot} 2026-09-21 @ abc1234 ${dot} idea\n`,
+    total: 1, k: 0, i: 1,
+  },
+  {
+    name: 'wrapped bullet, first line prose ends "· idea", real tag (last line) is nit',
+    content: `- Scenario: not really an ${dot} idea\n`
+      + `  after all ${dot} 2026-09-21 @ abc1234 ${dot} nit\n`,
+    total: 1, k: 0, i: 0,
+  },
+  {
+    name: 'mixed ledger: nit + untagged + change + idea',
+    content: `- \`a.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} nit\n`
+      + `- \`b.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234\n`
+      + `- \`c.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} change\n`
+      + `- \`d.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} idea\n`,
+    total: 4, k: 1, i: 1, n: 2,
+  },
+  {
     name: 'empty ledger file',
     content: ``,
     total: 0, k: 0,
@@ -262,13 +283,51 @@ if (extractedLedgerCmds.length === 0) {
         fs.writeFileSync(f, c.content);
         const totalCmd = entry.totalCmd.replace('LEDGER', f);
         const kCmd = entry.kCmd.replace('LEDGER', f);
+        const iCmd = entry.iCmd.replace('LEDGER', f);
         const totalOut = sh(shell.bin, totalCmd).stdout.trim();
         const kOut = sh(shell.bin, kCmd).stdout.trim();
         check(`[${shell.name}] ${entry.label} ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
         check(`[${shell.name}] ${entry.label} ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+        const iOut = sh(shell.bin, iCmd).stdout.trim();
+        const wantI = c.i || 0;
+        check(`[${shell.name}] ${entry.label} ${c.name}: I=${wantI}`, iOut === String(wantI), `got ${iOut}`);
+        const wantN = c.n !== undefined ? c.n : c.total - c.k - wantI;
+        check(`[${shell.name}] ${entry.label} ${c.name}: N=total-K-I=${wantN}`,
+          Number(totalOut) - Number(kOut) - Number(iOut) === wantN, `got ${Number(totalOut) - Number(kOut) - Number(iOut)}`);
       }
     }
   }
+}
+
+// Phrase pins for the idea-tag rules (honest where the rule is a sentence, not
+// a command): /self-review appends every item at relay time; /refactor never
+// builds change/idea bullets in ledger mode.
+for (const kit of KITS) {
+  const flat = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\s+/g, ' ');
+  check(`${kit.name}/self-review: appends every anchorable item at relay time, anchor rule wins, ledger: relay line`,
+    flat(kit.selfReview).includes('appends **every anchorable** item') &&
+    flat(kit.selfReview).includes('`ledger: <N> items → <A> appended, <D> already there, <Y> your call`'));
+  const sr = flat(kit.selfReview), brv = flat(kit.branchReview);
+  check(`${kit.name}/self-review: ledger bullet template inlined`,
+    sr.includes('- `path/file.js` · "verbatim snippet from the line" · what\'s wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit'));
+  check(`${kit.name}/self-review + branch-review: stale-header rule (no idea definition -> replace header, bullets untouched)`,
+    sr.includes("**Stale header:** if ``grep -F '`idea` =' ") && sr.includes("fix-ledger.md`` finds nothing, replace the header block") &&
+    sr.includes('bullets are never touched') &&
+    brv.includes("``grep -F '`idea` =' ") && brv.includes("fix-ledger.md`` finds nothing, the header is stale") &&
+    brv.includes('never touching bullets'));
+  check(`${kit.name}/self-review: underspecced: and cleanup: report lines`,
+    sr.includes('underspecced: <N> items | none found: <what was checked, one phrase>') &&
+    sr.includes('cleanup: <N> items | none found: <what was checked, one phrase>'));
+  check(`${kit.name}/self-review: relay keeps tag and file:line; worker tags items`,
+    sr.includes('**every relayed item keeps its tag (`nit`/`change`/`idea`) and its `file:line`**') &&
+    sr.includes('tag every item `nit`/`change`/`idea`') &&
+    sr.includes("the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)"));
+  check(`${kit.name}/self-review: item kind is Cleanup, no Structure left`,
+    sr.includes('**Cleanup?**') && sr.includes('max 5 Cleanup items') && !/Structure/.test(sr) &&
+    brv.includes('A /self-review Cleanup item'));
+  const ref = flat(kit.refactor);
+  check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
+    ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
 }
 
 // ---------------------------------------------------------------------------
@@ -744,13 +803,13 @@ for (const kit of KITS) {
     const copied = titles.filter(t => rest.includes(t));
     return copied.length === 0 || `stage 2 restates security items: ${copied.join('; ')}`;
   });
-  specCheck(`${kit.name}: branch-review stage 2 says the security spec is the only list, one line per item or stage2 NOT RUN`, () => {
+  specCheck(`${kit.name}: branch-review stage 2 says the security spec is the only list, 11 s2 lines or stage2 NOT RUN`, () => {
     const stage2 = section(br, '## Stage 2', '## Stage 3');
     const cov = section(br, 'Stage 2\'s evidence is', 'Then a `checks:` line');
     return allOf(
       has(stage2, 'that spec is the only list'),
-      has(cov, 'one line per item of the security spec'),
-      has(cov, '`coverage:` says `stage2 ran` only when every item has its line; otherwise `stage2 NOT RUN`'));
+      has(cov, 'coverage block at the end of the security spec'),
+      has(cov, '`coverage:` says `stage2 ran` only when all 11 `s2` lines are present and none says `NOT RUN`; otherwise `stage2 NOT RUN`'));
   });
 
   // (b) N/A must hold for the repo, not the diff.
@@ -781,6 +840,151 @@ for (const kit of KITS) {
     specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
       has(section(read(file), '## Guardrails', ' ## '), 'hand it this file\'s path — a worker has no skill text of its own'));
   }
+}
+
+// ---------------------------------------------------------------------------
+// f. Stage-2 / sweep evidence — security's coverage template, branch-review's
+//    record template and /release's Phase 0.5 check must name the same 11
+//    keys, and /release's one-line check is RUN against fixture records.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- stage-2 evidence: keys + release check --${colors.reset}`);
+
+const S2_KEYS = 'secrets tenant-isolation rate-limiting error-handling authorization data-access injection auth-session trust-boundaries config dependencies'.split(' ');
+
+function releaseS2Command(kit) {
+  const content = read(kit.release);
+  return extractLine(content, /^\s*f=\S*last-review\.md; ok=1; for k in /, `${kit.name}/release s2 check`);
+}
+
+function s2Record(kit, edit) {
+  const lines = ['sha: ' + 'a'.repeat(40), 'verdict: ready', 'coverage: stage1 ran, stage2 ran, stage3 ran'];
+  S2_KEYS.forEach((k, i) => lines.push(`s2 ${k}: ${i === 1 ? 'N/A: no database in this repo' : 'ran: grep -rn x src, 0 hits'}`));
+  lines.push('docs: none', 'sweep: ran: 2 changes — 1 added, 1 fixed, 0 already correct', 'ledger: none');
+  return edit(lines).join('\n') + '\n';
+}
+
+const S2_CASES = [
+  { name: '(a) complete record passes', edit: l => l, pass: true },
+  { name: '(b) one s2 line missing fails', edit: l => l.filter(x => !x.startsWith('s2 config:')), pass: false },
+  { name: '(c) one s2 line NOT RUN fails', edit: l => l.map(x => x.startsWith('s2 injection:') ? 's2 injection: NOT RUN: out of time' : x), pass: false },
+  { name: '(d) no sweep: line fails', edit: l => l.filter(x => !x.startsWith('sweep:')), pass: false },
+  { name: '(e) sweep: deferred fails', edit: l => l.map(x => x.startsWith('sweep:') ? 'sweep: deferred: unsettled' : x), pass: false },
+  { name: '(f) old-format record (coverage: stage2 ran only) fails', edit: l => l.filter(x => !x.startsWith('s2 ') && !x.startsWith('sweep:')), pass: false },
+];
+
+for (const kit of KITS) {
+  let cmd;
+  try { cmd = releaseS2Command(kit); } catch (e) { check(`${kit.name}/release: s2 check extracted as one line`, false, e.message); continue; }
+  check(`${kit.name}/release: s2 check extracted as one line`, true);
+
+  specCheck(`${kit.name}: 11 stage-2 keys equal across security template, branch-review record, /release check (same order)`, () => {
+    const sec = read(kit.security).split('\n').map(l => l.match(/^- (\S+) · ran: /)).filter(Boolean).map(m => m[1]);
+    const rec = read(kit.branchReview).split('\n').map(l => l.match(/^s2 (\S+): /)).filter(Boolean).map(m => m[1]);
+    const rel = (cmd.match(/for k in (.*?); do/) || [, ''])[1].split(' ');
+    const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+    return allOf(
+      sec.length === 11 || `security template has ${sec.length} keys`,
+      same(sec, S2_KEYS) || `security keys: ${sec.join(',')}`,
+      same(rec, sec) || `branch-review keys: ${rec.join(',')}`,
+      same(rel, sec) || `release keys: ${rel.join(',')}`);
+  });
+
+  specCheck(`${kit.name}: every stage-2 blank states the whole-repo scope (security 11 lines, branch-review 11 s2 lines)`, () => {
+    const sec = read(kit.security).split('\n').filter(l => /^- \S+ · ran: /.test(l));
+    const rec = read(kit.branchReview).split('\n').filter(l => /^s2 \S+: /.test(l));
+    return allOf(
+      sec.every(l => l.includes('ran: <whole-repo evidence:') && l.includes('N/A: <why it holds for the whole repo, not just this diff>')) || 'security blank lacks whole-repo wording',
+      rec.every(l => l.includes('ran: whole-repo command or file:line') && l.includes('N/A: why it holds repo-wide, not just this diff')) || 'branch-review s2 blank lacks whole-repo wording');
+  });
+
+  for (const shell of SHELLS) {
+    for (const c of S2_CASES) {
+      const cwd = tmpDir('skill-shell-s2-');
+      fs.mkdirSync(path.join(cwd, kit.dir, 'remember'), { recursive: true });
+      fs.writeFileSync(path.join(cwd, kit.dir, 'remember', 'last-review.md'), s2Record(kit, c.edit));
+      const r = sh(shell.bin, cmd, { cwd });
+      check(`[${shell.name}] ${kit.name}/release s2 check: ${c.name}`, (r.status === 0) === c.pass,
+        `exit ${r.status}, expected ${c.pass ? 0 : 'nonzero'}; ${r.stderr}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// g. Output slots — a required step gets a line in the skill's output that
+//    must be filled with the result or `NOT RUN: <reason>`, so a skip shows.
+//    PHRASE PINS: they prove the slot is in the spec in every kit, not that a
+//    worker fills it. Whitespace-collapsed so wrapping cannot break them.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- output slots (phrase pins) --${colors.reset}`);
+
+const skillPath = (kit, name) => kit.name === 'claude' || kit.name === 'ampcode'
+  ? `packages/${kit.name}/skills/${name}/SKILL.md`
+  : kit.name === 'droid' ? `packages/droid/commands/${name}.md` : `packages/opencode/command/${name}.md`;
+
+for (const kit of KITS) {
+  const rc = flat(read(skillPath(kit, 'root-cause')));
+  specCheck(`${kit.name}/root-cause: Root-cause note has every slot, attempt N/3 and NOT RUN`, () => allOf(
+    ...['Root-cause note', 'symptom: <', 'repro: <', 'origin: <', 'hypothesis: <', 'attempt: <N>/3',
+      'red: <command> exit <non-zero> against unfixed code | NOT RUN: <reason>',
+      'green: <command> exit 0 | NOT RUN: <reason>',
+      'full-suite: <command> <totals> exit <code> | NOT RUN: <reason>'].map(p => has(rc, p))));
+
+  const sr = flat(read(skillPath(kit, 'self-review')));
+  specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
+    has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
+    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>'),
+    has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
+
+  const rm = read(skillPath(kit, 'remember'));
+  specCheck(`${kit.name}/remember: step-8 report lists I6-new, sync-rules, stub-check, version-check, docs, processed`, () => {
+    const step8 = section(rm, '8. **Report to user**', '**File locations');
+    return allOf(...['version-check: exit <code>', 'sync-rules: exit <code>', 'stub-check: exit <code>',
+      'I6-new: <check output, must be EQUAL> | NOT RUN: <reason>',
+      'docs: N/A (no docs/) | due: <verdict> | index-flat: ran | not needed | NOT RUN: <reason>',
+      'processed: +N entries (before B → after A lines)'].map(p => has(step8, p)));
+  });
+
+  const lc = flat(read(skillPath(kit, 'live-canvas')));
+  specCheck(`${kit.name}/live-canvas: cleanup: final line and inferredStyles brief field`, () => allOf(
+    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
+    has(lc, '"inferredStyles": { "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {}, "sources": ['),
+    has(lc, '`"inferredStyles": "NOT RUN: <why>"`')));
+
+  const db = flat(read(skillPath(kit, 'docs-builder')));
+  specCheck(`${kit.name}/docs-builder: finish: line records commit and ledger stamp`, () =>
+    has(db, 'finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>'));
+  specCheck(`${kit.name}/docs-builder: validate: line precedes finish: in the run's final output`, () =>
+    has(db, 'validate: PASS exit 0 | FAIL | NOT RUN: <reason> finish: committed <sha>'));
+
+  const brs = flat(read(skillPath(kit, 'branch-review')));
+  specCheck(`${kit.name}/branch-review: sweep counts A + F + C = N, closing line reports checked/added/fixed/already correct`, () => allOf(
+    has(brs, "N is every change in the sweep's change table, each counted exactly once in A, F or C, so A + F + C = N; a change already documented counts in C."),
+    has(brs, '**Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**')));
+
+  const rm2 = flat(read(skillPath(kit, 'remember')));
+  specCheck(`${kit.name}/remember: episodes:, migrate-attempts: and decay: slots in step 8`, () => allOf(
+    has(rm2, 'episodes: B → A; removed: <titles> → folded into fact "<first words>" | none'),
+    has(rm2, 'migrate-attempts: exit <code> | NOT RUN: <reason>'),
+    has(rm2, 'decay: <N> expired, <M> reactivated | NOT RUN: <reason>')));
+
+  const br = flat(read(skillPath(kit, 'branch-review')));
+  specCheck(`${kit.name}/branch-review: record has prior-blockers: and ledger-liveness: lines`, () => allOf(
+    has(br, 'prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review'),
+    has(br, 'ledger-liveness: <N> checked, <K> dead | n/a: first review')));
+
+  const rf = flat(read(skillPath(kit, 'refactor')));
+  specCheck(`${kit.name}/refactor: final report carries the tests: line, not a bare pass count`, () => allOf(
+    has(rf, 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
+    rf.includes('tests N pass / 0 fail') ? 'stale: bare "tests N pass / 0 fail" still present' : true));
+
+  const rl = flat(read(skillPath(kit, 'release')));
+  specCheck(`${kit.name}/release: Phase 0.5 reports one block of every pre-check outcome`, () =>
+    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>'));
+
+  const tg = flat(read(skillPath(kit, 'test-generate')));
+  specCheck(`${kit.name}/test-generate: broken-by: slot per test, mutation actually run, no "mentally"`, () => allOf(
+    has(tg, 'broken-by: <mutation made> → red: <test name> | NOT RUN: <reason>'),
+    tg.includes('Mentally swap') ? 'stale: "Mentally swap" still present' : true));
 }
 
 // ---------------------------------------------------------------------------

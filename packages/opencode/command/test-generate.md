@@ -37,12 +37,17 @@ Execute the project's real test command, scoped to just the new tests
 A test that passes is not the same as a test that **exercises** the code.
 For each new test, confirm:
 - It would fail if the function under test returned the wrong value.
-  Mentally swap a broken impl — does the assertion actually catch it?
+  Actually make the mutation (break the impl, or swap the return value),
+  run the test, and see it go red — then restore the code.
 - It isn't `expect(true).toBe(true)`, `expect(fn).toBeDefined()`, or a
   mock asserting itself.
 - It isn't passing only because the setup masked the real call.
 
-Mark each new test **biting** or **superficial** (with reason).
+Mark each new test **biting** or **superficial** (with reason), one line per
+test, filled from the run:
+```
+broken-by: <mutation made> → red: <test name> | NOT RUN: <reason>
+```
 Superficial tests count as a failure to ship — either fix or delete.
 
 ## 5. Report

@@ -181,6 +181,22 @@ else, or each one needs "just a bit of refactoring" to land.
 
 That is an architecture question, not a hypothesis question. Stop and raise it.
 
+### 5. Fill the Root-cause note before reporting a fix
+
+Every field is filled with the result, or `NOT RUN: <reason>`. A blank is a skip.
+
+```
+Root-cause note
+symptom: <what was observed>
+repro: <command>
+origin: <file:line where the bad value starts>
+hypothesis: <the one cause, one sentence>
+attempt: <N>/3
+red: <command> exit <non-zero> against unfixed code | NOT RUN: <reason>
+green: <command> exit 0 | NOT RUN: <reason>
+full-suite: <command> <totals> exit <code> | NOT RUN: <reason>
+```
+
 ---
 
 ## Red Flags — Stop and Return to Phase 1

@@ -153,11 +153,11 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 
 - **`/self-review`** — everything since the last self-review, committed or not, before
   `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
-  to break the claims with real runs (works, no regression, structure — dead code, state
+  to break the claims with real runs (works, no regression, cleanup — dead code, state
   ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5
-  failure-sentence items plus max 5 Structure items in Fix now / Later. It never fixes
-  anything — whatever you don't fix now goes to the fix ledger, tagged `nit` or
-  `change`. Not a gate.
+  failure-sentence items plus max 5 Cleanup items in Fix now / Later. It never fixes
+  anything — whatever you don't fix now goes to the fix ledger, tagged `nit`, `change` or
+  `idea` (missing, worth building). Not a gate.
 - **`/branch-review`** — the powerhouse. Reviews every change on a branch, medium depth
   by default. Surfaces confirmed blockers only: real bugs, test quality,
   plus a full OWASP-shaped security pass (no leaked keys, no
@@ -169,8 +169,8 @@ for you to pick from — no more hours spent nudging divs to find out what you a
   migrations, in sync with `origin`; tests only if the review record's `tests:` line doesn't
   cover them), writes the CHANGELOG entry, bumps the version, commits locally. Then it tells you you're ready to merge, and hands the
   sequence back. It never pushes.
-- **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, leaves
-  `change` bullets (bigger than a refactor) for real work. Cumulative by design: nits
+- **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, lists
+  `change` and `idea` bullets (bigger than a refactor) and asks you to keep, drop or spec each. Cumulative by design: nits
   pile up until you choose to clear them, so review and release never drown in them.
   With a whole-area argument it first lists candidates (what is wrong, the proposed
   change, strength) and stops; only the ones you pick are edited.

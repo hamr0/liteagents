@@ -86,7 +86,7 @@ that predates this file's introduction has no record, so it does not count.
   normally gitignored, so appending to it moves nothing and this never comes
   up. A repo that tracks `.claude/` instead will see a ledger commit land
   after the review and make it stale — `fix-ledger.md` is neither under
-  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, it
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
 - **`tests:` line** — tests exit 0 **and** build exit 0 or `N/A: <reason>`
@@ -98,6 +98,16 @@ that predates this file's introduction has no record, so it does not count.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
+- **Stage-2 and sweep evidence** — run this one line and read its exit code;
+  nonzero → **stop**: "review record lacks stage-2 evidence — re-run
+  `/branch-review`". It needs all 11 `s2 <key>:` lines (each `ran:` or `N/A:`,
+  never `NOT RUN` or an unfilled template) and a `sweep:` line that is not
+  `deferred`. A record from before these lines existed fails it — intended.
+  The keys are listed literally rather than derived: the security spec is not
+  reliably readable from here, and a test pins this list to security's.
+  ```
+  f=.claude/remember/last-review.md; ok=1; for k in secrets tenant-isolation rate-limiting error-handling authorization data-access injection auth-session trust-boundaries config dependencies; do grep -qE "^s2 ${k}: (ran|N/A):" "$f" || ok=0; done; [ "$ok" = 1 ] && grep -qE '^sweep: (ran|main):' "$f"
+  ```
 - **`verdict: blocked` in the record** → **stop**, even when the SHA matches.
   Read that line as mechanically as the `sha:` one. A matching SHA proves a
   review ran here; it says nothing about what the review concluded, and
@@ -110,8 +120,13 @@ that predates this file's introduction has no record, so it does not count.
 This phase runs **before** `/release` writes anything, so the CHANGELOG-and-
 bump commit it makes later cannot invalidate the review it just checked.
 
-Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
-match yes/no.
+Report this block, every field filled from what you ran (never "all checks
+passed"):
+```
+sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>
+```
+`stale-grep` is the output of the `git diff --name-only <sha>..HEAD | grep -vE …`
+check above, or `empty` when it printed nothing.
 
 This is the only thing guaranteeing the branch was reviewed *and* security
 scanned, so treat a missing answer as a **stop**, never as a pass.

@@ -153,10 +153,9 @@ are the branch's only evidence for its own claims.
 installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
 and runs its actual checks: every numbered item of its recurring six and every bullet
 under its "Also scan for" (Config and Dependencies included). That spec is the only list;
-`/branch-review` keeps no copy of it. Only if the spec can't be found does it fall back to
-a short list (secrets in the repo and history, tenant isolation, rate limiting, error
-handling, authorization, injection, auth/session, trust boundaries), and it flags that the
-full checklist was unavailable — never reports it as passed.
+`/branch-review` keeps no copy of it. Only if the spec can't be found does every `s2` line of the record read `NOT RUN: security
+spec unavailable` (so `coverage:` says `stage2 NOT RUN`), and it flags that the full
+checklist was unavailable — never reports it as passed.
 
 This stage is **repo- and history-scoped, not diff-scoped**: a key committed forty commits
 ago, an unbounded route the diff never touched, or a missing row policy on a table the new
@@ -231,11 +230,11 @@ never applied), and **Verdict** (confirmed / uncertain).
 The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full, stage
 3 — each `ran ✓/✗` with its evidence; a stage not actually run is a ✗, never an assumed
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
-count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
-for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
-repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says
-`stage2 ran` only when every item has
-its line, otherwise `stage2 NOT RUN`.
+count. Stage 2's evidence is the coverage block at the end of the security spec's
+Output (11 keyed lines, `ran` / `N/A` / `NOT RUN` each), copied into the record as `s2` lines
+(§5b). An N/A reason must hold for the repo, not the diff: "the diff doesn't touch it" is no
+reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present and none says
+`NOT RUN`, otherwise `stage2 NOT RUN`.
 
 ---
 
@@ -243,7 +242,7 @@ its line, otherwise `stage2 NOT RUN`.
 
 `.claude/remember/fix-ledger.md` — a local, persistent, cumulative, non-blocking findings
 list, living beside `MEMORY.md` in `.claude/remember/`. It accumulates across review runs
-and is cleared bullet-by-bullet by `/refactor` (§6). It is not necessarily tracked by
+and is cleared bullet-by-bullet by `/refactor` (§6) — or by `/self-review`, when the user names a bullet to remove. It is not necessarily tracked by
 git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the ledger is
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
@@ -252,14 +251,17 @@ everything since the last self-review, committed or not, run by a spawned mid-ti
 before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
-redesign. An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
+redesign, `idea` for something missing that might be worth building (written only by
+`/self-review`; an option, not debt). An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
 appended at the end, oldest to newest — no section headers.
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review and
-> /self-review; consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists — only /refactor (revalidation,
+> or the user's "drop"), /self-review (a removal the user names) and /branch-review
+> (a bullet it disproves) delete.
+> Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one.
@@ -282,12 +284,12 @@ archive — an annotated bullet still reads as work, and a bullet arguing with i
 worse than none.
 
 ### One writer per operation
-`/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
-bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
-their fixes land or their anchors go stale, but it never adds one. Each command has
-exactly one write shape on this file, and no third command has any — `/release`'s docs
-sweep may well correct a line a bullet names, since that doc changed with the feature, but
-it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
+`/branch-review` appends nit/change bullets and deletes a bullet it disproves; it never
+annotates one. `/self-review` appends every anchorable item (nit/change/idea) and deletes
+only a removal the user names. `/refactor` in ledger mode deletes on revalidation or the
+user's "drop", and never adds one. Each command's write shape on this file is narrow, and
+no other command has any — `/release`'s docs sweep may well correct a line a bullet names,
+since that doc changed with the feature, but it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
 readable as a log: an append is always new evidence from a review, a deletion is always a
 closed or invalidated item, and neither command can silently second-guess what the other
 recorded. If both could edit freely, a bug in either command could corrupt the other's
@@ -307,10 +309,22 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
+s2 secrets: <ran: … | N/A: … | NOT RUN: …>
+s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
+s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
+s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
+s2 authorization: <ran: … | N/A: … | NOT RUN: …>
+s2 data-access: <ran: … | N/A: … | NOT RUN: …>
+s2 injection: <ran: … | N/A: … | NOT RUN: …>
+s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
+s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
+s2 config: <ran: … | N/A: … | NOT RUN: …>
+s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
-ledger: <N> nits, <K> changes, <M> added
+sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
+ledger: <N> nits, <K> changes, <I> ideas, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
@@ -320,11 +334,17 @@ self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or om
 one; `docs-commit` and `docs:` record that commit and what it touched separately, which is
 what lets `/release` Phase 0.5 (§9) treat a docs-only commit after the reviewed SHA as not
 stale. `docs:` is repo-relative **paths only**, space-separated, or the literal `none` —
-never prose, never reasons; `docs-commit: none` means `docs: none`. The per-change sweep
+never prose, never reasons; `docs-commit: none` means `docs: none`. `sweep:` is what tells
+`docs: none` after a sweep that found nothing from a sweep that never ran. Each `s2` line and
+`sweep:` is filled by keeping one alternative; `/release` reads them mechanically. The per-change sweep
 table (change · doc `file:line` · added/fixed/already correct) belongs in the report, never
-the record. `ledger:` is derived from the fix ledger before the record is written — `N`
-nits and `K` changes from the same two `grep -c` counts the closing report line repeats, `M`
-the bullets appended this run; no ledger file → `ledger: none`.
+the record. In `sweep:`, N is every change in that table, each counted once in A, F or C
+(A + F + C = N; an already-documented change counts in C), and the closing line repeats
+the same numbers: `Docs sweep: N changes checked — A added, F fixed, C already correct,
+commit <sha|none>`. A stale ledger header (no `idea` definition) is replaced, bullets
+untouched. `ledger:` is derived from the fix ledger before the record is written — `N`
+nits, `K` changes and `I` ideas from the same three `grep -c` counts the closing report line
+repeats (N = total − K − I), `M` the bullets appended this run; no ledger file → `ledger: none`.
 
 **`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
@@ -395,13 +415,16 @@ target from the user:
    change, under `/refactor`'s ordinary constraints (no behavior changes, public API
    intact, existing tests pass). **Delete each bullet as its fix lands** — the fix commit
    becomes the done record for that bullet; there's no separate "mark complete" step to
-   forget. **Skip surviving `change` bullets**, listed in the report as "left: change" —
-   they need a behaviour change or redesign, not a refactor. A `nit` that turns out to need
-   one is **retagged `change` in place**, not silently left.
+   forget. **Surviving `change` and `idea` bullets** are listed in the
+   worker's report ("left: change" / "left: idea") and left untouched — they need a
+   behaviour change, a redesign or a build, not a refactor. A `nit` that turns out to need
+   one is **retagged `change` in place**, not silently left. The orchestrator then asks the
+   user per item: **keep**, **drop** (the orchestrator deletes the bullet) or **spec it**
+   (its own task on its own branch after the run — never built in ledger mode).
 5. Run the tests, then report fixed / dropped / left, with the reason per left item, ending
-   with **N nits, K changes** remaining — counted mechanically (`grep -c '^- '
+   with **N nits, K changes, I ideas** remaining — counted mechanically (`grep -c '^- '
    fix-ledger.md` = total, `grep -cE '@ [0-9a-f]{7,40} · change$' fix-ledger.md` = K,
-   N = total − K), the same way `/branch-review`'s closing line does.
+   `grep -cE '@ [0-9a-f]{7,40} · idea$' fix-ledger.md` = I, N = total − K − I), the same way `/branch-review`'s closing line does.
 6. Say plainly: commit, then run `/branch-review` on this branch — ledger mode is a fixer,
    not a review, and its own diff gets the ordinary gate like any other change.
 
@@ -410,7 +433,7 @@ target from the user:
 ## 7. The nudge, not the invocation
 
 `/branch-review` ends its report with the open bullet count, and when it's greater than
-zero: *"N fixes waiting — run `/refactor` between features."* **It never invokes
+zero: *"N fixes waiting — run `/refactor` between features"* (plus *"I ideas to triage"* when there are any; ideas are not fixes waiting). **It never invokes
 `/refactor` itself.** This deliberately mirrors `/stash`, which counts the unprocessed
 backlog and nudges `/remember` rather than running it.
 
@@ -482,6 +505,11 @@ whatever state the ledger file happens to be in.
   this commit; the verdict is what it concluded, and only `ready` plus a matching hash is a
   pass. Both lines are read mechanically, for the same reason: the alternative is trusting
   someone's memory of the outcome.
+- **Stage-2 / sweep evidence** → a one-line check (in `/release`'s Phase 0.5) stops unless
+  all 11 `s2 <key>:` lines are `ran:` or `N/A:` and `sweep:` is not `deferred`: *"review
+  record lacks stage-2 evidence — re-run `/branch-review`."* A record from before these lines
+  existed fails it, by design. The key list lives literally in that command; a test pins it
+  to the security spec's.
 - **`coverage:` naming any stage `NOT RUN`** → stop. A `ready` from a run whose security
   stage never executed is not the same fact as one where it did, and this line is the only
   place the difference is visible.
@@ -510,7 +538,7 @@ whatever state the ledger file happens to be in.
   append never reaches a commit, HEAD does not move, and the recorded SHA still matches —
   so the question never arises. A repo that tracks `.claude/` instead will see a ledger
   commit land after the review and make it stale, since `fix-ledger.md` is neither under
-  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, never sweeps it) —
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, never sweeps it) —
   that is the gate working as designed, not a case to special-case: re-review, or leave the
   ledger uncommitted until the release is cut.
 - **Reviewed at this SHA with findings still outstanding** → stop; findings are resolved

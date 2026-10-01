@@ -522,7 +522,7 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      its **absolute path** in the command below — the cwd here is the target repo, not this
      package, so a cwd-relative path fails everywhere except the liteagents repo itself.
    - **Not applicable, stay silent:** if the project has no `docs/` directory, skip without
-     saying anything. Most projects have no doc corpus and a nudge every run is noise.
+     saying anything (the step-8 `docs: N/A (no docs/)` line still records it). Most projects have no doc corpus and a nudge every run is noise.
    - **Applicable but could not run — say so, loudly:** if `docs/` exists but the script is
      missing, `git` fails, or the command errors, print one line explaining why the check
      was skipped. Never fail silently.
@@ -588,7 +588,12 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      Print every line it returns and the count. Zero is the target; non-zero means a gate miss
      — every remaining overrun already had its chance to be exempted (100-char backtick
      literal) inside the step-3 gate, so anything printed here should not exist.
-   - Episodes count (new, kept hot, folded + deleted)
+   - Episodes count (new, kept hot, folded + deleted), then this line, filled from step 3's
+    before/after counts and the titles it removed (a removal with no fact named is the defect
+    step 3 describes):
+    ```
+    episodes: B → A; removed: <titles> → folded into fact "<first words>" | none
+    ```
    - Antigens count by confidence tier, with how many newly promoted to hot — sourced
      from `.claude/remember/friction/count_report.json` (4c's count report), not
      recomputed by hand
@@ -600,14 +605,25 @@ Reads all raw material (`.claude/stash/*.md` + `.claude/remember/friction/antige
      ledger: ag-003 "don't commit per change"    RECURRED while hot (2/2) → rephrased, attempt 2
      ledger: ag-002 "literal scoped ask"         ESCALATED → Fact; 2 phrasings failed. Hook or accept?
      ```
-   - Relay verbatim whatever `version-check.cjs` (step 0), `sync-rules.cjs` (step 1), and
-     `stub-check.cjs` (step 5) printed. Never re-word or summarize them: they are the
-     record of a file that was written or a version gap, and a paraphrase of "your body
-     was backed up to AGENT_RULES.md.bak" can lose the filename the user needs.
-   - Each is silent when nothing changed, so silence is the normal case and there is
-     nothing to invent — never report an action that produced no output.
-   - Never a silent write: if any of the three wrote or moved a file and you did not
-     relay its line, that is a defect.
+   - **Step-check lines — always printed, never omitted.** One line each, filled with the
+     result (real exit codes) or `NOT RUN: <reason>`; a missing line is a skipped step. Script
+     output is relayed verbatim, never re-worded or summarized (a paraphrase of "your body
+     was backed up to AGENT_RULES.md.bak" can lose the filename the user needs). The scripts
+     themselves stay silent when nothing changed; the line is what tells "ran, nothing to
+     do" from "skipped":
+     ```
+     version-check: exit <code> <unchanged | its output> | NOT RUN: <reason>
+     sync-rules: exit <code> <unchanged | its output> | NOT RUN: <reason>
+     stub-check: exit <code> <unchanged | its output> | NOT RUN: <reason>
+     I6-new: <check output, must be EQUAL> | NOT RUN: <reason>
+     docs: N/A (no docs/) | due: <verdict> | index-flat: ran | not needed | NOT RUN: <reason>
+     processed: +N entries (before B → after A lines)
+     migrate-attempts: exit <code> | NOT RUN: <reason>
+     decay: <N> expired, <M> reactivated | NOT RUN: <reason>
+     ```
+     Sources: `version-check` step 0, `sync-rules` step 1, `stub-check` and `I6-new` step 5,
+     `processed` step 6's `.processed` append, `docs` step 7, `migrate-attempts` and `decay` step 4c. If a script wrote or moved a
+     file and its output is not in its line, that is a defect.
    - If step 7 ran the auto re-index, say so and name the regenerated files
      (`docs/index.md`, plus `docs/log.md` if touched) so they are staged with this run
    - Confirm MEMORY.md and CLAUDE.md updated

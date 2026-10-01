@@ -86,7 +86,7 @@ The worker runs real commands — the thing itself, or its tests, now — and as
 
 - **Does it work?** The command and the numbers, not a restatement.
 - **No regression?** The full suite, now, compared to before.
-- **Structure?** The code-structure checks this command owns (`/branch-review` no
+- **Cleanup?** The code-structure checks this command owns (`/branch-review` no
   longer runs them): speculative code, an abstraction for one caller, redundant tests;
   dead code; state ownership (two or more functions assigning the same field — both
   writers named with `file:line`); reuse (a new thing duplicating an existing one);
@@ -99,7 +99,7 @@ The worker runs real commands — the thing itself, or its tests, now — and as
 ## 4. The bar — Fix now and Later alike
 
 Every item, in **either** pile, needs one concrete failure sentence: specific
-input/state → what breaks. **Carve-out:** a Structure item may give the rule it
+input/state → what breaks. **Carve-out:** a Cleanup item may give the rule it
 breaks plus the `file:line`(s) that prove it instead — and goes in **Later**, never
 **Fix now**, unless it does carry a real failure sentence. Later is not a lower bar — it's a deferral, not an
 excuse to skip the sentence. "Will mislead the next reader" is a real example
@@ -108,8 +108,8 @@ named, no break named. Can't write the sentence → it's a nit-of-a-nit: dropped
 and only the count (`dropped: N`) is reported, so the user can see it looked
 rather than skipped.
 
-Each item is exactly one kind (failure-sentence or Structure), counted in one cap only.
-Surviving items: **max 5 failure-sentence items and max 5 Structure items, ranked**,
+Each item is exactly one kind (failure-sentence or Cleanup), counted in one cap only.
+Surviving items: **max 5 failure-sentence items and max 5 Cleanup items, ranked**,
 in two piles — **Fix now** (changes whether you
 ship) and **Later**.
 
@@ -118,7 +118,11 @@ ship) and **Later**.
 ## 5. Relay as-is, then ledger
 
 **"As-is" means:** same items, same order, same piles, and each item's failure
-sentence and cited commands/numbers preserved exactly. Rewording to fit the
+sentence and cited commands/numbers preserved exactly; the worker's four report
+lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`) are relayed too, and
+every relayed item keeps its `nit`/`change`/`idea` tag and its `file:line`. The
+two added lines read `<N> items` or `none found: <what was checked>`, so "checked,
+found nothing" never looks like "skipped". Rewording to fit the
 user's own output style is fine — a field run under a "plain wording" style
 correctly kept everything else identical while reflowing the sentences.
 Adding, dropping, merging, re-ranking, or weakening an item is **not** "as-is,"
@@ -129,15 +133,22 @@ worker's items — never blended into them.
 The orchestrator relays the worker's report **as-is**, and the user picks what to
 fix now.
 
-Whatever the user does **not** pick goes to `.claude/remember/fix-ledger.md`, in the
-same format `/branch-review` writes: tagged `nit` (a refactor-sized fix) or `change`
-(needs a behaviour change or redesign) — the size of the fix, not its severity. The
+When it relays the report, the orchestrator appends **every** item, both piles, to
+`.claude/remember/fix-ledger.md` right away, in the same format `/branch-review`
+writes: tagged `nit` (a refactor-sized fix), `change` (needs a behaviour change or
+redesign) or `idea` (Underspecced items: something missing that might be worth
+building — an option, not debt). The tag is the size of the fix, not its severity. The
 **orchestrator** writes this append, not the worker: the worker's own turn is already
-over by the time the user picks, so the entity present when the ledger entry needs
-writing is the one holding the conversation.
+over by then, so the entity present when the ledger entry needs writing is the one
+holding the conversation. It then asks which items, if any, to remove; no answer means
+they all stay, and removal happens only on the user's explicit say-so naming the items.
+Items the user fixes now are not removed by hand — `/refactor`'s next revalidation
+drops them once the finding no longer holds. The bullet shape is inlined in the spec,
+and a stale ledger header (no `idea` definition) is replaced with `/branch-review`'s
+current one, bullets untouched — `/branch-review` applies the same rule.
 
 **Anchor rule.** A bullet needs a verbatim snippet `grep -F` can still find. For
-something *missing*, that's the existing line where it should go. No line can be
+something *missing* (usually an `idea`), that's the existing line where it should go. No line can be
 named → it doesn't go in the ledger at all — `/refactor` deletes any bullet whose
 anchor has no hit, so an anchor-less one would just die there — and it stays in the
 report instead as "this is a feature — your call."
@@ -145,10 +156,12 @@ report instead as "this is a feature — your call."
 ## 6. Consuming the tags
 
 `/branch-review`'s closing line and `/refactor`'s ledger-mode report both count the
-same file the same way: every bullet ending `· change` is a `change`, everything else
-is a `nit` — **N nits, K changes**. `/refactor` (no arguments) fixes surviving `nit`
-bullets only; a `change` bullet is left for a real refactor pass, or retagged in place
-if a `nit` turns out to need one.
+same file the same way: every bullet ending `· change` is a `change`, every one ending
+`· idea` is an `idea`, everything else is a `nit` — **N nits, K changes, I ideas**.
+`/refactor` (no arguments) fixes surviving `nit` bullets only; `change` and `idea`
+bullets are listed, and the orchestrator asks the user per item: keep, drop, or spec it
+(its own task on its own branch after the run). A `nit` that turns out to need a
+behaviour change is retagged `change` in place.
 
 ## 7. Loop guard
 

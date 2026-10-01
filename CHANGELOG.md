@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.1.0] - 2026-10-01
+
+### Added
+- **Fix-ledger tag `idea`** beside `nit` and `change`: something missing that
+  might be worth building, an option rather than debt. `/self-review` tags its
+  Underspecced items `idea`; `/branch-review` never writes it. Ledger counts
+  report ideas separately (`ledger: <N> nits, <K> changes, <I> ideas, <M>
+  added`); an idea is never counted as a nit.
+- **`/self-review` report lines and ledger rules** (field-test fixes): the
+  ledger bullet shape is inlined; a stale `fix-ledger.md` header (no `idea`
+  definition) is replaced, bullets untouched, by both `/self-review` and
+  `/branch-review`; `underspecced:` and `cleanup:` report lines separate
+  "found nothing" from "skipped"; the relay keeps each item's tag and
+  `file:line`.
+
+### Changed
+- **`/branch-review` docs-sweep counts are honest.** N is every change in the
+  sweep's change table, each counted once in A, F or C (A + F + C = N); the
+  closing line reads `Docs sweep: N changes checked — A added, F fixed, C
+  already correct`, not "N changes documented", which read as N edits.
+- **`/self-review`'s "Structure" item kind is now "Cleanup"** (spec, README,
+  self-review doc, ledger header, test pins).
+- **Stage-2 blanks name their scope.** A blind run judged 3 of 11 stage-2 lines
+  by the diff, not the repo. `/security`'s coverage lines and `/branch-review`'s
+  `s2` lines now read `ran: <whole-repo evidence…>` and `N/A: <why it holds for
+  the whole repo, not just this diff>`; keys and order unchanged.
+- **`/self-review` ledger rule no longer contradicts itself.** It appends every
+  *anchorable* item (the anchor rule wins); an item with no line to name is
+  "your call". The relay carries `ledger: <N> items → <A> appended, <D> already
+  there, <Y> your call` so a dropped append is visible.
+- **Required steps get a slot in the output, not more wording.** A worker
+  could skip a step near the end of a spec and nothing showed it. Each slot is
+  filled with the result or `NOT RUN: <reason>`: `/root-cause` gains a
+  "Root-cause note" (symptom, repro, origin, hypothesis, `attempt N/3`, red,
+  green, full-suite); `/self-review`'s report opens with `works:` and
+  `full-suite:` lines; `/remember`'s step-8 report always prints
+  `version-check`, `sync-rules`, `stub-check`, `I6-new`, `docs`, `processed`
+  lines (the helper scripts stay silent when nothing changed); `/live-canvas`
+  ends with a `cleanup:` line and its design brief carries `inferredStyles`;
+  `/docs-builder` ends with a `finish:` line recording commit and ledger stamp.
+- **Output slots, second batch.** `/remember` step 8 adds `episodes: B → A;
+  removed … → folded into fact …`, `migrate-attempts:` and `decay:` lines;
+  `/docs-builder` ends with `validate: PASS exit 0 | FAIL | NOT RUN` before
+  `finish:` (the script's `cleanup-apply` does not read `validate.json`, so
+  the gate stays spec-only); `/branch-review`'s record gains `prior-blockers:`
+  and `ledger-liveness:` (`n/a: first review` otherwise); `/refactor`'s report
+  carries `tests: <cmd> exit <code> <totals> (scoped | full)` instead of a bare
+  pass count; `/release` Phase 0.5 reports one block (sha, verdict, coverage,
+  s2-check exit, tests, stale-grep) instead of the sha match alone;
+  `/test-generate` gets a `broken-by: <mutation> → red: <test>` line per test
+  and the mutation is actually made and run, not swapped "mentally".
+- **Stage-2 coverage is now structure, not prose.** `/security`'s Output ends
+  in an 11-line keyed coverage block (the six items plus the five "Also scan
+  for" bullets, secrets line with its history hit count); `/branch-review`'s
+  review record carries one `s2 <key>:` blank per key plus a `sweep:` line
+  (so `docs: none` no longer hides a skipped sweep); `/release` Phase 0.5 runs
+  a one-line check that stops unless all 11 are `ran`/`N/A` and the sweep was
+  not deferred. Records written before this fail that check, by design. Two
+  workers had written `stage2 ran` with no per-item evidence.
+- **`/self-review` appends every item to the ledger when it relays the
+  report**, both piles, then asks which to remove. No answer: they stay.
+- **`/refactor` ledger mode asks per surviving `change`/`idea` item:** keep,
+  drop, or spec it. "Spec it" becomes its own task after the run, never built
+  in ledger mode.
+- **Ledger header names every deleter.** It said only `/refactor` and
+  `/self-review` delete bullets, contradicting `/branch-review`'s rule that a
+  bullet it disproves is deleted; the README's one-writer section now matches.
+
+---
+
 ## [4.0.1] - 2026-09-30
 
 ### Fixed
