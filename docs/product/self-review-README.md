@@ -129,15 +129,20 @@ worker's items — never blended into them.
 The orchestrator relays the worker's report **as-is**, and the user picks what to
 fix now.
 
-Whatever the user does **not** pick goes to `.claude/remember/fix-ledger.md`, in the
-same format `/branch-review` writes: tagged `nit` (a refactor-sized fix) or `change`
-(needs a behaviour change or redesign) — the size of the fix, not its severity. The
+When it relays the report, the orchestrator appends **every** item, both piles, to
+`.claude/remember/fix-ledger.md` right away, in the same format `/branch-review`
+writes: tagged `nit` (a refactor-sized fix), `change` (needs a behaviour change or
+redesign) or `idea` (Underspecced items: something missing that might be worth
+building — an option, not debt). The tag is the size of the fix, not its severity. The
 **orchestrator** writes this append, not the worker: the worker's own turn is already
-over by the time the user picks, so the entity present when the ledger entry needs
-writing is the one holding the conversation.
+over by then, so the entity present when the ledger entry needs writing is the one
+holding the conversation. It then asks which items, if any, to remove; no answer means
+they all stay, and removal happens only on the user's explicit say-so naming the items.
+Items the user fixes now are not removed by hand — `/refactor`'s next revalidation
+drops them once the finding no longer holds.
 
 **Anchor rule.** A bullet needs a verbatim snippet `grep -F` can still find. For
-something *missing*, that's the existing line where it should go. No line can be
+something *missing* (usually an `idea`), that's the existing line where it should go. No line can be
 named → it doesn't go in the ledger at all — `/refactor` deletes any bullet whose
 anchor has no hit, so an anchor-less one would just die there — and it stays in the
 report instead as "this is a feature — your call."
@@ -145,10 +150,12 @@ report instead as "this is a feature — your call."
 ## 6. Consuming the tags
 
 `/branch-review`'s closing line and `/refactor`'s ledger-mode report both count the
-same file the same way: every bullet ending `· change` is a `change`, everything else
-is a `nit` — **N nits, K changes**. `/refactor` (no arguments) fixes surviving `nit`
-bullets only; a `change` bullet is left for a real refactor pass, or retagged in place
-if a `nit` turns out to need one.
+same file the same way: every bullet ending `· change` is a `change`, every one ending
+`· idea` is an `idea`, everything else is a `nit` — **N nits, K changes, I ideas**.
+`/refactor` (no arguments) fixes surviving `nit` bullets only; `change` and `idea`
+bullets are listed, and the orchestrator asks the user per item: keep, drop, or spec it
+(its own task on its own branch after the run). A `nit` that turns out to need a
+behaviour change is retagged `change` in place.
 
 ## 7. Loop guard
 

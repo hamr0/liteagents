@@ -83,17 +83,22 @@ whether you ship) and **Later**.
 commands/numbers preserved. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
-items. User picks what to fix now; whatever they don't, the **orchestrator**
-(worker's turn is over by then) appends to `.amp/remember/fix-ledger.md`,
-`/branch-review`'s format, tagged `nit`/`change`, bullet text verbatim.
+items. When you relay the report, the **orchestrator** (worker's turn is over
+by then) appends **every** item, both piles, to `.amp/remember/fix-ledger.md`
+right away, `/branch-review`'s format, tagged `nit`/`change`/`idea` (Underspecced
+items → `idea`: missing, an option not debt), bullet text verbatim. Then ask
+which, if any, to remove: no answer → they all stay; remove only on the
+user's explicit say-so naming the items. Items the user fixes now are not
+removed by hand — `/refactor`'s revalidation drops them once the finding no
+longer holds.
 Dedupe with plain `grep -F "<snippet>" .amp/remember/fix-ledger.md`
 (never `git grep` — gitignored). **Anchor rule:** a verbatim snippet `grep
--F` can find; missing → anchor where it should go; no line to name → no
+-F` can find; missing (usually an `idea`) → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead.
 
 **Last act — rewrite only the bookmark line**, never another line in the file.
 Write it when you relay the report — it records what was checked and does not
-wait for the user's pick; the ledger append happens whenever the pick arrives.
+wait for the user's pick.
 It also drops any old `debrief-sha:` line:
 ```
 F=.amp/remember/last-review.md

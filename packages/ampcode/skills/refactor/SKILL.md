@@ -69,18 +69,25 @@ refactor and how to close each item.
    the work list.
 4. **Fix only surviving `nit` bullets** (untagged bullets count as `nit`),
    one bullet per change, under the constraints below. Delete each bullet as
-   its fix lands. **Skip surviving `change` bullets** — list them in the
-   report as "left: change"; they need a behaviour change or redesign, not a
-   refactor. A `nit` that turns out to need one is **retagged `change` in
-   place**, not fixed and not left silently.
+   its fix lands. **Surviving `change` and `idea` bullets: the worker lists
+   them in its report ("left: change" / "left: idea") and changes nothing
+   about them** — they need a behaviour change, a redesign or a build, not a
+   refactor, and the worker cannot ask. A `nit` that turns out to need one is
+   **retagged `change` in place**, not fixed and not left silently. The
+   **orchestrator** then asks the user, per `change`/`idea` item: **keep**
+   (stays in the ledger), **drop** (the orchestrator deletes the bullet) or
+   **spec it** (the user describes it; it becomes its own task on its own
+   branch *after* this run — never built in ledger mode, whose diff must have
+   NO behavior changes).
 5. Run the tests as described below. Then report: **fixed / dropped / left**
-   with the reason per left item, ending with **N nits, K changes** remaining
+   with the reason per left item, ending with **N nits, K changes, I ideas** remaining
    — counted the same mechanical way `/branch-review` does:
    ```
    grep -c '^- ' .amp/remember/fix-ledger.md
    grep -cE '@ [0-9a-f]{7,40} · change$' .amp/remember/fix-ledger.md
+   grep -cE '@ [0-9a-f]{7,40} · idea$' .amp/remember/fix-ledger.md
    ```
-   First is the total bullet count, second is K; N = total − K.
+   First is the total bullet count, second is K, third is I; N = total − K − I.
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
    `/branch-review`** on this branch — ledger mode is a fixer, not a review,
    and its diff gets the ordinary gate. That is a sentence you *say*, not a

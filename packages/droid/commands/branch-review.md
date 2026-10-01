@@ -271,8 +271,9 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    with the version. If this stage corrects a line that a fix-ledger bullet
    also names, that is ordinary sweep work — the doc changed with the
    feature, so it was already yours to update — but **do not delete the
-   bullet**. `/refactor` is the only deleter; its revalidation drops the
-   bullet once it finds the finding no longer holds.
+   bullet**. Only `/refactor` (revalidation, or the user's "drop") and `/self-review`
+   (a removal the user names) delete bullets; revalidation drops this one once
+   the finding no longer holds.
 4. **Commit what you touched.** Doc files only — never code, skills, config,
    or tests. Stage the exact paths you edited by name (never `git add
    -A`/`-u`) and commit `docs: sweep for <short sha range>`. Nothing changed
@@ -307,17 +308,21 @@ check before escalating.
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
 `.factory/remember/fix-ledger.md` (header below if missing), tagged `nit` or
-`change` — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
+`change` (never `idea` — that is `/self-review`'s) — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review and
-> /self-review; consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists — only /refactor (revalidation,
+> or the user's "drop") and /self-review (a removal the user names) delete.
+> Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
 > not severity; untagged counts as `nit`; tail unwrapped on the last line.
+> `nit` = small fix, no behaviour change. `change` = something that exists is
+> wrong; needs a behaviour fix or redesign. `idea` = something missing that
+> might be worth building; an option, not debt.
 > Always appended at the end. A /self-review Structure item puts the rule it
 > breaks in the failure-scenario slot.
 
@@ -369,12 +374,13 @@ someone decides what to do — it earns its keep
 by surviving a compaction, an abandoned session, or an unseen handover.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
-none`; otherwise run both (first is the total, second is K):
+none`; otherwise run all three (total, K, I):
 ```
 grep -c '^- ' .factory/remember/fix-ledger.md
 grep -cE '@ [0-9a-f]{7,40} · change$' .factory/remember/fix-ledger.md
+grep -cE '@ [0-9a-f]{7,40} · idea$' .factory/remember/fix-ledger.md
 ```
-N = total − K, M = bullets appended this run. **Carry `self-review-sha:` forward
+N = total − K − I, M = bullets appended this run. **Carry `self-review-sha:` forward
 first** (`/self-review`'s bookmark, never set here), verbatim, as the last line
 — or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
 ```
@@ -389,7 +395,7 @@ checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NO
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
-ledger: <N> nits, <K> changes, <M> added
+ledger: <N> nits, <K> changes, <I> ideas, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
@@ -420,9 +426,10 @@ expires it (fix and commit → *stale*, not *blocked*).
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
   clean at start, at exit clean or only the two `.factory/remember/` paths.**
-- **Fix ledger:** the same N/K/M as the record's `ledger:` line (`ledger:
+- **Fix ledger:** the same N/K/I/M as the record's `ledger:` line (`ledger:
   none` → **Fix ledger: none**); N + K > 0 → add "N + K fixes waiting — run
-  `/refactor` between features."
+  `/refactor` between features"; I > 0 → add "I ideas to triage" (ideas are
+  not fixes waiting).
 - **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** Dying mid-flight — a rate

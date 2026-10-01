@@ -142,16 +142,16 @@ console.log(`${colors.bright}-- ledger count --${colors.reset}`);
 // step failing to find text it was told to expect verbatim.
 const LEDGER_LINE_RE = /^\s*grep -c\S* '.*' \S+\/remember\/fix-ledger\.md\s*$/;
 
-// Extract exactly 2 ledger count commands (total, then K) from a shipped
+// Extract exactly 3 ledger count commands (total, then K, then I) from a shipped
 // file. Throws on anything else — including 0 (command deleted), 1 (one of
 // the pair missing), or >2 (an extra line that also matches the shape) —
 // but ever throw is caught at the call site, never left to crash the suite.
 function extractLedgerCommands(content, label) {
   const lines = content.split('\n').filter(l => LEDGER_LINE_RE.test(l));
-  if (lines.length !== 2) {
-    throw new Error(`${label}: expected exactly 2 ledger count commands (total, K), found ${lines.length}`);
+  if (lines.length !== 3) {
+    throw new Error(`${label}: expected exactly 3 ledger count commands (total, K, I), found ${lines.length}`);
   }
-  return { totalCmd: lines[0].trim(), kCmd: lines[1].trim() };
+  return { totalCmd: lines[0].trim(), kCmd: lines[1].trim(), iCmd: lines[2].trim() };
 }
 
 // One normalized { label, totalCmd, kCmd } per kit/label, path swapped for a
@@ -176,10 +176,12 @@ for (const kit of KITS) {
     check(`${kit.name}/${label}: ledger commands present, unwrapped`, true);
     check(`${kit.name}/${label}: total command targets ${kit.dir}`, cmds.totalCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.totalCmd);
     check(`${kit.name}/${label}: K command targets ${kit.dir}`, cmds.kCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.kCmd);
+    check(`${kit.name}/${label}: I command targets ${kit.dir}`, cmds.iCmd.includes(`${kit.dir}/remember/fix-ledger.md`), cmds.iCmd);
     extractedLedgerCmds.push({
       label: `${kit.name}/${label}`,
       totalCmd: cmds.totalCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
       kCmd: cmds.kCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
+      iCmd: cmds.iCmd.replace(`${kit.dir}/remember/fix-ledger.md`, 'LEDGER'),
     });
   }
 }
@@ -239,6 +241,25 @@ const LEDGER_CASES = [
     total: 1, k: 1,
   },
   {
+    name: 'one-line idea is not a nit',
+    content: `- \`x.js\` ${dot} "snip" ${dot} desc ${dot} scenario ${dot} 2026-09-21 @ abc1234 ${dot} idea\n`,
+    total: 1, k: 0, i: 1,
+  },
+  {
+    name: 'wrapped bullet, first line prose ends "· idea", real tag (last line) is nit',
+    content: `- Scenario: not really an ${dot} idea\n`
+      + `  after all ${dot} 2026-09-21 @ abc1234 ${dot} nit\n`,
+    total: 1, k: 0, i: 0,
+  },
+  {
+    name: 'mixed ledger: nit + untagged + change + idea',
+    content: `- \`a.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} nit\n`
+      + `- \`b.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234\n`
+      + `- \`c.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} change\n`
+      + `- \`d.js\` ${dot} "s" ${dot} d ${dot} f ${dot} 2026-09-21 @ abc1234 ${dot} idea\n`,
+    total: 4, k: 1, i: 1, n: 2,
+  },
+  {
     name: 'empty ledger file',
     content: ``,
     total: 0, k: 0,
@@ -262,13 +283,32 @@ if (extractedLedgerCmds.length === 0) {
         fs.writeFileSync(f, c.content);
         const totalCmd = entry.totalCmd.replace('LEDGER', f);
         const kCmd = entry.kCmd.replace('LEDGER', f);
+        const iCmd = entry.iCmd.replace('LEDGER', f);
         const totalOut = sh(shell.bin, totalCmd).stdout.trim();
         const kOut = sh(shell.bin, kCmd).stdout.trim();
         check(`[${shell.name}] ${entry.label} ${c.name}: total=${c.total}`, totalOut === String(c.total), `got ${totalOut}`);
         check(`[${shell.name}] ${entry.label} ${c.name}: K=${c.k}`, kOut === String(c.k), `got ${kOut}`);
+        const iOut = sh(shell.bin, iCmd).stdout.trim();
+        const wantI = c.i || 0;
+        check(`[${shell.name}] ${entry.label} ${c.name}: I=${wantI}`, iOut === String(wantI), `got ${iOut}`);
+        const wantN = c.n !== undefined ? c.n : c.total - c.k - wantI;
+        check(`[${shell.name}] ${entry.label} ${c.name}: N=total-K-I=${wantN}`,
+          Number(totalOut) - Number(kOut) - Number(iOut) === wantN, `got ${Number(totalOut) - Number(kOut) - Number(iOut)}`);
       }
     }
   }
+}
+
+// Phrase pins for the idea-tag rules (honest where the rule is a sentence, not
+// a command): /self-review appends every item at relay time; /refactor never
+// builds change/idea bullets in ledger mode.
+for (const kit of KITS) {
+  const flat = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\s+/g, ' ');
+  check(`${kit.name}/self-review: appends every item to the ledger at relay time`,
+    flat(kit.selfReview).includes('appends **every** item'));
+  const ref = flat(kit.refactor);
+  check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
+    ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
 }
 
 // ---------------------------------------------------------------------------

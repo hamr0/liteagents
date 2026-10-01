@@ -243,7 +243,7 @@ its line, otherwise `stage2 NOT RUN`.
 
 `.claude/remember/fix-ledger.md` — a local, persistent, cumulative, non-blocking findings
 list, living beside `MEMORY.md` in `.claude/remember/`. It accumulates across review runs
-and is cleared bullet-by-bullet by `/refactor` (§6). It is not necessarily tracked by
+and is cleared bullet-by-bullet by `/refactor` (§6) — or by `/self-review`, when the user names a bullet to remove. It is not necessarily tracked by
 git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the ledger is
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
@@ -252,14 +252,16 @@ everything since the last self-review, committed or not, run by a spawned mid-ti
 before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
-redesign. An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
+redesign, `idea` for something missing that might be worth building (written only by
+`/self-review`; an option, not debt). An untagged (pre-tag-format) bullet counts as `nit`. New bullets are always
 appended at the end, oldest to newest — no section headers.
 
 ```
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
-> fixed, or when its anchor no longer exists. Written by /branch-review and
-> /self-review; consumed by /refactor (ledger mode).
+> fixed, or when its anchor no longer exists — only /refactor (revalidation,
+> or the user's "drop") and /self-review (a removal the user names) delete.
+> Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
 > `git grep -F "<snippet>" -- <path>` accepts one.
@@ -310,7 +312,7 @@ coverage: stage1 ran, stage2 ran, stage3 ran
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
-ledger: <N> nits, <K> changes, <M> added
+ledger: <N> nits, <K> changes, <I> ideas, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
@@ -323,8 +325,8 @@ stale. `docs:` is repo-relative **paths only**, space-separated, or the literal 
 never prose, never reasons; `docs-commit: none` means `docs: none`. The per-change sweep
 table (change · doc `file:line` · added/fixed/already correct) belongs in the report, never
 the record. `ledger:` is derived from the fix ledger before the record is written — `N`
-nits and `K` changes from the same two `grep -c` counts the closing report line repeats, `M`
-the bullets appended this run; no ledger file → `ledger: none`.
+nits, `K` changes and `I` ideas from the same three `grep -c` counts the closing report line
+repeats (N = total − K − I), `M` the bullets appended this run; no ledger file → `ledger: none`.
 
 **`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
@@ -395,13 +397,16 @@ target from the user:
    change, under `/refactor`'s ordinary constraints (no behavior changes, public API
    intact, existing tests pass). **Delete each bullet as its fix lands** — the fix commit
    becomes the done record for that bullet; there's no separate "mark complete" step to
-   forget. **Skip surviving `change` bullets**, listed in the report as "left: change" —
-   they need a behaviour change or redesign, not a refactor. A `nit` that turns out to need
-   one is **retagged `change` in place**, not silently left.
+   forget. **Surviving `change` and `idea` bullets** are listed in the
+   worker's report ("left: change" / "left: idea") and left untouched — they need a
+   behaviour change, a redesign or a build, not a refactor. A `nit` that turns out to need
+   one is **retagged `change` in place**, not silently left. The orchestrator then asks the
+   user per item: **keep**, **drop** (the orchestrator deletes the bullet) or **spec it**
+   (its own task on its own branch after the run — never built in ledger mode).
 5. Run the tests, then report fixed / dropped / left, with the reason per left item, ending
-   with **N nits, K changes** remaining — counted mechanically (`grep -c '^- '
+   with **N nits, K changes, I ideas** remaining — counted mechanically (`grep -c '^- '
    fix-ledger.md` = total, `grep -cE '@ [0-9a-f]{7,40} · change$' fix-ledger.md` = K,
-   N = total − K), the same way `/branch-review`'s closing line does.
+   `grep -cE '@ [0-9a-f]{7,40} · idea$' fix-ledger.md` = I, N = total − K − I), the same way `/branch-review`'s closing line does.
 6. Say plainly: commit, then run `/branch-review` on this branch — ledger mode is a fixer,
    not a review, and its own diff gets the ordinary gate like any other change.
 
@@ -410,7 +415,7 @@ target from the user:
 ## 7. The nudge, not the invocation
 
 `/branch-review` ends its report with the open bullet count, and when it's greater than
-zero: *"N fixes waiting — run `/refactor` between features."* **It never invokes
+zero: *"N fixes waiting — run `/refactor` between features"* (plus *"I ideas to triage"* when there are any; ideas are not fixes waiting). **It never invokes
 `/refactor` itself.** This deliberately mirrors `/stash`, which counts the unprocessed
 backlog and nudges `/remember` rather than running it.
 

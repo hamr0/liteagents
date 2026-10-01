@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Fix-ledger tag `idea`** beside `nit` and `change`: something missing that
+  might be worth building, an option rather than debt. `/self-review` tags its
+  Underspecced items `idea`; `/branch-review` never writes it. Ledger counts
+  report ideas separately (`ledger: <N> nits, <K> changes, <I> ideas, <M>
+  added`); an idea is never counted as a nit.
+
+### Changed
+- **`/self-review` appends every item to the ledger when it relays the
+  report**, both piles, then asks which to remove. No answer: they stay.
+- **`/refactor` ledger mode asks per surviving `change`/`idea` item:** keep,
+  drop, or spec it. "Spec it" becomes its own task after the run, never built
+  in ledger mode.
+
+---
+
 ## [4.0.1] - 2026-09-30
 
 ### Fixed
