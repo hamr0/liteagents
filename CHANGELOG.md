@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.2.0] - 2026-10-01
 
 ### Changed
 - **`/remember` trimmed from 641 to 258 lines.** The *why* moved to
@@ -24,14 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A `hot` entry with `recurred_while_hot >= 2` gets its attempt marked `failed` and the
   counter reset; with 2 earlier failures it is `escalated`. `count_report.json` carries
   `decay: {expired, reactivated}`, `needs_rephrase` and `escalated`; the model only
-  writes attempt n+1's wording and records the Fact for escalated ids.
+  writes attempt n+1's wording and records the Fact for escalated ids. `count` also
+  re-lists a `hot` entry whose last attempt is `failed` and has no attempt n+1 yet,
+  so an un-redrafted failure is not silently dropped on the next run.
 - **One target rule for `/self-review` and `/branch-review`.** No hash: the
   committed work on the current branch (a dirty tree stops and asks for a
   commit; on `main`/`master` it stops and asks for hashes or a range). One or
   more hashes, or a range `<a>..<b>`: exactly those commits (`git show` per
   hash, `git log`/`git diff` for a range; both range ends validated), on any
   branch. `/branch-review` no
-  longer accepts a range, a ref or a path. **`/self-review` no longer reviews
+  longer accepts a ref or a path. **`/self-review` no longer reviews
   uncommitted changes.**
 - Hash/range mode moves no bookmark or record: `/branch-review` writes no
   `last-review.md` and runs no docs sweep ("hash review — no record written;
