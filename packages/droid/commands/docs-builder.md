@@ -7,7 +7,7 @@ argument-hint: [reorg | cleanup <file.md> | search <query words...> — empty as
 
 Keep project docs **current, complete and findable**, and split a file when it outgrows its row in `docs/index.md`. Why it works this way, measured numbers and history: `docs/product/docs-builder-README.md`.
 
-**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is `docs-builder/docs-builder.cjs` (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages. Spawn each model step with its tier stated explicitly (an omitted tier inherits yours): **cheapest tier** to read, propose and assign themes; **mid tier** to write pages. Never name a vendor model.
+**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is the `docs-builder.cjs` script beside this file, the `$DB` path below (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages. Spawn each model step with its tier stated explicitly (an omitted tier inherits yours): **cheapest tier** to read, propose and assign themes; **mid tier** to write pages. Never name a vendor model.
 
 ## Setup
 
@@ -73,7 +73,7 @@ Do not offer a third option and do not recommend one. If `due` cannot run, say s
 node $DB discover
 ```
 
-Scope with no argument: `.md` files at the repo root (top level only) plus everything under `docs/` (recursive; `product/`, `wiki/`, `logs/` re-checked every run, `docs/archive/` skipped). `node $DB discover <dir>` scopes to exactly `<dir>` instead. Writes `reorg-plan.json`: per file `h1`, `snip`, `lines`, an `oversized` boolean, and a mechanical `suggested` bucket + `reason`. `suggested` is a PRIOR, never a verdict. `bucket` is empty on every row discover has not classified before; files already in `product/`, `wiki/` or `logs/` are real rows and need a bucket too. `apply-reorg` reads only `bucket`.
+Scope with no argument: `.md` files at the repo root (top level only) plus everything under `docs/` (recursive; `product/`, `wiki/`, `logs/` re-checked every run, `docs/archive/` skipped; gitignored files are skipped). `node $DB discover <dir>` scopes to exactly `<dir>` instead. Writes `reorg-plan.json`: per file `h1`, `snip`, `lines`, an `oversized` boolean, and a mechanical `suggested` bucket + `reason`. `suggested` is a PRIOR, never a verdict. `bucket` is empty on every row discover has not classified before; files already in `product/`, `wiki/` or `logs/` are real rows and need a bucket too. `apply-reorg` reads only `bucket`.
 
 **2. Classification interview — the model's judgment, behind the approval gate.** Give the model the WHOLE plan table (`file`, `h1`, `snip`, `lines`, `suggested`+`reason`) in one call. It fills `bucket` (`product`/`wiki`/`logs`/`archive`) on every row where it is empty and keeps a one-line reason per row. Write only `bucket` into `reorg-plan.json`. A SHOUTED self-declared status (`**Status: CLOSED**`) is near-conclusive for `archive`; `suggested` never overrides the model. Then run:
 

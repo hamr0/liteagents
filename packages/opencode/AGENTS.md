@@ -28,10 +28,10 @@ These subagents are available when using Claude Code CLI. Opencode can reference
 | brainstorming | Refines rough ideas into fully-formed designs through collaborative questioning | /brainstorming <session-type> <topic> |
 | docs-builder | Reorg a docs corpus, split an oversized doc, search it, keep pages current, index them | /docs-builder [reorg \| cleanup <file.md>] |
 | live-canvas | Design UI variations and collect click-to-annotate feedback from the browser (batch mode only on Opencode) | /live-canvas |
-| self-review | Verify what you delivered since the last self-review with real runs, and review its structure | /self-review | - |
+| self-review | Verify what you delivered since the last self-review with real runs, and review its structure | /self-review [commit hashes \| from..to \| blank = since last self-review] | - |
 | refactor | Refactor and optimize code while maintaining behavior and tests | /refactor <code-section> | - |
 | remember | Consolidate stashes + friction into project memory | /remember | - |
-| branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [target] [level] | - |
+| branch-review | Pre-merge review: general review + full security audit, verify pass, docs sweep; no code fixes | /branch-review [commit hashes \| from..to \| blank = this branch] [low\|medium\|high\|max] | - |
 | root-cause | Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source | /root-cause <bug-or-error-description> |
 | security | Security audit — recurring six, injection, auth, trust boundaries; reports, never fixes | /security [target] | - |
 | release | Verify, write the CHANGELOG, cut a version — then hand back the merge/tag/publish sequence | /release | - |

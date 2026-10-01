@@ -1976,6 +1976,15 @@ function discover(root) {
         + '.md file elsewhere in the repo is out of scope by design — pass `discover <dir>` to '
         + 'scan it explicitly).');
   }
+  // Gitignored files are generated output (a TEST_REPORT.md), not docs to reorg. Same
+  // `--exclude-standard` rule the link rewriter uses; a tracked file is never "ignored" here,
+  // and no git repo / no git means nothing is dropped.
+  let ignored = new Set();
+  try {
+    ignored = new Set(gitOrThrow(['ls-files', '-z', '--others', '--ignored', '--exclude-standard'],
+      'listing ignored files').split('\0'));
+  } catch { /* not a git repo: nothing to skip */ }
+  files = files.filter(f => !ignored.has(f));
   const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
   const prevBuckets = new Map();
   if (fs.existsSync(planFile)) {
@@ -2137,7 +2146,7 @@ function collectEmptyDirs(rootAbs, dirs) {
 // process itself.
 //
 // The target FILENAME differs per tool even though this script is byte-identical across all
-// 4 packages: claude -> CLAUDE.md, droid -> AGENTS.md, ampcode -> AGENT.md, opencode ->
+// 4 packages: claude -> CLAUDE.md, droid -> AGENTS.md, ampcode -> CLAUDE.md, opencode ->
 // AGENTS.md. Same escape hatch as REPO/OUT/PAGES/INDEX/N elsewhere in this file — an env var,
 // so the packaged command docs can pass their own tool's filename without a code fork.
 // Default stays CLAUDE.md so the claude package needs no env var set at all.

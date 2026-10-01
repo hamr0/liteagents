@@ -1,6 +1,7 @@
 ---
 name: self-review
 description: Verify what you delivered since the last self-review with real runs, and review its structure
+argument-hint: [commit hashes | from..to | blank = since last self-review]
 allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git rev-parse:*), Bash(git merge-base:*)
 disable-model-invocation: true
 ---

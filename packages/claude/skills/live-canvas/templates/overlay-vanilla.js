@@ -240,16 +240,16 @@
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        return res.ok;
+        if (res.ok) return true;
       } catch { /* fall through to download */ }
     }
-    // No endpoint or POST failed: download JSON so user can hand it to the CLI.
+    // No endpoint, POST failed or the server refused it (403/413): download JSON so user can hand it to the CLI.
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = el('a', { href: url, download: 'live-canvas-feedback.json' });
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 100);
-    return true;
+    return 'download';
   };
 
   // ---------- UI ----------
@@ -460,7 +460,7 @@
         state.comments.forEach(c => { c.delivered = true; });
         refreshSubmitBtn();
       }
-      showToast(ok ? (isLive ? 'Finished ✓' : 'Submitted ✓') : 'Submit failed');
+      showToast(ok === 'download' ? 'Saved as download ✓' : ok ? (isLive ? 'Finished ✓' : 'Submitted ✓') : 'Submit failed');
     });
   };
 

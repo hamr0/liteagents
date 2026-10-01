@@ -316,7 +316,8 @@ the scan scope is root-level `.md` files (non-recursive) plus everything under `
 (recursive); `discover <dir>` / `reorg <dir>` scope to exactly that one directory instead.
 Within `docs/`, `product/`, `wiki/`, and `logs/` are re-checked every run — only
 `archive/` stays frozen and skipped, along with `.docs-builder/` and the protected
-entry-point docs. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
+entry-point docs. Gitignored `.md` files (generated output such as a `TEST_REPORT.md`) are skipped
+in both scopes; untracked-but-not-ignored files are still offered. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
 **boolean** (over `OVERSIZED_LINES`, default 500 — size decides *splittable*, never
 *sorted*), and a mechanical `suggested` bucket + `reason`: a
 PRIOR the classification interview is shown, never an authority over it. `bucket` itself
@@ -359,7 +360,7 @@ marker-wrapped `<!-- DOCS_INDEX:START -->`/`<!-- DOCS_INDEX:END -->` block namin
 every session is exactly what this avoids — plus the same search hint `index.md` itself
 carries. `CONFIG=` picks the target (default `CLAUDE.md`), because the script is
 byte-identical across all four packages but their config filenames differ (`CLAUDE.md` /
-`AGENTS.md` / `AGENT.md`). Idempotent: an existing block is replaced in place, never
+`AGENTS.md`; the ampcode kit uses `CLAUDE.md`). Idempotent: an existing block is replaced in place, never
 duplicated; the rest of the file is left alone.
 
 **A commit advisory now closes both `apply-reorg` and `archive`.** `git mv` stages a rename
