@@ -207,8 +207,8 @@ quote.
   the evidence that promoted it, every phrasing ever tried. Two things it buys:
   1. **Failure detection without statistics** — if a class fires again *while its rule is
      loaded* (`recurred_while_hot`), the phrasing demonstrably failed: at 2 recurrences the
-     rule is rephrased (`count` marks the attempt failed and lists the id in `needs_rephrase`; the
-     model writes the new wording, never reusing a failed phrasing — the `attempts` list is the
+     rule is rephrased (`count` marks the attempt failed and lists the id in `needs_rephrase`, and lists it again every run until the model has
+     written attempt n+1; the model writes the new wording, never reusing a failed phrasing — the `attempts` list is the
      rejected-edit buffer); after 2 failed phrasings the antigen is **ESCALATED**: removed
      from hot, recorded as a Fact ("no phrasing fixes this"), and flagged for a human
      decision — enforcement (a hook) or accepted limit.

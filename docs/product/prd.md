@@ -27,12 +27,14 @@ Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
 - NOT released.
 
 ### Branch refactor/remember-trim
-- Worktree: /home/hamr/PycharmProjects/liteagents-wt-remember.
+- Checked out in /home/hamr/PycharmProjects/liteagents (the worktree is gone).
 - a980bf7: trim 641 → 258 lines. Why moves to docs/product/remember-README.md. Rules are one line plus a pin. 13 new step-8 slots.
 - ebfbfd2: friction.cjs `count` owns theme naming (first two words), decay (56 days) and escalation detection. The model keeps only the rephrase wording.
 - ecd5364: friction.cjs treats helper reports and cross-session messages as machine text. This removed a false 9-session cluster.
 - Before/after A/B on frozen input passed. All script outputs were byte-identical.
-- NOT yet done: end-of-branch mirror of friction.cjs to the 3 kits, /self-review, /branch-review.
+- 617367b: end-of-branch mirror of friction.cjs to the 3 kits. Done.
+- 7696019: `count` re-lists a hot entry whose last attempt is failed and not yet redrafted. Adds the 56-day decay boundary test.
+- NOT yet done: /branch-review READY, then the combine with fix/review-targets.
 
 ## 2. Release plan
 
