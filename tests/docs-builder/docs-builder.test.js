@@ -2991,6 +2991,165 @@ function packageParity() {
 
 // ---------------------------------------------------------------- run
 
+// ------------------------------------------- 80+. SKILL-trim helpers (additive script output)
+
+/** sha256 of every file under dir (excluding .git), as one string — a before/after proof that
+ *  a run moved and wrote nothing. */
+function treeChecksum(dir) {
+  const h = require('crypto').createHash('sha256');
+  const walk = d => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      if (e.name === '.git') continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { h.update('D' + path.relative(dir, p)); walk(p); }
+      else h.update('F' + path.relative(dir, p) + '\0').update(fs.readFileSync(p));
+    }
+  };
+  walk(dir);
+  return h.digest('hex');
+}
+
+function previewApplyReorg() {
+  group('80. PREVIEW=1 apply-reorg — the approval table, moves and writes nothing');
+  const d = repo({
+    'docs/zeta.md': DOC('Zeta'), 'docs/a/X.md': DOC('X one'), 'docs/b/X.md': DOC('X two'),
+    'docs/fwd/poc/y.md': DOC('Y'), 'docs/BIG.md': DOC('Big'),
+  });
+  write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [
+    { file: 'docs/zeta.md', lines: 7, bucket: 'archive' },
+    { file: 'docs/a/X.md', lines: 7, bucket: 'product' },
+    { file: 'docs/b/X.md', lines: 7, bucket: 'product' },
+    { file: 'docs/fwd/poc/y.md', lines: 7, bucket: 'logs' },
+    { file: 'docs/BIG.md', lines: 600, oversized: true, bucket: 'product' },
+  ] }) });
+  const before = treeChecksum(d), headBefore = git(d, ['rev-parse', 'HEAD']);
+  const r = db(d, ['apply-reorg'], { PREVIEW: '1' });
+  ok('preview exits 0', r.code, 0);
+  const rowsOut = r.out.split('\n').filter(l => l.includes('→'));
+  okTrue('table header names the four columns', /file \| lines \| → destination \| bucket/.test(r.out));
+  const body = rowsOut.filter(l => !/^file \|/.test(l));
+  ok('one row per plan row', body.length, 5);
+  ok('rows sorted by destination (archive, logs, product)',
+    body.map(l => l.split(' | ')[2]).join(','),
+    ['→ docs/archive/zeta.md', '→ docs/logs/fwd/y.md', '→ docs/product/BIG.md',
+     '→ docs/product/X-2.md', '→ docs/product/X.md'].join(','));
+  okTrue('oversized marker on the oversized row', /docs\/BIG\.md \| 600 \(oversized\) \| → docs\/product\/BIG\.md \| product/.test(r.out));
+  okTrue('collision suffix shown as full path', /docs\/b\/X\.md \| 7 \| → docs\/product\/X-2\.md \| product/.test(r.out));
+  ok('NOTHING moved or written (tree checksum identical)', treeChecksum(d), before);
+  ok('no commit made', git(d, ['rev-parse', 'HEAD']), headBefore);
+  // Same destinations as the real run: the preview's table is the real run's moves.
+  const real = db(d, ['apply-reorg']);
+  okTrue('real run still moves docs/b/X.md -> docs/product/X-2.md', /docs\/b\/X\.md -> docs\/product\/X-2\.md/.test(real.out));
+  okTrue('real run moved docs/zeta.md to the archive', exists(d, 'docs/archive/zeta.md'));
+  // Refuses an unclassified plan, same as the real run.
+  const d2 = repo({ 'docs/q.md': DOC('Q') });
+  write(d2, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [{ file: 'docs/q.md', lines: 7, bucket: '' }] }) });
+  const r2 = db(d2, ['apply-reorg'], { PREVIEW: '1' });
+  ok('preview of an unclassified plan refuses (exit 1)', r2.code, 1);
+}
+
+function defaultFileArgs() {
+  group('81. validate / plan / cleanup-apply / search default their outline+labels paths');
+  const d = repo({
+    'docs/A.md': '# A\n\n## Widgets\n\nwidget widget widget assembly\n\n## Sprockets\n\nsprocket tooling\n',
+  });
+  db(d, ['scan', 'docs/A.md']);
+  const outline = artifact(d, 'outline.json');
+  const labels = { themes: [{ name: 'Parts', gloss: 'parts', core: true }],
+    labels: outline.records.map(r => ({ key: r.key, theme: 'Parts' })) };
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify(labels) });
+  const O = 'docs/.docs-builder/outline.json', L = 'docs/.docs-builder/labels.json';
+
+  const vE = db(d, ['validate', O, L]), vD = db(d, ['validate']);
+  ok('validate with no args == explicit (exit)', vD.code, vE.code);
+  ok('validate with no args == explicit (output)', vD.out, vE.out);
+  ok('validate no-arg exits 0 on a good pair', vD.code, 0);
+
+  const pE = db(d, ['plan', O, L]), pD = db(d, ['plan']);
+  ok('plan with no args == explicit (exit)', pD.code, pE.code);
+  ok('plan with no args == explicit (output)', pD.out, pE.out);
+  okTrue('plan no-arg wrote a task file', fs.readdirSync(path.join(d, 'docs/.docs-builder/tasks')).some(f => /^task-/.test(f)));
+
+  const sE = db(d, ['search', O, 'widget']), sD = db(d, ['search', 'widget']);
+  ok('search default path == explicit (exit)', sD.code, sE.code);
+  ok('search default path == explicit (output)', sD.out, sE.out);
+  const sM = db(d, ['search', 'widget', 'assembly']);
+  okTrue('search joins several query words with the default path', sM.code === 0 && /Widgets/.test(sM.out));
+  ok('search with no args still a usage error', db(d, ['search']).code, 1);
+  ok('search with only an outline path still a usage error', db(d, ['search', O]).code, 1);
+
+  // cleanup-apply: labels without a core theme must refuse on THAT reason (proves the default
+  // labels path was read), not on a usage error.
+  const noCore = { themes: [{ name: 'Parts', gloss: 'parts' }], labels: labels.labels };
+  write(d, { [L]: JSON.stringify(noCore) });
+  const c = db(d, ['cleanup-apply', 'docs/A.md']);
+  ok('cleanup-apply default paths: refuses for the missing core theme (exit 1)', c.code, 1);
+  okTrue('cleanup-apply default paths: reason is the core gate, not usage', /no theme marked core:true/.test(c.out));
+  ok('cleanup-apply with no file is still a usage error', db(d, ['cleanup-apply']).code, 1);
+}
+
+function commitQuestionBranchAndGitignore() {
+  group('82. the commit advisory prints the commit question, the branch line and the gitignore warning');
+  const mk = () => {
+    const d = repo({ 'docs/GUIDE.md': DOC('Guide') });
+    write(d, { 'docs/.docs-builder/reorg-plan.json': JSON.stringify({ rows: [{ file: 'docs/GUIDE.md', bucket: 'product' }] }) });
+    return d;
+  };
+  const d = mk();
+  git(d, ['checkout', '-q', '-b', 'feature-x']);
+  const r = db(d, ['apply-reorg']);
+  ok('apply-reorg exits 0', r.code, 0);
+  const n = commitList(d, 'commit-files.txt').length;
+  okTrue('BRANCH line names the current branch', /^BRANCH: feature-x$/m.test(r.out));
+  okTrue('QUESTION line is the ready-made clean-tree question',
+    new RegExp(`^QUESTION: Commit these ${n} files now\\?$`, 'm').test(r.out));
+  okTrue('gitignore warning when docs/.docs-builder/ is not ignored',
+    /^WARN: docs\/\.docs-builder\/ is not gitignored/m.test(r.out));
+  const recipeIdx = r.out.indexOf('git add --pathspec-from-file');
+  okTrue('the new lines come AFTER the recipe (additive tail)',
+    recipeIdx > 0 && r.out.indexOf('BRANCH:') > recipeIdx && r.out.indexOf('QUESTION:') > recipeIdx);
+
+  // gitignored: no warning
+  const g = mk();
+  write(g, { '.gitignore': 'docs/.docs-builder/\n' });
+  git(g, ['add', '.gitignore']); git(g, ['commit', '-qm', 'ignore']);
+  ok('no gitignore warning when ignored', /not gitignored/.test(db(g, ['apply-reorg']).out), false);
+
+  // main: do NOT commit
+  const m = mk();
+  git(m, ['branch', '-m', 'main']);
+  okTrue('main branch line says do NOT commit', /^BRANCH: main — do NOT commit/m.test(db(m, ['apply-reorg']).out));
+
+  // dirty file on the list: the question names it
+  const x = mk();
+  fs.appendFileSync(path.join(x, 'docs/GUIDE.md'), '\nmy own edit\n');
+  const rx = db(x, ['apply-reorg']);
+  okTrue('question names the operator\'s own edited file',
+    /^QUESTION: Commit these \d+ files now\? Note: .*uncommitted edits.*: .*docs\/GUIDE\.md/m.test(rx.out)
+    || /^QUESTION: .*Note: .*docs\/product\/GUIDE\.md/m.test(rx.out));
+}
+
+function writerBriefInTaskFiles() {
+  group('83. each generated task file embeds the page-writer brief');
+  const d = repo({ 'docs/A.md': '# A\n\n## Widgets\n\nwidget stuff\n\n## Sprockets\n\nsprocket tooling\n' });
+  db(d, ['scan', 'docs/A.md']);
+  const outline = artifact(d, 'outline.json');
+  write(d, { 'docs/.docs-builder/labels.json': JSON.stringify({ themes: [{ name: 'Parts', gloss: 'p', core: true }],
+    labels: outline.records.map(r => ({ key: r.key, theme: 'Parts' })) }) });
+  const r = db(d, ['plan']);
+  ok('plan exits 0', r.code, 0);
+  const tdir = path.join(d, 'docs/.docs-builder/tasks');
+  const files = fs.readdirSync(tdir).filter(f => /^task-/.test(f));
+  okTrue('a task file exists', files.length > 0);
+  const t = JSON.parse(fs.readFileSync(path.join(tdir, files[0]), 'utf8'));
+  okTrue('brief is a string', typeof t.brief === 'string');
+  okTrue('brief states the YAML-frontmatter + 10-line page criterion', /YAML frontmatter/.test(t.brief) && /at least 10 lines/.test(t.brief));
+  okTrue('brief states the citation form', /\(<file>:<start>-<end>\)/.test(t.brief));
+  okTrue('brief states the 250-line ceiling and own-ranges rule', /250 lines/.test(t.brief) && /own line ranges only/.test(t.brief));
+  ok('existing task fields intact (sources)', JSON.stringify(t.sources), '["docs/A.md"]');
+}
+
+
 function main() {
   console.log(`${colors.bright}${colors.cyan}docs-builder behavioural tests${colors.reset}`);
   console.log(`script under test: ${path.relative(process.cwd(), DB)}`);
@@ -3421,7 +3580,8 @@ function logsGroupOutsideDocsIsScannedFolder() {
     packageParity, trailingNewlineLineCount, emptyPageIsPartialNotACrash,
     protectedNamesAreCaseInsensitive, wikiIsARealBucket, headingBasedPrior,
     logsNestOneLevel, indexGroupsLogsBySubdir, logsGroupIsFirstSegmentNotParentDir,
-    logsGroupOutsideDocsIsScannedFolder];
+    logsGroupOutsideDocsIsScannedFolder,
+    previewApplyReorg, defaultFileArgs, commitQuestionBranchAndGitignore, writerBriefInTaskFiles];
 
   for (const g of groups) {
     try { g(); }
