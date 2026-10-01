@@ -14,7 +14,7 @@
  *     LiveCanvas.init({
  *       target: 'CheckoutSummary',        // component/page name
  *       channelUrl: 'http://localhost:8788', // optional; omit to force batch
- *       batchEndpoint: '/__live_canvas/feedback', // where batch POSTs go
+ *       batchEndpoint: 'http://localhost:8788/feedback-jsonl', // where batch POSTs go
  *     });
  *   </script>
  *
@@ -417,9 +417,9 @@
   const openSubmitModal = () => {
     const pending = pendingCount();
     const isLive = state.mode === 'live';
-    // Block only when there's truly nothing to send: no pending comments AND
-    // no overall direction so far. In live mode that's the same check.
-    if (pending === 0 && !state.overall && state.comments.length === 0) {
+    // Batch mode only: block when there's truly nothing to send. Live mode always
+    // opens, since delivered comments aren't kept and the overall direction is still due.
+    if (!isLive && pending === 0 && !state.overall && state.comments.length === 0) {
       showToast('No feedback yet');
       return;
     }

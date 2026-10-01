@@ -241,6 +241,15 @@ async function main() {
   check('busy port -> in_use', bz.status === 'in_use', JSON.stringify(bz));
   check('busy message carries the steps (stop it, re-run /live-canvas, or pick JSON)',
     /re-run \/live-canvas/.test(bz.message) && /JSON/.test(bz.message), bz.message);
+
+  console.log('\n== overlay: Finish box opens in Live mode (source pin, not a browser run) ==');
+  const overlay = fs.readFileSync(path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
+    'live-canvas', 'templates', 'overlay-vanilla.js'), 'utf8');
+  const guard = overlay.split('\n').find(l => l.includes("showToast('No feedback yet')") || /if \(.*state\.comments\.length === 0\) \{/.test(l));
+  check('"No feedback yet" guard exempts live mode',
+    !!guard && /!isLive\s*&&/.test(guard), guard);
+  check('overlay doc points batchEndpoint at the channel server',
+    overlay.includes("batchEndpoint: 'http://localhost:8788/feedback-jsonl'"));
 }
 
 main().catch(e => { failed++; failures.push(`crashed: ${e.stack || e}`); console.log(e); }).then(() => {
