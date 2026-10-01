@@ -382,9 +382,16 @@ After the interview, create a structured Design Brief as JSON and save to `.clau
   },
   "framework": "nextjs-app",
   "packageManager": "pnpm",
-  "stylingSystem": "tailwind"
+  "stylingSystem": "tailwind",
+  "inferredStyles": {
+    "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {},
+    "sources": ["tailwind.config.ts", "src/components/Button.tsx"]
+  }
 }
 ```
+
+`inferredStyles` is the result of Visual Style Inference, never omitted: the object above, or
+`"inferredStyles": "NOT RUN: <why>"`.
 
 Display a summary to the user before proceeding.
 
@@ -906,6 +913,11 @@ Delete all temporary files:
 - ONLY delete route files that the plugin created
 - NEVER delete user-authored files
 - Verify file paths before deletion
+
+**Final message ends with this line, filled from checks run now** (run `test ! -e .claude-design`, then print its result), also after an abort:
+```
+cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)
+```
 
 ### 8.2: Generate Implementation Plan
 

@@ -485,6 +485,10 @@ everything else. Run these steps literally, in order:
    `discover`/`apply-reorg`/`archive`/`cleanup-apply` stamps it for you, and without the stamp
    `due` stays NOT due, the picker's verdict stays uninformed, and `/remember`'s docs nudge
    never fires.
+5. End the run with this line, filled from what you did (a run that ends without it did not finish):
+   ```
+   finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>
+   ```
 
 Add `docs/.docs-builder/` to `.gitignore` before the first commit if it is not already
 ignored — it is machine state, regenerated every run, and the ledger stamp is per-clone by

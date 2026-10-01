@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added`); an idea is never counted as a nit.
 
 ### Changed
+- **Required steps get a slot in the output, not more wording.** A worker
+  could skip a step near the end of a spec and nothing showed it. Each slot is
+  filled with the result or `NOT RUN: <reason>`: `/root-cause` gains a
+  "Root-cause note" (symptom, repro, origin, hypothesis, `attempt N/3`, red,
+  green, full-suite); `/self-review`'s report opens with `works:` and
+  `full-suite:` lines; `/remember`'s step-8 report always prints
+  `version-check`, `sync-rules`, `stub-check`, `I6-new`, `docs`, `processed`
+  lines (the helper scripts stay silent when nothing changed); `/live-canvas`
+  ends with a `cleanup:` line and its design brief carries `inferredStyles`;
+  `/docs-builder` ends with a `finish:` line recording commit and ledger stamp.
 - **Stage-2 coverage is now structure, not prose.** `/security`'s Output ends
   in an 11-line keyed coverage block (the six items plus the five "Also scan
   for" bullets, secrets line with its history hit count); `/branch-review`'s

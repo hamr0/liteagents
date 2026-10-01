@@ -64,6 +64,12 @@ scoped:
   handoff's loose ends verified, not just repeated.
 - **Underspecced?** What should have been part of this and is missing.
 
+**Report opens with two lines, always filled:**
+```
+works: <command> exit <code> <totals> | NOT RUN: <reason>
+full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>
+```
+
 **The bar — Fix now and Later alike:** every item needs one concrete failure
 sentence — specific input/state → what breaks. "Will mislead the next
 reader" is not one: no input, no state, no break named. Can't write it →
@@ -76,7 +82,8 @@ in two piles: **Fix now** (changes
 whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
-**"As-is":** same items, order, piles; each failure sentence and cited
+**"As-is":** same items, order, piles, and the worker's `works:` and
+`full-suite:` lines; each failure sentence and cited
 commands/numbers preserved. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's

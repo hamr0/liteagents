@@ -883,6 +883,52 @@ for (const kit of KITS) {
 }
 
 // ---------------------------------------------------------------------------
+// g. Output slots — a required step gets a line in the skill's output that
+//    must be filled with the result or `NOT RUN: <reason>`, so a skip shows.
+//    PHRASE PINS: they prove the slot is in the spec in every kit, not that a
+//    worker fills it. Whitespace-collapsed so wrapping cannot break them.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- output slots (phrase pins) --${colors.reset}`);
+
+const skillPath = (kit, name) => kit.name === 'claude' || kit.name === 'ampcode'
+  ? `packages/${kit.name}/skills/${name}/SKILL.md`
+  : kit.name === 'droid' ? `packages/droid/commands/${name}.md` : `packages/opencode/command/${name}.md`;
+
+for (const kit of KITS) {
+  const rc = flat(read(skillPath(kit, 'root-cause')));
+  specCheck(`${kit.name}/root-cause: Root-cause note has every slot, attempt N/3 and NOT RUN`, () => allOf(
+    ...['Root-cause note', 'symptom: <', 'repro: <', 'origin: <', 'hypothesis: <', 'attempt: <N>/3',
+      'red: <command> exit <non-zero> against unfixed code | NOT RUN: <reason>',
+      'green: <command> exit 0 | NOT RUN: <reason>',
+      'full-suite: <command> <totals> exit <code> | NOT RUN: <reason>'].map(p => has(rc, p))));
+
+  const sr = flat(read(skillPath(kit, 'self-review')));
+  specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
+    has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
+    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>'),
+    has(sr, "same items, order, piles, and the worker's `works:` and `full-suite:` lines")));
+
+  const rm = read(skillPath(kit, 'remember'));
+  specCheck(`${kit.name}/remember: step-8 report lists I6-new, sync-rules, stub-check, version-check, docs, processed`, () => {
+    const step8 = section(rm, '8. **Report to user**', '**File locations');
+    return allOf(...['version-check: exit <code>', 'sync-rules: exit <code>', 'stub-check: exit <code>',
+      'I6-new: <check output, must be EQUAL> | NOT RUN: <reason>',
+      'docs: N/A (no docs/) | due: <verdict> | index-flat: ran | not needed | NOT RUN: <reason>',
+      'processed: +N entries (before B → after A lines)'].map(p => has(step8, p)));
+  });
+
+  const lc = flat(read(skillPath(kit, 'live-canvas')));
+  specCheck(`${kit.name}/live-canvas: cleanup: final line and inferredStyles brief field`, () => allOf(
+    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
+    has(lc, '"inferredStyles": { "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {}, "sources": ['),
+    has(lc, '`"inferredStyles": "NOT RUN: <why>"`')));
+
+  const db = flat(read(skillPath(kit, 'docs-builder')));
+  specCheck(`${kit.name}/docs-builder: finish: line records commit and ledger stamp`, () =>
+    has(db, 'finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>'));
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);
