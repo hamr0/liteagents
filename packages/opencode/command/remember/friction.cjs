@@ -2529,8 +2529,8 @@ function sessionDateFromId(id, runDate) {
 
 /**
  * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
- * Merges classifier labels (index -> "drop" | "ag-NNN" | "new:theme" | {label:
- * "new:theme", rule: "<one-line rule>"}; "new" and "new:<anything>" both mean new, and the
+ * Merges classifier labels (index -> "drop" | "ag-NNN" | "new" | {label:
+ * "new", rule: "<one-line rule>"}; "new" and "new:<anything>" both mean new, and the
  * theme text is ignored -- the name is the first two words of the cluster's top_keywords) by label, counts
  * distinct new conversations (one per cluster INDEX, never per hash or per group), and
  * applies the ledger rules mechanically, including decay and escalation detection. Prints the count report to stdout; writes the updated ledger to
@@ -2603,10 +2603,10 @@ function countLedger(ledger, labels, clusters, runDate) {
   const VALID_ID = /^ag-\d+$/;
   const malformed = [];
   const agGroups = new Map(); // ag-NNN label -> [cluster indices] (matching still merges)
-  const newClusterIdxs = []; // `new:` clusters -- Guard B: never grouped, each stands alone
+  const newClusterIdxs = []; // `new` clusters -- Guard B: never grouped, each stands alone
   for (let i = 0; i < clusters.length; i++) {
-    // Label shape: a bare string ("drop"|"ag-NNN"|"new:theme") for drop/ag-NNN, or
-    // {label, rule} for "new:" -- the 4a classifier now emits the one-line rule text
+    // Label shape: a bare string ("drop"|"ag-NNN"|"new") for drop/ag-NNN, or
+    // {label, rule} for "new" -- the 4a classifier now emits the one-line rule text
     // for a brand-new theme in the same judgment (no separate LLM pass). Both shapes
     // are accepted so pre-existing bare-string labels.json fixtures keep working.
     const raw = labels[String(i)];
@@ -2712,7 +2712,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     const combinedSessions = cluster.sessions;
     const hashes = cluster.session_ids.map(antigenHash);
     if (combinedSessions < 2) { report.droppedNew1session.push({ label, idxs: [i], sessions: combinedSessions }); continue; }
-    // A `new:` cluster that will actually create a ledger entry requires the
+    // A `new` cluster that will actually create a ledger entry requires the
     // classifier-authored rule text -- no placeholder fallback. Missing/empty is
     // reported as malformed and the entry is NOT created (see friction.cjs BUG fix).
     if (!rule || typeof rule !== 'string' || rule.trim() === '') {
@@ -2770,6 +2770,13 @@ function countLedger(ledger, labels, clusters, runDate) {
       e.history.push({ date: runDate, event: `attempt ${attempts.length} failed — recurred while hot, needs new phrasing` });
       report.needs_rephrase.push(e.id);
     }
+  }
+  // Idempotent: a hot entry whose last attempt is already failed has no attempt n+1 yet (a
+  // crashed run never drafted it) -- list it again so the failed rule is not left loaded unflagged.
+  for (const e of ledger.entries) {
+    const attempts = e.attempts || [];
+    if (e.status === 'hot' && attempts.length > 0 && attempts[attempts.length - 1].outcome === 'failed'
+        && !report.needs_rephrase.includes(e.id)) report.needs_rephrase.push(e.id);
   }
 
   return { ledger, report };

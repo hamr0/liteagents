@@ -1186,6 +1186,7 @@ function main() {
     okTrue('decay: expired history line written',
       (get(dec, 'ag-001').history || []).some(h => h.event === 'expired — no new evidence in 8+ weeks' && h.date === RUN));
     ok('decay: observing 55 days stays observing', get(dec, 'ag-002').status, 'observing');
+    ok('decay: observing exactly 56 days stays observing', get(count([withLast('ag-001', 'observing', 56)], {}, []), 'ag-001').status, 'observing');
     ok('decay: hot 200 days stays hot', get(dec, 'ag-003').status, 'hot');
     ok('decay: rejected untouched', get(dec, 'ag-004').status, 'rejected');
     ok('decay: escalated untouched', get(dec, 'ag-005').status, 'escalated');
@@ -1216,6 +1217,10 @@ function main() {
     ok('escalation: 2 prior failed + recurred -> escalated', get(esc2, 'ag-001').status, 'escalated');
     ok('escalation: id in escalated', JSON.stringify((esc2.report.escalated || null)), '["ag-001"]');
     ok('escalation: not also in needs_rephrase', (esc2.report.needs_rephrase || ['?']).length, 0);
+    // crash safety: an earlier run marked the last attempt failed but no attempt n+1 was drafted yet
+    const esc3 = count([hotEntry('ag-001', { recurred_while_hot: 0, attempts: [{ n: 1, rule: 'rule ag-001', adopted: '2026-01-01', outcome: 'failed' }] })], {}, []);
+    ok('escalation: hot entry with last attempt already failed is re-listed in needs_rephrase', JSON.stringify(esc3.report.needs_rephrase || null), '["ag-001"]');
+    ok('escalation: re-listing does not duplicate an id', JSON.stringify(esc1.report.needs_rephrase), '["ag-001"]');
     // via the match path: two new conversations while hot push the counter to 2 in one run
     const viaMatch = count([hotEntry('ag-001')], { '0': 'ag-001', '1': 'ag-001' },
       [cl('bbbbbbb1', ['a', 'b']), cl('ccccccc1', ['a', 'b'])]);
