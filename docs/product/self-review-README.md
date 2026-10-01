@@ -86,7 +86,7 @@ The worker runs real commands — the thing itself, or its tests, now — and as
 
 - **Does it work?** The command and the numbers, not a restatement.
 - **No regression?** The full suite, now, compared to before.
-- **Structure?** The code-structure checks this command owns (`/branch-review` no
+- **Cleanup?** The code-structure checks this command owns (`/branch-review` no
   longer runs them): speculative code, an abstraction for one caller, redundant tests;
   dead code; state ownership (two or more functions assigning the same field — both
   writers named with `file:line`); reuse (a new thing duplicating an existing one);
@@ -99,7 +99,7 @@ The worker runs real commands — the thing itself, or its tests, now — and as
 ## 4. The bar — Fix now and Later alike
 
 Every item, in **either** pile, needs one concrete failure sentence: specific
-input/state → what breaks. **Carve-out:** a Structure item may give the rule it
+input/state → what breaks. **Carve-out:** a Cleanup item may give the rule it
 breaks plus the `file:line`(s) that prove it instead — and goes in **Later**, never
 **Fix now**, unless it does carry a real failure sentence. Later is not a lower bar — it's a deferral, not an
 excuse to skip the sentence. "Will mislead the next reader" is a real example
@@ -108,8 +108,8 @@ named, no break named. Can't write the sentence → it's a nit-of-a-nit: dropped
 and only the count (`dropped: N`) is reported, so the user can see it looked
 rather than skipped.
 
-Each item is exactly one kind (failure-sentence or Structure), counted in one cap only.
-Surviving items: **max 5 failure-sentence items and max 5 Structure items, ranked**,
+Each item is exactly one kind (failure-sentence or Cleanup), counted in one cap only.
+Surviving items: **max 5 failure-sentence items and max 5 Cleanup items, ranked**,
 in two piles — **Fix now** (changes whether you
 ship) and **Later**.
 

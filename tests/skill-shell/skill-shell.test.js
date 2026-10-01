@@ -307,6 +307,24 @@ for (const kit of KITS) {
   check(`${kit.name}/self-review: appends every anchorable item at relay time, anchor rule wins, ledger: relay line`,
     flat(kit.selfReview).includes('appends **every anchorable** item') &&
     flat(kit.selfReview).includes('`ledger: <N> items → <A> appended, <D> already there, <Y> your call`'));
+  const sr = flat(kit.selfReview), brv = flat(kit.branchReview);
+  check(`${kit.name}/self-review: ledger bullet template inlined`,
+    sr.includes('- `path/file.js` · "verbatim snippet from the line" · what\'s wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit'));
+  check(`${kit.name}/self-review + branch-review: stale-header rule (no idea definition -> replace header, bullets untouched)`,
+    sr.includes("**Stale header:** if ``grep -F '`idea` =' ") && sr.includes("fix-ledger.md`` finds nothing, replace the header block") &&
+    sr.includes('bullets are never touched') &&
+    brv.includes("``grep -F '`idea` =' ") && brv.includes("fix-ledger.md`` finds nothing, the header is stale") &&
+    brv.includes('never touching bullets'));
+  check(`${kit.name}/self-review: underspecced: and cleanup: report lines`,
+    sr.includes('underspecced: <N> items | none found: <what was checked, one phrase>') &&
+    sr.includes('cleanup: <N> items | none found: <what was checked, one phrase>'));
+  check(`${kit.name}/self-review: relay keeps tag and file:line; worker tags items`,
+    sr.includes('**every relayed item keeps its tag (`nit`/`change`/`idea`) and its `file:line`**') &&
+    sr.includes('tag every item `nit`/`change`/`idea`') &&
+    sr.includes("the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)"));
+  check(`${kit.name}/self-review: item kind is Cleanup, no Structure left`,
+    sr.includes('**Cleanup?**') && sr.includes('max 5 Cleanup items') && !/Structure/.test(sr) &&
+    brv.includes('A /self-review Cleanup item'));
   const ref = flat(kit.refactor);
   check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
     ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
@@ -915,7 +933,7 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
     has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>'),
-    has(sr, "same items, order, piles, and the worker's `works:` and `full-suite:` lines")));
+    has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
   specCheck(`${kit.name}/remember: step-8 report lists I6-new, sync-rules, stub-check, version-check, docs, processed`, () => {

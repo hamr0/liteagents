@@ -47,13 +47,13 @@ mid-tier worker. **Overlap accepted:** uncommitted work seen again once
 committed is over-work, never a miss.
 
 ## 2. Worker — try to break it, not confirm it
-Real runs, not re-assertion, scoped to the range for structure/glossed/
+Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
 - **No regression?** Run the FULL suite, cite totals vs. before — no run
   behind a claim counts as not checked.
-- **Structure?** Speculative code, an abstraction for one caller, redundant
+- **Cleanup?** Speculative code, an abstraction for one caller, redundant
   tests. Dead code — grep the symbol repo-wide before flagging. State
   ownership — two or more functions assigning the same field: name both
   writers with `file:line`, grep every assignment repo-wide, not just the
@@ -67,33 +67,41 @@ scoped:
   handoff's loose ends verified, not just repeated.
 - **Underspecced?** What should have been part of this and is missing.
 
-**Report opens with two lines, always filled:**
+**Report opens with four lines, always filled** (so "checked, found nothing"
+never looks like "skipped"); tag every item `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
 full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>
+underspecced: <N> items | none found: <what was checked, one phrase>
+cleanup: <N> items | none found: <what was checked, one phrase>
 ```
 
 **The bar — Fix now and Later alike:** every item needs one concrete failure
 sentence — specific input/state → what breaks. "Will mislead the next
 reader" is not one: no input, no state, no break named. Can't write it →
-drop it, count only (`dropped: N`). **Carve-out:** a Structure item may
+drop it, count only (`dropped: N`). **Carve-out:** a Cleanup item may
 replace the failure sentence with the rule it breaks plus the `file:line`(s)
-that prove it; Structure items always go in **Later**, never **Fix now**,
+that prove it; Cleanup items always go in **Later**, never **Fix now**,
 unless they do carry a real failure sentence. Each item is one kind, counted
-in one cap only. Max 5 failure-sentence items and max 5 Structure items, ranked,
+in one cap only. Max 5 failure-sentence items and max 5 Cleanup items, ranked,
 in two piles: **Fix now** (changes
 whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
-**"As-is":** same items, order, piles, and the worker's `works:` and
-`full-suite:` lines; each failure sentence and cited
-commands/numbers preserved. Reworded for the user's output style: fine.
+**"As-is":** same items, order, piles, and the worker's four report lines
+(`works:`, `full-suite:`, `underspecced:`, `cleanup:`); each failure sentence and cited
+commands/numbers preserved; **every relayed item keeps its tag
+(`nit`/`change`/`idea`) and its `file:line`**. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
 items. When you relay the report, the **orchestrator** (worker's turn is over
 by then) appends **every anchorable** item, both piles, to `.amp/remember/fix-ledger.md`
-right away, `/branch-review`'s format, tagged `nit`/`change`/`idea` (Underspecced
-items → `idea`: missing, an option not debt), bullet text verbatim. Then ask
+right away, `/branch-review`'s format (header: its Ledger section), tagged `nit`/`change`/`idea` (Underspecced
+items → `idea`: missing, an option not debt), bullet text verbatim. Bullet shape:
+```
+- `path/file.js` · "verbatim snippet from the line" · what's wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit
+```
+**Stale header:** if ``grep -F '`idea` =' .amp/remember/fix-ledger.md`` finds nothing, replace the header block with the current one from `/branch-review`'s Ledger section; bullets are never touched. Then ask
 which, if any, to remove: no answer → they all stay; remove only on the
 user's explicit say-so naming the items. Items the user fixes now are not
 removed by hand — `/refactor`'s revalidation drops them once the finding no

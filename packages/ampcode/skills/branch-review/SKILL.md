@@ -309,7 +309,7 @@ check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
-`.amp/remember/fix-ledger.md` (header below if missing), tagged `nit` or
+`.amp/remember/fix-ledger.md` (header below if missing; if ``grep -F '`idea` =' .amp/remember/fix-ledger.md`` finds nothing, the header is stale — replace it with this one, never touching bullets), tagged `nit` or
 `change` (never `idea` — that is `/self-review`'s) — fix size, not severity, most `nit`; pushed-through blockers too (Stage 4).
 
 ```
@@ -326,7 +326,7 @@ Not in the report. **Append** each one as a single bullet to
 > `nit` = small fix, no behaviour change. `change` = something that exists is
 > wrong; needs a behaviour fix or redesign. `idea` = something missing that
 > might be worth building; an option, not debt.
-> Always appended at the end. A /self-review Structure item puts the rule it
+> Always appended at the end. A /self-review Cleanup item puts the rule it
 > breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure

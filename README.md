@@ -153,9 +153,9 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 
 - **`/self-review`** — everything since the last self-review, committed or not, before
   `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
-  to break the claims with real runs (works, no regression, structure — dead code, state
+  to break the claims with real runs (works, no regression, cleanup — dead code, state
   ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5
-  failure-sentence items plus max 5 Structure items in Fix now / Later. It never fixes
+  failure-sentence items plus max 5 Cleanup items in Fix now / Later. It never fixes
   anything — whatever you don't fix now goes to the fix ledger, tagged `nit`, `change` or
   `idea` (missing, worth building). Not a gate.
 - **`/branch-review`** — the powerhouse. Reviews every change on a branch, medium depth

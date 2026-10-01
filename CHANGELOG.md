@@ -15,8 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Underspecced items `idea`; `/branch-review` never writes it. Ledger counts
   report ideas separately (`ledger: <N> nits, <K> changes, <I> ideas, <M>
   added`); an idea is never counted as a nit.
+- **`/self-review` report lines and ledger rules** (field-test fixes): the
+  ledger bullet shape is inlined; a stale `fix-ledger.md` header (no `idea`
+  definition) is replaced, bullets untouched, by both `/self-review` and
+  `/branch-review`; `underspecced:` and `cleanup:` report lines separate
+  "found nothing" from "skipped"; the relay keeps each item's tag and
+  `file:line`.
 
 ### Changed
+- **`/self-review`'s "Structure" item kind is now "Cleanup"** (spec, README,
+  self-review doc, ledger header, test pins).
 - **Stage-2 blanks name their scope.** A blind run judged 3 of 11 stage-2 lines
   by the diff, not the repo. `/security`'s coverage lines and `/branch-review`'s
   `s2` lines now read `ran: <whole-repo evidence…>` and `N/A: <why it holds for
