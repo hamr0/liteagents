@@ -2,7 +2,7 @@
 type: reference
 title: branch-review
 status: draft
-updated: 2026-09-02
+updated: 2026-10-01
 ---
 
 # branch-review
@@ -10,7 +10,7 @@ updated: 2026-09-02
 `/branch-review` is the pre-merge gate. It reads a branch, runs a general review and a
 full security audit against it, tries to break its own findings before reporting them,
 then sweeps the project's docs for what the branch changed. It is a **slash command**:
-`commands/branch-review.md`, no bundled script — every check is a worker reading, running,
+`skills/branch-review/SKILL.md` (a flat `commands/branch-review.md` in the droid and opencode kits), no bundled script — every check is a worker reading, running,
 and grepping the repo itself, the same shape as `/security`.
 
 **It never edits code.** Its writes are the fix ledger, the review record, and — stage 4
@@ -22,7 +22,7 @@ commit  ──►  /branch-review [target] [level]  ──►  fix ledger + bloc
                  ├─ stage 1: general review (effort-governed)
                  ├─ stage 2: security (always full)
                  ├─ stage 3: verify (adversarial)
-                 └─ stage 4: docs sweep (always runs; commits doc edits)
+                 └─ stage 4: docs sweep (settled reviews only; commits doc edits)
                                                           │
                                         /refactor (no args) ──► fixes, deletes bullets
                                                           │
@@ -48,11 +48,11 @@ and only the ledger and the record may differ. A
 third check, `git diff --name-only <reviewed sha>..HEAD`, confirms the docs commit touched
 only the files the record's `docs:` line names.
 
-- **Reports code findings, never fixes them.** Outside stage 4, the command may write
-  exactly one file — `.claude/remember/fix-ledger.md` — and only by appending. Everything
-  else it finds is handed back as a finding. It re-runs `git status --porcelain` before
-  reporting: clean (stage 4 committed what it touched), or it says what else changed. That
-  turns "it never edits code" from a claim into a checked fact, not an assertion.
+- **Reports code findings, never fixes them.** Outside stage 4, the command writes only the
+  fix ledger (append, plus deleting a bullet it disproves) and the review record (§5b).
+  Everything else it finds is handed back as a finding. It re-runs `git status --porcelain`
+  before reporting: clean (stage 4 committed what it touched), or it says what else changed.
+  That turns "it never edits code" from a claim into a checked fact, not an assertion.
 - **The orchestrator hands the worker the spec's path.** A spawned worker has no skill text
   of its own, so the orchestrator passes it this file's path, mid tier stated explicitly.
 - **The worker does its own work.** The review subagent must not spawn subagents of its
@@ -265,7 +265,13 @@ appended at the end, oldest to newest — no section headers.
 > Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
-> `git grep -F "<snippet>" -- <path>` accepts one.
+> `git grep -F "<snippet>" -- <path>` accepts one. Trailing tag = fix size,
+> not severity; untagged counts as `nit`; tail unwrapped on the last line.
+> `nit` = small fix, no behaviour change. `change` = something that exists is
+> wrong; needs a behaviour fix or redesign. `idea` = something missing that
+> might be worth building; an option, not debt.
+> Always appended at the end. A /self-review Cleanup item puts the rule it
+> breaks in the failure-scenario slot.
 
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure
   scenario · YYYY-MM-DD @ <short sha> · nit
@@ -289,8 +295,9 @@ worse than none.
 annotates one. `/self-review` appends every anchorable item (nit/change/idea) and deletes
 only a removal the user names. `/refactor` in ledger mode deletes on revalidation or the
 user's "drop", and never adds one. Each command's write shape on this file is narrow, and
-no other command has any — `/release`'s docs sweep may well correct a line a bullet names,
-since that doc changed with the feature, but it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
+no other command has any — `/branch-review`'s stage 4 docs sweep may well correct a line a bullet
+names, since that doc changed with the feature, but it leaves the bullet alone and the next
+revalidation drops it. That split matters because it makes the ledger
 readable as a log: an append is always new evidence from a review, a deletion is always a
 closed or invalidated item, and neither command can silently second-guess what the other
 recorded. If both could edit freely, a bug in either command could corrupt the other's
@@ -305,29 +312,32 @@ half of the record with no way to tell which write did it.
 ```
 sha: <full HEAD sha>
 branch: <branch>
-target: <resolved range>
+target: <resolved range or path>
 level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
-coverage: stage1 ran, stage2 ran, stage3 ran
-s2 secrets: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 tenant-isolation: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 rate-limiting: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 error-handling: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 authorization: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 data-access: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 injection: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 auth-session: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
-s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
+s2 secrets: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 tenant-isolation: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 rate-limiting: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 error-handling: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 authorization: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 data-access: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 injection: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 auth-session: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
 ledger: <N> nits, <K> changes, <I> ideas, <M> added
+prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review
+ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
-- <file:line> · <one-sentence claim>
+- <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
 
@@ -460,7 +470,9 @@ Before branching on it, the record is validated: its `sha:` must resolve to a re
 commit and be an ancestor of `HEAD`, and its `branch:` must match the current branch. A
 record that fails either check — a hand-edited or corrupted `sha:`, or one left over from
 a merged, renamed, or rebased branch — is treated as if there were no record at all,
-falling through to a full review rather than resolving a range that never existed.
+falling through to a full review rather than resolving a range that never existed. Both checks
+are needed: the branch name catches a switch, the ancestry check catches a rebase or squash
+under the same name.
 
 - **`sha:` ≠ HEAD, but every file since is forgiven** — same rule §9 gives `/release`
   Phase 0.5: under `docs/`, a root `*.md`, or on the record's `docs:` line — treat like
@@ -486,6 +498,12 @@ something new to flag. Scoping re-review to just the delta since the last review
 means the parts of the branch that were already read and judged aren't read and judged
 again — only the actual fix commits are, plus a check that the previously-raised blockers
 are actually gone. That's what lets the loop terminate instead of running forever.
+
+**A re-review also sweeps the open ledger bullets for liveness first.** A bullet's anchor may sit
+in the part of the branch the re-review no longer reads, and the fix commits it does read can
+invalidate it. `grep -F` of each open snippet against its path is cheap, it stops dead bullets
+accumulating unseen, and the dead ones are reported so `/refactor` can drop them. The counts
+land in the record as `prior-blockers:` (one entry per recorded blocker) and `ledger-liveness:`.
 
 ---
 

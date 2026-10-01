@@ -1224,6 +1224,96 @@ for (const kit of KITS) {
   });
   specCheck(`${kit.name}/branch-review: self-review-sha carried forward in every case, including No file`, () =>
     has(brs, 'in every case, even when the old record was treated as No file'));
+
+  // One phrase per kept rule (whitespace-collapsed). A trim that drops or rewords
+  // a rule fails here; it does not prove a worker obeys the rule.
+  const RULE_PINS = [
+    ['worker: mid tier stated, no sub-spawn, escalate, never edits code', [
+      'Spawn a worker, mid tier stated explicitly', '**Escalate, never assume.**',
+      'a relayed "I executed X" is hearsay.', '**No edits — three exceptions.**',
+      '`.claude/remember/fix-ledger.md` (append bullets; never rewrite or delete)']],
+    ['two proof checks: porcelain at start and end, md5 compare, git diff names only docs: files', [
+      '**Prove it with two checks, because neither sees what the other does.**',
+      '`git status --porcelain`, at start and again before you report',
+      'only `fix-ledger.md` and `last-review.md` may differ',
+      'it must list only the files on the record\'s `docs:` line']],
+    ['dirty tree stops with (a)(b)(c), never a subset review', [
+      '**Before resolving anything, run `git status --porcelain`.**',
+      '(a) the tree is dirty, listing the uncommitted paths; (b) `/branch-review` reviews commits, not the working tree; (c) **commit the work to the branch, then re-run `/branch-review`.**',
+      'a dirty tree is an **error**, never a silent partial review']],
+    ['behind-main stop details; orchestrator and worker both check; commit -> review -> release', [
+      '`git rev-list --count HEAD..origin/main`',
+      'A never-pushed branch passes; no `origin` remote or no `origin/main` → skip the check and say so.',
+      'the worker re-runs each as its own first act',
+      '**the only correct order is commit → review → release.**']],
+    ['record validation: no sha line, rev-parse, branch, ancestor all mean No file', [
+      'No `sha:` line at all', '`git rev-parse --verify <that sha>`',
+      '`git merge-base --is-ancestor <that sha> HEAD` exits non-zero',
+      'treat it exactly as **No file** below']],
+    ['forgiven: every printed path must be on docs:, all on it = sha: = HEAD, any not = re-review', [
+      'every path printed must also be on `docs:`: if all are, treat as `sha:` = HEAD (below); if any is not, it is a re-review.']],
+    ['re-review: range sha..HEAD, stage 3 re-verifies blockers, rest not re-judged; liveness sweep', [
+      'Target the range `<that sha>..HEAD`',
+      'stage 3 re-verifies each recorded blocker as fixed, unfixed, or dismissed with a reason. The rest of the branch is **not** re-judged.',
+      '**On a re-review, sweep the open ledger bullets for liveness first.**',
+      'report any whose anchor is gone so `/refactor` can drop them.']],
+    ['no shortcuts: level never decides which checks run; NOT RUN on checks:', [
+      'The level decides how many findings you report, never which checks you run.',
+      'write `NOT RUN: <reason>` for it on the `checks:` line',
+      '**Stage 2 (security) always runs full, at every level.**']],
+    ['commit messages are claims; exit code off the bare command; timeout; tests: line with build', [
+      '**Commit messages are claims, not evidence.**',
+      'Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline',
+      'a timed-out run is not a pass',
+      'the build part is required (`build N/A: <reason>` if none)']],
+    ['stage 3: break each finding, concrete failure scenario', [
+      '**Try to break each one, not to confirm it.**',
+      '**confirmed**, **false positive** (with the reason), or **uncertain** (with what would settle it)',
+      '**Every surviving finding must carry a concrete failure scenario**']],
+    ['stage 4: settled only, whole branch, explicit paths, commit message, no commit when unchanged, main/master no edits, never delete a bullet, per-change row', [
+      'only when **settled**', 'always the whole branch, not `<recorded sha>..HEAD`',
+      'Stage the exact paths you edited by name (never `git add -A`/`-u`) and commit `docs: sweep for <short sha range>`',
+      'Nothing changed → no commit.', '**On `main`/`master` → make no edits at all**',
+      '**do not delete the bullet**; `/refactor` revalidation drops it once the finding no longer holds.',
+      'Report one row per change: change · doc `file:line` · added / fixed / already correct.']],
+    ['verdict first and repeated; what blocks; dismissed finding cannot rise', [
+      '**Open with the one-line verdict**, before any section', 'Repeat it at the end.',
+      'A **reproduced** failure only',
+      'A finding about **style, wording or structure** is **never** a blocker',
+      'cannot come back at a higher severity without **new** evidence']],
+    ['ledger: nit/change only, UNVERIFIED prefix, anchor 20-60 chars, plain grep never git grep, disproved bullet deleted', [
+      'tagged `nit` or `change` (never `idea` — that is `/self-review`\'s)',
+      'prefix the scenario with `UNVERIFIED:`', '20–60 verbatim characters from the line',
+      '(plain `grep`, never `git grep` — the ledger is gitignored',
+      '**A bullet you disprove is deleted, not annotated**']],
+    ['record: docs: paths only, docs-commit none means docs none, sweep table not in record, blockers one line each', [
+      '`docs-commit: none` means `docs: none`',
+      'belongs in the **report**, never the record',
+      '`blockers: none` when ready; otherwise one line per blocker, nothing more']],
+    ['no override field; a run with no record is not a review', [
+      '**There is no override field, no `verdict: overridden`**',
+      '**A run that produces no record is not a review**', 'Say plainly what you could not verify.']],
+  ];
+  for (const [name, phrases] of RULE_PINS) {
+    specCheck(`${kit.name}/branch-review: rule pinned — ${name}`, () => allOf(...phrases.map(p => has(brs, p))));
+  }
+
+  // Record template: the field names, in this order, and nothing else.
+  specCheck(`${kit.name}/branch-review: record template fields in order`, () => {
+    const block = extractFence(read(kit.branchReview), 'sha: <full HEAD sha>');
+    const got = block.map(l => l.match(/^(s2 [a-z-]+|[a-z][a-z-]*):/)).filter(Boolean).map(m => m[1]);
+    const want = ['sha', 'branch', 'target', 'level', 'verdict', 'date', 'coverage',
+      ...['secrets', 'tenant-isolation', 'rate-limiting', 'error-handling', 'authorization', 'data-access',
+        'injection', 'auth-session', 'trust-boundaries', 'config', 'dependencies'].map(k => `s2 ${k}`),
+      'checks', 'tests', 'docs-commit', 'docs', 'sweep', 'ledger', 'prior-blockers', 'ledger-liveness',
+      'blockers', 'self-review-sha'];
+    return got.join(',') === want.join(',') || `record fields: ${got.join(',')}`;
+  });
+
+  specCheck(`${kit.name}/branch-review: stays trimmed (at most 330 lines)`, () => {
+    const n = read(kit.branchReview).split('\n').length;
+    return n <= 330 || `branch-review is ${n} lines`;
+  });
 }
 
 // ---------------------------------------------------------------------------

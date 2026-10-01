@@ -5,24 +5,11 @@ argument-hint: [commit hash ... | a..b] or empty [effort level]
 allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---
-Pre-merge review gate. **General review**, then a **full security audit**,
-then an adversarial verify pass, then a **docs sweep**. It **never edits
-code**: findings are reported and handed back, and fixing is a separate,
-separately authorized action. The docs sweep is the one stage that writes,
-and only to docs — it updates the project's docs for what this branch
-changed and commits exactly that.
+Pre-merge review gate. **General review**, then a **full security audit**, then an adversarial verify pass, then a **docs sweep**. It **never edits code**: findings are reported and handed back, and fixing is a separate, separately authorized action. The docs sweep is the one stage that writes, and only to docs — it updates the project's docs for what this branch changed and commits exactly that.
 
-Only **Critical** and **High** findings block the merge. Everything else is
-appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local,
-cumulative list, living beside `MEMORY.md`, that `/refactor` (no arguments)
-works through between features. Like its neighbours it is a private working
-artifact, usually gitignored; it persists across reviews, it is not a
-deliverable. The report is blockers plus the ledger count, so a review
-converges instead of surfacing fresh nits every run. This command never runs
-`/refactor` itself — it nudges, the way `/stash` nudges `/remember`.
+Only **Critical** and **High** findings block the merge. Everything else is appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local, cumulative list, living beside `MEMORY.md`, usually gitignored, that `/refactor` (no arguments) works through between features. The report is blockers plus the ledger count. This command never runs `/refactor` itself — it nudges.
 
-Run this **before** `/release`. `/release` will refuse to run without a review
-at the current HEAD SHA.
+Run this **before** `/release`, which refuses to run without a review at the current HEAD SHA.
 
 ## Guardrails
 - **Spawn a worker, mid tier stated explicitly** (omitted inherits the
@@ -34,71 +21,26 @@ at the current HEAD SHA.
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
   issue you noticed along the way.
-- **The worker does the work itself — no delegation.** The review subagent
-  must **not** spawn subagents of its own. Everything it reports has to be
-  something it read, ran, or grepped with its own tool calls: a relayed "I
-  executed X" from a sub-worker is hearsay, and replacing hearsay with evidence
-  is the entire point of this command. A review that delegates its work is a
-  review of a report. (Same rule `/security` carries inside stage 2.)
-- **No edits — three exceptions.** You have no authorization to change code,
-  even for a finding you are certain about. Report it. The only files you may
-  write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or
-  delete), `.claude/remember/last-review.md` (overwrite; the review record
-  described at the end of this file), and the doc files Stage 4 touches —
-  edited and then committed by that stage alone, never for code, skills,
-  config, or tests.
-- **Prove it with two checks, because neither sees what the other does.**
-  `git status --porcelain`, at start and again before you report, proves the
-  tree is clean — no code or config changed, and, when Stage 4 ran (review
-  settled), that its doc edits landed as the last act before you report. It
-  cannot police your own two `.claude/` writes:
-  `.claude/` is normally gitignored, so porcelain stays empty whether you
-  wrote the allowed files, wrote nothing, or overwrote `MEMORY.md`. `git
-  status --ignored` does not close it either — it collapses to `!!
-  .claude/`, the directory, not the files. So also hash the files there before
-  you start and again before you report:
+- **The worker does the work itself — no delegation.** The review subagent must **not** spawn subagents of its own. Everything it reports has to be something it read, ran, or grepped with its own tool calls; a relayed "I executed X" is hearsay. (Same rule `/security` carries inside stage 2.)
+- **No edits — three exceptions.** You have no authorization to change code, even for a finding you are certain about. Report it. The only files you may write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or delete), `.claude/remember/last-review.md` (overwrite; the review record described at the end of this file), and the doc files Stage 4 touches — edited and then committed by that stage alone, never for code, skills, config, or tests.
+- **Prove it with two checks, because neither sees what the other does.** `git status --porcelain`, at start and again before you report, proves the tree is clean — no code or config changed, and, when Stage 4 ran (review settled), that its doc edits landed as the last act before you report. It cannot police your own two `.claude/` writes (`.claude/` is normally gitignored), so also hash the files there before you start and again before you report:
   ```
   find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
-  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And
-  run `git diff --name-only <reviewed sha>..HEAD` before you report: it must
-  list only the files on the record's `docs:` line — anything else means an
-  edit escaped Stage 4's scope.
+  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And run `git diff --name-only <reviewed sha>..HEAD` before you report: it must list only the files on the record's `docs:` line — anything else means an edit escaped Stage 4's scope.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
 `$ARGUMENTS` is **no hash** (the committed work on the current branch), **one
 or more commit hashes**, or a **range** `<a>..<b>` (exactly those commits).
 
-**The orchestrator runs this check before spawning anyone**, so a dirty tree
-costs no worker; the worker then re-runs it as its own first act, because a
-review that takes the tree's state on trust is the thing this command exists
-not to do. Both, not either.
+**The orchestrator runs the tree check (and, no-hash only, the behind-`main` check) before spawning anyone**, so a stop costs no worker; the worker re-runs each as its own first act. Both, not either.
 
-**Before resolving anything, run `git status --porcelain`.** If it prints any
-line — modified, staged, or untracked — **stop and report it**. Say all three
-things, not just the first: (a) the tree is dirty, listing the uncommitted
-paths; (b) `/branch-review` reviews commits, not the working tree; (c) **commit
-the work to the branch, then re-run `/branch-review`.** A stop that names the
-problem without the remedy invites the orchestrator to stash the changes or
-hand-review the working tree instead. Do not review a subset and do not fall
-back to the staged diff or the working tree. A dirty
-tree is an **error**, never a silent partial review — the most expensive
-failure this command can have is reviewing 800 committed lines while 200
-uncommitted lines of today's actual work go unread.
+**Before resolving anything, run `git status --porcelain`.** If it prints any line — modified, staged, or untracked — **stop and report it**. Say all three things, not just the first: (a) the tree is dirty, listing the uncommitted paths; (b) `/branch-review` reviews commits, not the working tree; (c) **commit the work to the branch, then re-run `/branch-review`.** Do not review a subset and do not fall back to the staged diff or the working tree: a dirty tree is an **error**, never a silent partial review.
 
-This is forced by the design, not a preference: `/release`'s precondition is a
-review at the current HEAD SHA, and any commit made after the review makes it
-stale. **The only correct order is commit → review → release.**
+`/release` needs a review at the current HEAD SHA, so any later commit makes it stale: **the only correct order is commit → review → release.**
 
-**No hash only — check the branch is not behind `main`.** Run `git fetch origin`, then
-`git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say
-all three things: (a) the branch is behind `origin/main` by N commits
-(`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted,
-because syncing afterwards makes the review stale; (c) merge `origin/main`
-into the branch (or rebase), then re-run `/branch-review`. A never-pushed
-branch passes; no `origin` remote or no `origin/main` → skip the check and say
-so. The orchestrator runs it before spawning, the worker re-runs it.
+**No hash only — check the branch is not behind `main`.** Run `git fetch origin`, then `git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say all three things: (a) the branch is behind `origin/main` by N commits (`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted, because syncing afterwards makes the review stale; (c) merge `origin/main` into the branch (or rebase), then re-run `/branch-review`. A never-pushed branch passes; no `origin` remote or no `origin/main` → skip the check and say so.
 
 With a clean tree:
 1. **Hashes or a range given** → review exactly those commits, nothing else,
@@ -119,68 +61,27 @@ Record the **HEAD SHA** you reviewed, and **report the target you resolved**
 (the literal range or hashes) in your output, so the orchestrator can see what
 was actually read rather than assuming.
 
-**Re-review after fixes: read `.claude/remember/last-review.md` first.** Its
-`sha:` line (never `self-review-sha:`) is the previously-reviewed commit, its
-`blockers:` list what you owe an answer on — take both from the file, never
-the orchestrator's recollection, for the same reason `/release` does. Then:
+**Re-review after fixes: read `.claude/remember/last-review.md` first.** Its `sha:` line (never `self-review-sha:`) is the previously-reviewed commit, its `blockers:` list what you owe an answer on — take both from the file, never the orchestrator's recollection. Then:
 
-- **First, check the record belongs to this branch.** There is one record
-  file per repo, not one per branch. No `sha:` line at all (e.g. a file
-  holding only `self-review-sha:`) is the same as **No file** below. Otherwise
-  validate `<that sha>` with `git rev-parse --verify <that sha>` — a value
-  that fails this (e.g. a corrupted or hand-edited record, or one starting
-  with `-`, which git would otherwise parse as an option) is a malformed
-  record; treat it exactly as **No file** below. If it validates, and its
-  `branch:` line differs from the current branch, or
-  `git merge-base --is-ancestor <that sha> HEAD` exits non-zero, the record
-  describes a different or rewritten history — treat it exactly as **No
-  file** below and review the whole branch. Skipping this resolves
-  `<that sha>..HEAD` against a merged, renamed, or rebased sha, which is not
-  a subset of this branch but a range that never existed. Check both: the
-  branch name catches a switch, the ancestry check catches a rebase or
-  squash under the same name. Otherwise:
+- **First, check the record belongs to this branch.** There is one record file per repo, not one per branch. No `sha:` line at all (e.g. a file holding only `self-review-sha:`) is the same as **No file** below. Otherwise validate `<that sha>` with `git rev-parse --verify <that sha>` — a value that fails this (e.g. a corrupted or hand-edited record, or one starting with `-`, which git would otherwise parse as an option) is a malformed record; treat it exactly as **No file** below. If it validates, and its `branch:` line differs from the current branch, or `git merge-base --is-ancestor <that sha> HEAD` exits non-zero, the record describes a different or rewritten history — treat it exactly as **No file** below and review the whole branch. Otherwise:
 
-- **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` —
-  `/release` Phase 0.5's rule):
+- **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` — `/release` Phase 0.5's rule):
   `git diff --name-only <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`
-  — every path must also be on `docs:`, else fall through, else `sha:`=HEAD.
-- **`sha:` ≠ HEAD** → this is a re-review. Target the range
-  `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3
-  re-verifies each recorded blocker as fixed, unfixed, or dismissed with a
-  reason. The rest of the branch is **not** re-judged: a full re-read of an
-  already-reviewed branch produces fresh findings every run and never
-  converges. The range still ends at HEAD, so `/release`'s precondition is
-  satisfied and the new record replaces the old one.
-- **`sha:` = HEAD** → nothing has changed since the last review. Say so and
-  stop; re-running against an identical tree can only produce noise. If the
-  recorded verdict was `blocked`, its blockers are still unfixed by
-  definition — repeat them rather than re-deriving them. **Write no record**:
-  the existing one stands.
+  — every path printed must also be on `docs:`: if all are, treat as `sha:` = HEAD (below); if any is not, it is a re-review.
+- **`sha:` ≠ HEAD** → this is a re-review. Target the range `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3 re-verifies each recorded blocker as fixed, unfixed, or dismissed with a reason. The rest of the branch is **not** re-judged. The range still ends at HEAD, so `/release`'s precondition is satisfied and the new record replaces the old one.
+- **`sha:` = HEAD** → nothing has changed since the last review. Say so and stop. If the recorded verdict was `blocked`, its blockers are still unfixed by definition — repeat them rather than re-deriving them. **Write no record**: the existing one stands.
 - **No file** → no prior review to build on. Review the whole branch.
 
-**On a re-review, sweep the open ledger bullets for liveness first.** Their
-anchors may sit in the part of the branch you are no longer reading, and the
-fix commits you *are* reading can invalidate them. `grep -F` each open
-snippet against its path; report any whose anchor is gone so `/refactor` can
-drop them. Cheap, and it stops dead bullets accumulating unseen.
+**On a re-review, sweep the open ledger bullets for liveness first.** Their anchors may sit in the part of the branch you are no longer reading, and the fix commits you *are* reading can invalidate them. `grep -F` each open snippet against its path; report any whose anchor is gone so `/refactor` can drop them.
 
 ## Effort level
-`low | medium | high | max` — default **medium** if not given. The level
-governs **stage 1 only**:
+`low | medium | high | max` — default **medium** if not given. The level governs **stage 1 only**:
 - **low / medium** — fewer findings, only ones you are confident in.
-- **high / max** — broader coverage; uncertain findings are allowed, but each
-  must be labelled uncertain.
+- **high / max** — broader coverage; uncertain findings are allowed, but each must be labelled uncertain.
 
-**No shortcuts.** The level decides how many findings you report, never which
-checks you run. Every check this file calls required runs at every level —
-never cut or sample one "given the effort level", the branch size, or time. If
-a check truly cannot run, write `NOT RUN: <reason>` for it on the `checks:`
-line of the report and the review record. That is a visible gap, not a
-blocker and not a pass.
+**No shortcuts.** The level decides how many findings you report, never which checks you run. Every check this file calls required runs at every level — never cut or sample one "given the effort level", the branch size, or time. If a check truly cannot run, write `NOT RUN: <reason>` for it on the `checks:` line of the report and the review record. That is a visible gap, not a blocker and not a pass.
 
-**Stage 2 (security) always runs full, at every level.** A shallow security
-pass is worse than none — it reads as coverage while missing the class of bug
-that costs the most.
+**Stage 2 (security) always runs full, at every level.**
 
 ## Stage 1 — General review
 The diff is the subject, but **read the whole file around every hunk** — a
@@ -188,19 +89,7 @@ hunk-only read cannot see that a caller further down the same file is now
 wrong. For multi-commit ranges, skim `git log <range>` for intent before
 judging.
 
-**Commit messages are claims, not evidence.** A message saying a fix was
-"proven red→green", a bug reproduced, or a test added is something to re-test,
-not a fact to accept. Branches are commonly AI-authored now — including the
-fixes to the fixes — so a review that trusts the message is reviewing prose.
-Run the test suite and the typecheck/build yourself and cite the command and
-its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1;
-e=$?`), never off a pipeline — `$?` after a pipe is the last element's
-status, so piping into `tail` reports `0` for a suite that failed. A suite that
-can outlast your tool's default command timeout needs a longer timeout (or a
-background run waited on to exit); a timed-out run is not a pass, and cite the
-suite's totals with the exit code. The result
-goes on the record's `tests:` line — the build part is required (`build N/A: <reason>`
-if none).
+**Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the test suite and the typecheck/build yourself and cite the command and its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline — `$?` after a pipe is the last element's status, so piping into `tail` reports `0` for a suite that failed. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.
@@ -211,8 +100,7 @@ if none).
 - **Correctness.** Edge cases, error handling, type / contract violations,
   broken invariants.
 - **Test quality, not just test presence.** For every test the diff adds or
-  changes, establish that it **can actually fail**. Reasoning about
-  falsifiability does not work; executing it does. **Revert the source, not the
+  changes, establish that it **can actually fail**. **Revert the source, not the
   test:** take the pre-change version of the file under test with `git show
   <base-sha>:<path>`, run the test against that copy, and watch it go red. Do
   this **without dirtying the branch** — write the old version to a temp
@@ -227,7 +115,7 @@ if none).
   its reason — `12/15`, never `12/12`. Say whether each red was a failed
   assertion or the test failing to load against the old source (missing
   import/export), which is weaker proof. If most reds are load failures, also run a mutation on a temp
-copy of HEAD (outside the repo) and report the assertion reds.
+  copy of HEAD (outside the repo) and report the assertion reds.
 
 Structure (dead code, state ownership, naming, duplication, performance) is
 not this stage's job — `/self-review` surfaces it.
@@ -249,18 +137,12 @@ secrets scan covers every commit on every branch (the security spec's item 1
 has the command).
 
 ## Stage 3 — Verify (adversarial)
-Findings are claims, not facts. **Try to break each one, not to confirm it** —
-a pass that sets out to confirm reliably misses what an adversarial pass
-finds.
+Findings are claims, not facts. **Try to break each one, not to confirm it.**
 
 - Re-read the cited `file:line` in full context.
-- Mark each **confirmed**, **false positive** (with the reason), or
-  **uncertain** (with what would settle it).
+- Mark each **confirmed**, **false positive** (with the reason), or **uncertain** (with what would settle it).
 
-**Every surviving finding must carry a concrete failure scenario**: specific
-inputs or state → the wrong output, crash, or exposure that results. If you
-cannot write that sentence, the finding is not ready — drop it or mark it
-uncertain. No vibes.
+**Every surviving finding must carry a concrete failure scenario**: specific inputs or state → the wrong output, crash, or exposure that results. If you cannot write that sentence, the finding is not ready — drop it or mark it uncertain.
 
 ## Stage 4 — Docs sweep (settled reviews only, whole branch)
 Runs **once, at the end**, only when **settled** (`ready`, or every open
@@ -278,13 +160,7 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    already edited that doc" is not checked. Nothing describes it → add it.
    Something says otherwise, including text written earlier on this branch →
    fix it.
-3. **Not this stage's job:** the CHANGELOG. `/release` writes that entry,
-   with the version. If this stage corrects a line that a fix-ledger bullet
-   also names, that is ordinary sweep work — the doc changed with the
-   feature, so it was already yours to update — but **do not delete the
-   bullet**. Only `/refactor` (revalidation, or the user's "drop"), `/self-review`
-   (a removal the user names), and `/branch-review` (a bullet it disproves) delete
-   bullets; revalidation drops this one once the finding no longer holds.
+3. **Not this stage's job:** the CHANGELOG — `/release` writes that entry, with the version. If this stage corrects a line that a fix-ledger bullet also names, that is ordinary sweep work, but **do not delete the bullet**; `/refactor` revalidation drops it once the finding no longer holds.
 4. **Commit what you touched.** Doc files only — never code, skills, config,
    or tests. Stage the exact paths you edited by name (never `git add
    -A`/`-u`) and commit `docs: sweep for <short sha range>`. Nothing changed
@@ -296,25 +172,12 @@ Report one row per change: change · doc `file:line` · added / fixed / already
 correct.
 
 ## Report — then escalate
-**Open with the one-line verdict**, before any section: **Ready to merge? Yes /
-No / Not until these are fixed.** A report that opens with "Critical: none
-found" reads as a pass at a glance even when the verdict is not one — state the
-verdict first, then repeat it at the end.
+**Open with the one-line verdict**, before any section: **Ready to merge? Yes / No / Not until these are fixed.** Repeat it at the end.
 
 Then the findings, ordered most severe first.
 
 ### 🚨 Critical / High (blocks merge)
-A **reproduced** failure only: a failing test, a broken build, a security
-exposure, or a bug with a written failure scenario you confirmed in stage 3.
-A finding about **style, wording or structure** is **never** a blocker —
-including in a doc or spec. But prose is not automatically harmless: in a repo
-whose deliverable *is* a specification, a **normative requirement stated two
-incompatible ways** is a reproduced defect, because two conforming
-implementations built from it diverge. Judge by whether a behaviour changes,
-not by whether the file holds code — and judge it **per finding, not per
-repo**, since a diff mixing code and specification is the normal case. A finding already dismissed with evidence in this project's stash
-or memory cannot come back at a higher severity without **new** evidence —
-check before escalating.
+A **reproduced** failure only: a failing test, a broken build, a security exposure, or a bug with a written failure scenario you confirmed in stage 3. A finding about **style, wording or structure** is **never** a blocker — including in a doc or spec. But prose is not automatically harmless: in a repo whose deliverable *is* a specification, a **normative requirement stated two incompatible ways** is a reproduced defect, because two conforming implementations built from it diverge. Judge by whether a behaviour changes, not by whether the file holds code — and judge it **per finding, not per repo**, since a diff mixing code and specification is the normal case. A finding already dismissed with evidence in this project's stash or memory cannot come back at a higher severity without **new** evidence — check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
@@ -342,23 +205,11 @@ Not in the report. **Append** each one as a single bullet to
   scenario · YYYY-MM-DD @ <short sha> · nit
 ```
 
-**A ledger bullet's failure scenario is subject to stage 3 like any other.**
-Ledger items skip the report, so an unverified consequence in the bullet's
-voice reads as fact to whoever fixes it later. Either confirm it, or prefix
-the scenario with `UNVERIFIED:` so `/refactor` retests before acting.
+**A ledger bullet's failure scenario is subject to stage 3 like any other.** Either confirm it, or prefix the scenario with `UNVERIFIED:` so `/refactor` retests before acting.
 
-The **snippet is the anchor**: 20–60 verbatim characters from the line,
-unique enough for `git grep -F` to find it after lines shift. No line
-numbers, no TODO comments in code — the ledger is the single writer. Before
-appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`**;
-if it is already there, skip it. Do not touch existing bullets.
+The **snippet is the anchor**: 20–60 verbatim characters from the line, unique enough for `git grep -F` to find it after lines shift. No line numbers, no TODO comments in code — the ledger is the single writer. Before appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`** (plain `grep`, never `git grep` — the ledger is gitignored, so `git grep` says "not found" every time); if it is already there, skip it. Do not touch existing bullets.
 
-**A bullet you disprove is deleted, not annotated** — if an existing bullet's
-finding no longer holds, or never did, remove the line and say why in your
-report (the one case a reviewer may remove a line; same judgement as
-`/refactor`'s revalidation). Use plain `grep`, never `git grep`, on the
-ledger: it is gitignored, so `git grep` reports "not found" and the dedupe
-passes every time.
+**A bullet you disprove is deleted, not annotated** — if an existing bullet's finding no longer holds, or never did, remove the line and say why in your report (the one case a reviewer may remove a line; same judgement as `/refactor`'s revalidation).
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·
@@ -377,13 +228,7 @@ and none says `NOT RUN`; otherwise `stage2 NOT RUN`. Then a
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
 does not block.
 
-**Write the review record** to `.claude/remember/last-review.md`, overwriting
-it. `/release` reads this file — a chat-only SHA is gone after a compaction
-or handover, and the orchestrator is the only other source (one this command
-already refuses to trust). **Write it at the end of every run,
-unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after
-someone decides what to do — it earns its keep
-by surviving a compaction, an abandoned session, or an unseen handover.
+**Write the review record** to `.claude/remember/last-review.md`, overwriting it; `/release` reads this file. **Write it at the end of every run, unconditionally** (bar the `sha:` = HEAD stop, which writes nothing), not after someone decides what to do.
 
 **Derive `ledger:` before filling the template** — no ledger file → `ledger:
 none`; otherwise run all three (total, K, I):
@@ -430,8 +275,7 @@ self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or om
 Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the
 rest — `s2 secrets: ran: <command> → clean`; `sweep: ran: 3 changes — 2 added,
 1 fixed, 0 already correct`. `/release` reads them mechanically: a line left as
-the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
-that found nothing from one that never ran; `sweep:` can.
+the template, or `NOT RUN`, fails it.
 
 In `sweep:`, N is every change in the sweep's change table, each counted exactly
 once in A, F or C, so A + F + C = N; a change already documented counts in C.
@@ -439,27 +283,11 @@ once in A, F or C, so A + F + C = N; a change already documented counts in C.
 `prior-blockers:` and `ledger-liveness:` are filled on a re-review (one entry per recorded
 blocker; the liveness sweep's counts) and `n/a: first review` otherwise.
 
-An old `debrief-sha:` line is carried verbatim, name unchanged; `/self-review`
-reads both names and writes `self-review-sha:` on its next run.
+`sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if it made one. `docs:` is repo-relative **paths only**, space-separated, or `none` — never prose, never reasons; `docs-commit: none` means `docs: none`. The per-change sweep table (change · doc `file:line` · added/fixed/already correct) belongs in the **report**, never the record.
 
-`sha:` is the HEAD stages 1-3 reviewed — **before** Stage 4's docs commit, if
-it made one. `docs:` is repo-relative **paths only**, space-separated, or
-`none` — never prose, never reasons; `docs-commit: none` means `docs: none`.
-The per-change sweep table (change · doc `file:line` · added/fixed/already
-correct) belongs in the **report**, never the record. `/release` still
-compares this SHA to `HEAD`; its relaxed stale rule (see `/release`) lets a
-docs-only commit sit between the two without forcing a re-review.
+`blockers: none` when ready; otherwise one line per blocker, nothing more — reasoning goes in the report, non-blocking findings in the ledger.
 
-`blockers: none` when ready; otherwise one line per blocker, nothing more —
-reasoning goes in the report, non-blocking findings in the ledger. `coverage`
-is recorded so a `ready` with security not run is distinguishable. `/release`
-reads the `tests:` line instead of re-running the suite on the same commit.
-
-**There is no override field, no `verdict: overridden`** — releasing over
-`blocked` is a live decision at `/release`'s hand-back, in conversation.
-
-**Nothing clears this file.** Overwritten whole next run; the `sha:` line
-expires it (fix and commit → *stale*, not *blocked*).
+**There is no override field, no `verdict: overridden`** — releasing over `blocked` is a live decision at `/release`'s hand-back, in conversation.
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
@@ -471,9 +299,6 @@ End with:
 - **Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**
   (same numbers as the `sweep:` line), or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
-- **A run that produces no record is not a review.** Dying mid-flight — a rate
-  limit, a crash, a cancelled turn — leaves no report and no `last-review.md`;
-  silence is never a pass. `/release` already treats a missing record as no
-  review; say so here too, so nobody fills the gap from memory.
-- **Escalate to the orchestrator** with the findings. It decides what gets
-  fixed and by whom. Say plainly what you could not verify.
+- **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review; nobody fills the gap from memory.
+- Say plainly what you could not verify.
+
