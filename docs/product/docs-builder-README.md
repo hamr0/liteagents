@@ -316,7 +316,8 @@ the scan scope is root-level `.md` files (non-recursive) plus everything under `
 (recursive); `discover <dir>` / `reorg <dir>` scope to exactly that one directory instead.
 Within `docs/`, `product/`, `wiki/`, and `logs/` are re-checked every run — only
 `archive/` stays frozen and skipped, along with `.docs-builder/` and the protected
-entry-point docs. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
+entry-point docs. Gitignored `.md` files (generated output such as a `TEST_REPORT.md`) are skipped
+in both scopes; untracked-but-not-ignored files are still offered. For every file in scope it writes a row carrying `h1`, a short `snip`, an `oversized`
 **boolean** (over `OVERSIZED_LINES`, default 500 — size decides *splittable*, never
 *sorted*), and a mechanical `suggested` bucket + `reason`: a
 PRIOR the classification interview is shown, never an authority over it. `bucket` itself

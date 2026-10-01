@@ -3251,6 +3251,24 @@ function writerBriefInTaskFiles() {
 }
 
 
+/** discover skips gitignored .md files (a generated TEST_REPORT.md is not a doc to reorg) but still
+ *  offers untracked-not-ignored ones (a new doc). Same for `discover <dir>`. */
+function discoverSkipsGitignored() {
+  group('25. discover — gitignored .md files are skipped, untracked new docs are not');
+  const d = repo({
+    '.gitignore': 'T.md\ndocs/gen/\n',
+    'a.md': DOC('Tracked'), 'docs/keep.md': DOC('Keep'), 'sub/s.md': DOC('Sub'),
+  });
+  write(d, { 'b.md': DOC('Untracked'), 'T.md': DOC('Generated'),
+    'docs/gen/g.md': DOC('Gen'), 'sub/T.md': DOC('SubGen') });
+  const files = () => artifact(d, 'reorg-plan.json').rows.map(r => r.file).sort();
+  ok('discover exits clean', db(d, ['discover']).code, 0);
+  ok('plan has tracked + untracked, not the ignored ones',
+    files().join(','), 'a.md,b.md,docs/keep.md');
+  ok('discover <dir> exits clean', db(d, ['discover', 'sub']).code, 0);
+  ok('discover <dir> skips the ignored file too', files().join(','), 'sub/s.md');
+}
+
 function main() {
   console.log(`${colors.bright}${colors.cyan}docs-builder behavioural tests${colors.reset}`);
   console.log(`script under test: ${path.relative(process.cwd(), DB)}`);
@@ -3682,7 +3700,7 @@ function logsGroupOutsideDocsIsScannedFolder() {
     protectedNamesAreCaseInsensitive, wikiIsARealBucket, headingBasedPrior,
     logsNestOneLevel, indexGroupsLogsBySubdir, logsGroupIsFirstSegmentNotParentDir,
     logsGroupOutsideDocsIsScannedFolder,
-    previewApplyReorg, defaultFileArgs, commitQuestionBranchAndGitignore, writerBriefInTaskFiles];
+    previewApplyReorg, defaultFileArgs, commitQuestionBranchAndGitignore, writerBriefInTaskFiles, discoverSkipsGitignored];
 
   for (const g of groups) {
     try { g(); }

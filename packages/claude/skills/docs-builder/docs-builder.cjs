@@ -1976,6 +1976,15 @@ function discover(root) {
         + '.md file elsewhere in the repo is out of scope by design — pass `discover <dir>` to '
         + 'scan it explicitly).');
   }
+  // Gitignored files are generated output (a TEST_REPORT.md), not docs to reorg. Same
+  // `--exclude-standard` rule the link rewriter uses; a tracked file is never "ignored" here,
+  // and no git repo / no git means nothing is dropped.
+  let ignored = new Set();
+  try {
+    ignored = new Set(gitOrThrow(['ls-files', '-z', '--others', '--ignored', '--exclude-standard'],
+      'listing ignored files').split('\0'));
+  } catch { /* not a git repo: nothing to skip */ }
+  files = files.filter(f => !ignored.has(f));
   const planFile = path.join(ARTIFACTS, 'reorg-plan.json');
   const prevBuckets = new Map();
   if (fs.existsSync(planFile)) {
