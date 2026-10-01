@@ -1,5 +1,5 @@
 ---
-description: Verify what you delivered since the last self-review with real runs, and review its structure
+description: Verify what you delivered since the last self-review with real runs, and review its structure [commit hashes | from..to | blank = since last self-review]
 ---
 Answer "verify what you delivered, what did you gloss over, what did I miss?"
 about committed work since the last self-review, before `/branch-review`. The

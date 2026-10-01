@@ -1328,9 +1328,13 @@ for (const kit of KITS) {
     specCheck(`${kit.name}/branch-review: rule pinned — ${name}`, () => allOf(...phrases.map(p => has(brs, p))));
   }
 
-  // argument-hint names the three targets. opencode carries no argument-hint in either file.
-  const hintOf = rel => (read(rel).split('\n---')[0].match(/^argument-hint: (.*)$/m) || [])[1];
-  const HINTS = kit.name === 'opencode' ? [undefined, undefined] : [
+  // argument-hint names the three targets. opencode has no argument-hint field: it carries the hint at the end of `description:`.
+  const hintOf = rel => {
+    const fm = read(rel).split('\n---')[0];
+    const m = kit.name === 'opencode' ? fm.match(/^description: .*?(\[commit hashes.*)$/m) : fm.match(/^argument-hint: (.*)$/m);
+    return (m || [])[1];
+  };
+  const HINTS = [
     '[commit hashes | from..to | blank = this branch] [low|medium|high|max]',
     '[commit hashes | from..to | blank = since last self-review]'];
   specCheck(`${kit.name}/branch-review: argument-hint`, () => hintOf(kit.branchReview) === HINTS[0] || `got ${hintOf(kit.branchReview)}`);
