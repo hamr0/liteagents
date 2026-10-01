@@ -120,8 +120,13 @@ that predates this file's introduction has no record, so it does not count.
 This phase runs **before** `/release` writes anything, so the CHANGELOG-and-
 bump commit it makes later cannot invalidate the review it just checked.
 
-Report the comparison you actually ran: recorded `<sha>` vs HEAD `<sha>`,
-match yes/no.
+Report this block, every field filled from what you ran (never "all checks
+passed"):
+```
+sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>
+```
+`stale-grep` is the output of the `git diff --name-only <sha>..HEAD | grep -vE …`
+check above, or `empty` when it printed nothing.
 
 This is the only thing guaranteeing the branch was reviewed *and* security
 scanned, so treat a missing answer as a **stop**, never as a pass.

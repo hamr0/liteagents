@@ -214,9 +214,14 @@ honest way to know is to run them.
 - a perf fix changes a **DB schema, response shape or caller contract**.
 
 Final report:
-- **refactor done, tests N pass / 0 fail** — ready, OR
+- **refactor done** — ready, OR
 - **refactor done, but K tests fail** — awaiting direction (revert /
   patch / update test).
+
+Either way the report carries this line, filled from the run:
+```
+tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>
+```
 
 Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
 (why + options) · **uncertain** (what profiling or data would settle it) ·

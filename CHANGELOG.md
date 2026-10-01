@@ -35,6 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lines (the helper scripts stay silent when nothing changed); `/live-canvas`
   ends with a `cleanup:` line and its design brief carries `inferredStyles`;
   `/docs-builder` ends with a `finish:` line recording commit and ledger stamp.
+- **Output slots, second batch.** `/remember` step 8 adds `episodes: B → A;
+  removed … → folded into fact …`, `migrate-attempts:` and `decay:` lines;
+  `/docs-builder` ends with `validate: PASS exit 0 | FAIL | NOT RUN` before
+  `finish:` (the script's `cleanup-apply` does not read `validate.json`, so
+  the gate stays spec-only); `/branch-review`'s record gains `prior-blockers:`
+  and `ledger-liveness:` (`n/a: first review` otherwise); `/refactor`'s report
+  carries `tests: <cmd> exit <code> <totals> (scoped | full)` instead of a bare
+  pass count; `/release` Phase 0.5 reports one block (sha, verdict, coverage,
+  s2-check exit, tests, stale-grep) instead of the sha match alone;
+  `/test-generate` gets a `broken-by: <mutation> → red: <test>` line per test
+  and the mutation is actually made and run, not swapped "mentally".
 - **Stage-2 coverage is now structure, not prose.** `/security`'s Output ends
   in an 11-line keyed coverage block (the six items plus the five "Also scan
   for" bullets, secrets line with its history hit count); `/branch-review`'s

@@ -585,7 +585,12 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      Print every line it returns and the count. Zero is the target; non-zero means a gate miss
      — every remaining overrun already had its chance to be exempted (100-char backtick
      literal) inside the step-3 gate, so anything printed here should not exist.
-   - Episodes count (new, kept hot, folded + deleted)
+   - Episodes count (new, kept hot, folded + deleted), then this line, filled from step 3's
+    before/after counts and the titles it removed (a removal with no fact named is the defect
+    step 3 describes):
+    ```
+    episodes: B → A; removed: <titles> → folded into fact "<first words>" | none
+    ```
    - Antigens count by confidence tier, with how many newly promoted to hot — sourced
      from `.opencode/remember/friction/count_report.json` (4c's count report), not
      recomputed by hand
@@ -610,9 +615,11 @@ Reads all raw material (`.opencode/stash/*.md` + `.opencode/remember/friction/an
      I6-new: <check output, must be EQUAL> | NOT RUN: <reason>
      docs: N/A (no docs/) | due: <verdict> | index-flat: ran | not needed | NOT RUN: <reason>
      processed: +N entries (before B → after A lines)
+     migrate-attempts: exit <code> | NOT RUN: <reason>
+     decay: <N> expired, <M> reactivated | NOT RUN: <reason>
      ```
      Sources: `version-check` step 0, `sync-rules` step 1, `stub-check` and `I6-new` step 5,
-     `processed` step 6's `.processed` append, `docs` step 7. If a script wrote or moved a
+     `processed` step 6's `.processed` append, `docs` step 7, `migrate-attempts` and `decay` step 4c. If a script wrote or moved a
      file and its output is not in its line, that is a defect.
    - If step 7 ran the auto re-index, say so and name the regenerated files
      (`docs/index.md`, plus `docs/log.md` if touched) so they are staged with this run

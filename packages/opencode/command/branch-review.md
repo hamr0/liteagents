@@ -406,6 +406,8 @@ docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
 ledger: <N> nits, <K> changes, <I> ideas, <M> added
+prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review
+ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
@@ -416,6 +418,9 @@ rest — `s2 secrets: ran: <command, N hits>`; `sweep: ran: 3 changes — 2 adde
 1 fixed, 0 already correct`. `/release` reads them mechanically: a line left as
 the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
 that found nothing from one that never ran; `sweep:` can.
+
+`prior-blockers:` and `ledger-liveness:` are filled on a re-review (one entry per recorded
+blocker; the liveness sweep's counts) and `n/a: first review` otherwise.
 
 An old `debrief-sha:` line is carried verbatim, name unchanged; `/self-review`
 reads both names and writes `self-review-sha:` on its next run.

@@ -935,6 +935,33 @@ for (const kit of KITS) {
   const db = flat(read(skillPath(kit, 'docs-builder')));
   specCheck(`${kit.name}/docs-builder: finish: line records commit and ledger stamp`, () =>
     has(db, 'finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>'));
+  specCheck(`${kit.name}/docs-builder: validate: line precedes finish: in the run's final output`, () =>
+    has(db, 'validate: PASS exit 0 | FAIL | NOT RUN: <reason> finish: committed <sha>'));
+
+  const rm2 = flat(read(skillPath(kit, 'remember')));
+  specCheck(`${kit.name}/remember: episodes:, migrate-attempts: and decay: slots in step 8`, () => allOf(
+    has(rm2, 'episodes: B → A; removed: <titles> → folded into fact "<first words>" | none'),
+    has(rm2, 'migrate-attempts: exit <code> | NOT RUN: <reason>'),
+    has(rm2, 'decay: <N> expired, <M> reactivated | NOT RUN: <reason>')));
+
+  const br = flat(read(skillPath(kit, 'branch-review')));
+  specCheck(`${kit.name}/branch-review: record has prior-blockers: and ledger-liveness: lines`, () => allOf(
+    has(br, 'prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review'),
+    has(br, 'ledger-liveness: <N> checked, <K> dead | n/a: first review')));
+
+  const rf = flat(read(skillPath(kit, 'refactor')));
+  specCheck(`${kit.name}/refactor: final report carries the tests: line, not a bare pass count`, () => allOf(
+    has(rf, 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
+    rf.includes('tests N pass / 0 fail') ? 'stale: bare "tests N pass / 0 fail" still present' : true));
+
+  const rl = flat(read(skillPath(kit, 'release')));
+  specCheck(`${kit.name}/release: Phase 0.5 reports one block of every pre-check outcome`, () =>
+    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>'));
+
+  const tg = flat(read(skillPath(kit, 'test-generate')));
+  specCheck(`${kit.name}/test-generate: broken-by: slot per test, mutation actually run, no "mentally"`, () => allOf(
+    has(tg, 'broken-by: <mutation made> → red: <test name> | NOT RUN: <reason>'),
+    tg.includes('Mentally swap') ? 'stale: "Mentally swap" still present' : true));
 }
 
 // ---------------------------------------------------------------------------

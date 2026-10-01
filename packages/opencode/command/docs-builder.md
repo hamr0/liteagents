@@ -487,6 +487,7 @@ everything else. Run these steps literally, in order:
    never fires.
 5. End the run with this line, filled from what you did (a run that ends without it did not finish):
    ```
+   validate: PASS exit 0 | FAIL | NOT RUN: <reason>
    finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>
    ```
 
