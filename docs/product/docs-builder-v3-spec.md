@@ -1,5 +1,7 @@
 # docs-builder v3 — index-first
 
+> Historical design record, superseded by `docs-builder-README.md`; the shipped behaviour is in the script and `SKILL.md`.
+
 **Status:** DRAFT — spec only, no code written.
 **Date:** 2026-08-23
 **Supersedes the mode layout in** `docs/archive/docs-builder-v2-spec.md`. The v2 mechanics

@@ -835,6 +835,32 @@ for (const kit of KITS) {
       write ? has(write[0], '`sha:` = HEAD stop, which writes nothing') : 'unconditional-write sentence not found');
   });
 
+  // (d2) forgiven-vs-merge: /branch-review and /release agree a merge of origin/main is never forgiven.
+  specCheck(`${kit.name}: branch-review never forgives a merge of origin/main (detection command pinned)`, () => {
+    const bullet = section(br, '- **`sha:` ≠ HEAD, but forgiven**', '- **`sha:` ≠ HEAD** →');
+    return allOf(
+      has(bullet, 'a merge or rebase of `origin/main` after the review is never forgiven, even when it brings only docs'),
+      has(bullet, '`git rev-list --merges <that sha>..HEAD`'));
+  });
+  specCheck(`${kit.name}: branch-review and release both carry the "never forgiven" merge exception`, () => {
+    const phrase = 'a merge or rebase of `origin/main` after the review is never forgiven, even when it brings only docs';
+    return allOf(has(flat(br), phrase), has(flat(read(kit.release)), phrase));
+  });
+
+  // (d3) closing block carries the md5/scope proof and the ledger-liveness lines, after the docs sweep, before the verdict.
+  specCheck(`${kit.name}: branch-review closing block has proof: and liveness: lines in order`, () => {
+    const t = flat(br);
+    const end = t.slice(t.indexOf('End with:'));
+    const proof = '`proof: md5 — only fix-ledger.md, last-review.md differ | <what else differed> · diff-names <sha>..HEAD: <none | all on docs: | NOT on docs: <paths>>`';
+    const live = '`liveness: <N> checked, <K> dead: <file · snippet, ...> | n/a: first review · disproved: <bullet — reason, ...> | none`';
+    const at = p => end.indexOf(p);
+    const order = ['**Docs sweep:', proof, live, 'One-line verdict:'].map(at);
+    return allOf(
+      has(end, proof), has(end, live),
+      order.every((v, i) => v > -1 && (i === 0 || v > order[i - 1])) || `closing block order wrong: ${order}`,
+      has(t, 'shown on the `proof:` line'), has(t, 'on the `liveness:` line'));
+  });
+
   // (e) the orchestrator hands the worker the spec's path.
   for (const [label, file] of [['branch-review', kit.branchReview], ['self-review', kit.selfReview]]) {
     specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
@@ -946,15 +972,138 @@ for (const kit of KITS) {
 
   const lc = flat(read(skillPath(kit, 'live-canvas')));
   specCheck(`${kit.name}/live-canvas: cleanup: final line and inferredStyles brief field`, () => allOf(
-    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
+    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (port not bound)'),
     has(lc, '"inferredStyles": { "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {}, "sources": ['),
     has(lc, '`"inferredStyles": "NOT RUN: <why>"`')));
+
+  specCheck(`${kit.name}/live-canvas: the five one-line rules`, () => allOf(
+    ...['**Always ask the feedback mode** with `AskUserQuestion`',
+      '**Never run the install or relaunch commands yourself.**',
+      '**Never start the dev server,**',
+      '**The overlay is always wired:**',
+      '**Only delete what this skill created,**'].map(p => has(lc, p))));
+
+  specCheck(`${kit.name}/live-canvas: mode, lab, feedback, plan and memory output slots`, () => allOf(
+    ...['mode: live | json | json (non-Claude host) · asked: yes | N/A',
+      'lab: variants <list> · data-variant: <N of N> · overlay: <served path> · init: target=<name> channelUrl|batchEndpoint|none · banner: yes · routes: <list>',
+      'feedback: read <path | pasted> · comments <N> · overall: yes | no',
+      'plan: DESIGN_PLAN.md written (<N> lines) | N/A (aborted)',
+      'memory: created | updated | N/A (aborted)'].map(p => has(lc, p))));
+
+  specCheck(`${kit.name}/live-canvas: final report block lists all six slots in order; mode/lab sit in the ready blocks, feedback leads the done reply`, () => {
+    const i = lc.indexOf('The final message ends with these six lines, in this order');
+    const blk = i < 0 ? '' : lc.slice(i);
+    const at = ['mode: live | json', 'lab: variants <list>', 'feedback: read <path', 'plan: DESIGN_PLAN.md written', 'memory: created', 'cleanup: .claude-design/ absent'].map(p => blk.indexOf(p));
+    const ready = (a, b) => section(lc, a, b);
+    return allOf(
+      i >= 0 && at.every((x, k) => x >= 0 && (k === 0 || x > at[k - 1])) ? true : 'final report block missing or slots out of order',
+      has(ready('Live Canvas ready — Live mode', '**JSON:**'), 'mode: live · asked: yes | N/A lab:'),
+      has(ready('Live Canvas ready — JSON mode', 'Then go straight to Phase 5'), 'mode: json | json (non-Claude host) · asked: yes | N/A lab:'),
+      has(lc, 'Your reply to "done" starts with the line `feedback:'));
+  });
+
+  specCheck(`${kit.name}/live-canvas: plugin tool names, Live Finish endpoint, server messages printed verbatim`, () => allOf(
+    ...['mcp__plugin_live-canvas-channel_live-canvas__channel_open',
+      'mcp__plugin_live-canvas-channel_live-canvas__batch_open',
+      'mcp__plugin_live-canvas-channel_live-canvas__channel_close',
+      "Init with `channelUrl: 'http://localhost:8788'` and `batchEndpoint: 'http://localhost:8788/feedback-jsonl'`.",
+      '| `no_channel_capability` | Print the result\'s `message` verbatim and STOP.',
+      '| `in_use` | Print the result\'s `message` verbatim and STOP',
+      'read `.claude-design/feedback.jsonl`'].map(p => has(lc, p)),
+    lc.includes('mcp__live-canvas__') ? 'stale tool name mcp__live-canvas__' : true,
+    lc.includes('/__live_canvas/feedback') ? 'fake batchEndpoint still present' : true));
 
   const db = flat(read(skillPath(kit, 'docs-builder')));
   specCheck(`${kit.name}/docs-builder: finish: line records commit and ledger stamp`, () =>
     has(db, 'finish: committed <sha> | left uncommitted (N files) · ledger stamped @ <sha> | NOT stamped: <reason>'));
   specCheck(`${kit.name}/docs-builder: validate: line precedes finish: in the run's final output`, () =>
     has(db, 'validate: PASS exit 0 | FAIL | NOT RUN: <reason> finish: committed <sha>'));
+
+  const dbRaw = read(skillPath(kit, 'docs-builder'));
+  specCheck(`${kit.name}/docs-builder: picker has exactly two options, never auto-detects; search is never a picker option`, () => allOf(
+    ...['**Bare `/docs-builder` — ALWAYS ask, never auto-detect.**',
+      'header `Mode`, exactly these two options',
+      '**First run** — sort root-level `.md` files and everything under `docs/` into > product/wiki/logs/archive, then split anything too big into pages and index them.',
+      '**Docs drift** — docs moved on since the last run: report what changed, rebuild the > index, re-run lint. Nothing is restructured and nothing is split.',
+      'Do not offer a third option and do not recommend one.',
+      'If `due` cannot run, say so plainly and ask anyway.',
+      '**`search` is explicit-argument only, never a third picker option:**'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: one-line hard rules (only .md, never-moved list, approval gate, no split on an unseen list, reorg never splits)`, () => allOf(
+    ...['**This does NOT make docs cheaper to read — never sell it as a token saving.**',
+      'Never search the target repo for it',
+      '**Only `.md` files are ever opened, read, edited or listed**',
+      '**Never moved, enforced in code:** `README.md`, `index.md`, `log.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CLAUDE.md`, `AGENTS.md`, `AGENT.md` (case-insensitive, any depth)',
+      '**Nothing moves before the user approves the table.** Only after approval does `apply-reorg` run',
+      '**Never split N files in one shot on a list the user has not seen.**',
+      '**`reorg` never splits.** `cleanup <file.md>` is the ONLY entry to the split pipeline',
+      'Never name a vendor model.'].map(p => has(db, p)),
+    /Haiku|Sonnet|Opus/.test(db) ? 'vendor model name present' : true));
+  specCheck(`${kit.name}/docs-builder: one-line rules for cleanup-apply, archive, index.md, link exemptions`, () => allOf(
+    ...['**`cleanup-apply` refuses without a `labels.json` that has exactly one `core: true` theme.**',
+      '**The original is always archived byte-identical**',
+      'every cleanup output is a new file, nothing edits a source doc.',
+      '**`docs/index.md` has exactly one writer: `index-flat`**',
+      '**Never rewrite `CHANGELOG.md` or `log.md` links (any depth).** Nothing under `docs/archive/` is ever a rewrite target; links elsewhere that point at an archived file are still repaired.'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: finish rules — pathspec recipe literal, never -A/-u/-a, relay BRANCH/QUESTION/WARN, ledger after commit`, () => allOf(
+    ...['**Commit only through the printed pathspec recipe; never `git add -A`, `git add -u` or `git commit -a`.**',
+      'git add --pathspec-from-file=docs/.docs-builder/commit-add.txt && git commit -m "docs: reorg" --pathspec-from-file=docs/.docs-builder/commit-files.txt',
+      '`BRANCH: <name>` — on `main`/`master` it reads `do NOT commit`: obey it',
+      '`QUESTION: Commit these N files now?`',
+      'relay that line via `AskUserQuestion`, header `Commit`: **Commit** (run the printed recipe) / **Leave uncommitted** (say what is pending; nothing this run did gets undone).',
+      '`WARN: docs/.docs-builder/ is not gitignored',
+      'If it errors or names a missing path that is a BUG: stop and report it',
+      'After a successful commit run `node $DB ledger` to stamp the consolidation.'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: cleanup rules — KEY delimiter, page criterion in the writer step, exit table incl. cleanup-apply 2, link restore`, () => allOf(
+    ...['<<<KEY>>>the exact key text<<<END>>>',
+      'Never emit a positional index.',
+      'A page counts as written only with YAML frontmatter and at least 10 lines',
+      'Hand each writer agent its `task-<theme>.json`: the writer brief is inside it.',
+      'Refuses before doing anything if `labels.json` is missing or has no `core: true` theme.',
+      '| `2` | the file **moved**, but a follow-up failed (`archive`: outline/labels sync or link rewrite; `cleanup-apply`: core page not relocated, index not rebuilt) |',
+      'restores inbound links from the archive to that core page (the split pages keep their archive citations)',
+      'Nothing past it runs — no archive, no page, no model call — until the interview below is answered.',
+      'Act on `supersession` declared in a heading',
+      '`/remember` also runs `index-flat` on any drift'].map(p => has(db, p))));
+  specCheck(`${kit.name}/docs-builder: final report block lists all eight slots in order, validate: and finish: last`, () => {
+    const i = db.indexOf('The final message ends with these eight lines, in this order');
+    const blk = i < 0 ? '' : db.slice(i);
+    const at = ['mode: first-run | drift | reorg <dir> | cleanup <file> | search · asked: yes | N/A (argument given)',
+      'due: <one-line verdict> | NOT RUN: <reason>',
+      'classify: <N> rows · approved | corrected <K> | aborted | N/A (nothing unclassified)',
+      'split: <N> oversized offered · chose <files | none> | N/A (none oversized | cleanup mode: not offered)',
+      'cleanup: interview confirm | correct · pages <done>/<total> · PARTIAL 0 · archive exit <0|1|2> | N/A',
+      'gitignore: ignored | added | NOT ignored: <reason>',
+      'validate: PASS exit 0 | FAIL | NOT RUN: <reason>',
+      'finish: committed <sha> | left uncommitted (N files)'].map(p => blk.indexOf(p));
+    return i >= 0 && at.every((x, k) => x >= 0 && (k === 0 || x > at[k - 1])) ? true : 'final report block missing or slots out of order';
+  });
+  specCheck(`${kit.name}/docs-builder: every printed command is one line, parses under bash, no brace expansion or continuation`, () => {
+    const cmds = [];
+    let inFence = false;
+    for (const line of dbRaw.split('\n')) {
+      if (line.startsWith('```')) { inFence = !inFence; continue; }
+      if (inFence && /^(node \$DB|PREVIEW=1 node \$DB|git add )/.test(line)) cmds.push(line);
+    }
+    const bad = cmds.filter(c => c.endsWith('\\') || /\{[^}]*,[^}]*\}/.test(c)
+      || spawnSync('bash', ['-n', '-c', c]).status !== 0);
+    const inline = [...dbRaw.matchAll(/`(node \$DB [^`]+)`/g)].map(m => m[1]);
+    const all = [...cmds, ...inline];
+    const need = ['node $DB discover', 'PREVIEW=1 node $DB apply-reorg', 'node $DB apply-reorg', 'node $DB cleanup docs/BIG.md',
+      'node $DB validate', 'node $DB cleanup-apply docs/BIG.md', 'node $DB plan', 'node $DB archive docs/BIG.md'];
+    const miss = need.filter(n => !all.includes(n));
+    return allOf(bad.length ? `bad commands: ${bad.join(' ; ')}` : true,
+      miss.length ? `missing single-line commands: ${miss.join(' ; ')}` : true,
+      /\\\n\s*(docs\/|node)/.test(dbRaw) ? 'a command still continues across lines' : true);
+  });
+  specCheck(`${kit.name}/docs-builder: states the link rewriter is fence-aware; stale claims are gone`, () => allOf(
+    has(db, 'fenced code blocks are never rewritten; a backticked exact path in prose IS rewritten, a link-shaped string inside an inline code span is not'),
+    has(db, 'Bare `node $DB reorg` prints the `due` summary first (if a ledger stamp exists), runs `discover`, and **stops only for rows with no bucket**'),
+    has(db, 'After a first sort the plan keeps each file\'s new path and approved bucket, so edited files do not re-ask.'),
+    ...['not fence-aware', 'NOT fence-aware', 'carries its prior classifications forward automatically', 'common, cheap case',
+      'ARCHIVE_WARN_ROWS', 'zero `WARN ... PARTIAL`', 'OUT=docs/.docs-builder', '{outline,labels}', '$0.39', 'Haiku', 'Sonnet'
+    ].map(p => db.includes(p) ? `stale text still present: ${p}` : true)));
+  specCheck(`${kit.name}/docs-builder: stays trimmed (at most 330 lines)`, () =>
+    dbRaw.split('\n').length <= 330 || `docs-builder is ${dbRaw.split('\n').length} lines`);
 
   const brs = flat(read(skillPath(kit, 'branch-review')));
   specCheck(`${kit.name}/branch-review: sweep counts A + F + C = N, closing line reports checked/added/fixed/already correct`, () => allOf(
@@ -1101,6 +1250,98 @@ for (const kit of KITS) {
   });
   specCheck(`${kit.name}/branch-review: self-review-sha carried forward in every case, including No file`, () =>
     has(brs, 'in every case, even when the old record was treated as No file'));
+
+  // One phrase per kept rule (whitespace-collapsed). A trim that drops or rewords
+  // a rule fails here; it does not prove a worker obeys the rule.
+  const RULE_PINS = [
+    ['worker: mid tier stated, no sub-spawn, escalate, never edits code', [
+      'Spawn a worker, mid tier stated explicitly', '**Escalate, never assume.**',
+      'a relayed "I executed X" is hearsay.', '**No edits — three exceptions.**',
+      'remember/fix-ledger.md` (append bullets; never rewrite or delete)']],
+    ['two proof checks: porcelain at start and end, md5 compare, git diff names only docs: files', [
+      '**Prove it with two checks, because neither sees what the other does.**',
+      '`git status --porcelain`, at start and again before you report',
+      'only `fix-ledger.md` and `last-review.md` may differ',
+      'it must list only the files on the record\'s `docs:` line']],
+    ['dirty tree stops with (a)(b)(c), never a subset review', [
+      '**Before resolving anything, run `git status --porcelain`.**',
+      '(a) the tree is dirty, listing the uncommitted paths; (b) `/branch-review` reviews commits, not the working tree; (c) **commit the work to the branch, then re-run `/branch-review`.**',
+      'a dirty tree is an **error**, never a silent partial review']],
+    ['behind-main stop details; orchestrator and worker both check; commit -> review -> release', [
+      '`git rev-list --count HEAD..origin/main`',
+      'A never-pushed branch passes; no `origin` remote or no `origin/main` → skip the check and say so.',
+      'the worker re-runs each as its own first act',
+      '**the only correct order is commit → review → release.**']],
+    ['record validation: no sha line, rev-parse, branch, ancestor all mean No file', [
+      'No `sha:` line at all', '`git rev-parse --verify <that sha>`',
+      '`git merge-base --is-ancestor <that sha> HEAD` exits non-zero',
+      'treat it exactly as **No file** below']],
+    ['forgiven: every printed path must be on docs:, all on it = sha: = HEAD, any not = re-review', [
+      'every path printed must also be on `docs:`: if all are, treat as `sha:` = HEAD (below); if any is not, it is a re-review.']],
+    ['re-review: range sha..HEAD, stage 3 re-verifies blockers, rest not re-judged; liveness sweep', [
+      'Target the range `<that sha>..HEAD`',
+      'stage 3 re-verifies each recorded blocker as fixed, unfixed, or dismissed with a reason. The rest of the branch is **not** re-judged.',
+      '**On a re-review, sweep the open ledger bullets for liveness first.**',
+      'report any whose anchor is gone so `/refactor` can drop them.']],
+    ['no shortcuts: level never decides which checks run; NOT RUN on checks:', [
+      'The level decides how many findings you report, never which checks you run.',
+      'write `NOT RUN: <reason>` for it on the `checks:` line',
+      '**Stage 2 (security) always runs full, at every level.**']],
+    ['commit messages are claims; exit code off the bare command; timeout; tests: line with build', [
+      '**Commit messages are claims, not evidence.**',
+      'Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline',
+      'a timed-out run is not a pass',
+      'the build part is required (`build N/A: <reason>` if none)']],
+    ['stage 3: break each finding, concrete failure scenario', [
+      '**Try to break each one, not to confirm it.**',
+      '**confirmed**, **false positive** (with the reason), or **uncertain** (with what would settle it)',
+      '**Every surviving finding must carry a concrete failure scenario**']],
+    ['stage 4: settled only, whole branch, explicit paths, commit message, no commit when unchanged, main/master no edits, never delete a bullet, per-change row', [
+      'only when **settled**', 'always the whole branch, not `<recorded sha>..HEAD`',
+      'Stage the exact paths you edited by name (never `git add -A`/`-u`) and commit `docs: sweep for <short sha range>`',
+      'Nothing changed → no commit.', '**On `main`/`master` → make no edits at all**',
+      '**do not delete the bullet**; `/refactor` revalidation drops it once the finding no longer holds.',
+      'Report one row per change: change · doc `file:line` · added / fixed / already correct.']],
+    ['verdict first and repeated; what blocks; dismissed finding cannot rise', [
+      '**Open with the one-line verdict**, before any section', 'Repeat it at the end.',
+      'A **reproduced** failure only',
+      'A finding about **style, wording or structure** is **never** a blocker',
+      'cannot come back at a higher severity without **new** evidence']],
+    ['ledger: nit/change only, UNVERIFIED prefix, anchor 20-60 chars, plain grep never git grep, disproved bullet deleted', [
+      'tagged `nit` or `change` (never `idea` — that is `/self-review`\'s)',
+      'prefix the scenario with `UNVERIFIED:`', '20–60 verbatim characters from the line',
+      '(plain `grep`, never `git grep` — the ledger is gitignored',
+      '**A bullet you disprove is deleted, not annotated**']],
+    ['record: docs: paths only, docs-commit none means docs none, sweep table not in record, blockers one line each', [
+      '`docs-commit: none` means `docs: none`',
+      'belongs in the **report**, never the record',
+      '`blockers: none` when ready; otherwise one line per blocker, nothing more']],
+    ['no override field; a run with no record is not a review', [
+      '**There is no override field, no `verdict: overridden`**',
+      '**A run that produces no record is not a review**', 'Say plainly what you could not verify.']],
+    ['closing block ends with the escalate-to-orchestrator hand-off', [
+      '- **Escalate to the orchestrator** with the findings. It decides what gets fixed and by whom. Say plainly what you could not verify.']],
+  ];
+  for (const [name, phrases] of RULE_PINS) {
+    specCheck(`${kit.name}/branch-review: rule pinned — ${name}`, () => allOf(...phrases.map(p => has(brs, p))));
+  }
+
+  // Record template: the field names, in this order, and nothing else.
+  specCheck(`${kit.name}/branch-review: record template fields in order`, () => {
+    const block = extractFence(read(kit.branchReview), 'sha: <full HEAD sha>');
+    const got = block.map(l => l.match(/^(s2 [a-z-]+|[a-z][a-z-]*):/)).filter(Boolean).map(m => m[1]);
+    const want = ['sha', 'branch', 'target', 'level', 'verdict', 'date', 'coverage',
+      ...['secrets', 'tenant-isolation', 'rate-limiting', 'error-handling', 'authorization', 'data-access',
+        'injection', 'auth-session', 'trust-boundaries', 'config', 'dependencies'].map(k => `s2 ${k}`),
+      'checks', 'tests', 'docs-commit', 'docs', 'sweep', 'ledger', 'prior-blockers', 'ledger-liveness',
+      'blockers', 'self-review-sha'];
+    return got.join(',') === want.join(',') || `record fields: ${got.join(',')}`;
+  });
+
+  specCheck(`${kit.name}/branch-review: stays trimmed (at most 330 lines)`, () => {
+    const n = read(kit.branchReview).split('\n').length;
+    return n <= 330 || `branch-review is ${n} lines`;
+  });
 }
 
 // ---------------------------------------------------------------------------

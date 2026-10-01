@@ -45,7 +45,7 @@ Run friction analysis, then consolidate `.claude/stash/*.md` + friction antigens
      > Note: `friction.cjs` parses Claude Code's session schema. The Codex/Antigravity roots
      > will resolve but yield no signals until friction learns their formats — open an issue
      > to request one: https://github.com/hamr0/liteagents/issues
-   - **Run** `node <friction.cjs> "<resolved-root>"`. It writes to `.claude/remember/friction/` in the current project.
+   - **Run** `node <friction.cjs> "<resolved-root>"`. It writes to `.claude/remember/friction/` in the current project. Run it as its own command — nothing chained before or after it — with a 10-minute tool timeout: it scans the whole sessions root and can take a minute or more.
    - **On any miss — loud, never silent.** If no root resolves, friction errors, or it finds no usable sessions, print this and continue stash-only:
      > ⚠️ Friction didn't run — no sessions found. To enable it, open this skill's own file
      > and add your tool's **global** sessions root to the TOP of the probe

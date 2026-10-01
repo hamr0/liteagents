@@ -49,6 +49,25 @@ If you pick Live but the session lacks the channels flag, `channel_open` returns
 
 The channel server accepts only pages served from `localhost`, `127.0.0.1` or `[::1]` (any port); requests from any other origin, such as a LAN address or a `file://` page, get a 403. This applies to Live mode and to JSON mode's `/feedback-jsonl`.
 
+**Origin pinning.** The first loopback Origin that talks to the server (the overlay's `/health` probe) is pinned; any other Origin gets a 403 until the listener closes (`channel_close`), which resets it. This blocks a page on another local port (a different dev server, a stray app) from posting feedback. It does NOT block a script running on the same origin as the lab: that page is the pinned origin, so a cross-site-scripting hole in your own app on that port can still post comments. Residual risk is accepted and documented; the server's `instructions` scope edits to `.claude-design/lab/`.
+
+**`feedback.jsonl` caps.** Each submission is written as exactly one JSON line (a multi-line payload is re-serialised to one line). A single record over 256 KB, or a file that would pass 5 MB, is refused with 413. Delete or archive `.claude-design/feedback.jsonl` to continue.
+
+**Live Finish.** In Live mode the skill passes both `channelUrl` and `batchEndpoint` (`http://localhost:8788/feedback-jsonl`) to the overlay. Saves stream as channel tags; **Finish** POSTs the overall direction (plus any undelivered comments) to the same server, which appends it to `.claude-design/feedback.jsonl`. After you tell Claude "done" it reads that file for the overall direction. Without `batchEndpoint`, Finish would download a file and the direction would never reach the session.
+
+---
+
+## Why the skill works this way
+
+- **The mode is always asked, never auto-detected.** A silent pick hid failures (a plain `claude` session accepts Live Saves with a 200 and drops them). The only automatic step is the host check: `CLAUDECODE=1` means Claude Code; any other host cannot run the channel, so it skips the question and uses JSON. (Whether Claude Code sets `CLAUDECODE` for the Bash tool is not verified in this repo.)
+- **The skill never runs the install or relaunch commands.** The `/plugin` steps are Claude Code slash commands, not doable from inside a session; accepting the research-preview safety prompt must be the user's own act; and if something fails mid-install the user needs to see each step's output.
+- **The skill never starts the dev server.** `pnpm dev` runs forever, so the skill would wait on it indefinitely; the user usually has it running already.
+- **One overlay for every framework.** `overlay-vanilla.js` is a single dependency-free file that runs wherever a `<script>` tag does, so there is no per-framework variant to keep in step. It is copied into the dev server's served dir (`public/`, `static/`), not into `.claude-design/`, which is why cleanup must remove it explicitly.
+- **The lab banner is required** so a temporary lab is never mistaken for the real page; **`data-variant` is required** because the overlay routes each comment to a variant file by it.
+- **Takeover.** `channel_open` can take over port 8788 from another live-canvas server of the same user (same plugin, same uid). That SIGTERMs the other session's whole MCP server process: its live-canvas tools stop working there. Its lab files on disk are untouched.
+- **Cleanup guarantee.** Finish and abort both run the same cleanup, and the last line of the final message, `cleanup: ...`, reports what was removed (routes, copied overlay, `.claude-design/`, port released). Only paths the skill created are deleted.
+- **Rules are pinned.** Each rule (always ask mode, never run install commands, never start the dev server, overlay always wired, only delete what the skill created) is one line in the skill and is pinned by a phrase test in `tests/skill-shell/skill-shell.test.js`.
+
 ---
 
 ## One-time setup (Live mode, Claude Code only)
@@ -96,20 +115,20 @@ Either `claude` (JSON only) or `live-claude` (Live available).
 /live-canvas
 ```
 
-Phase 0 always asks which mode you want — Live channel or JSON file — then calls the MCP tool that binds (or refuses) port 8788:
+Before Phase 0, the skill always asks which mode you want — Live channel or JSON file — then calls the MCP tool that binds (or refuses) port 8788 (tools are `mcp__plugin_live-canvas-channel_live-canvas__channel_open`, `__batch_open`, `__channel_close`):
 
 | Choice | `channel_open` / `batch_open` result | Skill behavior |
 |---|---|---|
 | Live | `opened` | ✨ Live mode — announces it, starts the interview |
 | Live | `opened` + `took_over: <pid>` | ✨ Live mode — announces it and that it took over a sibling live-canvas server (your prior session) |
-| Live | `no_channel_capability` | Stops. Prints the exact `live-claude --continue` command for relaunch |
-| Live | `in_use` (foreign holder) | Stops. Prints the holder pid + `ps -fp <pid>` so you can investigate |
+| Live | `no_channel_capability` | Stops. Prints the server's message verbatim: open a NEW terminal, run `live-claude`, run `/live-canvas` there (do not `--continue` this session) |
+| Live | `in_use` (foreign holder) | Stops. Prints the server's message verbatim: holder pid, `ps -fp <pid>`, then re-run or pick JSON |
 | JSON | `opened` / `already_listening` | 📝 JSON mode — Submit writes to `.claude-design/feedback.jsonl` |
 | JSON | `in_use` / MCP unavailable | 📝 JSON mode — Submit downloads a JSON file you paste back |
 
 ### Interview & generation
 
-Skill asks 5 short questions (scope, pain points, inspiration, persona, constraints). Then generates 5 variants in `.claude-design/lab/variants/` and wires a route at `/__live_canvas` in your app.
+Skill runs a 5-step interview of about 14 questions (scope, pain points and inspiration, brand, persona, constraints). Then generates 5 variants in `.claude-design/lab/variants/` and wires a route at `/__live_canvas` in your app.
 
 ### Iterate in the browser
 
@@ -127,12 +146,12 @@ Keep clicking until a winner emerges.
 Click the pink **Finish** (Live) or **Submit** (JSON) button:
 
 1. Type the overall direction: e.g. *"Go with B's layout, A's button styling"*
-2. Click Finish
+2. Click Finish, then tell Claude "done"
 
-Skill then:
+Skill then reads `.claude-design/feedback.jsonl` for the overall direction (one JSON record per line; if the overlay downloaded `live-canvas-feedback.json` instead, paste it), and:
 - Generates `DESIGN_PLAN.md` in project root (winner, files to change, component API, states, a11y checklist)
 - Updates or creates `DESIGN_MEMORY.md` with the patterns it learned
-- Deletes `.claude-design/` and the `/__live_canvas` route
+- Deletes `.claude-design/`, the `/__live_canvas` route and the copied `overlay-vanilla.js`
 
 Done.
 
@@ -147,7 +166,6 @@ packages/claude/
 ├── skills/live-canvas/
 │   ├── SKILL.md                           # Skill instructions (phases, flow)
 │   ├── DESIGN_PRINCIPLES.md               # UX/a11y/motion reference
-│   ├── README.md                          # This file
 │   ├── dev/post-variants.html             # Standalone demo for local QA of the overlay
 │   └── templates/
 │       ├── overlay-vanilla.js             # Framework-agnostic overlay (~500 lines)
@@ -184,7 +202,7 @@ Two different dirs:
 - `~/.claude/plugins/live-canvas-marketplace/` — where liteagents puts the source
 - `~/.claude/plugins/cache/live-canvas-marketplace/` — where Claude Code puts its own registered copy after `/plugin install`
 
-The skill checks the cache dir to tell first-time vs returning users apart.
+The skill does not inspect either dir. It calls `channel_open` (or `batch_open`) and treats "tool not available" as a first-time user who still needs the install block.
 
 ### Per-project, during a session
 
@@ -192,12 +210,11 @@ The skill checks the cache dir to tell first-time vs returning users apart.
 <project-root>/
 └── .claude-design/
     ├── lab/variants/VariantA.tsx … VariantE.tsx
-    ├── overlay-vanilla.js (copied into the project's public/static dir)
     ├── design-brief.json                  # Structured output from the interview
-    └── feedback.jsonl                     # JSON mode only; deleted on Finish
+    └── feedback.jsonl                     # Submissions, one JSON line each; deleted on Finish
 ```
 
-Plus a temporary route (e.g. `app/__live_canvas/page.tsx` for Next.js App Router). Everything under `.claude-design/` and the temporary route is deleted on Finish or Abort.
+Outside `.claude-design/`: a copy of `overlay-vanilla.js` in the dev server's served dir (e.g. `public/overlay-vanilla.js`) and a temporary route (e.g. `app/__live_canvas/page.tsx` for Next.js App Router). All of it, including the overlay copy, is deleted on Finish or Abort.
 
 ### What survives after Finish
 
@@ -232,7 +249,7 @@ The plugin subprocess died on startup (usually a node/dep error). In the session
 
 ### Overlay loads in the browser but no pills appear
 
-The overlay script didn't load. Most common cause: you started a static file server inside the wrong directory so the relative `overlay-vanilla.js` path couldn't resolve. Start the server from the directory containing the lab's `index.html` (or `__live_canvas` route).
+The overlay script didn't load. Most common cause: the copy of `overlay-vanilla.js` is not in the dir your dev server serves (`public/`, `static/`), or you started a static file server inside the wrong directory so the path couldn't resolve. Start the server from the directory containing the lab's `index.html` (or `__live_canvas` route).
 
 ### "Pushed to Claude ✨" toast appears but nothing lands in the terminal
 

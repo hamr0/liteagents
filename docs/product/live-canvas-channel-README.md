@@ -18,10 +18,25 @@ Claude Code channel plugin that bridges the Live Canvas browser overlay to a run
 └──────────────────┘                    └───────────────────┘              └──────────────┘
 ```
 
-- HTTP listener: `127.0.0.1:8788` (override with `LIVE_CANVAS_PORT`)
+- HTTP listener: `127.0.0.1:8788` (override with `LIVE_CANVAS_PORT`), bound lazily by a tool call and released by `channel_close`
 - `GET /health` — overlay probes this to confirm Live mode is reachable
-- `POST /feedback` — wire-compatible with the overlay's v1.0 schema
+- `POST /feedback` — wire-compatible with the overlay's v1.0 schema; emits the channel notification
+- `POST /feedback-jsonl` — appends one JSON line per submission to `<claude cwd>/.claude-design/feedback.jsonl` (JSON mode, and Live mode's Finish). 256 KB per record, 5 MB per file; over either, 413
 - stdio: MCP protocol using `@modelcontextprotocol/sdk`
+
+## Tools
+
+In a plugin install the tools are namespaced: `mcp__plugin_live-canvas-channel_live-canvas__channel_open`, `__batch_open`, `__channel_close`.
+
+| Tool | Result `status` |
+|---|---|
+| `channel_open` | `opened` (+ `took_over: <pid>`, `force_killed` if it had to SIGKILL a sibling live-canvas server of the same uid), `already_listening`, `in_use` (a foreign holder, or a sibling that would not release; `holder_pid` + `message` with the next steps), `no_channel_capability` (parent `claude` lacks `--dangerously-load-development-channels`; `message` carries the relaunch steps) |
+| `batch_open` | `opened`, `already_listening`, `in_use` (JSON submissions fall back to a browser download). No flag needed, no takeover |
+| `channel_close` | `closed`, `not_listening` |
+
+## Origin
+
+Only loopback origins (`localhost`, `127.0.0.1`, `[::1]`, any port) are accepted; a request with no Origin (curl) passes. The first loopback Origin seen is pinned and any other gets 403 until the listener closes. That blocks pages on other local ports, not a script on the pinned origin itself.
 
 ## Install (local dev)
 
@@ -91,6 +106,6 @@ curl -X POST http://localhost:8788/feedback \
 
 ## Failure modes
 
-- **Port in use** — another Claude session owns 8788. Logs to stderr and exits; overlay health probe fails; overlay falls back to JSON mode silently. The skill itself never silently degrades — it stops and asks the user.
+- **Port in use** — the server does not exit. `channel_open` takes over from a sibling live-canvas server (same uid) or returns `in_use` with the holder pid and what to do; `batch_open` returns `in_use` and JSON submissions download instead. The skill itself never silently degrades — it prints the message and stops.
 - **Invalid payload** — HTTP 400 with reason; no notification emitted.
 - **MCP transport not connected** — HTTP call still returns 200 (so the overlay shows "pushed"), but stderr logs the drop. Avoids false-negative toasts.

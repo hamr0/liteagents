@@ -62,12 +62,25 @@ async function emitChannel(content, meta) {
 
 // ---------- HTTP helpers ----------
 
-function readBody(req) {
+// Size limits. A request over the cap is answered 413 (and the connection closed).
+const MAX_REQUEST_CHARS = 1e6;            // /feedback
+const MAX_JSONL_REQUEST_CHARS = 256 * 1024; // one /feedback-jsonl record
+const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024; // whole .claude-design/feedback.jsonl
+
+function tooLarge() {
+  const e = new Error('payload too large');
+  e.status = 413;
+  return e;
+}
+
+function readBody(req, limit = MAX_REQUEST_CHARS) {
   return new Promise((resolve, reject) => {
     let data = '';
+    let over = false;
     req.on('data', (c) => {
+      if (over) return;
       data += c;
-      if (data.length > 1e6) { req.destroy(); reject(new Error('payload too large')); }
+      if (data.length > limit) { over = true; data = ''; reject(tooLarge()); }
     });
     req.on('end', () => resolve(data));
     req.on('error', reject);
@@ -79,10 +92,15 @@ function readBody(req) {
 // it reaches a route; requests with no Origin (curl, non-browser) pass.
 const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
+// The first loopback Origin to talk to the server is pinned; any other Origin is
+// refused until the listener closes (channel_close / batch end), which resets it.
+let pinnedOrigin = null;
 function cors(req, res) {
   const origin = req.headers.origin;
   if (origin === undefined) return true;
   if (!LOOPBACK_ORIGIN.test(origin)) return false;
+  if (pinnedOrigin === null) pinnedOrigin = origin;
+  else if (origin !== pinnedOrigin) return false;
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -136,21 +154,28 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/feedback-jsonl') {
-    // JSON-mode batch endpoint: appends the submitted payload to
-    // <parent claude cwd>/.claude-design/feedback.jsonl so the user doesn't
-    // have to download a file and paste. No capability gate — JSON mode
-    // doesn't depend on the experimental channels flag.
+    // Batch endpoint (JSON mode, and Live mode's Finish): appends the submitted
+    // payload as ONE line to <parent claude cwd>/.claude-design/feedback.jsonl so
+    // the user doesn't have to download a file and paste. No capability gate —
+    // it works whenever the listener is bound, however it was opened.
     try {
-      const raw = await readBody(req);
-      JSON.parse(raw); // validate JSON only — schema is overlay-defined
+      const raw = await readBody(req, MAX_JSONL_REQUEST_CHARS);
+      const line = JSON.stringify(JSON.parse(raw)) + '\n'; // schema is overlay-defined
       const dir = path.join(process.cwd(), '.claude-design');
       fs.mkdirSync(dir, { recursive: true });
       const file = path.join(dir, 'feedback.jsonl');
-      fs.appendFileSync(file, raw.trim() + '\n');
+      const size = fs.existsSync(file) ? fs.statSync(file).size : 0;
+      if (size + Buffer.byteLength(line) > MAX_JSONL_FILE_BYTES) {
+        res.writeHead(413, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `feedback.jsonl is full (${MAX_JSONL_FILE_BYTES / 1024 / 1024} MB cap) — delete or archive .claude-design/feedback.jsonl` }));
+        return;
+      }
+      fs.appendFileSync(file, line);
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, path: file }));
     } catch (e) {
-      res.writeHead(400, { 'content-type': 'application/json' });
+      const status = e.status === 413 ? 413 : 400;
+      res.writeHead(status, { 'content-type': 'application/json', ...(status === 413 && { connection: 'close' }) });
       res.end(JSON.stringify({ error: String(e.message || e) }));
     }
     return;
@@ -188,6 +213,8 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404); res.end();
 });
 
+server.on('close', () => { pinnedOrigin = null; });
+
 // ---------- channel capability check ----------
 
 // Channels are still an experimental Claude Code feature. They only deliver
@@ -196,7 +223,11 @@ const server = http.createServer(async (req, res) => {
 // port, but every notification we emit is silently dropped — producing the
 // "POST 200, but nothing landed" black hole. Detect by inspecting the parent
 // claude's command-line; refuse to bind from non-qualifying sessions.
-const RELAUNCH_HINT = 'Restart this session with: live-claude  (or: claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace)';
+const RELAUNCH_MESSAGE = [
+  'Live mode needs a session started with `live-claude` (it sets --dangerously-load-development-channels); this one is plain `claude`, so browser Saves would POST 200 but never reach chat.',
+  'To use Live mode: 1) open a NEW terminal in the project (do not --continue this session), 2) run `live-claude` (not found? `source ~/.zshrc` or re-run packages/claude/plugins/live-canvas-marketplace/setup.sh; literal form: claude --dangerously-load-development-channels plugin:live-canvas-channel@live-canvas-marketplace), 3) run /live-canvas there and pick Live. Lab files in .claude-design/lab/ carry over.',
+  'Or pick JSON now to stay in this session — feedback is written to a file, no relaunch needed.',
+].join(' ');
 
 function parentHasChannelsFlag() {
   const FLAG = '--dangerously-load-development-channels';
@@ -312,7 +343,7 @@ async function openChannel() {
     return {
       status: 'no_channel_capability',
       port: PORT,
-      message: `This Claude session was launched without --dangerously-load-development-channels — channel notifications would be silently dropped. ${RELAUNCH_HINT}`,
+      message: RELAUNCH_MESSAGE,
     };
   }
   if (server.listening) return { status: 'already_listening', port: PORT };
@@ -358,9 +389,10 @@ async function openChannel() {
     status: 'in_use',
     port: PORT,
     holder_pid: holder,
-    message: holder
-      ? `Port ${PORT} is held by pid ${holder} (not a live-canvas server). Stop that process or pick JSON mode. To inspect: ps -fp ${holder}`
-      : `Port ${PORT} is held by an unknown process. Find it with: ss -lntp | grep ${PORT}`,
+    message: (holder
+      ? `Port ${PORT} is held by pid ${holder}, which is not a live-canvas server; I won't kill processes I don't own. Find out what it is: ps -fp ${holder}.`
+      : `Port ${PORT} is held by an unknown process, not a live-canvas server; I won't kill processes I don't own. Find it with: ss -lntp | grep ${PORT}.`)
+      + ' Stop it if it is safe to stop (e.g. a stray dev server), then re-run /live-canvas and pick Live. Or pick JSON now — submissions will download as a file instead of writing to .claude-design/feedback.jsonl.',
   };
 }
 

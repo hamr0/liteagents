@@ -54,6 +54,43 @@ async function waitFor(fn, ms = 3000) {
   return null;
 }
 
+// Tool call on the main server (ids 100+). Returns the parsed tool result.
+let nextId = 100;
+async function tool(name) {
+  const id = nextId++;
+  child.stdin.write(JSON.stringify({ id, method: 'tools/call', params: { name, arguments: {} } }) + '\n');
+  const line = await waitFor(() => stdoutLines.find(l => l.startsWith(`{"id":${id},`)));
+  return JSON.parse(JSON.parse(line).result.content[0].text);
+}
+const reopen = async () => { await tool('channel_close'); return tool('batch_open'); };
+
+// A second, throwaway server. withFlag=true launches it under a parent whose argv carries
+// --dangerously-load-development-channels, which is what channel_open checks for.
+const MID = `const { spawn } = require('child_process');
+spawn(process.execPath, [process.env.LC_SERVER], { stdio: 'inherit' });`;
+function boot(port, withFlag) {
+  const env = { ...process.env, NODE_PATH: STUB, LIVE_CANVAS_PORT: String(port), LC_SERVER: SERVER };
+  const midFile = path.join(cwd, 'mid.js');
+  fs.writeFileSync(midFile, MID);
+  const args = withFlag ? [midFile, '--dangerously-load-development-channels'] : [SERVER];
+  const c = spawn(process.execPath, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const lines = []; let b = '';
+  c.stdout.on('data', d => { b += d; const p = b.split('\n'); b = p.pop(); lines.push(...p.filter(Boolean)); });
+  c.stderr.on('data', () => {});
+  extra.push(c);
+  return {
+    c,
+    async tool(name) {
+      const id = nextId++;
+      c.stdin.write(JSON.stringify({ id, method: 'tools/call', params: { name, arguments: {} } }) + '\n');
+      const line = await waitFor(() => lines.find(l => l.startsWith(`{"id":${id},`)), 5000);
+      return JSON.parse(JSON.parse(line).result.content[0].text);
+    },
+  };
+}
+const extra = [];
+process.on('exit', () => extra.forEach(c => c.kill('SIGKILL')));
+
 let PORT;
 function request(method, urlPath, { origin, body, type } = {}) {
   return new Promise((resolve, reject) => {
@@ -61,8 +98,9 @@ function request(method, urlPath, { origin, body, type } = {}) {
     if (origin !== undefined) headers.Origin = origin;
     if (body !== undefined) { headers['Content-Type'] = type; headers['Content-Length'] = Buffer.byteLength(body); }
     const req = http.request({ host: '127.0.0.1', port: PORT, path: urlPath, method, headers }, res => {
-      res.resume();
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers }));
+      let body = '';
+      res.on('data', d => { body += d; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
     });
     req.on('error', reject);
     req.end(body);
@@ -113,12 +151,14 @@ async function main() {
 
   console.log('\n== loopback origins and no Origin pass ==');
   for (const origin of ['http://localhost:3000', 'http://127.0.0.1:5173', 'http://[::1]:8080']) {
+    await reopen(); // the first loopback origin is pinned, so start each from a fresh pin
     r = await request('GET', '/health', { origin });
     check(`${origin} -> 200`, r.status === 200, r.status);
     check(`${origin} echoed back`, r.headers['access-control-allow-origin'] === origin,
       r.headers['access-control-allow-origin']);
     check(`${origin} gets Vary: Origin`, /origin/i.test(r.headers.vary || ''), r.headers.vary);
   }
+  await reopen();
   r = await request('OPTIONS', '/feedback', { origin: 'http://localhost:3000' });
   check('loopback OPTIONS preflight -> 204 with Allow-Headers',
     r.status === 204 && /content-type/i.test(r.headers['access-control-allow-headers'] || ''), r.status);
@@ -136,6 +176,80 @@ async function main() {
   check('exactly one notification, and it is the loopback control (not the foreign POST)',
     n.length === before + 1 && n[n.length - 1].includes('control') && !n.some(l => l.includes('foreign')),
     JSON.stringify(n));
+
+  console.log('\n== origin pinning ==');
+  await reopen();
+  r = await request('GET', '/health', { origin: 'http://localhost:3000' });
+  check('first loopback origin is accepted (pinned)', r.status === 200, r.status);
+  const nBefore = notifications().length;
+  r = await request('POST', '/feedback', { origin: 'http://localhost:4000', body: feedback('other'), type: 'text/plain' });
+  check('a different loopback origin -> 403', r.status === 403, r.status);
+  r = await request('POST', '/feedback-jsonl', { origin: 'http://localhost:4000', body: '{"a":1}', type: 'text/plain' });
+  check('a different loopback origin cannot write /feedback-jsonl -> 403', r.status === 403, r.status);
+  await sleep(150);
+  check('no notification and nothing written for the other origin',
+    notifications().length === nBefore && !fs.existsSync(path.join(cwd, '.claude-design', 'feedback.jsonl')));
+  r = await request('GET', '/health', { origin: 'http://localhost:3000' });
+  check('the pinned origin still works', r.status === 200, r.status);
+  r = await request('GET', '/health');
+  check('no Origin still passes while pinned', r.status === 200, r.status);
+  await reopen();
+  r = await request('GET', '/health', { origin: 'http://localhost:4000' });
+  check('pin resets when the channel is closed', r.status === 200, r.status);
+
+  console.log('\n== /feedback-jsonl: one line per record, bounded ==');
+  await reopen();
+  const jl = path.join(cwd, '.claude-design', 'feedback.jsonl');
+  r = await request('POST', '/feedback-jsonl', { body: '{\n  "a": 1,\n  "b": [\n 2 ]\n}\n', type: 'text/plain' });
+  check('multi-line JSON body -> 200', r.status === 200, r.status);
+  r = await request('POST', '/feedback-jsonl', { body: '{"c":3}', type: 'text/plain' });
+  const lines = fs.readFileSync(jl, 'utf8').split('\n');
+  check('each POST is exactly one line', lines.length === 3 && lines[2] === '' && lines[0] === '{"a":1,"b":[2]}' && lines[1] === '{"c":3}',
+    JSON.stringify(lines));
+  r = await request('POST', '/feedback-jsonl', { body: '{not json', type: 'text/plain' });
+  check('unparseable body -> 400', r.status === 400, r.status);
+  r = await request('POST', '/feedback-jsonl', { body: JSON.stringify({ pad: 'x'.repeat(300 * 1024) }), type: 'text/plain' });
+  check('300KB body -> 413', r.status === 413, r.status);
+  check('rejected posts wrote nothing', fs.readFileSync(jl, 'utf8').split('\n').length === 3);
+  // fill the file to just under the 5MB total cap, then one more record must be refused
+  fs.writeFileSync(jl, ('x'.repeat(1023) + '\n').repeat(5 * 1024 - 1));
+  const sizeBefore = fs.statSync(jl).size;
+  r = await request('POST', '/feedback-jsonl', { body: JSON.stringify({ pad: 'y'.repeat(2000) }), type: 'text/plain' });
+  check('over the total cap -> 413 with a clear message', r.status === 413 && /full|cap/i.test(r.body), `${r.status} ${r.body}`);
+  check('file did not grow past the cap', fs.statSync(jl).size === sizeBefore);
+
+  console.log('\n== live channel: /feedback-jsonl works while the channel is open ==');
+  const livePort = await freePort();
+  const live = boot(livePort, true);
+  const op = await live.tool('channel_open');
+  check('channel_open (flag present) -> opened', op.status === 'opened', JSON.stringify(op));
+  PORT = livePort;
+  r = await request('POST', '/feedback-jsonl', { body: '{"live":true}', type: 'text/plain' });
+  check('POST /feedback-jsonl while channel is open -> 200', r.status === 200, r.status);
+
+  console.log('\n== messages the skill prints ==');
+  const plain = boot(await freePort(), false);
+  const nc = await plain.tool('channel_open');
+  check('no flag -> no_channel_capability', nc.status === 'no_channel_capability', JSON.stringify(nc));
+  check('relaunch message carries the full steps',
+    /NEW terminal/.test(nc.message) && /live-claude/.test(nc.message) && /\/live-canvas/.test(nc.message) && /JSON/.test(nc.message), nc.message);
+  const busyPort = await freePort();
+  const blocker = net.createServer(); await new Promise(res => blocker.listen(busyPort, '127.0.0.1', res));
+  const busy = boot(busyPort, true);
+  const bz = await busy.tool('channel_open');
+  blocker.close();
+  check('busy port -> in_use', bz.status === 'in_use', JSON.stringify(bz));
+  check('busy message carries the steps (stop it, re-run /live-canvas, or pick JSON)',
+    /re-run \/live-canvas/.test(bz.message) && /JSON/.test(bz.message), bz.message);
+
+  console.log('\n== overlay: Finish box opens in Live mode (source pin, not a browser run) ==');
+  const overlay = fs.readFileSync(path.join(__dirname, '..', '..', 'packages', 'claude', 'skills',
+    'live-canvas', 'templates', 'overlay-vanilla.js'), 'utf8');
+  const guard = overlay.split('\n').find(l => l.includes("showToast('No feedback yet')") || /if \(.*state\.comments\.length === 0\) \{/.test(l));
+  check('"No feedback yet" guard exempts live mode',
+    !!guard && /!isLive\s*&&/.test(guard), guard);
+  check('overlay doc points batchEndpoint at the channel server',
+    overlay.includes("batchEndpoint: 'http://localhost:8788/feedback-jsonl'"));
 }
 
 main().catch(e => { failed++; failures.push(`crashed: ${e.stack || e}`); console.log(e); }).then(() => {
