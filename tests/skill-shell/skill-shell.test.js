@@ -956,6 +956,11 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/docs-builder: validate: line precedes finish: in the run's final output`, () =>
     has(db, 'validate: PASS exit 0 | FAIL | NOT RUN: <reason> finish: committed <sha>'));
 
+  const brs = flat(read(skillPath(kit, 'branch-review')));
+  specCheck(`${kit.name}/branch-review: sweep counts A + F + C = N, closing line reports checked/added/fixed/already correct`, () => allOf(
+    has(brs, "N is every change in the sweep's change table, each counted exactly once in A, F or C, so A + F + C = N; a change already documented counts in C."),
+    has(brs, '**Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**')));
+
   const rm2 = flat(read(skillPath(kit, 'remember')));
   specCheck(`${kit.name}/remember: episodes:, migrate-attempts: and decay: slots in step 8`, () => allOf(
     has(rm2, 'episodes: B → A; removed: <titles> → folded into fact "<first words>" | none'),

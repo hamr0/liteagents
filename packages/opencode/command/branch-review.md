@@ -420,6 +420,9 @@ rest — `s2 secrets: ran: <command, N hits>`; `sweep: ran: 3 changes — 2 adde
 the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
 that found nothing from one that never ran; `sweep:` can.
 
+In `sweep:`, N is every change in the sweep's change table, each counted exactly
+once in A, F or C, so A + F + C = N; a change already documented counts in C.
+
 `prior-blockers:` and `ledger-liveness:` are filled on a re-review (one entry per recorded
 blocker; the liveness sweep's counts) and `n/a: first review` otherwise.
 
@@ -452,7 +455,8 @@ End with:
   none` → **Fix ledger: none**); N + K > 0 → add "N + K fixes waiting — run
   `/refactor` between features"; I > 0 → add "I ideas to triage" (ideas are
   not fixes waiting).
-- **Docs sweep: N changes documented, commit `<sha|none>`**, or **deferred — unsettled**.
+- **Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**
+  (same numbers as the `sweep:` line), or **deferred — unsettled**.
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review.** Dying mid-flight — a rate
   limit, a crash, a cancelled turn — leaves no report and no `last-review.md`;

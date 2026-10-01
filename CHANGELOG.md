@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `file:line`.
 
 ### Changed
+- **`/branch-review` docs-sweep counts are honest.** N is every change in the
+  sweep's change table, each counted once in A, F or C (A + F + C = N); the
+  closing line reads `Docs sweep: N changes checked — A added, F fixed, C
+  already correct`, not "N changes documented", which read as N edits.
 - **`/self-review`'s "Structure" item kind is now "Cleanup"** (spec, README,
   self-review doc, ledger header, test pins).
 - **Stage-2 blanks name their scope.** A blind run judged 3 of 11 stage-2 lines
