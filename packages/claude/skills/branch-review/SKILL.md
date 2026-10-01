@@ -27,7 +27,7 @@ Run this **before** `/release`, which refuses to run without a review at the cur
   ```
   find .claude/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
-  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And run `git diff --name-only <reviewed sha>..HEAD` before you report: it must list only the files on the record's `docs:` line — anything else means an edit escaped Stage 4's scope.
+  and show the comparison: only `fix-ledger.md` and `last-review.md` may differ. And run `git diff --name-only <reviewed sha>..HEAD` before you report: it must list only the files on the record's `docs:` line — anything else means an edit escaped Stage 4's scope. Both results are shown on the `proof:` line of the closing block.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
@@ -73,7 +73,7 @@ was actually read rather than assuming.
 - **`sha:` = HEAD** → nothing has changed since the last review. Say so and stop. If the recorded verdict was `blocked`, its blockers are still unfixed by definition — repeat them rather than re-deriving them. **Write no record**: the existing one stands.
 - **No file** → no prior review to build on. Review the whole branch.
 
-**On a re-review, sweep the open ledger bullets for liveness first.** Their anchors may sit in the part of the branch you are no longer reading, and the fix commits you *are* reading can invalidate them. `grep -F` each open snippet against its path; report any whose anchor is gone so `/refactor` can drop them.
+**On a re-review, sweep the open ledger bullets for liveness first.** Their anchors may sit in the part of the branch you are no longer reading, and the fix commits you *are* reading can invalidate them. `grep -F` each open snippet against its path; report any whose anchor is gone so `/refactor` can drop them. Show them on the `liveness:` line of the closing block.
 
 ## Effort level
 `low | medium | high | max` — default **medium** if not given. The level governs **stage 1 only**:
@@ -210,7 +210,7 @@ Not in the report. **Append** each one as a single bullet to
 
 The **snippet is the anchor**: 20–60 verbatim characters from the line, unique enough for `git grep -F` to find it after lines shift. No line numbers, no TODO comments in code — the ledger is the single writer. Before appending, dedupe with **plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`** (plain `grep`, never `git grep` — the ledger is gitignored, so `git grep` says "not found" every time); if it is already there, skip it. Do not touch existing bullets.
 
-**A bullet you disprove is deleted, not annotated** — if an existing bullet's finding no longer holds, or never did, remove the line and say why in your report (the one case a reviewer may remove a line; same judgement as `/refactor`'s revalidation).
+**A bullet you disprove is deleted, not annotated** — if an existing bullet's finding no longer holds, or never did, remove the line and say why on the `liveness:` line (the one case a reviewer may remove a line; same judgement as `/refactor`'s revalidation).
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·
@@ -299,6 +299,8 @@ End with:
   not fixes waiting).
 - **Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**
   (same numbers as the `sweep:` line), or **deferred — unsettled**.
+- `proof: md5 — only fix-ledger.md, last-review.md differ | <what else differed> · diff-names <sha>..HEAD: <none | all on docs: | NOT on docs: <paths>>`
+- `liveness: <N> checked, <K> dead: <file · snippet, ...> | n/a: first review · disproved: <bullet — reason, ...> | none`
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review; nobody fills the gap from memory.
 - **Escalate to the orchestrator** with the findings. It decides what gets fixed and by whom. Say plainly what you could not verify.

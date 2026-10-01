@@ -847,6 +847,20 @@ for (const kit of KITS) {
     return allOf(has(flat(br), phrase), has(flat(read(kit.release)), phrase));
   });
 
+  // (d3) closing block carries the md5/scope proof and the ledger-liveness lines, after the docs sweep, before the verdict.
+  specCheck(`${kit.name}: branch-review closing block has proof: and liveness: lines in order`, () => {
+    const t = flat(br);
+    const end = t.slice(t.indexOf('End with:'));
+    const proof = '`proof: md5 — only fix-ledger.md, last-review.md differ | <what else differed> · diff-names <sha>..HEAD: <none | all on docs: | NOT on docs: <paths>>`';
+    const live = '`liveness: <N> checked, <K> dead: <file · snippet, ...> | n/a: first review · disproved: <bullet — reason, ...> | none`';
+    const at = p => end.indexOf(p);
+    const order = ['**Docs sweep:', proof, live, 'One-line verdict:'].map(at);
+    return allOf(
+      has(end, proof), has(end, live),
+      order.every((v, i) => v > -1 && (i === 0 || v > order[i - 1])) || `closing block order wrong: ${order}`,
+      has(t, 'shown on the `proof:` line'), has(t, 'on the `liveness:` line'));
+  });
+
   // (e) the orchestrator hands the worker the spec's path.
   for (const [label, file] of [['branch-review', kit.branchReview], ['self-review', kit.selfReview]]) {
     specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
