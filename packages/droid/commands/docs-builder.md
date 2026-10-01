@@ -7,7 +7,7 @@ argument-hint: [reorg | cleanup <file.md> | search <query words...> — empty as
 
 Keep project docs **current, complete and findable**, and split a file when it outgrows its row in `docs/index.md`. Why it works this way, measured numbers and history: `docs/product/docs-builder-README.md`.
 
-**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is `docs-builder/docs-builder.cjs` (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages. Spawn each model step with its tier stated explicitly (an omitted tier inherits yours): **cheapest tier** to read, propose and assign themes; **mid tier** to write pages. Never name a vendor model.
+**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is the `docs-builder.cjs` script beside this file, the `$DB` path below (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages. Spawn each model step with its tier stated explicitly (an omitted tier inherits yours): **cheapest tier** to read, propose and assign themes; **mid tier** to write pages. Never name a vendor model.
 
 ## Setup
 

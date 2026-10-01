@@ -62,7 +62,8 @@ async function emitChannel(content, meta) {
 
 // ---------- HTTP helpers ----------
 
-// Size limits. A request over the cap is answered 413 (and the connection closed).
+// Size limits. /feedback-jsonl answers an over-cap request 413 and closes the connection;
+// /feedback answers it 400 (its catch ignores e.status).
 const MAX_REQUEST_CHARS = 1e6;            // /feedback
 const MAX_JSONL_REQUEST_CHARS = 256 * 1024; // one /feedback-jsonl record
 const MAX_JSONL_FILE_BYTES = 5 * 1024 * 1024; // whole .claude-design/feedback.jsonl

@@ -2137,7 +2137,7 @@ function collectEmptyDirs(rootAbs, dirs) {
 // process itself.
 //
 // The target FILENAME differs per tool even though this script is byte-identical across all
-// 4 packages: claude -> CLAUDE.md, droid -> AGENTS.md, ampcode -> AGENT.md, opencode ->
+// 4 packages: claude -> CLAUDE.md, droid -> AGENTS.md, ampcode -> CLAUDE.md, opencode ->
 // AGENTS.md. Same escape hatch as REPO/OUT/PAGES/INDEX/N elsewhere in this file — an env var,
 // so the packaged command docs can pass their own tool's filename without a code fork.
 // Default stays CLAUDE.md so the claude package needs no env var set at all.

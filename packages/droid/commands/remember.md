@@ -82,7 +82,7 @@ Run friction analysis, then consolidate `.factory/stash/*.md` + friction antigen
    - **4a. Classify** (the LLM classifies only — no merging, no arithmetic). Call the mid-tier model once per cluster batch with each cluster's `contexts`, `preceding`, `errors`, `self_suspect`, `projects`, `sessions`, `top_keywords`, and the ledger's existing entries (`id`, `class_hints`, `rule`, `evidence.quotes`). For EACH cluster output exactly one label:
      - `drop` — self-directed correction, agent's own prose captured as context, or a real reaction too short/ambiguous to name a specific mistake (`self_suspect` and an empty `preceding` are strong self-directed cues). Don't force a match on one overlapping word.
      - an existing ledger id (`ag-NNN`) — only if the cluster is narrowly the SAME mistake class as that entry's `class_hints`+`rule`+`evidence.quotes`, not just similar sentiment. State the entry's specific claim precisely in the prompt and give the classifier a negative example, e.g. for ag-001 (validate, don't assert): "did you test it?" matches; "we're burning money, why is it failing?" does NOT.
-     - `new` — a real, agent-directed mistake matching no existing entry. Write no theme: `count` names the entry from the first two words of the cluster's own `top_keywords`. Also output a `rule`: one line stating the behavioural rule the evidence supports, same do/don't imperative style as an existing entry's `rule` — the only LLM-authored field here; `friction.cjs count` requires it whenever the cluster's own `sessions >= 2`. Each `new:` cluster stands alone, never merged with another.
+     - `new` — a real, agent-directed mistake matching no existing entry. Write no theme: `count` names the entry from the first two words of the cluster's own `top_keywords`. Also output a `rule`: one line stating the behavioural rule the evidence supports, same do/don't imperative style as an existing entry's `rule` — the only LLM-authored field here; `friction.cjs count` requires it whenever the cluster's own `sessions >= 2`. Each `new` cluster stands alone, never merged with another.
 
      Output `{cluster_index: label}` for `drop`/`ag-NNN`; for `new`, `{cluster_index: {label: "new", rule: "<one-line rule>"}}`.
    - **4b. Route by recurrence** (tier from the distinct-conversation count `friction.cjs count` computes, per Rules):
@@ -93,14 +93,14 @@ Run friction analysis, then consolidate `.factory/stash/*.md` + friction antigen
      ```json
      { "id": "ag-001", "class": "claimed-done-not-verified",
        "class_hints": ["says pushed but", "none got it"],
-       "status": "observing|hot|rejected|escalated",
+       "status": "observing|hot|rejected|escalated|expired",
        "rule": "<current phrasing>",
        "attempts": [{ "n": 1, "rule": "<phrasing>", "adopted": "YYYY-MM-DD", "outcome": "active|failed" }],
        "evidence": { "sessions": 0, "session_ids": [{ "id": "<project-label>/<MMDD-HHMM>-<hash>", "seen": "YYYY-MM-DD" }], "projects": [], "quotes": [], "last_seen": "YYYY-MM-DD" },
        "recurred_while_hot": 0,
        "history": [{ "date": "YYYY-MM-DD", "event": "<transition>" }] }
      ```
-     Immediately after 4a produces `labels.json`, run these as real shell invocations, in order. First (a no-op on a consistent ledger — always run it; it records hand-drifted `rule` text as a new attempt so I7, `rule` == last attempt's `rule`, holds):
+     Immediately after 4a produces `.factory/remember/friction/labels.json` (the `<labels.json>` below), run these as real shell invocations, in order. First (a no-op on a consistent ledger — always run it; it records hand-drifted `rule` text as a new attempt so I7, `rule` == last attempt's `rule`, holds):
      ```bash
      node <path-to-friction.cjs> migrate-attempts .factory/remember/ledger.json .factory/remember/ledger.json
      ```
