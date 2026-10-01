@@ -63,7 +63,7 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/stash` | Snapshot this session's context before compaction or handoff |
 | `/remember` | Fold stashes + friction into hot project memory |
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
-| `/self-review` | Verify what you delivered since the last self-review with real runs, and review its structure |
+| `/self-review` | Review your code and its structure since the last self-review, with real runs — gives Fix now items, and puts nits, changes and ideas in the fix ledger |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
 | `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
@@ -151,13 +151,14 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 
 ### `/self-review` → `/branch-review` → `/release` → `/refactor`
 
-- **`/self-review`** — committed work since the last self-review (or exactly the commit hashes
-  or `a..b` range you give it; a dirty tree stops), before `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
-  to break the claims with real runs (works, no regression, cleanup — dead code, state
-  ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5
-  failure-sentence items plus max 5 Cleanup items in Fix now / Later. It never fixes
-  anything — whatever you don't fix now goes to the fix ledger, tagged `nit`, `change` or
-  `idea` (missing, worth building). Not a gate.
+- **`/self-review`** — reviews your code and its structure (works, no regression, cleanup —
+  dead code, state ownership, reuse, naming, performance — glossed over, underspecced) since
+  the last self-review, or exactly the commit hashes or `a..b` range you give it (a dirty
+  tree stops), before `/branch-review`. The orchestrator only writes a handoff; one spawned
+  mid-tier worker tries to break it with real runs and reports max 5 failure-sentence items
+  plus max 5 Cleanup items: **Fix now** (fix before `/branch-review`) and **Later**. Every
+  item it can anchor to a line goes in the fix ledger, tagged `nit`, `change` or `idea`
+  (missing, worth building). It never fixes anything. Not a gate.
 - **`/branch-review`** — the powerhouse. Reviews every change on a branch, medium depth
   by default, or exactly the commit hashes or range you give it (no record, no docs sweep then). Surfaces confirmed blockers only: real bugs, test quality,
   plus a full OWASP-shaped security pass (no leaked keys, no
