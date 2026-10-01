@@ -98,6 +98,16 @@ that predates this file's introduction has no record, so it does not count.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
+- **Stage-2 and sweep evidence** — run this one line and read its exit code;
+  nonzero → **stop**: "review record lacks stage-2 evidence — re-run
+  `/branch-review`". It needs all 11 `s2 <key>:` lines (each `ran:` or `N/A:`,
+  never `NOT RUN` or an unfilled template) and a `sweep:` line that is not
+  `deferred`. A record from before these lines existed fails it — intended.
+  The keys are listed literally rather than derived: the security spec is not
+  reliably readable from here, and a test pins this list to security's.
+  ```
+  f=.amp/remember/last-review.md; ok=1; for k in secrets tenant-isolation rate-limiting error-handling authorization data-access injection auth-session trust-boundaries config dependencies; do grep -qE "^s2 ${k}: (ran|N/A):" "$f" || ok=0; done; [ "$ok" = 1 ] && grep -qE '^sweep: (ran|main):' "$f"
+  ```
 - **`verdict: blocked` in the record** → **stop**, even when the SHA matches.
   Read that line as mechanically as the `sha:` one. A matching SHA proves a
   review ran here; it says nothing about what the review concluded, and

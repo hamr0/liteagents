@@ -228,10 +228,9 @@ not this stage's job — `/self-review` surfaces it.
 `security` spec (`security/SKILL.md` or `security.md`, whichever the tool
 ships) and run its actual checklist: every numbered item of its recurring
 six and every bullet under "Also scan for" — that spec is the only list.
-Fallback, spec missing only: secrets (repo and history), tenant isolation,
-rate limiting, error handling, authorization, injection, auth/session, trust
-boundaries; **flag that the full checklist was unavailable**, never report it
-as passed.
+Fallback, spec missing only: every `s2` line of the record reads `NOT RUN:
+security spec unavailable`, so `coverage:` says `stage2 NOT RUN` — **flag that
+the full checklist was unavailable**, never report it as passed.
 
 This stage is repo- and history-scoped, not diff-scoped: a key committed forty
 commits ago, an unbounded route the diff never touched, or a missing row
@@ -358,11 +357,11 @@ uncertain).
 
 Then a coverage line: stage 1 at level `<level>`, stage 2 full, stage 3 —
 each `ran ✓/✗` with its evidence. A stage you did not actually run is a **✗**, never an
-assumed pass. Stage 2's evidence is one line per item of the security spec's
-own checklist, "Also scan for" included — `item · ran + evidence (command or
-file:line)` or `N/A + reason`. N/A must hold for the repo, not the diff:
-"the diff doesn't touch it" is no reason. `coverage:` says `stage2
-ran` only when every item has its line; otherwise `stage2 NOT RUN`. Then a
+assumed pass. Stage 2's evidence is the coverage block at the end of the security spec's
+Output — copy its lines into the record as the `s2` lines (below).
+N/A must hold for the repo, not the diff: "the diff doesn't touch it" is no
+reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present
+and none says `NOT RUN`; otherwise `stage2 NOT RUN`. Then a
 `checks:` line for the two checks most often cut short:
 `fail-first N/M files` and `secrets-history all-branches` (or `NOT RUN:
 <reason>` for either). An N below M, or a NOT RUN, is reported as-is — it
@@ -394,15 +393,33 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
+s2 secrets: <ran: … | N/A: … | NOT RUN: …>
+s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
+s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
+s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
+s2 authorization: <ran: … | N/A: … | NOT RUN: …>
+s2 data-access: <ran: … | N/A: … | NOT RUN: …>
+s2 injection: <ran: … | N/A: … | NOT RUN: …>
+s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
+s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
+s2 config: <ran: … | N/A: … | NOT RUN: …>
+s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
+sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
 ledger: <N> nits, <K> changes, <I> ideas, <M> added
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
 ```
+
+Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the
+rest — `s2 secrets: ran: <command, N hits>`; `sweep: ran: 3 changes — 2 added,
+1 fixed, 0 already correct`. `/release` reads them mechanically: a line left as
+the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
+that found nothing from one that never ran; `sweep:` can.
 
 An old `debrief-sha:` line is carried verbatim, name unchanged; `/self-review`
 reads both names and writes `self-review-sha:` on its next run.

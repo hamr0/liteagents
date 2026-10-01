@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added`); an idea is never counted as a nit.
 
 ### Changed
+- **Stage-2 coverage is now structure, not prose.** `/security`'s Output ends
+  in an 11-line keyed coverage block (the six items plus the five "Also scan
+  for" bullets, secrets line with its history hit count); `/branch-review`'s
+  review record carries one `s2 <key>:` blank per key plus a `sweep:` line
+  (so `docs: none` no longer hides a skipped sweep); `/release` Phase 0.5 runs
+  a one-line check that stops unless all 11 are `ran`/`N/A` and the sweep was
+  not deferred. Records written before this fail that check, by design. Two
+  workers had written `stage2 ran` with no per-item evidence.
 - **`/self-review` appends every item to the ledger when it relays the
   report**, both piles, then asks which to remove. No answer: they stay.
 - **`/refactor` ledger mode asks per surviving `change`/`idea` item:** keep,

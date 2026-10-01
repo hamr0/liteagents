@@ -153,10 +153,9 @@ are the branch's only evidence for its own claims.
 installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
 and runs its actual checks: every numbered item of its recurring six and every bullet
 under its "Also scan for" (Config and Dependencies included). That spec is the only list;
-`/branch-review` keeps no copy of it. Only if the spec can't be found does it fall back to
-a short list (secrets in the repo and history, tenant isolation, rate limiting, error
-handling, authorization, injection, auth/session, trust boundaries), and it flags that the
-full checklist was unavailable — never reports it as passed.
+`/branch-review` keeps no copy of it. Only if the spec can't be found does every `s2` line of the record read `NOT RUN: security
+spec unavailable` (so `coverage:` says `stage2 NOT RUN`), and it flags that the full
+checklist was unavailable — never reports it as passed.
 
 This stage is **repo- and history-scoped, not diff-scoped**: a key committed forty commits
 ago, an unbounded route the diff never touched, or a missing row policy on a table the new
@@ -231,11 +230,11 @@ never applied), and **Verdict** (confirmed / uncertain).
 The report closes with a coverage line (stage 1 at level `<level>`, stage 2 full, stage
 3 — each `ran ✓/✗` with its evidence; a stage not actually run is a ✗, never an assumed
 pass), the reviewed SHA and branch and resolved target, tree-clean state, and the ledger
-count. Stage 2's evidence is one line per item of the security spec's own checklist, "Also scan
-for" included (`item · ran + evidence`, or `N/A + reason`). An N/A reason must hold for the
-repo, not the diff: "the diff doesn't touch it" is no reason. `coverage:` says
-`stage2 ran` only when every item has
-its line, otherwise `stage2 NOT RUN`.
+count. Stage 2's evidence is the coverage block at the end of the security spec's
+Output (11 keyed lines, `ran` / `N/A` / `NOT RUN` each), copied into the record as `s2` lines
+(§5b). An N/A reason must hold for the repo, not the diff: "the diff doesn't touch it" is no
+reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present and none says
+`NOT RUN`, otherwise `stage2 NOT RUN`.
 
 ---
 
@@ -309,9 +308,21 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
+s2 secrets: <ran: … | N/A: … | NOT RUN: …>
+s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
+s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
+s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
+s2 authorization: <ran: … | N/A: … | NOT RUN: …>
+s2 data-access: <ran: … | N/A: … | NOT RUN: …>
+s2 injection: <ran: … | N/A: … | NOT RUN: …>
+s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
+s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
+s2 config: <ran: … | N/A: … | NOT RUN: …>
+s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
+sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
 ledger: <N> nits, <K> changes, <I> ideas, <M> added
 blockers:
 - <file:line> · <one-sentence claim>
@@ -322,7 +333,9 @@ self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or om
 one; `docs-commit` and `docs:` record that commit and what it touched separately, which is
 what lets `/release` Phase 0.5 (§9) treat a docs-only commit after the reviewed SHA as not
 stale. `docs:` is repo-relative **paths only**, space-separated, or the literal `none` —
-never prose, never reasons; `docs-commit: none` means `docs: none`. The per-change sweep
+never prose, never reasons; `docs-commit: none` means `docs: none`. `sweep:` is what tells
+`docs: none` after a sweep that found nothing from a sweep that never ran. Each `s2` line and
+`sweep:` is filled by keeping one alternative; `/release` reads them mechanically. The per-change sweep
 table (change · doc `file:line` · added/fixed/already correct) belongs in the report, never
 the record. `ledger:` is derived from the fix ledger before the record is written — `N`
 nits, `K` changes and `I` ideas from the same three `grep -c` counts the closing report line
@@ -487,6 +500,11 @@ whatever state the ledger file happens to be in.
   this commit; the verdict is what it concluded, and only `ready` plus a matching hash is a
   pass. Both lines are read mechanically, for the same reason: the alternative is trusting
   someone's memory of the outcome.
+- **Stage-2 / sweep evidence** → a one-line check (in `/release`'s Phase 0.5) stops unless
+  all 11 `s2 <key>:` lines are `ran:` or `N/A:` and `sweep:` is not `deferred`: *"review
+  record lacks stage-2 evidence — re-run `/branch-review`."* A record from before these lines
+  existed fails it, by design. The key list lives literally in that command; a test pins it
+  to the security spec's.
 - **`coverage:` naming any stage `NOT RUN`** → stop. A `ready` from a run whose security
   stage never executed is not the same fact as one where it did, and this line is the only
   place the difference is visible.

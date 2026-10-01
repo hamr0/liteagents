@@ -784,13 +784,13 @@ for (const kit of KITS) {
     const copied = titles.filter(t => rest.includes(t));
     return copied.length === 0 || `stage 2 restates security items: ${copied.join('; ')}`;
   });
-  specCheck(`${kit.name}: branch-review stage 2 says the security spec is the only list, one line per item or stage2 NOT RUN`, () => {
+  specCheck(`${kit.name}: branch-review stage 2 says the security spec is the only list, 11 s2 lines or stage2 NOT RUN`, () => {
     const stage2 = section(br, '## Stage 2', '## Stage 3');
     const cov = section(br, 'Stage 2\'s evidence is', 'Then a `checks:` line');
     return allOf(
       has(stage2, 'that spec is the only list'),
-      has(cov, 'one line per item of the security spec'),
-      has(cov, '`coverage:` says `stage2 ran` only when every item has its line; otherwise `stage2 NOT RUN`'));
+      has(cov, 'coverage block at the end of the security spec'),
+      has(cov, '`coverage:` says `stage2 ran` only when all 11 `s2` lines are present and none says `NOT RUN`; otherwise `stage2 NOT RUN`'));
   });
 
   // (b) N/A must hold for the repo, not the diff.
@@ -820,6 +820,65 @@ for (const kit of KITS) {
   for (const [label, file] of [['branch-review', kit.branchReview], ['self-review', kit.selfReview]]) {
     specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
       has(section(read(file), '## Guardrails', ' ## '), 'hand it this file\'s path — a worker has no skill text of its own'));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// f. Stage-2 / sweep evidence — security's coverage template, branch-review's
+//    record template and /release's Phase 0.5 check must name the same 11
+//    keys, and /release's one-line check is RUN against fixture records.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- stage-2 evidence: keys + release check --${colors.reset}`);
+
+const S2_KEYS = 'secrets tenant-isolation rate-limiting error-handling authorization data-access injection auth-session trust-boundaries config dependencies'.split(' ');
+
+function releaseS2Command(kit) {
+  const content = read(kit.release);
+  return extractLine(content, /^\s*f=\S*last-review\.md; ok=1; for k in /, `${kit.name}/release s2 check`);
+}
+
+function s2Record(kit, edit) {
+  const lines = ['sha: ' + 'a'.repeat(40), 'verdict: ready', 'coverage: stage1 ran, stage2 ran, stage3 ran'];
+  S2_KEYS.forEach((k, i) => lines.push(`s2 ${k}: ${i === 1 ? 'N/A: no database in this repo' : 'ran: grep -rn x src, 0 hits'}`));
+  lines.push('docs: none', 'sweep: ran: 2 changes — 1 added, 1 fixed, 0 already correct', 'ledger: none');
+  return edit(lines).join('\n') + '\n';
+}
+
+const S2_CASES = [
+  { name: '(a) complete record passes', edit: l => l, pass: true },
+  { name: '(b) one s2 line missing fails', edit: l => l.filter(x => !x.startsWith('s2 config:')), pass: false },
+  { name: '(c) one s2 line NOT RUN fails', edit: l => l.map(x => x.startsWith('s2 injection:') ? 's2 injection: NOT RUN: out of time' : x), pass: false },
+  { name: '(d) no sweep: line fails', edit: l => l.filter(x => !x.startsWith('sweep:')), pass: false },
+  { name: '(e) sweep: deferred fails', edit: l => l.map(x => x.startsWith('sweep:') ? 'sweep: deferred: unsettled' : x), pass: false },
+  { name: '(f) old-format record (coverage: stage2 ran only) fails', edit: l => l.filter(x => !x.startsWith('s2 ') && !x.startsWith('sweep:')), pass: false },
+];
+
+for (const kit of KITS) {
+  let cmd;
+  try { cmd = releaseS2Command(kit); } catch (e) { check(`${kit.name}/release: s2 check extracted as one line`, false, e.message); continue; }
+  check(`${kit.name}/release: s2 check extracted as one line`, true);
+
+  specCheck(`${kit.name}: 11 stage-2 keys equal across security template, branch-review record, /release check (same order)`, () => {
+    const sec = read(kit.security).split('\n').map(l => l.match(/^- (\S+) · ran: /)).filter(Boolean).map(m => m[1]);
+    const rec = read(kit.branchReview).split('\n').map(l => l.match(/^s2 (\S+): /)).filter(Boolean).map(m => m[1]);
+    const rel = (cmd.match(/for k in (.*?); do/) || [, ''])[1].split(' ');
+    const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+    return allOf(
+      sec.length === 11 || `security template has ${sec.length} keys`,
+      same(sec, S2_KEYS) || `security keys: ${sec.join(',')}`,
+      same(rec, sec) || `branch-review keys: ${rec.join(',')}`,
+      same(rel, sec) || `release keys: ${rel.join(',')}`);
+  });
+
+  for (const shell of SHELLS) {
+    for (const c of S2_CASES) {
+      const cwd = tmpDir('skill-shell-s2-');
+      fs.mkdirSync(path.join(cwd, kit.dir, 'remember'), { recursive: true });
+      fs.writeFileSync(path.join(cwd, kit.dir, 'remember', 'last-review.md'), s2Record(kit, c.edit));
+      const r = sh(shell.bin, cmd, { cwd });
+      check(`[${shell.name}] ${kit.name}/release s2 check: ${c.name}`, (r.status === 0) === c.pass,
+        `exit ${r.status}, expected ${c.pass ? 0 : 'nonzero'}; ${r.stderr}`);
+    }
   }
 }
 

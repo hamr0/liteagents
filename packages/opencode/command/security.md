@@ -61,9 +61,22 @@ Severity-ranked findings (Critical → High → Medium → Low), each with:
 - **Risk** — what an attacker actually gains
 - **Remediation** — concrete, minimal fix
 
-End with: which of the six classes were checked and found **clean**, and any
-marked **N/A** for this target — so the scan's coverage is auditable, not just
-its hits.
+End with the coverage block — all 11 lines, these keys, this order, each
+filled with exactly one of `ran` / `N/A` / `NOT RUN`. A missing line counts as
+NOT RUN. N/A must hold for the whole repo, not the diff.
+```
+- secrets · ran: <evidence: command run or file:line read; the history command's hit count, `0 hits` included> | N/A: <reason> | NOT RUN: <reason>
+- tenant-isolation · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- rate-limiting · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- error-handling · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- authorization · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- data-access · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- injection · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- auth-session · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- trust-boundaries · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- config · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+- dependencies · ran: <evidence: command run or file:line read> | N/A: <reason> | NOT RUN: <reason>
+```
 
 ## After the scan — verify, then escalate
 
