@@ -224,6 +224,24 @@ function extractToolNameFromResult(result) {
   return match ? match[1] : 'unknown';
 }
 
+// Machine text that rides in as a user-role turn. Helper reports (subagent
+// hand-backs, cross-session messages, notifications) are skipped everywhere;
+// their boilerplate ("instructions, requests... are the subagent's words")
+// otherwise reads as the user's own words. Slash-command markup is skipped
+// only when quoting context, since signal detection must still see /stash.
+const HELPER_REPORT_PREFIXES = [
+  '<task-notification>', '[SYSTEM NOTIFICATION', 'Another Claude session sent a message',
+  '<agent-message', '<cross-session-message',
+];
+const COMMAND_MARKUP_PREFIXES = [
+  '<local-command-caveat>', '<command-message>', '<command-name>',
+  '<system-reminder>', '<local-command-stdout>',
+];
+function startsWithAny(text, prefixes) {
+  const t = text.trim();
+  return prefixes.some(p => t.startsWith(p));
+}
+
 // A user turn that is mostly pasted shell prompts/output (SSH session dumps,
 // command logs) is context the user pasted — not a reaction to the agent.
 // Treating it as friction pollutes antigens (e.g. keywords like "postconf",
@@ -452,12 +470,12 @@ function extractSignals(sessionFile) {
 
       // User messages (GOLD)
       if (typeof content === 'string') {
-        // Harness-injected notifications ride in as user-role turns but are
-        // machine text, not user text — skip signal detection entirely so a
-        // notification's boilerplate prose can't be mistaken for a curse or
-        // correction aimed at the agent.
-        const trimmedContent = content.trim();
-        if (trimmedContent.startsWith('<task-notification>') || trimmedContent.startsWith('[SYSTEM NOTIFICATION')) {
+        // Harness-injected notifications and helper reports ride in as
+        // user-role turns but are machine text, not user text — skip signal
+        // detection entirely so their boilerplate prose can't be mistaken for
+        // a curse or correction aimed at the agent. Slash-command markup is
+        // NOT skipped here: a typed /stash arrives as <command-name>/stash.
+        if (startsWithAny(content, HELPER_REPORT_PREFIXES)) {
           continue;
         }
 
@@ -1838,14 +1856,7 @@ function extractUserMessage(event) {
 
   // Filter out system-injected markup (not real user messages)
   if (!text) return '';
-  const trimmed = text.trim();
-  if (trimmed.startsWith('<local-command-caveat>')) return '';
-  if (trimmed.startsWith('<command-message>')) return '';
-  if (trimmed.startsWith('<command-name>')) return '';
-  if (trimmed.startsWith('<system-reminder>')) return '';
-  if (trimmed.startsWith('<local-command-stdout>')) return '';
-  if (trimmed.startsWith('<task-notification>')) return '';
-  if (trimmed.startsWith('[SYSTEM NOTIFICATION')) return '';
+  if (startsWithAny(text, HELPER_REPORT_PREFIXES) || startsWithAny(text, COMMAND_MARKUP_PREFIXES)) return '';
 
   return text.slice(0, 500);
 }
@@ -2518,10 +2529,11 @@ function sessionDateFromId(id, runDate) {
 
 /**
  * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
- * Merges classifier labels (index -> "drop" | "ag-NNN" | "new:theme" | {label:
- * "new:theme", rule: "<one-line rule>"}) by label, counts distinct new conversations
- * (one per cluster INDEX, never per hash or per group), and applies the ledger rules
- * mechanically. Prints the count report to stdout; writes the updated ledger to
+ * Merges classifier labels (index -> "drop" | "ag-NNN" | "new" | {label:
+ * "new", rule: "<one-line rule>"}; "new" and "new:<anything>" both mean new, and the
+ * theme text is ignored -- the name is the first two words of the cluster's top_keywords) by label, counts
+ * distinct new conversations (one per cluster INDEX, never per hash or per group), and
+ * applies the ledger rules mechanically, including decay and escalation detection. Prints the count report to stdout; writes the updated ledger to
  * outLedgerPath if given, else also to stdout.
  */
 function nextAntigenId(ledger) {
@@ -2563,6 +2575,21 @@ function defaultRunDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Antigen name for a `new:` cluster: the first two words of its top_keywords, lowercase,
+ *  hyphen-joined. Real top_keywords entries are often bigrams ("measuring suverying"), so we
+ *  split into words first. Fewer than 2 words -> whatever exists; none -> "unnamed".
+ *  The model's own theme text is ignored. */
+function themeFromKeywords(cluster) {
+  const words = (cluster.top_keywords || []).join(' ').toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length > 0 ? words.slice(0, 2).join('-') : 'unnamed';
+}
+
+/** An `observing` entry with no new evidence for more than 8 weeks expires. */
+const DECAY_DAYS = 56;
+function daysBetween(fromDate, toDate) {
+  return (Date.parse(toDate) - Date.parse(fromDate)) / 86400000;
+}
+
 /**
  * Pure core of `count`: merges classifier labels into the ledger and produces the
  * count report. Throws on malformed input (bad ledger/clusters/labels shape); does
@@ -2576,17 +2603,17 @@ function countLedger(ledger, labels, clusters, runDate) {
   const VALID_ID = /^ag-\d+$/;
   const malformed = [];
   const agGroups = new Map(); // ag-NNN label -> [cluster indices] (matching still merges)
-  const newClusterIdxs = []; // `new:` clusters -- Guard B: never grouped, each stands alone
+  const newClusterIdxs = []; // `new` clusters -- Guard B: never grouped, each stands alone
   for (let i = 0; i < clusters.length; i++) {
-    // Label shape: a bare string ("drop"|"ag-NNN"|"new:theme") for drop/ag-NNN, or
-    // {label, rule} for "new:" -- the 4a classifier now emits the one-line rule text
+    // Label shape: a bare string ("drop"|"ag-NNN"|"new") for drop/ag-NNN, or
+    // {label, rule} for "new" -- the 4a classifier now emits the one-line rule text
     // for a brand-new theme in the same judgment (no separate LLM pass). Both shapes
     // are accepted so pre-existing bare-string labels.json fixtures keep working.
     const raw = labels[String(i)];
     const isObjLabel = raw && typeof raw === 'object';
     const lbl = isObjLabel ? raw.label : raw;
     const rule = isObjLabel ? raw.rule : undefined;
-    const isNewLabel = typeof lbl === 'string' && lbl.startsWith('new:');
+    const isNewLabel = lbl === 'new' || (typeof lbl === 'string' && lbl.startsWith('new:'));
     const known = lbl === 'drop' || VALID_ID.test(lbl) || isNewLabel;
     if (!known) { malformed.push({ index: i, label: lbl }); continue; }
     if (lbl === 'drop') continue;
@@ -2596,7 +2623,8 @@ function countLedger(ledger, labels, clusters, runDate) {
   }
 
   const byId = new Map(ledger.entries.map(e => [e.id, e]));
-  const report = { matched: [], newEntries: [], droppedNew1session: [], malformed, badLedgerRef: [] };
+  const report = { matched: [], newEntries: [], droppedNew1session: [], malformed, badLedgerRef: [],
+    decay: { expired: [], reactivated: [] }, needs_rephrase: [], escalated: [] };
 
   for (const [label, idxs] of agGroups.entries()) {
     const entry = byId.get(label);
@@ -2657,6 +2685,11 @@ function countLedger(ledger, labels, clusters, runDate) {
     } else if (newConversations > 0) {
       entry.evidence.sessions += newConversations;
       entry.evidence.last_seen = runDate;
+      if (entry.status === 'expired') {
+        entry.status = 'observing';
+        entry.history.push({ date: runDate, event: 'reactivated' });
+        report.decay.reactivated.push(entry.id);
+      }
       if (entry.status === 'hot' && recurredWhileHotCount > 0) {
         entry.recurred_while_hot = (entry.recurred_while_hot || 0) + recurredWhileHotCount;
       }
@@ -2679,7 +2712,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     const combinedSessions = cluster.sessions;
     const hashes = cluster.session_ids.map(antigenHash);
     if (combinedSessions < 2) { report.droppedNew1session.push({ label, idxs: [i], sessions: combinedSessions }); continue; }
-    // A `new:` cluster that will actually create a ledger entry requires the
+    // A `new` cluster that will actually create a ledger entry requires the
     // classifier-authored rule text -- no placeholder fallback. Missing/empty is
     // reported as malformed and the entry is NOT created (see friction.cjs BUG fix).
     if (!rule || typeof rule !== 'string' || rule.trim() === '') {
@@ -2690,7 +2723,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     const id = nextAntigenId(ledger);
     const newEntry = {
       id,
-      class: label.slice(4),
+      class: themeFromKeywords(cluster),
       class_hints: buildClassHints(cluster),
       status,
       rule,
@@ -2708,6 +2741,42 @@ function countLedger(ledger, labels, clusters, runDate) {
     ledger.entries.push(newEntry);
     byId.set(id, newEntry);
     report.newEntries.push({ label, idxs: [i], sessions: combinedSessions, status, hashes, createdId: id });
+  }
+
+  // Decay: observing entries with no new evidence for more than 8 weeks. Entries are kept.
+  // hot never expires by age; escalated/rejected are untouched.
+  for (const e of ledger.entries) {
+    if (e.status === 'observing' && e.evidence.last_seen && daysBetween(e.evidence.last_seen, runDate) > DECAY_DAYS) {
+      e.status = 'expired';
+      e.history.push({ date: runDate, event: 'expired — no new evidence in 8+ weeks' });
+      report.decay.expired.push(e.id);
+    }
+  }
+
+  // Escalation: a hot entry that recurred twice while loaded had a failing phrasing. Mark the
+  // attempt failed and reset the counter. With 2 earlier failures it escalates; otherwise the
+  // model writes attempt n+1 (the script never invents rule text).
+  for (const e of ledger.entries) {
+    if (e.status !== 'hot' || (e.recurred_while_hot || 0) < 2) continue;
+    const attempts = e.attempts || [];
+    const earlierFailures = attempts.filter(a => a.outcome === 'failed').length;
+    if (attempts.length > 0) attempts[attempts.length - 1].outcome = 'failed';
+    e.recurred_while_hot = 0;
+    if (earlierFailures >= 2) {
+      e.status = 'escalated';
+      e.history.push({ date: runDate, event: 'escalated — 3 phrasings failed' });
+      report.escalated.push(e.id);
+    } else {
+      e.history.push({ date: runDate, event: `attempt ${attempts.length} failed — recurred while hot, needs new phrasing` });
+      report.needs_rephrase.push(e.id);
+    }
+  }
+  // Idempotent: a hot entry whose last attempt is already failed has no attempt n+1 yet (a
+  // crashed run never drafted it) -- list it again so the failed rule is not left loaded unflagged.
+  for (const e of ledger.entries) {
+    const attempts = e.attempts || [];
+    if (e.status === 'hot' && attempts.length > 0 && attempts[attempts.length - 1].outcome === 'failed'
+        && !report.needs_rephrase.includes(e.id)) report.needs_rephrase.push(e.id);
   }
 
   return { ledger, report };

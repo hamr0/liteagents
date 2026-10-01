@@ -151,15 +151,15 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 
 ### `/self-review` → `/branch-review` → `/release` → `/refactor`
 
-- **`/self-review`** — everything since the last self-review, committed or not, before
-  `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
+- **`/self-review`** — committed work since the last self-review (or exactly the commit hashes
+  or `a..b` range you give it; a dirty tree stops), before `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
   to break the claims with real runs (works, no regression, cleanup — dead code, state
   ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5
   failure-sentence items plus max 5 Cleanup items in Fix now / Later. It never fixes
   anything — whatever you don't fix now goes to the fix ledger, tagged `nit`, `change` or
   `idea` (missing, worth building). Not a gate.
 - **`/branch-review`** — the powerhouse. Reviews every change on a branch, medium depth
-  by default. Surfaces confirmed blockers only: real bugs, test quality,
+  by default, or exactly the commit hashes or range you give it (no record, no docs sweep then). Surfaces confirmed blockers only: real bugs, test quality,
   plus a full OWASP-shaped security pass (no leaked keys, no
   injection, trust boundaries checked) that runs at full depth regardless of level.
   Everything non-blocking goes to the fix ledger. It also sweeps and commits the

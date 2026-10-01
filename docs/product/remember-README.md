@@ -22,7 +22,7 @@ Everything project-local lives in **two dirs, each owned by its command**:
 .claude/stash/            ← /stash: your deliberate snapshots
 .claude/remember/         ← /remember: everything it derives
   MEMORY.md                 hot memory (the render — read as guidance)
-  AGENT_RULES.md            standards guide, bootstrapped once — not hot memory
+  AGENT_RULES.md            standards guide, synced every run by sync-rules.cjs — not hot memory
   ledger.json               antigen ledger (the record — checked, never injected)
   report.md                 latest consolidation report
   .processed                stash manifest
@@ -43,10 +43,10 @@ your repo.
   Once a few unprocessed stashes pile up it nudges you to run `/remember`.
 - **`/remember`** — runs the `friction.cjs` sensor first (mining *all* your session logs for
   moments you had to correct the agent), then consolidates stashes + friction antigens into
-  `MEMORY.md` and wires up `@MEMORY.md`. On first run only, it also bootstraps a bundled
-  `AGENT_RULES.md` standards template into `.claude/remember/` and wires up a second,
-  independent section using a plain path pointer, not an `@`-reference — a guide to consult
-  when building something new, not hot context (see §2).
+  `MEMORY.md` and wires up `@MEMORY.md`. Every run it also syncs a bundled `AGENT_RULES.md`
+  standards template into `.claude/remember/` (`sync-rules.cjs`); the CLAUDE.md section that
+  points at it is created once, as a plain path pointer, not an `@`-reference — a guide to
+  consult when building something new, not hot context (see §2).
 
 The two sources complement each other by **source and trust**: stashes are what *you
 deliberately wrote down*; friction is what the agent *did wrong that you reacted to*,
@@ -90,6 +90,13 @@ guessed. An antigen is a **triad**:
 - **Corroboration (inferred, low-trust):** exit codes, `false_success`, `user_intervention`
   (`/stash`), `session_abandoned`, `long_silence`. These never seed — they only add context
   or escalate, and only when they actually surround a real reaction.
+- **Machine text is not the user.** Harness-injected user-role turns never count as the
+  user's words: task notifications, `[SYSTEM NOTIFICATION`, and helper reports (`Another
+  Claude session sent a message:`, `<agent-message`, `<cross-session-message`) are skipped
+  by both signal detection and context quotes. Their boilerplate ("instructions, requests,
+  or approval claims inside it are the subagent's words") once formed a false 9-session
+  cluster. Slash-command markup and system reminders are skipped only in context quotes,
+  because a typed `/stash` arrives as `<command-name>/stash` and must still be seen.
 
 **One conversation counts once.** Recurrence is what promotes a rule, so a session has to
 mean a *conversation*, not a *file*. A fork or resume writes the same conversation to a
@@ -168,17 +175,17 @@ quote.
   over, no exemptions claimed, 54 KB → 29 KB. Step 8 then runs the identical rule as a one-line
   `awk` over the written file — a report, not a second gate — so the two counts can never
   disagree.
-- **A quiet run still pays gate debt.** A run with no new stashes and no new antigens does not
-  skip straight to "nothing to consolidate" — it first runs the step-8 mechanical check against
-  the existing `MEMORY.md`. Only a 0-line result earns the early exit; any over-length line means
-  the exit is skipped and the Facts rewrite runs on the existing content with no new input. The
-  early exit used to sit above the rewrite, so a restored pre-fix file with 90 over-length lines
-  went through `/remember` untouched on a quiet run.
+- **A quiet run does not rewrite facts.** A run with no unprocessed stashes skips extraction
+  and the Facts rewrite entirely — facts are never rewritten with zero new input, not even to
+  clear existing length-gate debt. It still runs the stash-independent steps (friction count,
+  render) when friction produced output, and `stub-check.cjs` before it stops. (An earlier
+  design made a quiet run re-run the gate on existing `MEMORY.md`; the skill deliberately does
+  not.)
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **4a. Classify** — sonnet labels each cluster once: `drop` (self-directed), an
-     existing ledger id (same mistake class), or `new:<theme>` (theme derived
-     mechanically from the cluster's own top keywords, not freeform prose) plus a
-     one-line, classifier-authored `rule` for that theme — the only LLM-authored field
+     existing ledger id (same mistake class), or `new` (`count` names the entry
+     from the cluster's own top two keywords, never from model prose) plus a
+     one-line, classifier-authored `rule` — the only LLM-authored field
      here. No merging, no arithmetic — that's 4c.
   2. **4b. Route + tier** — recurring + severe → antigen; recurring + mild → Fact;
      one-off (<2 sessions) → nothing yet, re-surfaces next run. Tier is driven by
@@ -186,8 +193,10 @@ quote.
      recorded), Low (2, ledger `observing` only).
   3. **4c. Count** — `friction.cjs count` is a deterministic script, not the LLM: session
      identity, promotion (`observing`→`hot` at sessions >= 5, which appends a history line
-     and re-stamps `attempts[last].adopted` to the run date), the adopted-date gate, and
-     decay all happen mechanically against `ledger.json`.
+     and re-stamps `attempts[last].adopted` to the run date), the adopted-date gate, 
+     decay and reactivation, the naming of new entries, and failed-attempt/escalation
+     detection all happen mechanically against `ledger.json`; `count_report.json` lists
+     `decay`, `needs_rephrase` and `escalated` ids for the step-8 slots.
 - Step 5 renders the Antigens section with `friction.cjs render` — byte-for-byte from the
   ledger, no LLM paraphrase. `friction.cjs check` validates the ledger/MEMORY.md invariants
   (I6-new, I7); `friction.cjs migrate-attempts` is a one-time fixer for hand-drifted `rule`
@@ -198,7 +207,8 @@ quote.
   the evidence that promoted it, every phrasing ever tried. Two things it buys:
   1. **Failure detection without statistics** — if a class fires again *while its rule is
      loaded* (`recurred_while_hot`), the phrasing demonstrably failed: at 2 recurrences the
-     rule is rephrased (never reusing a failed phrasing — the `attempts` list is the
+     rule is rephrased (`count` marks the attempt failed and lists the id in `needs_rephrase`, and lists it again every run until the model has
+     written attempt n+1; the model writes the new wording, never reusing a failed phrasing — the `attempts` list is the
      rejected-edit buffer); after 2 failed phrasings the antigen is **ESCALATED**: removed
      from hot, recorded as a Fact ("no phrasing fixes this"), and flagged for a human
      decision — enforcement (a hook) or accepted limit.
@@ -226,12 +236,13 @@ quote.
   `docs/product/antigen-gate-prd.md`.
 - Writes `MEMORY.md` (Facts / Episodes / Antigens), injects `@.claude/remember/MEMORY.md`
   into `CLAUDE.md`, and writes the run report to `.claude/remember/report.md`.
-- **Bootstraps `AGENT_RULES.md` once.** If `.claude/remember/AGENT_RULES.md` doesn't exist,
-  it's copied from the bundled template next to `friction.cjs`; if it already exists, it's
-  left alone — user-owned from that point on. When present, `/remember` injects a second,
-  independent `<!-- AGENT_RULES:START -->…<!-- AGENT_RULES:END -->` section into CLAUDE.md as
-  a plain path pointer (not `@`-referenced — it's a standards guide read when designing
-  something new, not hot context loaded every session like MEMORY.md).
+- **`AGENT_RULES.md` the file is synced every run; the CLAUDE.md block is create-once.**
+  `sync-rules.cjs` byte-compares `.claude/remember/AGENT_RULES.md` against the bundled template:
+  absent → copied in, identical → nothing, differs → old body to a single `.bak`, new copied in.
+  When the file exists, `/remember` creates a second, independent
+  `<!-- AGENT_RULES:START -->…<!-- AGENT_RULES:END -->` section in CLAUDE.md as a plain path
+  pointer (not `@`-referenced — a standards guide read when designing something new, not hot
+  context). An existing pair is never rewritten: users trim it deliberately.
 - **Step 7: docs reconcile check.** Best-effort, crash-isolated: runs `docs-builder.cjs due`
   against `docs/.docs-builder/ledger.json`, and on ANY drift it prints (new/moved/changed/
   deleted, not just crossing the >=5-doc DUE threshold) it also re-runs `index-flat` right
@@ -253,3 +264,132 @@ cat .claude/remember/friction/antigen_clusters.json
 # human-readable:
 cat .claude/remember/friction/antigen_review.md
 ```
+
+---
+
+## 4. Design notes and measurements
+
+Moved here from the `/remember` skill so the skill holds only what a run must do. Each item
+names the rule it explains.
+
+**Rules and the model tier.**
+- *Precision over recall.* A false antigen loaded through `@MEMORY.md` steers every future
+  session; a missed one just waits for recurrence.
+- *Mid tier, never the cheapest.* On judgment work the cheapest tier measurably degrades
+  (misclassification several times higher). No vendor model name is hardcoded — an omitted
+  tier silently inherits the parent's.
+- *Batch stashes.* One agent reading several sessions sees a lesson recur and writes it once;
+  one agent per stash writes it once per stash and leaves the merge to catch duplicates.
+- *Facts are short rules.* 160 target / 180 hard stop; events, history and narrative belong in
+  episodes.
+
+**Absolute paths.** The cwd during a run is the target repo, not the liteagents package, so a
+cwd-relative script path works only inside the liteagents repo itself.
+
+**Codex / Antigravity roots.** The sessions-root probe lists them, but `friction.cjs` parses
+Claude Code's session schema, so they resolve and yield no signals until friction learns their
+formats.
+
+**Version check.** `version-check.cjs` exits 0 on every path, caches the registry answer 24h and
+is bounded to ~2s. A failed check stays silent because it is a once-a-day nudge; a missing
+script means the install is incomplete, which is worth a word.
+
+**`sync-rules.cjs`.** It replaced a bootstrap-once rule that never refreshed, which left a
+measured 35 repos many releases behind. The rules doc is a shipped standards document, so a
+differing body is always preserved in the backup first. The byte compare is done by the script,
+never the model: a model-performed copy can re-wrap a line or drop a trailing newline, and the
+file would then differ forever, backing up on every run.
+
+**Stub shape (`stub-check.cjs`).** Measured 2026-09-03: 21 of 37 local repos still carried the
+pre-v2.19 `@`-include of `AGENT_RULES.md`, hot-loading ~300 lines into every session. A shape
+rule checked by asking the model to look drifts back; this one is a byte-level assertion. It
+will not repoint a MEMORY include at a file that does not exist — an un-migrated
+`.claude/memory/` repo has a live MEMORY.md at the old path, and breaking a working include to
+satisfy a naming convention is worse than reporting it. The existing-pair rule exists because a
+run once restored inline rules into a CLAUDE.md whose owner had cut them, and the edit had to be
+reverted by hand.
+
+**Legacy migration.** Old `.claude/friction/` contents are discarded, not moved: friction
+regenerates all output every run, so stale copies carry no unique information and moving them
+would overwrite fresh output.
+
+**Episodes: keep-10 is specified once.** The set to remove is derived from the rule, never
+supplied beside it. Observed in the field: a run told to keep 10 and handed a 5-entry delete
+list removed 7, the 2 extras were never folded, and one lesson left memory with nothing
+carrying it.
+
+**4a classify.** The model's label is just `new`; `count` derives the name from the first two words
+of `top_keywords` (lowercase, hyphen-joined; fewer than 2 words uses what exists, none gives
+`unnamed`). Real `top_keywords` entries are bigrams (`measuring suverying`, `baking assessing`),
+so the old "`[0]` + `[1]`" rule made the model write four words
+(`new:measuring-suverying-baking-assessing`); it no longer writes the theme at all. Deriving the name mechanically
+raised measured 5-run exact-label agreement from 0.884 to ~0.97-0.99 by removing wording
+variance, and what remains is genuine classification disagreement (drop vs. new:, or which
+existing id). Naming the entry's specific claim plus a negative example bounds an existing-id
+match — a generic one-line rule is too broad (the "fucking validate" false-merge case, where
+cost/outcome complaints matched a validation rule).
+
+**4b routing.** Friction's one-offs are cross-project and arrive by the dozen, so filing them as
+Episodes would flush the stash episodes (capped at 10). Nothing is lost: friction re-scans every
+session log each run, so a cluster resurfaces until it recurs, and at 2 sessions it gets a
+ledger `observing` entry.
+
+**What `friction.cjs count` does internally** (deterministic, no LLM, so it cannot drift between
+repos or runs):
+- *Session identity* — the trailing 8-char hash of a session id (stable across project-label
+  renames), with the same fork/resume canonicalization friction applies before emitting
+  clusters (sessions sharing >=1 message `uuid` collapse to one conversation).
+- *Migration (one-time, grandfathered): seed, do not count.* An entry whose `session_ids` is
+  empty and carries no prior "identity migration" history line has its first match seed
+  `session_ids` WITHOUT incrementing `sessions`/`last_seen`/`recurred_while_hot`. The
+  migration-fill sub-case (`session_ids` still empty but the history line exists) fills on the
+  first post-migration match, still without incrementing; counting resumes once non-empty.
+- *Counting is per cluster index, never per hash or per label-group.* For each cluster index in
+  a matched group, if none of its hashes are already stored it is one new conversation:
+  `sessions` += 1, `last_seen` refreshed, and — if the entry is `hot` and the session's date is
+  on/after the current attempt's `adopted` date (the adopted-date gate: a mistake that predates
+  the rule's current phrasing is not a phrasing failure of it) — `recurred_while_hot` += 1. A
+  gated-out new conversation still counts as evidence but not toward `recurred_while_hot`. A
+  hash already present is a re-scan: only missing alias hashes are added.
+- *Promotion* `observing`→`hot` at `sessions >= 5`; a new entry is born `hot` directly if
+  `sessions >= 5` on arrival (a fresh ledger on a project with mature global evidence).
+- *No match, cluster `sessions` == 1* → writes nothing. A match is not an increment: several
+  matches against one entry routinely produce zero increments, and that is correct.
+- *`new:` groups with no ledger match* → distinct conversations = distinct cluster indices;
+  `sessions < 2` writes nothing, `>= 2` creates an entry (hot at >=5, else observing).
+- *Guard B — `new:` clusters never merge in-batch.* Each `new:` cluster with `sessions >= 2`
+  creates its own entry; a genuine recurrence is matched on a later run by `class_hints`.
+  Measured against merging same-labelled `new:` clusters whose `top_keywords` overlap by >=1: a
+  synthetic new entry was re-matched by a fresh classifier on 5/5 runs under Guard B, while the
+  keyword-overlap guard wrongly merged two real, distinct mistakes (clusters 21/23, both sharing
+  the generic keyword "fucking validate").
+
+**Decay.** Antigens are the fastest-decaying artifact. It is meaningful only because of the
+identity fix — without it `last_seen` would refresh on every re-scan and nothing would go stale.
+The 8-week window matches the ~7-week transcript retention (older evidence can no longer be
+re-verified against source logs). Entries are kept (append-only doctrine) and merely stop
+rendering; `hot` never expires by age because a loaded rule that stops recurring is the rule
+working, not staleness. `count` applies it: an `observing` entry whose
+`last_seen` is more than 56 days before the run date becomes `expired`; a later new conversation
+matching it sets it back to `observing` (history "reactivated"); both id lists land in
+`count_report.json` for the `decay:` slot.
+
+**`friction.cjs render`.** Prints the Antigens section byte-for-byte, no LLM paraphrase:
+`### High Confidence (loaded — applies every session)` / `### Medium Confidence (observing — not
+loaded)` / `### Low Confidence (needs more data)`, each a list of
+`- <rule> (evidence: N sessions[, P projects — "quote1", "quote2"]) — ag-NNN`.
+High = `status == "hot" && sessions >= 5` (the only tier that prints quotes: the first 2 of
+`evidence.quotes`, verbatim, plus `evidence.projects.length`). Medium = `observing` and 3-4
+sessions. Low = `observing` and 2 sessions. `expired`/`escalated`/`rejected`/`sessions < 2`
+never render. An empty tier prints `- (none — <why>)`, one line, never an empty section.
+`check` must then report `I6-new: EQUAL`.
+
+**Docs step.** `docs/` exists but never organised: telling the user to run `ledger` would stamp
+an unsorted pile as the correct baseline and `due` would report NOT due forever, so the message
+is always `/docs-builder reorg`. `due` compares `docs/` against the ledger SHA with
+`git diff --numstat -M`, classifying each doc new / moved / moved+changed / changed / deleted,
+and is due at >=5 changed docs.
+
+**Step-8 slot lines.** Every required step has a report line filled with its result or
+`NOT RUN: <reason>`, so a skip shows. The tests pin the phrases, which proves the slot is in the
+spec in every kit, not that a worker fills it.

@@ -76,23 +76,24 @@ the staged diff or the working tree, and it does not review a subset. The most e
 failure this command can have is reviewing 800 committed lines while 200 uncommitted lines
 of today's actual work go unread.
 
-Next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
+`$ARGUMENTS` is **no hash** (the committed work on the current branch), **one or more
+commit hashes**, or a **range** `<a>..<b>` (exactly those commits).
+
+In no-hash mode, next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
 is behind `origin/main`, the stop names how many commits behind, that reviewing now is
 wasted because syncing afterwards makes the review stale, and the remedy: merge
 `origin/main` (or rebase), then re-run. A never-pushed branch, or no `origin/main`, skips it.
 
-With a clean tree, `$ARGUMENTS` is interpreted in order:
+With a clean tree:
 
 | Input | Resolves to |
 |---|---|
-| empty | current branch vs its merge-base with `main` (`git diff $(git merge-base main HEAD)..HEAD`); empty diff → say so and stop |
-| a range (`main..HEAD`, `origin/main...HEAD`) | `git diff <range>` |
-| a single ref (branch/tag/SHA, confirmed with `git rev-parse --verify`) | that ref's merge-base against `HEAD` |
-| a file or directory path | that target |
-| anything else | ask |
+| one or more hashes, or a range `<a>..<b>` | exactly those commits (each hash via `git show <sha>`, a range via `git log`/`git diff <a>..<b>`; each hash and both range ends validated with `git rev-parse --verify <x>^{commit}`, none starting with `-`), on any branch including `main`. **Hash mode** writes no record and runs no Stage 4 docs sweep; the report says "hash review — no record written; /release needs a branch review". Ledger appends work as usual |
+| no hash, on `main`/`master` | stop and ask for hashes or a range |
+| no hash | current branch vs its merge-base with `main` (`git diff $(git merge-base main HEAD)..HEAD`), with re-review below; empty diff → say so and stop |
 
 The worker records the **HEAD SHA** it reviewed and reports the resolved target (the
-literal range or path), so the orchestrator sees what was actually read rather than
+literal range or hashes), so the orchestrator sees what was actually read rather than
 assuming.
 
 **Why the tree must be clean first, always:** `/release`'s own precondition is a review at
@@ -144,8 +145,8 @@ it go red. A test that passes against both the buggy and the fixed source is a t
 and proves nothing; every one found is flagged. The count is `fail-first N/M files`, where
 M is every test file the diff adds or changes with no exclusions (a file that cannot go red
 still counts, named with its reason — `12/15`, never `12/12`), and the report says whether
-each red was a failed assertion or a load failure against the old source (weaker proof).
-The report also says explicitly when tests
+each red was a failed assertion or a load failure against the old source (weaker proof). If most reds are load failures, it also runs a mutation on a temp copy of
+HEAD (outside the repo) and reports the assertion reds. The report also says explicitly when tests
 are the branch's only evidence for its own claims.
 
 ### Stage 2 — Security (always full)
@@ -184,7 +185,7 @@ open blocker named pushed-through by the user, by name, in the invocation — ne
 Pushing through never changes the verdict (`blocked` stands, no override field, `/release`
 still stops and asks live); it only unblocks the sweep. A blocker neither fixed nor
 pushed through leaves the review **unsettled** → deferred (`docs sweep: deferred —
-unsettled`). When it does run, it always sweeps the **whole branch** (`main..HEAD`), never a
+unsettled`). When it does run, it always sweeps the **whole branch** (`git merge-base main HEAD`..`HEAD`), never a
 re-review's narrower `<recorded sha>..HEAD`: a single run at the end, over the whole
 branch, means no narrower range can leave an earlier commit undocumented. The worker lists
 every user-visible change from the commit bodies, diff, and recent `.claude/stash/` notes;
@@ -247,7 +248,7 @@ git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the 
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
 from a review run lands here as one bullet, and `/self-review` (a separate command covering
-everything since the last self-review, committed or not, run by a spawned mid-tier worker
+the committed work since the last self-review, run by a spawned mid-tier worker
 before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
@@ -304,22 +305,22 @@ half of the record with no way to tell which write did it.
 ```
 sha: <full HEAD sha>
 branch: <branch>
-target: <resolved range or path>
+target: <resolved range>
 level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
-s2 secrets: <ran: … | N/A: … | NOT RUN: …>
-s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
-s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
-s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
-s2 authorization: <ran: … | N/A: … | NOT RUN: …>
-s2 data-access: <ran: … | N/A: … | NOT RUN: …>
-s2 injection: <ran: … | N/A: … | NOT RUN: …>
-s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
-s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
-s2 config: <ran: … | N/A: … | NOT RUN: …>
-s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
+s2 secrets: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 tenant-isolation: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 rate-limiting: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 error-handling: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 authorization: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 data-access: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 injection: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 auth-session: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
@@ -349,7 +350,8 @@ repeats (N = total − K − I), `M` the bullets appended this run; no ledger fi
 **`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
 before overwriting the record whole, it reads any existing `self-review-sha:` line and
-re-appends it unchanged as the new record's last line. A record from before the rename
+re-appends it unchanged as the new record's last line — in every case, even when the old
+record was treated as No file. A record from before the rename
 holds `debrief-sha:` instead; with no `self-review-sha:` present, that old line is carried
 forward verbatim (`/self-review` reads both names). `/branch-review` never sets, reads
 the *value* of, or reasons about that line — it only carries it. This is why every reader of
@@ -562,7 +564,7 @@ sequence, including the ones typed by hand.
 
 **Feature A lands.**
 1. Work is committed to `feat/a`. `/branch-review` runs with a clean tree, resolves the
-   empty-argument target to `main..HEAD`, and records `HEAD abc123`.
+   empty-argument target to `git merge-base main HEAD`..HEAD, and records `HEAD abc123`.
 2. Stage 1 finds one High (a null path with a written failure scenario) and three
    low-severity nits. Stage 2 runs full and comes back clean. Stage 3 confirms the High
    and drops one of the three nits as a false positive.
@@ -570,8 +572,10 @@ sequence, including the ones typed by hand.
    surviving low findings are appended to `fix-ledger.md`, tagged `nit`. Fix ledger: 2 nits,
    0 changes — 2 added this run.
 4. The High is fixed by hand (or by a targeted `/refactor <file>`), committed, and
-   `/branch-review abc123..HEAD` re-reviews just that fix commit. Stage 3 confirms the
-   prior High is now fixed. Recorded SHA moves to `def456`.
+   `/branch-review` (empty target again) reads the record, re-reviews just
+   `abc123..HEAD` (the fix commit), and Stage 3 confirms the prior High is now fixed.
+   Recorded SHA moves to `def456`. (Passing `abc123..HEAD` as an argument would be a
+   range review: no record written.)
 5. `/release` runs. Phase 0.5 compares `def456` to `HEAD` — match — and finds no findings
    outstanding at that SHA. It proceeds through its own mechanical checks (tests are skipped when the record's `tests:` line covers them), version bump, and stops with
    the push/PR/merge/tag/publish sequence for a human to authorize.

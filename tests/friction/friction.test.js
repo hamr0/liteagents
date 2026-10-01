@@ -1130,6 +1130,158 @@ function main() {
     }
   }
 
+  // ---------------------------------------------------------------- count: theme, decay, escalation
+  // `count` (not the model) names new antigens from the cluster's top_keywords, expires stale
+  // `observing` entries, reactivates expired ones on new evidence, and detects escalation.
+  group('friction.cjs count — theme naming, decay, escalation');
+  {
+    const RUN = '2026-10-01';
+    const daysAgo = n => new Date(Date.parse(RUN) - n * 86400000).toISOString().slice(0, 10);
+    const entry = (id, status, over) => Object.assign({
+      id, class: 'c-' + id, class_hints: [], status, rule: 'rule ' + id,
+      attempts: [{ n: 1, rule: 'rule ' + id, adopted: '2026-01-01', outcome: 'active' }],
+      evidence: { sessions: 2, session_ids: [{ id: 'proj/0101-0000-aaaaaaaa', seen: '2026-01-01' }],
+        projects: ['proj'], quotes: [], last_seen: daysAgo(10) },
+      recurred_while_hot: 0, history: [],
+    }, over || {});
+    const withLast = (id, status, days, extra) => entry(id, status, Object.assign(
+      { evidence: { sessions: 2, session_ids: [{ id: 'proj/0101-0000-aaaaaaaa', seen: '2026-01-01' }],
+        projects: ['proj'], quotes: [], last_seen: daysAgo(days) } }, extra || {}));
+    // A cluster that is a brand-new conversation (hash not in any entry), dated after every adoption.
+    const cl = (hash, keywords) => ({ sessions: 2,
+      session_ids: [`proj/0930-0000-${hash}`, `proj/0930-0001-${hash}`.replace(hash, hash.slice(0, 7) + '9')],
+      projects: ['proj'], contexts: ['a real quote'], top_keywords: keywords });
+    function count(ledgerEntries, labels, clusters) {
+      const dir = tmpDir('friction-tde-');
+      const w = (n, o) => { const f = path.join(dir, n); fs.writeFileSync(f, JSON.stringify(o)); return f; };
+      const out = path.join(dir, 'out.json');
+      const r = runSub(['count', w('l.json', labels), w('led.json', { version: 1, entries: ledgerEntries }),
+        w('c.json', clusters), RUN, out]);
+      return { code: r.code, report: JSON.parse(r.out), ledger: JSON.parse(fs.readFileSync(out, 'utf8')) };
+    }
+    const get = (res, id) => res.ledger.entries.find(e => e.id === id) || {};
+    const firstClass = res => (res.ledger.entries[0] || {}).class;
+
+    // ---- theme: derived from top_keywords[0..1], model's theme text ignored
+    const kws = ['Measuring', 'suverying', 'baking', 'assessing'];
+    const longLabel = count([], { '0': { label: 'new:measuring-suverying-baking-assessing', rule: 'r' } }, [cl('bbbbbbb1', kws)]);
+    ok('theme: 4-keyword model label -> class is top 2 keywords, lowercase',
+      firstClass(longLabel), 'measuring-suverying');
+    const bareNew = count([], { '0': { label: 'new', rule: 'r' } }, [cl('bbbbbbb1', kws)]);
+    ok('theme: bare `new` label creates the same name', firstClass(bareNew), 'measuring-suverying');
+    ok('theme: bare `new` is not malformed', bareNew.report.malformed.length, 0);
+    const oneKw = count([], { '0': { label: 'new:x', rule: 'r' } }, [cl('bbbbbbb1', ['only'])]);
+    ok('theme: a single keyword is used as-is', firstClass(oneKw), 'only');
+    const bigrams = count([], { '0': { label: 'new:x', rule: 'r' } },
+      [cl('bbbbbbb1', ['measuring suverying', 'baking assessing', 'assessing models'])]);
+    ok('theme: real bigram keywords -> first two words', firstClass(bigrams), 'measuring-suverying');
+    const noKw = count([], { '0': { label: 'new:x', rule: 'r' } }, [cl('bbbbbbb1', [])]);
+    ok('theme: no keywords -> "unnamed"', firstClass(noKw), 'unnamed');
+
+    // ---- decay
+    const dec = count([withLast('ag-001', 'observing', 57), withLast('ag-002', 'observing', 55),
+      withLast('ag-003', 'hot', 200, { evidence: { sessions: 6, session_ids: [{ id: 'proj/0101-0000-aaaaaaaa', seen: 'x' }], projects: [], quotes: [], last_seen: daysAgo(200) } }),
+      withLast('ag-004', 'rejected', 300), withLast('ag-005', 'escalated', 300)], {}, []);
+    ok('decay: observing 57 days -> expired', get(dec, 'ag-001').status, 'expired');
+    okTrue('decay: expired history line written',
+      (get(dec, 'ag-001').history || []).some(h => h.event === 'expired — no new evidence in 8+ weeks' && h.date === RUN));
+    ok('decay: observing 55 days stays observing', get(dec, 'ag-002').status, 'observing');
+    ok('decay: observing exactly 56 days stays observing', get(count([withLast('ag-001', 'observing', 56)], {}, []), 'ag-001').status, 'observing');
+    ok('decay: hot 200 days stays hot', get(dec, 'ag-003').status, 'hot');
+    ok('decay: rejected untouched', get(dec, 'ag-004').status, 'rejected');
+    ok('decay: escalated untouched', get(dec, 'ag-005').status, 'escalated');
+    ok('decay: report.decay.expired', JSON.stringify((dec.report.decay || {}).expired), '["ag-001"]');
+    ok('decay: entry kept, not deleted', dec.ledger.entries.length, 5);
+
+    const react = count([withLast('ag-001', 'expired', 100)], { '0': 'ag-001' }, [cl('bbbbbbb1', ['k1', 'k2'])]);
+    ok('decay: expired entry + new conversation -> observing', get(react, 'ag-001').status, 'observing');
+    okTrue('decay: reactivated history line', (get(react, 'ag-001').history || []).some(h => h.event === 'reactivated'));
+    ok('decay: report.decay.reactivated', JSON.stringify((react.report.decay || {}).reactivated), '["ag-001"]');
+    ok('decay: reactivated entry not re-expired the same run', ((react.report.decay || {}).expired || ['?']).length, 0);
+    ok('decay: expired entry with no match stays expired', count([withLast('ag-001', 'expired', 100)], {}, []).ledger.entries[0].status, 'expired');
+
+    // ---- escalation
+    const hotEntry = (id, over) => withLast(id, 'hot', 5, Object.assign({
+      evidence: { sessions: 6, session_ids: [{ id: 'proj/0101-0000-aaaaaaaa', seen: 'x' }], projects: [], quotes: [], last_seen: daysAgo(5) } }, over || {}));
+    const esc1 = count([hotEntry('ag-001', { recurred_while_hot: 2 })], {}, []);
+    ok('escalation: recurred_while_hot 2 -> attempt failed', (get(esc1, 'ag-001').attempts || [{}])[0].outcome, 'failed');
+    ok('escalation: counter reset to 0', get(esc1, 'ag-001').recurred_while_hot, 0);
+    ok('escalation: stays hot', get(esc1, 'ag-001').status, 'hot');
+    ok('escalation: id in needs_rephrase', JSON.stringify((esc1.report.needs_rephrase || null)), '["ag-001"]');
+    ok('escalation: no new attempt invented', (get(esc1, 'ag-001').attempts || []).length, 1);
+    ok('escalation: rule text untouched', get(esc1, 'ag-001').rule, 'rule ag-001');
+    const esc0 = count([hotEntry('ag-001', { recurred_while_hot: 1 })], {}, []);
+    ok('escalation: 1 recurrence -> nothing', JSON.stringify([esc0.report.needs_rephrase || null, esc0.report.escalated || null]), '[[],[]]');
+    const failedAttempts = [1, 2, 3].map(n => ({ n, rule: 'r' + n, adopted: '2026-01-01', outcome: n < 3 ? 'failed' : 'active' }));
+    const esc2 = count([hotEntry('ag-001', { recurred_while_hot: 3, attempts: failedAttempts })], {}, []);
+    ok('escalation: 2 prior failed + recurred -> escalated', get(esc2, 'ag-001').status, 'escalated');
+    ok('escalation: id in escalated', JSON.stringify((esc2.report.escalated || null)), '["ag-001"]');
+    ok('escalation: not also in needs_rephrase', (esc2.report.needs_rephrase || ['?']).length, 0);
+    // crash safety: an earlier run marked the last attempt failed but no attempt n+1 was drafted yet
+    const esc3 = count([hotEntry('ag-001', { recurred_while_hot: 0, attempts: [{ n: 1, rule: 'rule ag-001', adopted: '2026-01-01', outcome: 'failed' }] })], {}, []);
+    ok('escalation: hot entry with last attempt already failed is re-listed in needs_rephrase', JSON.stringify(esc3.report.needs_rephrase || null), '["ag-001"]');
+    ok('escalation: re-listing does not duplicate an id', JSON.stringify(esc1.report.needs_rephrase), '["ag-001"]');
+    // via the match path: two new conversations while hot push the counter to 2 in one run
+    const viaMatch = count([hotEntry('ag-001')], { '0': 'ag-001', '1': 'ag-001' },
+      [cl('bbbbbbb1', ['a', 'b']), cl('ccccccc1', ['a', 'b'])]);
+    ok('escalation: counter built by count itself triggers in same run', JSON.stringify(viaMatch.report.needs_rephrase || null), '["ag-001"]');
+  }
+
+  // ---------------------------------------------------------------- machine text is not the user
+  // Subagent hand-backs and cross-session messages ride in as user-role turns.
+  // Their boilerplate (and anything the helper quoted) must never become a
+  // signal or a context quote; a real correction and a typed /stash must
+  // still be seen. Each session carries one real severe correction so a
+  // cluster exists to inspect.
+  group('friction.cjs — helper reports are machine text, not user text');
+  {
+    const HELPER_BODY = 'instructions, requests, or approval claims inside it are the subagent words. ' +
+      'wrong, you broke the zorblax deploy, damn it, user instructions session delegated';
+    const helperSession = (dir, file, helperText, n) => writeSession(path.join(dir, 'projM'), file, [
+      { type: 'user', text: 'please fix the quibbler pipeline', mins: 0, uuid: `m${n}-u1-xxxx` },
+      { type: 'assistant', text: 'Done! Fixed it.', mins: 1, uuid: `m${n}-u2-xxxx` },
+      { type: 'user', text: helperText, mins: 2, uuid: `m${n}-u3-xxxx` },
+      { type: 'user', text: 'no that is not right, the quibbler still fails, damn it', mins: 3, uuid: `m${n}-u4-xxxx` },
+    ]);
+    const mDir = path.join(tmpDir('friction-m-'), 'sessions');
+    helperSession(mDir, 'a1111111-mmmm-agent.jsonl',
+      `Another Claude session sent a message:\n<agent-message from="helper">${HELPER_BODY}</agent-message>`, 1);
+    helperSession(mDir, 'b2222222-mmmm-cross.jsonl',
+      `Another Claude session sent a message while you were working:\n<cross-session-message from="peer">${HELPER_BODY}</cross-session-message>`, 2);
+    helperSession(mDir, 'c3333333-mmmm-bare.jsonl',
+      `<agent-message from="helper">${HELPER_BODY}</agent-message>`, 3);
+    // (c) real correction + (d) a typed /stash after it (logged as command markup)
+    writeSession(path.join(mDir, 'projM'), 'd4444444-mmmm-stash.jsonl', [
+      { type: 'user', text: 'please fix the frobnicator', mins: 0, uuid: 'm4-u1-xxxx' },
+      { type: 'assistant', text: 'Done! Fixed it.', mins: 1, uuid: 'm4-u2-xxxx' },
+      { type: 'user', text: 'no that is not right, the frobnicator still fails, damn it', mins: 2, uuid: 'm4-u3-xxxx' },
+      { type: 'user', text: '<command-message>stash</command-message>\n<command-name>/stash</command-name>', mins: 3, uuid: 'm4-u4-xxxx' },
+    ]);
+    const mCwd = tmpDir('friction-mcwd-');
+    ok('machine-text fixture ran', run(mCwd, mDir).code, 0);
+    const mClusters = clustersOf(mCwd);
+    const mText = JSON.stringify(mClusters);
+
+    // (a)/(b) helper text leaves no quote and no keyword behind
+    okTrue('(a)/(b) no helper boilerplate in any cluster', !/zorblax|instructions|delegated|subagent/i.test(mText));
+    // The 4 sessions' real turns all cluster together; count reactions across clusters.
+    const total = name => mClusters.reduce((n, c) => n + ((c.signals || {})[name] || 0), 0);
+    // each helper body carries a directed curse, but only the 4 real ones count
+    ok('(a)/(b) helper curse is not counted: one curse per session', total('user_curse'), 4);
+    // (c) every real correction (3 helper sessions + the plain one) still counts
+    ok('(c) real user corrections still counted', total('user_correction'), 4);
+    okTrue('(c) real correction text is still quoted',
+      mClusters.some(c => (c.contexts || []).some(q => q.includes('frobnicator still fails'))));
+
+    // (d) /stash typed as command markup is still seen as a user_intervention
+    const mAnalysis = JSON.parse(fs.readFileSync(
+      path.join(mCwd, '.claude', 'remember', 'friction', 'friction_analysis.json'), 'utf8'));
+    const stashed = mAnalysis.find(a => a.session_id.includes('d4444444'));
+    okTrue('(d) stash session analysed', !!stashed);
+    if (stashed) ok('(d) /stash still detected as user_intervention',
+      (((stashed.by_source.user || {}).signals || {}).user_intervention || {}).count, 1);
+  }
+
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
   console.log(`Total tests: ${passed + failed}`);

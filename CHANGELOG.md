@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.0] - 2026-10-01
+
+### Changed
+- **`/remember` trimmed from 641 to 258 lines.** The *why* moved to
+  `docs/product/remember-README.md`; every rule in the spec is one line, each pinned
+  by a skill-shell test phrase; 13 new step-8 report slots make required steps
+  visible in the output (a skipped step is a missing line).
+- **`friction.cjs count` now does three jobs the model did by hand.** New antigens are
+  named from the first two words of the cluster's own `top_keywords` (lowercase,
+  hyphen-joined; real keywords are bigrams, so "[0] + [1]" gave four words). The
+  model's label is just `new`, any theme text is ignored; a real run had written
+  `new:measuring-suverying-baking-assessing`, now `measuring-suverying`. `observing` entries with no new evidence
+  for more than 56 days become `expired`, and an expired entry matched by a new
+  conversation returns to `observing` ("reactivated"); `hot` is never aged out.
+  A `hot` entry with `recurred_while_hot >= 2` gets its attempt marked `failed` and the
+  counter reset; with 2 earlier failures it is `escalated`. `count_report.json` carries
+  `decay: {expired, reactivated}`, `needs_rephrase` and `escalated`; the model only
+  writes attempt n+1's wording and records the Fact for escalated ids. `count` also
+  re-lists a `hot` entry whose last attempt is `failed` and has no attempt n+1 yet,
+  so an un-redrafted failure is not silently dropped on the next run.
+- **One target rule for `/self-review` and `/branch-review`.** No hash: the
+  committed work on the current branch (a dirty tree stops and asks for a
+  commit; on `main`/`master` it stops and asks for hashes or a range). One or
+  more hashes, or a range `<a>..<b>`: exactly those commits (`git show` per
+  hash, `git log`/`git diff` for a range; both range ends validated), on any
+  branch. `/branch-review` no
+  longer accepts a ref or a path. **`/self-review` no longer reviews
+  uncommitted changes.**
+- Hash/range mode moves no bookmark or record: `/branch-review` writes no
+  `last-review.md` and runs no docs sweep ("hash review — no record written;
+  /release needs a branch review"); `/self-review` leaves `self-review-sha:`.
+  The behind-`origin/main` check is no-hash only.
+- Docs sweep: every remaining "committed or not" claim about `/self-review` (AGENT_RULES.md in all 4 kits, subagentic manual, self-review and branch-review READMEs) now says committed work only; the branch-review README example resolves the empty target to `git merge-base main HEAD`..HEAD.
+
+### Fixed
+- **`friction.cjs` no longer reads helper reports as the user's words.** Subagent
+  hand-backs and cross-session messages arrive as user-role turns starting
+  `Another Claude session sent a message:` (or directly `<agent-message` /
+  `<cross-session-message`); their boilerplate formed a 9-session false cluster
+  ("instructions requests"). One skip list now serves signal detection and context
+  quotes; command markup stays visible to signal detection so `/stash` is still seen.
+- `/self-review`: a bookmark that is an ancestor of `main`'s merge-base (an
+  already-merged branch) is treated as no bookmark.
+- `/branch-review`: `self-review-sha:` is carried forward in every case,
+  including when the old record is treated as No file; when most fail-first
+  reds are load failures it also runs a mutation on a temp copy of HEAD; the
+  `s2` lines read `ran: <command or file:line> → <clean | finding: file:line>`
+  (`/release`'s check is unchanged).
+- `/self-review`: the handoff carries the baseline suite totals
+  (`full-suite:` ends `vs before <totals | unknown>`); ledger appends use one
+  path and one snippet per bullet, and a corrected `file:line` is noted as
+  "corrected" in the relay.
+
+---
+
 ## [4.1.0] - 2026-10-01
 
 ### Added

@@ -894,7 +894,7 @@ for (const kit of KITS) {
     const rec = read(kit.branchReview).split('\n').filter(l => /^s2 \S+: /.test(l));
     return allOf(
       sec.every(l => l.includes('ran: <whole-repo evidence:') && l.includes('N/A: <why it holds for the whole repo, not just this diff>')) || 'security blank lacks whole-repo wording',
-      rec.every(l => l.includes('ran: whole-repo command or file:line') && l.includes('N/A: why it holds repo-wide, not just this diff')) || 'branch-review s2 blank lacks whole-repo wording');
+      rec.every(l => l.includes('ran: <command or file:line> → <clean | finding: file:line>') && l.includes('N/A: why it holds repo-wide, not just this diff')) || 'branch-review s2 blank lacks ran-shape or repo-wide N/A wording');
   });
 
   for (const shell of SHELLS) {
@@ -932,7 +932,7 @@ for (const kit of KITS) {
   const sr = flat(read(skillPath(kit, 'self-review')));
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
-    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>'),
+    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
     has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
@@ -967,6 +967,62 @@ for (const kit of KITS) {
     has(rm2, 'migrate-attempts: exit <code> | NOT RUN: <reason>'),
     has(rm2, 'decay: <N> expired, <M> reactivated | NOT RUN: <reason>')));
 
+  // Trimmed-spec pins: one distinctive phrase per rule, one literal per step-8 slot.
+  const RULES = [
+    'unsure → do not promote',
+    'never the cheapest tier, never a vendor model name',
+    'up to 5 stashes per extraction agent, as few agents as possible',
+    'run them concurrently',
+    'target 160, hard stop 180',
+    'a line whose single longest backtick-quoted literal is itself longer than 100 characters',
+    'facts are never rewritten with zero new input',
+    "run step 5's `stub-check.cjs` before you stop",
+    'Script missing from both locations → say so',
+    'A failed *check* (offline, registry down, timeout) stays silent by design',
+    '**The fallback path does no counting:**',
+    '**Never re-read session logs:** work from the quotes in `antigen_clusters.json`',
+    '**Never hand-compute counts:**',
+    'get no new attempt',
+    '`ledger.json.bad-<date>`',
+    '**An existing AGENT_RULES pair is never rewritten**',
+    '**report it and stop**',
+    'Paste its stdout **verbatim**',
+    'must report `I6-new: EQUAL`',
+    '**No `docs/` directory → stay silent**',
+    '**`docs/` exists but cannot run**',
+    "Never tell them to run `ledger`",
+    '**Auto re-index on any drift:**',
+    '**Relay script output verbatim,**',
+    "**No episode is removed whose lesson isn't folded into a fact first**",
+    'by its **absolute path**',
+    'count` handles identity, seeding, promotion and the adopted-date gate; never redo it by hand',
+    "open this skill's own file",
+  ];
+  specCheck(`${kit.name}/remember: every trimmed rule is present, one phrase each`, () =>
+    allOf(...RULES.map(p => has(rm2, p))));
+  specCheck(`${kit.name}/remember: friction-miss warning names no kit-specific file`, () =>
+    rm2.includes('`remember.md`') ? 'stale: `remember.md` still named' : true);
+
+  const SLOTS = [
+    'legacy-migration: moved <files> | none found | NOT RUN: <reason>',
+    'friction: exit <code>, <N> clusters | skipped: <reason>',
+    'stashes: <N> processed in <K> agents (batches of <=5) | none unprocessed',
+    'facts: B → A, <M> merged or shortened',
+    'length-gate: <N> lines >180 after awk (target 0); exemptions: <lines | none>',
+    'classify: <N> clusters -> drop <d>, existing <e>, new <n>',
+    'count: exit <code>, ledger replaced yes | NOT RUN: <reason>',
+    'antigens: High <h> (+<p> promoted), Medium <m>, Low <l>',
+    'escalation: <ag-id rephrased | ESCALATED | none>',
+    'render: pasted verbatim yes | NOT RUN: <reason>',
+    'claude-md: MEMORY block <created | replaced | unchanged>; AGENT_RULES block <created | left alone | pointer wrong: STOPPED>',
+    'regenerated: docs/index.md [docs/log.md] | none',
+    'nothing to consolidate: stub-check ran exit <code>',
+  ];
+  specCheck(`${kit.name}/remember: the 13 added step-8 slot lines, inside step 8`, () => {
+    const step8 = flat(section(read(skillPath(kit, 'remember')), '8. **Report to user**', '**File locations'));
+    return allOf(...SLOTS.map(p => has(step8, p)));
+  });
+
   const br = flat(read(skillPath(kit, 'branch-review')));
   specCheck(`${kit.name}/branch-review: record has prior-blockers: and ledger-liveness: lines`, () => allOf(
     has(br, 'prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review'),
@@ -985,6 +1041,66 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/test-generate: broken-by: slot per test, mutation actually run, no "mentally"`, () => allOf(
     has(tg, 'broken-by: <mutation made> → red: <test name> | NOT RUN: <reason>'),
     tg.includes('Mentally swap') ? 'stale: "Mentally swap" still present' : true));
+}
+
+// ---------------------------------------------------------------------------
+// g. One target rule for /self-review and /branch-review: no hash = committed
+//    work on the branch (dirty tree stops, main stops), hashes = exactly those
+//    commits. Hash mode never moves a record or bookmark.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- review targets: no hash / hashes --${colors.reset}`);
+for (const kit of KITS) {
+  const sr = flat(read(kit.selfReview));
+  const brs = flat(read(kit.branchReview));
+  specCheck(`${kit.name}/self-review: dirty tree stops, uncommitted changes no longer reviewed`, () => allOf(
+    has(sr, '**Dirty tree first:** `git status --porcelain` prints any line → stop'),
+    has(sr, '`/self-review` reviews commits not the working tree'),
+    sr.includes('Overlap accepted') || sr.includes('git diff HEAD') ? 'stale: uncommitted add-in still present' : true));
+  specCheck(`${kit.name}/self-review: no hash on main stops and asks for hashes; hash mode reviews exactly those via git show`, () => allOf(
+    has(sr, 'on `main`/`master`, stop and ask for hashes or a range'),
+    has(sr, 'each hash via `git show <sha>`'),
+    has(sr, '`git rev-parse --verify <x>^{commit}`; reject anything starting with `-`')));
+  specCheck(`${kit.name}/self-review: range <a>..<b> validates both ends, reviews git log/diff of it, leaves the bookmark`, () => allOf(
+    has(sr, 'one or more hashes, or `<a>..<b>`'),
+    has(sr, 'a range via `git log <a>..<b>` and `git diff <a>..<b>`'),
+    has(sr, 'both ends of a range'),
+    has(sr, 'Hash/range mode never rewrites `self-review-sha:`'),
+    has(sr, 'hash/range mode leaves the bookmark')));
+  specCheck(`${kit.name}/self-review: hash mode leaves the bookmark; last act is no-hash only`, () => allOf(
+    has(sr, 'Hash/range mode never rewrites `self-review-sha:`'),
+    has(sr, '**Last act (no-hash mode only; hash/range mode leaves the bookmark)')));
+  specCheck(`${kit.name}/self-review: bookmark that is an ancestor of main's merge-base counts as no bookmark`, () => allOf(
+    has(sr, 'git merge-base --is-ancestor <sha> $(git merge-base main HEAD)'),
+    has(sr, 'already-merged branch')));
+  specCheck(`${kit.name}/self-review: handoff carries baseline totals; one path / one snippet ledger rule; corrected noted`, () => allOf(
+    has(sr, 'the baseline suite totals if known'),
+    has(sr, '**One path per bullet:** anchor the first file, name the others in the scenario slot.'),
+    has(sr, '**One snippet per item**'),
+    has(sr, 'A corrected `file:line` is noted as "corrected" in the relay.')));
+  specCheck(`${kit.name}/branch-review: target is no-hash or hashes only, old range/ref/path list gone`, () => allOf(
+    has(brs, '`$ARGUMENTS` is **no hash**'),
+    has(brs, 'review exactly those commits, nothing else, on any branch including `main`: each hash via `git show <sha>`'),
+    has(brs, '`git rev-parse --verify <x>^{commit}`; reject anything starting with `-`'),
+    brs.includes('A file or directory path') || brs.includes('A single ref') ? 'stale: old target list still present' : true));
+  specCheck(`${kit.name}/branch-review: no hash on main stops; behind-main check is no-hash only`, () => allOf(
+    has(brs, '**No hash, on `main`/`master`** → stop and ask for hashes or a range.'),
+    has(brs, '**No hash only — check the branch is not behind `main`.**')));
+  specCheck(`${kit.name}/branch-review: hash mode writes no record, no Stage 4 sweep`, () => allOf(
+    has(brs, '**Hash mode** (hashes or range) writes **no record** and runs no Stage 4 docs sweep'),
+    has(brs, 'a range via `git log <a>..<b>` and `git diff <a>..<b>`'),
+    has(brs, 'both ends of a range'),
+    has(brs, 'or a **range** `<a>..<b>`'),
+    has(brs, 'hash review — no record written; /release needs a branch review')));
+  specCheck(`${kit.name}/branch-review: fail-first load-failure reds get a mutation on a temp copy of HEAD`, () =>
+    has(brs, 'If most reds are load failures, also run a mutation on a temp copy of HEAD (outside the repo) and report the assertion reds.'));
+  specCheck(`${kit.name}/branch-review: all 11 s2 lines use ran: <command or file:line> → <clean | finding: file:line>, fill example matches`, () => {
+    const n = brs.split('<ran: <command or file:line> → <clean | finding: file:line> |').length - 1;
+    return allOf(
+      n === 11 || `expected 11 s2 ran-shapes, found ${n}`,
+      has(brs, '`s2 secrets: ran: <command> → clean`'));
+  });
+  specCheck(`${kit.name}/branch-review: self-review-sha carried forward in every case, including No file`, () =>
+    has(brs, 'in every case, even when the old record was treated as No file'));
 }
 
 // ---------------------------------------------------------------------------
