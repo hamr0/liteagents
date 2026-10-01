@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.1.0] - 2026-10-01
 
 ### Added
 - **Fix-ledger tag `idea`** beside `nit` and `change`: something missing that
@@ -71,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/refactor` ledger mode asks per surviving `change`/`idea` item:** keep,
   drop, or spec it. "Spec it" becomes its own task after the run, never built
   in ledger mode.
+- **Ledger header names every deleter.** It said only `/refactor` and
+  `/self-review` delete bullets, contradicting `/branch-review`'s rule that a
+  bullet it disproves is deleted; the README's one-writer section now matches.
 
 ---
 
