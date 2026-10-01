@@ -153,7 +153,7 @@ you to pick from — no more hours spent nudging divs to find out what you actua
 
 ### `/self-review` → `/branch-review` → `/release` → `/refactor`
 
-- **`/self-review`** — everything since the last self-review, committed or not, before
+- **`/self-review`** — the committed work since the last self-review, before
   `/branch-review`. The orchestrator only writes a handoff; one spawned mid-tier worker tries
   to break the claims with real runs (works, no regression, structure — dead code, state
   ownership, reuse, naming, performance — glossed over, underspecced) and reports max 5

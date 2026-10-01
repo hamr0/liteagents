@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `last-review.md` and runs no docs sweep ("hash review — no record written;
   /release needs a branch review"); `/self-review` leaves `self-review-sha:`.
   The behind-`origin/main` check is no-hash only.
+- Docs sweep: every remaining "committed or not" claim about `/self-review` (AGENT_RULES.md in all 4 kits, subagentic manual, self-review and branch-review READMEs) now says committed work only; the branch-review README example resolves the empty target to `git merge-base main HEAD`..HEAD.
 
 ### Fixed
 - `/self-review`: a bookmark that is an ancestor of `main`'s merge-base (an

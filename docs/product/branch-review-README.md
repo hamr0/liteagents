@@ -248,7 +248,7 @@ git: in a repo whose `.gitignore` excludes `.claude/` (as this one's does), the 
 untracked, the same as its neighbours `MEMORY.md`, `AGENT_RULES.md`, and `ledger.json` —
 it persists on disk across sessions regardless of git status. Every medium/low finding
 from a review run lands here as one bullet, and `/self-review` (a separate command covering
-everything since the last self-review, committed or not, run by a spawned mid-tier worker
+the committed work since the last self-review, run by a spawned mid-tier worker
 before `/branch-review`) appends to the same file in the same format. Each bullet carries a trailing tag — the
 **size of the fix**, not its severity:
 `nit` for a refactor-sized fix, `change` for one that needs a behaviour change or a
@@ -564,7 +564,7 @@ sequence, including the ones typed by hand.
 
 **Feature A lands.**
 1. Work is committed to `feat/a`. `/branch-review` runs with a clean tree, resolves the
-   empty-argument target to `main..HEAD`, and records `HEAD abc123`.
+   empty-argument target to `git merge-base main HEAD`..HEAD, and records `HEAD abc123`.
 2. Stage 1 finds one High (a null path with a written failure scenario) and three
    low-severity nits. Stage 2 runs full and comes back clean. Stage 3 confirms the High
    and drops one of the three nits as a false positive.

@@ -8,8 +8,8 @@ updated: 2026-09-21
 # self-review
 
 `/self-review` answers the owner's habitual question: **"verify what you delivered, what
-did you gloss over, what did I miss?"** It covers everything since the last self-review —
-committed or not — before `/branch-review`.
+did you gloss over, what did I miss?"** It covers the committed work since the last self-review (never the
+working tree) — before `/branch-review`.
 
 ```
 work  ──►  /self-review  ──►  commit  ──►  /branch-review  ──►  /release
