@@ -12,11 +12,26 @@ Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
 - agentic-toolkit v3.2.0 is tagged (225e330).
 - ~/.claude is synced. Manifest stamp is 4.2.0.
 
-### Branch refactor/docs-builder-trim
-- Checkout: /home/hamr/PycharmProjects/liteagents. Tree is clean. HEAD 4c91fdc.
-- Stacked on refactor/live-canvas-trim. Both are local. NOT pushed.
-- One review and one release cover both.
-- 11 commits over main (`git log --oneline main..HEAD`):
+### Branch refactor/branch-review-trim (top of the stack)
+- Checkout: /home/hamr/PycharmProjects/liteagents. Stacked on refactor/docs-builder-trim, which is stacked on refactor/live-canvas-trim. All local. NOT pushed.
+- One review and one release cover the whole stack: 20 commits over main (`git log --oneline main..HEAD`).
+- branch-review trim finished, mirrored to ampcode, droid, opencode:
+  - 21bc361 trim 479 → 304 lines (SKILL.md is 307 now).
+  - 43563c3 escalate-to-orchestrator bullet restored in the closing block.
+  - 51aaa24 merge-after-review loop fix: a merge of origin/main after the review is never forgiven, matching /release.
+  - 6c68e6d closing block gains the `proof:` and `liveness:` lines.
+- cda6549 /remember runs the friction scan as its own command with a 10-minute timeout (chained, it was killed, exit 137).
+- 42292f1 skill-shell RULE_PINS fix (pin was claude-only path).
+- 8c637a3 end-of-branch mirror of the above.
+- Old-vs-new headless A/B of branch-review: 14 runs (main known-answer plus 6 control scenarios, old and new).
+  - Both found the planted docs-builder pageStatus empty-file crash.
+  - 5 of 6 controls identical.
+  - Control 4 (docs-only merge after review) differs as intended: old forgave it, new re-reviews.
+  - No run committed, pushed or merged.
+
+### Branch refactor/docs-builder-trim (middle of the stack)
+- HEAD 4c91fdc when written. Stacked on refactor/live-canvas-trim.
+- 11 commits over main below the branch-review work:
 
 live-canvas (6):
 - 839bf7f server: pins the first origin. One bounded JSON line per record (256KB per record, 5MB file). Messages carry the relaunch and port-busy steps.
@@ -35,7 +50,7 @@ docs-builder (5):
 - 4c91fdc index rebuild.
 - SKILL.md is 194 lines now (1009 on main).
 
-Tests: `npm test` exit 0, 2856 passed, 0 failed at 4c91fdc.
+Tests: `npm test` exit 0, 2940 passed, 0 failed at 8c637a3 (2856 at 4c91fdc).
 
 ### Validation done
 - live-canvas headless A/B (scratch only, not linked here):
@@ -58,18 +73,18 @@ Tests: `npm test` exit 0, 2856 passed, 0 failed at 4c91fdc.
 
 Owner rule: one review and one release for both trims.
 
-- [ ] /self-review until zero Fix-now.
-- [ ] /branch-review reaches READY.
+- [ ] Owner runs /self-review, then /branch-review, then /release over the whole stack.
 - [ ] /release. Expected v4.3.0 (minor):
-  - Added: docs-builder script helpers.
-  - Changed: /live-canvas trim, /docs-builder trim.
-  - Fixed: live-canvas server and overlay, docs-builder drift.
+  - Added: docs-builder script helpers; /branch-review proof: and liveness: lines.
+  - Changed: /live-canvas, /docs-builder, /branch-review trims.
+  - Fixed: live-canvas server and overlay, docs-builder drift, /branch-review merge-after-review loop, /remember friction scan timeout.
 - [ ] Owner authorizes push, PR, merge, tag and publish each by name.
 - [ ] Verify live: `npm view` plus the tarball.
 - [ ] Sync ~/.claude, INCLUDING the live-canvas plugin server:
   - re-run packages/claude/plugins/live-canvas-marketplace/setup.sh, or copy server.js into ~/.claude/plugins/live-canvas-marketplace.
   - bump the manifest stamp (liteagents_version).
 - [ ] agentic-toolkit mirror plus tag.
+- [ ] Then come back for the fix-ledger cleanup (/refactor) and the nits in section 3.
 - [ ] Run /remember for real once. First live run of the trimmed skill (still pending from last round).
 - [ ] One real interactive /live-canvas Live run. The "ready block" slot placement and the full skill flow were only tested headless.
 
@@ -80,6 +95,14 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 - The 2 live-canvas server bullets (Origin check, bounded /feedback-jsonl) are fixed in code (839bf7f).
 - Several other bullets were fixed last round (stale "committed or not" lines, s2 slot, fail-first, friction skip list).
 - Drop them all through /refactor revalidation. Never by hand.
+
+### Nits found this round
+- [ ] /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
+- [ ] /remember: the `labels.json` path is never named in the spec. The worker wrote .claude/remember/friction/labels.json, overwriting the prior run's file.
+- [ ] /remember: the spec has no format for "episode removed whose lesson is already an existing fact", no tie-break for which episode goes on equal dates, and says "relay verbatim" but count's stdout is a long JSON.
+- [ ] docs-builder: SKILL.md line 13 "`docs-builder/docs-builder.cjs`" reads like a subfolder; the script sits beside SKILL.md (wording nit).
+- [ ] docs-builder (low priority): gitignored root .md files (TEST_REPORT.md) appear in reorg with no skip. Owner says docs-builder behaved fine (it asked).
+- [ ] skill-shell RULE_PINS pinned a claude-only path — the per-kit test went red only after mirroring; pins must use kit-neutral text.
 
 ### Parked (so nothing lives only in chat)
 - [ ] live-canvas origin pin limit:
@@ -96,14 +119,14 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 ## 4. Next: more skill trims
 
 Top SKILL.md sizes now (`wc -l packages/claude/skills/*/SKILL.md`):
-1. branch-review 479
-2. live-canvas 311 (just trimmed)
+1. live-canvas 311 (trimmed)
+2. branch-review 307 (trimmed)
 3. remember 258 (trimmed)
 4. release 242
 5. root-cause 236
 6. refactor 228
 
-Next four to trim: branch-review (479), release (242), root-cause (236), refactor (228). One skill per branch, same recipe. docs-builder is 194 (trimmed).
+Next three to trim: release (242), root-cause (236), refactor (228). One skill per branch, same recipe. docs-builder is 194 (trimmed).
 
 ### Recipe
 - [ ] Branch from main. Measure `wc -l`.
@@ -145,11 +168,15 @@ From live-canvas and docs-builder:
 - Additive script helpers first, skill second. The skill depends on exact script output.
 - Stacking two skill trims on one branch means one review and one release.
 - A cleanup command using `pkill -f <pattern>` can kill the session's own plugin. Match by pid file instead.
-- Measured: live-canvas 1099 → 311 lines, docs-builder 1009 → 194 lines.
+- Measured: live-canvas 1099 → 311 lines, docs-builder 1009 → 194 lines, branch-review 479 → 307 lines.
 
 ## Verified on write
 
-Checked 2026-10-01 with git, wc, grep, gh, npm view and a fresh `npm test`.
+Checked 2026-10-01 with git, wc, grep, gh, npm view and a fresh `npm test`. Branch-review round facts re-checked at 8c637a3.
+
+- Confirmed (branch-review round): branch refactor/branch-review-trim, `git rev-list --count main..HEAD` is 20, commit hashes above from `git log`. `npm test` exit 0, 2940 passed, 0 failed; `mirror.cjs check` exit 0. branch-review SKILL.md is 307 lines. fix-ledger.md has 15 `- ` bullets.
+- Not checked (branch-review round): the A/B results are the coordinator's report, not re-read here; the nits come from the coordinator's report.
+- The items below were checked at 4c91fdc and are not re-checked, except where restated above.
 
 - Confirmed: branch is refactor/docs-builder-trim, HEAD 4c91fdc, tree clean (before and after `npm test`). `git log --oneline main..HEAD` lists exactly 11 commits, all hashes above.
 - Confirmed: `npm view liteagents version` is 4.2.0. v4.2.0 tag and main are both 58284ea. PR #68 is MERGED with merge commit 58284eaf.
