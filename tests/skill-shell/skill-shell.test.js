@@ -946,7 +946,7 @@ for (const kit of KITS) {
 
   const lc = flat(read(skillPath(kit, 'live-canvas')));
   specCheck(`${kit.name}/live-canvas: cleanup: final line and inferredStyles brief field`, () => allOf(
-    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
+    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (port not bound)'),
     has(lc, '"inferredStyles": { "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {}, "sources": ['),
     has(lc, '`"inferredStyles": "NOT RUN: <why>"`')));
 

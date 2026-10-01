@@ -281,7 +281,7 @@ If cleanup is interrupted, say what was deleted and what remains, with manual st
 
 **The final message ends with this line, filled from checks run now** (run `test ! -e .claude-design`, then print its result), also after an abort:
 ```
-cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)
+cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (port not bound)
 ```
 
 ### 8.2 Implementation plan
