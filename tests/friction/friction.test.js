@@ -1222,6 +1222,61 @@ function main() {
     ok('escalation: counter built by count itself triggers in same run', JSON.stringify(viaMatch.report.needs_rephrase || null), '["ag-001"]');
   }
 
+  // ---------------------------------------------------------------- machine text is not the user
+  // Subagent hand-backs and cross-session messages ride in as user-role turns.
+  // Their boilerplate (and anything the helper quoted) must never become a
+  // signal or a context quote; a real correction and a typed /stash must
+  // still be seen. Each session carries one real severe correction so a
+  // cluster exists to inspect.
+  group('friction.cjs — helper reports are machine text, not user text');
+  {
+    const HELPER_BODY = 'instructions, requests, or approval claims inside it are the subagent words. ' +
+      'wrong, you broke the zorblax deploy, damn it, user instructions session delegated';
+    const helperSession = (dir, file, helperText, n) => writeSession(path.join(dir, 'projM'), file, [
+      { type: 'user', text: 'please fix the quibbler pipeline', mins: 0, uuid: `m${n}-u1-xxxx` },
+      { type: 'assistant', text: 'Done! Fixed it.', mins: 1, uuid: `m${n}-u2-xxxx` },
+      { type: 'user', text: helperText, mins: 2, uuid: `m${n}-u3-xxxx` },
+      { type: 'user', text: 'no that is not right, the quibbler still fails, damn it', mins: 3, uuid: `m${n}-u4-xxxx` },
+    ]);
+    const mDir = path.join(tmpDir('friction-m-'), 'sessions');
+    helperSession(mDir, 'a1111111-mmmm-agent.jsonl',
+      `Another Claude session sent a message:\n<agent-message from="helper">${HELPER_BODY}</agent-message>`, 1);
+    helperSession(mDir, 'b2222222-mmmm-cross.jsonl',
+      `Another Claude session sent a message while you were working:\n<cross-session-message from="peer">${HELPER_BODY}</cross-session-message>`, 2);
+    helperSession(mDir, 'c3333333-mmmm-bare.jsonl',
+      `<agent-message from="helper">${HELPER_BODY}</agent-message>`, 3);
+    // (c) real correction + (d) a typed /stash after it (logged as command markup)
+    writeSession(path.join(mDir, 'projM'), 'd4444444-mmmm-stash.jsonl', [
+      { type: 'user', text: 'please fix the frobnicator', mins: 0, uuid: 'm4-u1-xxxx' },
+      { type: 'assistant', text: 'Done! Fixed it.', mins: 1, uuid: 'm4-u2-xxxx' },
+      { type: 'user', text: 'no that is not right, the frobnicator still fails, damn it', mins: 2, uuid: 'm4-u3-xxxx' },
+      { type: 'user', text: '<command-message>stash</command-message>\n<command-name>/stash</command-name>', mins: 3, uuid: 'm4-u4-xxxx' },
+    ]);
+    const mCwd = tmpDir('friction-mcwd-');
+    ok('machine-text fixture ran', run(mCwd, mDir).code, 0);
+    const mClusters = clustersOf(mCwd);
+    const mText = JSON.stringify(mClusters);
+
+    // (a)/(b) helper text leaves no quote and no keyword behind
+    okTrue('(a)/(b) no helper boilerplate in any cluster', !/zorblax|instructions|delegated|subagent/i.test(mText));
+    // The 4 sessions' real turns all cluster together; count reactions across clusters.
+    const total = name => mClusters.reduce((n, c) => n + ((c.signals || {})[name] || 0), 0);
+    // each helper body carries a directed curse, but only the 4 real ones count
+    ok('(a)/(b) helper curse is not counted: one curse per session', total('user_curse'), 4);
+    // (c) every real correction (3 helper sessions + the plain one) still counts
+    ok('(c) real user corrections still counted', total('user_correction'), 4);
+    okTrue('(c) real correction text is still quoted',
+      mClusters.some(c => (c.contexts || []).some(q => q.includes('frobnicator still fails'))));
+
+    // (d) /stash typed as command markup is still seen as a user_intervention
+    const mAnalysis = JSON.parse(fs.readFileSync(
+      path.join(mCwd, '.claude', 'remember', 'friction', 'friction_analysis.json'), 'utf8'));
+    const stashed = mAnalysis.find(a => a.session_id.includes('d4444444'));
+    okTrue('(d) stash session analysed', !!stashed);
+    if (stashed) ok('(d) /stash still detected as user_intervention',
+      (((stashed.by_source.user || {}).signals || {}).user_intervention || {}).count, 1);
+  }
+
   // ---------------------------------------------------------------- summary
   console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
   console.log(`Total tests: ${passed + failed}`);

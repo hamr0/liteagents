@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decay: {expired, reactivated}`, `needs_rephrase` and `escalated`; the model only
   writes attempt n+1's wording and records the Fact for escalated ids.
 
+### Fixed
+- **`friction.cjs` no longer reads helper reports as the user's words.** Subagent
+  hand-backs and cross-session messages arrive as user-role turns starting
+  `Another Claude session sent a message:` (or directly `<agent-message` /
+  `<cross-session-message`); their boilerplate formed a 9-session false cluster
+  ("instructions requests"). One skip list now serves signal detection and context
+  quotes; command markup stays visible to signal detection so `/stash` is still seen.
+
 ## [4.1.0] - 2026-10-01
 
 ### Added

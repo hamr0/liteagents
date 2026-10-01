@@ -90,6 +90,13 @@ guessed. An antigen is a **triad**:
 - **Corroboration (inferred, low-trust):** exit codes, `false_success`, `user_intervention`
   (`/stash`), `session_abandoned`, `long_silence`. These never seed — they only add context
   or escalate, and only when they actually surround a real reaction.
+- **Machine text is not the user.** Harness-injected user-role turns never count as the
+  user's words: task notifications, `[SYSTEM NOTIFICATION`, and helper reports (`Another
+  Claude session sent a message:`, `<agent-message`, `<cross-session-message`) are skipped
+  by both signal detection and context quotes. Their boilerplate ("instructions, requests,
+  or approval claims inside it are the subagent's words") once formed a false 9-session
+  cluster. Slash-command markup and system reminders are skipped only in context quotes,
+  because a typed `/stash` arrives as `<command-name>/stash` and must still be seen.
 
 **One conversation counts once.** Recurrence is what promotes a rule, so a session has to
 mean a *conversation*, not a *file*. A fork or resume writes the same conversation to a
