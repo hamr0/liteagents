@@ -83,7 +83,7 @@ that predates this file's introduction has no record, so it does not count.
   normally gitignored, so appending to it moves nothing and this never comes
   up. A repo that tracks `.opencode/` instead will see a ledger commit land
   after the review and make it stale — `fix-ledger.md` is neither under
-  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, it
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
 - **`tests:` line** — tests exit 0 **and** build exit 0 or `N/A: <reason>`

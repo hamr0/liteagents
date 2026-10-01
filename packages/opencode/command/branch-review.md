@@ -269,9 +269,9 @@ Else **unsettled**, deferred — always the whole branch, not `<recorded sha>..H
    with the version. If this stage corrects a line that a fix-ledger bullet
    also names, that is ordinary sweep work — the doc changed with the
    feature, so it was already yours to update — but **do not delete the
-   bullet**. Only `/refactor` (revalidation, or the user's "drop") and `/self-review`
-   (a removal the user names) delete bullets; revalidation drops this one once
-   the finding no longer holds.
+   bullet**. Only `/refactor` (revalidation, or the user's "drop"), `/self-review`
+   (a removal the user names), and `/branch-review` (a bullet it disproves) delete
+   bullets; revalidation drops this one once the finding no longer holds.
 4. **Commit what you touched.** Doc files only — never code, skills, config,
    or tests. Stage the exact paths you edited by name (never `git add
    -A`/`-u`) and commit `docs: sweep for <short sha range>`. Nothing changed
@@ -312,7 +312,8 @@ Not in the report. **Append** each one as a single bullet to
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists — only /refactor (revalidation,
-> or the user's "drop") and /self-review (a removal the user names) delete.
+> or the user's "drop"), /self-review (a removal the user names) and /branch-review
+> (a bullet it disproves) delete.
 > Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —

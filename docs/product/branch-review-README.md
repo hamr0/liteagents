@@ -259,7 +259,8 @@ appended at the end, oldest to newest — no section headers.
 # Fix ledger
 > Non-blocking review findings. One bullet per item. Delete the bullet when
 > fixed, or when its anchor no longer exists — only /refactor (revalidation,
-> or the user's "drop") and /self-review (a removal the user names) delete.
+> or the user's "drop"), /self-review (a removal the user names) and /branch-review
+> (a bullet it disproves) delete.
 > Written by /branch-review and /self-review; consumed by /refactor (ledger mode).
 >
 > A bullet's path may be a glob when the same finding exists in every kit —
@@ -283,12 +284,12 @@ archive — an annotated bullet still reads as work, and a bullet arguing with i
 worse than none.
 
 ### One writer per operation
-`/branch-review` **only appends** to the ledger; it never rewrites or deletes an existing
-bullet. `/refactor` in ledger mode **only deletes** — it revalidates and removes bullets as
-their fixes land or their anchors go stale, but it never adds one. Each command has
-exactly one write shape on this file, and no third command has any — `/release`'s docs
-sweep may well correct a line a bullet names, since that doc changed with the feature, but
-it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
+`/branch-review` appends nit/change bullets and deletes a bullet it disproves; it never
+annotates one. `/self-review` appends every anchorable item (nit/change/idea) and deletes
+only a removal the user names. `/refactor` in ledger mode deletes on revalidation or the
+user's "drop", and never adds one. Each command's write shape on this file is narrow, and
+no other command has any — `/release`'s docs sweep may well correct a line a bullet names,
+since that doc changed with the feature, but it leaves the bullet alone and the next revalidation drops it. That split matters because it makes the ledger
 readable as a log: an append is always new evidence from a review, a deletion is always a
 closed or invalidated item, and neither command can silently second-guess what the other
 recorded. If both could edit freely, a bug in either command could corrupt the other's
@@ -533,7 +534,7 @@ whatever state the ledger file happens to be in.
   append never reaches a commit, HEAD does not move, and the recorded SHA still matches —
   so the question never arises. A repo that tracks `.claude/` instead will see a ledger
   commit land after the review and make it stale, since `fix-ledger.md` is neither under
-  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to it, never sweeps it) —
+  `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, never sweeps it) —
   that is the gate working as designed, not a case to special-case: re-review, or leave the
   ledger uncommitted until the release is cut.
 - **Reviewed at this SHA with findings still outstanding** → stop; findings are resolved
