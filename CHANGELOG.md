@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.4.0] - 2026-10-01
+
+### Added
+- **`/branch-review` and `/self-review` argument hints name the three targets.**
+  `/branch-review` shows `[commit hashes | from..to | blank = this branch]
+  [low|medium|high|max]` and `/self-review` shows `[commit hashes | from..to |
+  blank = since last self-review]`. Claude, Ampcode and Droid carry them in
+  `argument-hint:` (`/branch-review`'s `description:` drops its old
+  `[target] [level]` suffix); opencode has no such field, so both hints sit at the
+  end of `description:`. Every kit's command table shows the same hints.
+
+### Changed
+- Spec and comment wording only, no behaviour change: `/remember` (the `new` label,
+  the `expired` status in the ledger schema, the `labels.json` path), `/docs-builder`
+  (script path wording, a stale comment on which file ampcode targets), and the
+  `/live-canvas` server's size-cap comment.
+- Docs: the `/branch-review`, `/docs-builder` and `/live-canvas` READMEs and the
+  standing plan (`docs/product/prd.md`) are updated for the above.
+
+### Fixed
+- `/live-canvas`: when the channel server refuses the overlay's POST (403 origin pin
+  or 413 size cap), the overlay now downloads `live-canvas-feedback.json` and toasts
+  "Saved as download ✓" instead of showing "Submit failed" and losing the feedback.
+- `/branch-review`: the closing `proof:` line reads `none` for an empty
+  `git diff --name-only <sha>..HEAD`; `all on docs:` needs a non-empty diff with every
+  path on the record's `docs:` line.
+- `/docs-builder`: `discover` skips gitignored `.md` files (generated output such as
+  a `TEST_REPORT.md`), in both scopes, so a reorg no longer offers to move them.
+  Untracked files that are not ignored are still offered.
+
+---
+
 ## [4.3.0] - 2026-10-01
 
 ### Added
