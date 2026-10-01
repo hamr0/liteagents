@@ -224,6 +224,24 @@ function extractToolNameFromResult(result) {
   return match ? match[1] : 'unknown';
 }
 
+// Machine text that rides in as a user-role turn. Helper reports (subagent
+// hand-backs, cross-session messages, notifications) are skipped everywhere;
+// their boilerplate ("instructions, requests... are the subagent's words")
+// otherwise reads as the user's own words. Slash-command markup is skipped
+// only when quoting context, since signal detection must still see /stash.
+const HELPER_REPORT_PREFIXES = [
+  '<task-notification>', '[SYSTEM NOTIFICATION', 'Another Claude session sent a message',
+  '<agent-message', '<cross-session-message',
+];
+const COMMAND_MARKUP_PREFIXES = [
+  '<local-command-caveat>', '<command-message>', '<command-name>',
+  '<system-reminder>', '<local-command-stdout>',
+];
+function startsWithAny(text, prefixes) {
+  const t = text.trim();
+  return prefixes.some(p => t.startsWith(p));
+}
+
 // A user turn that is mostly pasted shell prompts/output (SSH session dumps,
 // command logs) is context the user pasted — not a reaction to the agent.
 // Treating it as friction pollutes antigens (e.g. keywords like "postconf",
@@ -452,12 +470,12 @@ function extractSignals(sessionFile) {
 
       // User messages (GOLD)
       if (typeof content === 'string') {
-        // Harness-injected notifications ride in as user-role turns but are
-        // machine text, not user text — skip signal detection entirely so a
-        // notification's boilerplate prose can't be mistaken for a curse or
-        // correction aimed at the agent.
-        const trimmedContent = content.trim();
-        if (trimmedContent.startsWith('<task-notification>') || trimmedContent.startsWith('[SYSTEM NOTIFICATION')) {
+        // Harness-injected notifications and helper reports ride in as
+        // user-role turns but are machine text, not user text — skip signal
+        // detection entirely so their boilerplate prose can't be mistaken for
+        // a curse or correction aimed at the agent. Slash-command markup is
+        // NOT skipped here: a typed /stash arrives as <command-name>/stash.
+        if (startsWithAny(content, HELPER_REPORT_PREFIXES)) {
           continue;
         }
 
@@ -1838,14 +1856,7 @@ function extractUserMessage(event) {
 
   // Filter out system-injected markup (not real user messages)
   if (!text) return '';
-  const trimmed = text.trim();
-  if (trimmed.startsWith('<local-command-caveat>')) return '';
-  if (trimmed.startsWith('<command-message>')) return '';
-  if (trimmed.startsWith('<command-name>')) return '';
-  if (trimmed.startsWith('<system-reminder>')) return '';
-  if (trimmed.startsWith('<local-command-stdout>')) return '';
-  if (trimmed.startsWith('<task-notification>')) return '';
-  if (trimmed.startsWith('[SYSTEM NOTIFICATION')) return '';
+  if (startsWithAny(text, HELPER_REPORT_PREFIXES) || startsWithAny(text, COMMAND_MARKUP_PREFIXES)) return '';
 
   return text.slice(0, 500);
 }
