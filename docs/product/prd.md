@@ -1,6 +1,6 @@
 # Remaining work — skill shrink series (transient PRD)
 
-Date: 2026-10-01. Gitignored. Do not commit.
+Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
 
 ## 1. Where we are
 
