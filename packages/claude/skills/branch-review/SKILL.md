@@ -68,6 +68,7 @@ was actually read rather than assuming.
 - **`sha:` ≠ HEAD, but forgiven** (docs/, root `*.md`, or `docs:` — `/release` Phase 0.5's rule):
   `git diff --name-only <that sha>..HEAD | grep -vE '^(docs/|[^/]+\.md$)'`
   — every path printed must also be on `docs:`: if all are, treat as `sha:` = HEAD (below); if any is not, it is a re-review.
+  **This overrides that:** a merge or rebase of `origin/main` after the review is never forgiven, even when it brings only docs. A rebase already fails the ancestry check above (full review); for a merge, `git rev-list --merges <that sha>..HEAD` printing anything makes it a re-review.
 - **`sha:` ≠ HEAD** → this is a re-review. Target the range `<that sha>..HEAD`. Stage 1 reads only the commits since, and stage 3 re-verifies each recorded blocker as fixed, unfixed, or dismissed with a reason. The rest of the branch is **not** re-judged. The range still ends at HEAD, so `/release`'s precondition is satisfied and the new record replaces the old one.
 - **`sha:` = HEAD** → nothing has changed since the last review. Say so and stop. If the recorded verdict was `blocked`, its blockers are still unfixed by definition — repeat them rather than re-deriving them. **Write no record**: the existing one stands.
 - **No file** → no prior review to build on. Review the whole branch.

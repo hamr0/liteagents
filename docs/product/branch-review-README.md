@@ -477,6 +477,7 @@ under the same name.
 - **`sha:` ≠ HEAD, but every file since is forgiven** — same rule §9 gives `/release`
   Phase 0.5: under `docs/`, a root `*.md`, or on the record's `docs:` line — treat like
   `sha:` = HEAD below; nothing to review.
+  Exception, same as `/release`: a merge or rebase of `origin/main` after the review is never forgiven, so the two skills cannot disagree (stop vs. stale).
 - **`sha:` ≠ HEAD** → re-review over `<that sha>..HEAD`.
 - **`sha:` = HEAD** → nothing changed; say so and stop rather than re-run an identical
   tree. A recorded `blocked` verdict means its blockers are unfixed by definition. No new

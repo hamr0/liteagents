@@ -835,6 +835,18 @@ for (const kit of KITS) {
       write ? has(write[0], '`sha:` = HEAD stop, which writes nothing') : 'unconditional-write sentence not found');
   });
 
+  // (d2) forgiven-vs-merge: /branch-review and /release agree a merge of origin/main is never forgiven.
+  specCheck(`${kit.name}: branch-review never forgives a merge of origin/main (detection command pinned)`, () => {
+    const bullet = section(br, '- **`sha:` ≠ HEAD, but forgiven**', '- **`sha:` ≠ HEAD** →');
+    return allOf(
+      has(bullet, 'a merge or rebase of `origin/main` after the review is never forgiven, even when it brings only docs'),
+      has(bullet, '`git rev-list --merges <that sha>..HEAD`'));
+  });
+  specCheck(`${kit.name}: branch-review and release both carry the "never forgiven" merge exception`, () => {
+    const phrase = 'a merge or rebase of `origin/main` after the review is never forgiven, even when it brings only docs';
+    return allOf(has(flat(br), phrase), has(flat(read(kit.release)), phrase));
+  });
+
   // (e) the orchestrator hands the worker the spec's path.
   for (const [label, file] of [['branch-review', kit.branchReview], ['self-review', kit.selfReview]]) {
     specCheck(`${kit.name}: ${label} orchestrator hands the worker this spec's path`, () =>
