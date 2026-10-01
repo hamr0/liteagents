@@ -2759,6 +2759,107 @@ function discoverEmptyPlanZeroRows() {
     /`bucket` is empty/.test(r2.out));
 }
 
+
+// ------------------------------------------------------ 40b. drift after a first sort
+
+/**
+ * Regression. `discover` carries a row's `bucket` forward keyed on `row.file`, but apply-reorg
+ * moved files and left the saved plan at their OLD paths — so the next bare `reorg` matched
+ * nothing, every row came back unclassified, and it stopped with "N of N row(s) still need
+ * classification": a full rubber-stamp interview right after the user approved every file.
+ * apply-reorg now records each moved row's NEW path (bucket kept).
+ */
+function driftAfterAFirstSort() {
+  group('40b. a bare reorg right after a first sort runs straight through (no re-interview)');
+
+  // loose X.md + docs/X.md collide (-2); docs/fwd/poc.md is a logs group; Old.md is archived.
+  const files = { 'X.md': DOC('Root X'), 'docs/X.md': DOC('Docs X'), 'docs/fwd/poc.md': DOC('Poc'),
+    'docs/Old.md': DOC('Old'), 'docs/Plain.md': DOC('Plain') };
+  const sorted = () => {
+    const d = repo(files);
+    db(d, ['discover']);
+    const planF = path.join(d, 'docs/.docs-builder/reorg-plan.json');
+    const plan = JSON.parse(fs.readFileSync(planF, 'utf8'));
+    for (const r of plan.rows) r.bucket = r.file === 'docs/fwd/poc.md' ? 'logs' : r.file === 'docs/Old.md' ? 'archive' : 'product';
+    fs.writeFileSync(planF, JSON.stringify(plan, null, 1));
+    const a = db(d, ['apply-reorg']);
+    ok('first sort exits clean', a.code, 0);
+    return d;
+  };
+
+  const d = sorted();
+  const dests = ['docs/product/X.md', 'docs/product/X-2.md', 'docs/logs/fwd/poc.md',
+    'docs/archive/Old.md', 'docs/product/Plain.md'];
+  for (const p of dests) okTrue(`first sort put ${p} in place`, exists(d, p));
+  const planNow = artifact(d, 'reorg-plan.json');
+  okTrue('the saved plan rows carry the NEW paths (collision -2 and logs group included)',
+    ['docs/product/X.md', 'docs/product/X-2.md', 'docs/logs/fwd/poc.md', 'docs/archive/Old.md', 'docs/product/Plain.md']
+      .every(p => planNow.rows.some(r => r.file === p)));
+  okTrue('every saved row kept its bucket', planNow.rows.every(r => VALID.has(r.bucket)));
+
+  const r2 = db(d, ['reorg']);
+  ok('second bare reorg exits 0', r2.code, 0);
+  okTrue('it does NOT stop for classification', !/still need classification/.test(r2.out));
+  okTrue('it ran apply-reorg and lint', /== apply-reorg ==/.test(r2.out) && /== lint ==/.test(r2.out));
+  okTrue('it moved nothing', /"moved": 0/.test(r2.out) && !/ -> /.test(r2.out));
+  for (const p of dests) okTrue(`${p} still in place`, exists(d, p));
+  const rows2 = artifact(d, 'reorg-plan.json').rows;
+  okTrue('every non-archive row is classified after the second run (archive is frozen, so 4 rows)',
+    rows2.length === 4 && rows2.every(r => VALID.has(r.bucket)));
+  const pv = db(d, ['apply-reorg'], { PREVIEW: '1' });
+  okTrue('PREVIEW still prints the approval table', /approval table — 4 row\(s\)/.test(pv.out) && /preview only/.test(pv.out));
+
+  // A genuinely NEW file after the sort must still stop the run, unmoved.
+  const dn = sorted();
+  write(dn, { 'docs/Brand-New.md': DOC('Brand New') });
+  const rn = db(dn, ['reorg']);
+  okTrue('a new file after the sort still stops reorg for classification',
+    /1 of 5 row\(s\) still need classification/.test(rn.out));
+  okTrue('and it was not moved or lint-run', exists(dn, 'docs/Brand-New.md') && !/== apply-reorg ==/.test(rn.out));
+
+  // An edited, already-sorted file keeps its bucket.
+  const de = sorted();
+  fs.appendFileSync(path.join(de, 'docs/product/Plain.md'), '\n## Added later\n\nmore words\n');
+  const re = db(de, ['reorg']);
+  okTrue('an edited sorted file does not re-ask', !/still need classification/.test(re.out) && re.code === 0);
+  ok('and keeps its bucket', artifact(de, 'reorg-plan.json').rows.find(r => r.file === 'docs/product/Plain.md').bucket, 'product');
+
+  // suggested now differs from the carried bucket: bucket wins (carried), file stays, no re-ask.
+  const ds = sorted();
+  fs.writeFileSync(path.join(ds, 'docs/product/Plain.md'), '# Plain\n\nStatus: DEPRECATED\n\n## S\n\nwords\n');
+  const rs = db(ds, ['reorg']);
+  const row = artifact(ds, 'reorg-plan.json').rows.find(r => r.file === 'docs/product/Plain.md');
+  ok('suggested follows the new content', row.suggested, 'archive');
+  ok('the approved bucket is carried, not overridden', row.bucket, 'product');
+  okTrue('reorg runs through and the file stays put',
+    !/still need classification/.test(rs.out) && rs.code === 0 && exists(ds, 'docs/product/Plain.md'));
+
+  // An explicit plan path is the file that gets the new paths written back.
+  const dk = repo({ 'docs/A.md': DOC('A'), 'docs/B.md': DOC('B') });
+  db(dk, ['discover']);
+  fillBucketsFromSuggested(dk);
+  const rk = db(dk, ['apply-reorg', 'docs/.docs-builder/reorg-plan.json']);
+  ok('explicit plan path apply exits clean', rk.code, 0);
+  okTrue('explicit plan file also records new paths',
+    artifact(dk, 'reorg-plan.json').rows.every(r => r.file.startsWith('docs/product/')));
+}
+const VALID = new Set(['product', 'wiki', 'logs', 'archive']);
+
+/** Regression. `search` treated a first arg as the outline only if it was an EXISTING .json file,
+ *  so a typo'd explicit outline silently became a query word. A first arg ending in .json is the
+ *  outline; a missing one errors like it did before. */
+function searchMissingExplicitOutline() {
+  group('10b. search errors on a missing explicit outline instead of querying for its name');
+
+  const d = repo({ 'docs/A.md': '# A\n\n## Widgets\n\nwidget widget\n' });
+  db(d, ['scan', 'docs/A.md']);
+  const r = db(d, ['search', 'docs/.docs-builder/outlin.json', 'widget']);
+  okTrue('a typo\'d outline path exits non-zero', r.code !== 0);
+  okTrue('with the no-such-file error', /no such file: docs\/\.docs-builder\/outlin\.json/.test(r.out));
+  const ok2 = db(d, ['search', 'widget']);
+  ok('control: no outline arg still defaults and exits 0', ok2.code, 0);
+}
+
 // ---------------------------------------------------------------- 13. packaging
 
 /** Regression, 2026-08-25. The dispatch switch's `default: die('usage: ...')` block lists
@@ -3572,7 +3673,7 @@ function logsGroupOutsideDocsIsScannedFolder() {
     commitAdvisoryNamesOutsideDocsPaths, commitAdvisoryRecipeDoesNotAbsorbUnrelatedWork,
     inlineCodeSpansNotRewritten, commitRecipePathsAllExist, commitAdvisoryPrintedOncePerRun,
     linkRewriteSeesUntrackedFiles, commitRecipeCoversTheRunLog, discoverReportsRealBucketState,
-    discoverEmptyPlanZeroRows, nonMarkdownNeverTouched, reorgRechecksABucket,
+    discoverEmptyPlanZeroRows, driftAfterAFirstSort, searchMissingExplicitOutline, nonMarkdownNeverTouched, reorgRechecksABucket,
     rootEnvIsIgnoredLoudly, noDocsDirSortsLooseMd, usageListsCleanupApply, artifactsDefaultUnderRepo,
     nonAsciiMoveRecordedAsRename, commitAdvisoryWarnsAboutPreexistingDirtyFiles,
     dirtyOnListExcludesToolOwnedFiles,

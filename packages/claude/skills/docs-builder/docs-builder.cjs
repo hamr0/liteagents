@@ -934,10 +934,11 @@ function bm25Rank(records, queryText, n) {
   return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, n);
 }
 
-// The outline path is optional: when the first argument is not an existing .json file, every
-// argument is the query and the outline defaults to the scan's own output.
+// The outline path is optional: when the first argument does not end in .json, every argument
+// is the query and the outline defaults to the scan's own output. A first argument that DOES end
+// in .json is the outline — a typo'd path errors in readArtifactJSON, never becomes a query word.
 function search(args) {
-  const explicit = args.length && /\.json$/i.test(args[0]) && fs.existsSync(args[0]);
+  const explicit = args.length && /\.json$/i.test(args[0]);
   const outlineF = explicit ? args[0] : DEFAULT_OUTLINE;
   const queryWords = explicit ? args.slice(1) : args;
   if (!queryWords.length)
@@ -2310,7 +2311,16 @@ function applyReorg(planFile) {
       console.error(`  WARN ${row.file} MOVED, but ${f}`);
       results.syncFailed++;
     }
+    row.file = r.rel; // last: everything above reports the OLD path; the write-back below saves the new
   }
+  // The plan is the one record of which rows are already sorted, and discover's carry-forward
+  // matches it by row.file. A moved row left at its OLD path would match nothing on the next
+  // bare `reorg` (the file now sits at its new path), so every row would come back unclassified
+  // and re-ask a question the user just answered. So apply-reorg — the only command that
+  // changes a path — records each moved row's NEW path here, keeping its bucket. Skipped rows
+  // never moved and keep their old path. Written whenever anything moved, after the loop, so
+  // later steps failing can't leave the plan describing a tree that no longer exists.
+  if (results.moved) fs.writeFileSync(f, JSON.stringify(plan, null, 1));
   // Only directories the moves THIS RUN emptied are candidates — never a dir this run never
   // touched, even if it happens to be empty already (that's not ours to remove).
   // resolve, not join: with a relative REPO and root '.', join yields 'src' — never prefixed by
