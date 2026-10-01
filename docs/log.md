@@ -28,3 +28,5 @@
 ## [2026-10-01] index-flat | 12 row(s) (11 product, 0 logs, 1 archive)
 ## [2026-10-01] index-flat | 12 row(s) (11 product, 0 logs, 1 archive)
 ## [2026-10-01] index-flat | 12 row(s) (11 product, 0 logs, 1 archive)
+## [2026-10-01] index-flat | 12 row(s) (11 product, 0 logs, 1 archive)
+## [2026-10-01] reorg | discover only — 2 of 12 row(s) await the classification interview
