@@ -8,8 +8,8 @@ updated: 2026-09-21
 # self-review
 
 `/self-review` answers the owner's habitual question: **"verify what you delivered, what
-did you gloss over, what did I miss?"** It covers everything since the last self-review —
-committed or not — before `/branch-review`.
+did you gloss over, what did I miss?"** It covers the committed work since the last self-review (never the
+working tree) — before `/branch-review`.
 
 ```
 work  ──►  /self-review  ──►  commit  ──►  /branch-review  ──►  /release
@@ -27,7 +27,7 @@ Two parties, one spawn:
 
 1. **The orchestrator** (the main session that just did the work) writes a short
    **handoff**: what was done, the claims made to the user (works / tested / done),
-   files changed, and the loose ends only it can know — a peer session never told, an
+   files changed, the baseline suite totals if known, and the loose ends only it can know — a peer session never told, an
    open question left silent, unshipped state.
 2. It **spawns one mid-tier worker** with that handoff and this spec's path (a worker
    has no skill text of its own) — explicitly, never the
@@ -42,12 +42,19 @@ only the facts and told to try to break them, doesn't carry that incentive.
 
 ---
 
-## 2. The range — since the last self-review
+## 2. The range — hashes, or since the last self-review
 
-The range covers everything since the last self-review, committed or not: a
-committed-only range would miss today's uncommitted edits, and an
-uncommitted-only range would miss work already committed earlier in the
-session. Neither alone is what "verify what I just did" means.
+`/self-review` reviews **commits, never the working tree**. A dirty tree is a stop:
+commit first, then re-run. The target is one of:
+
+- **One or more commit hashes, or a range `<a>..<b>`** → exactly those commits,
+  nothing else (each hash via `git show <sha>`, a range via `git log`/`git diff
+  <a>..<b>`), on any branch including `main`. Each hash, and both ends of a range,
+  is validated with `git rev-parse --verify <x>^{commit}`; anything starting with
+  `-` is rejected. This mode never rewrites the bookmark below.
+- **Neither** → the committed work on the current branch since the last
+  self-review, via the bookmark. On `main`/`master` it stops and asks for hashes
+  or a range.
 
 This works via a **bookmark**: one line, `self-review-sha:`, living inside
 `.claude/remember/last-review.md` — the same record `/branch-review` writes.
@@ -61,17 +68,13 @@ until `/self-review` next runs and rewrites it.
 At the start of every run the orchestrator validates the bookmark exactly the
 way `/branch-review` validates its own record (`git rev-parse --verify`, then
 `git merge-base --is-ancestor … HEAD`) — no branch check, since ancestry alone
-proves the bookmarked commit belongs to this history. Valid → the range is
-`<bookmark>..HEAD`. No bookmark, or one that fails either check → the whole
-branch, `$(git merge-base main HEAD)..HEAD`. Either way, uncommitted changes
-and untracked files are added on top. Range empty **and** the tree clean →
-"nothing new since the last self-review," and no worker is spawned.
+proves the bookmarked commit belongs to this history. A bookmark that is also an
+ancestor of `git merge-base main HEAD` comes from an already-merged branch and is
+treated as no bookmark. Valid → the range is `<bookmark>..HEAD`. No bookmark, or
+one that fails a check → the whole branch, `$(git merge-base main HEAD)..HEAD`.
+Range empty → "nothing new since the last self-review," and no worker is spawned.
 
-**Accepted overlap:** work self-reviewed while still uncommitted, then committed
-later, gets seen once more on the next run. That's over-work, never a miss —
-the design trades a little redundancy for never silently skipping something.
-
-At the end of every run the orchestrator rewrites the bookmark to the current
+At the end of every run without hashes or a range the orchestrator rewrites the bookmark to the current
 HEAD, touching only that one line (and dropping any old `debrief-sha:` line) —
 every other line in `last-review.md` (`sha:`, `branch:`, `verdict:`,
 `blockers:`, …) is left exactly as it was. The rewrite happens when the report

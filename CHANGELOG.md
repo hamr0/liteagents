@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counter reset; with 2 earlier failures it is `escalated`. `count_report.json` carries
   `decay: {expired, reactivated}`, `needs_rephrase` and `escalated`; the model only
   writes attempt n+1's wording and records the Fact for escalated ids.
+- **One target rule for `/self-review` and `/branch-review`.** No hash: the
+  committed work on the current branch (a dirty tree stops and asks for a
+  commit; on `main`/`master` it stops and asks for hashes or a range). One or
+  more hashes, or a range `<a>..<b>`: exactly those commits (`git show` per
+  hash, `git log`/`git diff` for a range; both range ends validated), on any
+  branch. `/branch-review` no
+  longer accepts a range, a ref or a path. **`/self-review` no longer reviews
+  uncommitted changes.**
+- Hash/range mode moves no bookmark or record: `/branch-review` writes no
+  `last-review.md` and runs no docs sweep ("hash review — no record written;
+  /release needs a branch review"); `/self-review` leaves `self-review-sha:`.
+  The behind-`origin/main` check is no-hash only.
+- Docs sweep: every remaining "committed or not" claim about `/self-review` (AGENT_RULES.md in all 4 kits, subagentic manual, self-review and branch-review READMEs) now says committed work only; the branch-review README example resolves the empty target to `git merge-base main HEAD`..HEAD.
 
 ### Fixed
 - **`friction.cjs` no longer reads helper reports as the user's words.** Subagent
@@ -33,6 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<cross-session-message`); their boilerplate formed a 9-session false cluster
   ("instructions requests"). One skip list now serves signal detection and context
   quotes; command markup stays visible to signal detection so `/stash` is still seen.
+- `/self-review`: a bookmark that is an ancestor of `main`'s merge-base (an
+  already-merged branch) is treated as no bookmark.
+- `/branch-review`: `self-review-sha:` is carried forward in every case,
+  including when the old record is treated as No file; when most fail-first
+  reds are load failures it also runs a mutation on a temp copy of HEAD; the
+  `s2` lines read `ran: <command or file:line> → <clean | finding: file:line>`
+  (`/release`'s check is unchanged).
+- `/self-review`: the handoff carries the baseline suite totals
+  (`full-suite:` ends `vs before <totals | unknown>`); ledger appends use one
+  path and one snippet per bullet, and a corrected `file:line` is noted as
+  "corrected" in the relay.
+
+---
 
 ## [4.1.0] - 2026-10-01
 
