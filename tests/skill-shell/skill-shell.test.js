@@ -967,6 +967,62 @@ for (const kit of KITS) {
     has(rm2, 'migrate-attempts: exit <code> | NOT RUN: <reason>'),
     has(rm2, 'decay: <N> expired, <M> reactivated | NOT RUN: <reason>')));
 
+  // Trimmed-spec pins: one distinctive phrase per rule, one literal per step-8 slot.
+  const RULES = [
+    'unsure → do not promote',
+    'never the cheapest tier, never a vendor model name',
+    'up to 5 stashes per extraction agent, as few agents as possible',
+    'run them concurrently',
+    'target 160, hard stop 180',
+    'a line whose single longest backtick-quoted literal is itself longer than 100 characters',
+    'facts are never rewritten with zero new input',
+    "run step 5's `stub-check.cjs` before you stop",
+    'Script missing from both locations → say so',
+    'A failed *check* (offline, registry down, timeout) stays silent by design',
+    '**The fallback path does no counting:**',
+    '**Never re-read session logs:** work from the quotes in `antigen_clusters.json`',
+    '**Never hand-compute counts:**',
+    'get no new attempt',
+    '`ledger.json.bad-<date>`',
+    '**An existing AGENT_RULES pair is never rewritten**',
+    '**report it and stop**',
+    'Paste its stdout **verbatim**',
+    'must report `I6-new: EQUAL`',
+    '**No `docs/` directory → stay silent**',
+    '**`docs/` exists but cannot run**',
+    "Never tell them to run `ledger`",
+    '**Auto re-index on any drift:**',
+    '**Relay script output verbatim,**',
+    "**No episode is removed whose lesson isn't folded into a fact first**",
+    'by its **absolute path**',
+    'count` handles identity, seeding, promotion and the adopted-date gate; never redo it by hand',
+    "open this skill's own file",
+  ];
+  specCheck(`${kit.name}/remember: every trimmed rule is present, one phrase each`, () =>
+    allOf(...RULES.map(p => has(rm2, p))));
+  specCheck(`${kit.name}/remember: friction-miss warning names no kit-specific file`, () =>
+    rm2.includes('`remember.md`') ? 'stale: `remember.md` still named' : true);
+
+  const SLOTS = [
+    'legacy-migration: moved <files> | none found | NOT RUN: <reason>',
+    'friction: exit <code>, <N> clusters | skipped: <reason>',
+    'stashes: <N> processed in <K> agents (batches of <=5) | none unprocessed',
+    'facts: B → A, <M> merged or shortened',
+    'length-gate: <N> lines >180 after awk (target 0); exemptions: <lines | none>',
+    'classify: <N> clusters -> drop <d>, existing <e>, new <n>',
+    'count: exit <code>, ledger replaced yes | NOT RUN: <reason>',
+    'antigens: High <h> (+<p> promoted), Medium <m>, Low <l>',
+    'escalation: <ag-id rephrased | ESCALATED | none>',
+    'render: pasted verbatim yes | NOT RUN: <reason>',
+    'claude-md: MEMORY block <created | replaced | unchanged>; AGENT_RULES block <created | left alone | pointer wrong: STOPPED>',
+    'regenerated: docs/index.md [docs/log.md] | none',
+    'nothing to consolidate: stub-check ran exit <code>',
+  ];
+  specCheck(`${kit.name}/remember: the 13 added step-8 slot lines, inside step 8`, () => {
+    const step8 = flat(section(read(skillPath(kit, 'remember')), '8. **Report to user**', '**File locations'));
+    return allOf(...SLOTS.map(p => has(step8, p)));
+  });
+
   const br = flat(read(skillPath(kit, 'branch-review')));
   specCheck(`${kit.name}/branch-review: record has prior-blockers: and ledger-liveness: lines`, () => allOf(
     has(br, 'prior-blockers: <file:line fixed | unfixed | dismissed: reason, …> | none | n/a: first review'),
