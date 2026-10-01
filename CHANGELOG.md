@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.3.0] - 2026-10-01
+
+### Added
+- **`/docs-builder` prints its own approval preview.** `docs-builder.cjs` now
+  prints the approval preview, the commit question, the branch line and the
+  gitignore warning itself (the model no longer composes them), takes default file
+  arguments, and writes the writer brief into each task file.
+- **`/branch-review` closing block gains two proof lines.** A `proof:` line shows the
+  md5 comparison of `.claude/remember/` (only `fix-ledger.md` and `last-review.md`
+  may differ) plus `git diff --name-only <sha>..HEAD` against the record's `docs:`
+  line, and a `liveness:` line lists dead or disproved
+  fix-ledger bullets. The escalate-to-orchestrator hand-off stays in the closing
+  block.
+- **New output slots in `/live-canvas` and `/docs-builder`.** `/live-canvas` prints
+  mode and lab in its ready block and all six slots in the final report; the
+  `/docs-builder` final report has slots that also cover cleanup mode. A skipped
+  step is now a missing line.
+
+### Changed
+- **Three long skills trimmed; the *why* moved to their READMEs.** `/live-canvas`
+  1099 to 311 lines, `/docs-builder` 1009 to 194, `/branch-review` 479 to 307. Every
+  rule is one line, each pinned by a skill-shell test phrase; commands are single
+  lines. No behaviour change in `/branch-review`'s trim.
+- **`/live-canvas` Live mode writes `feedback.jsonl` and cleans up after itself.**
+  Live Finish writes `feedback.jsonl`, and cleanup removes the copied overlay.
+- **`/live-canvas` channel server pins the first origin.** The first loopback
+  origin to connect is pinned; other origins are refused (403). `/feedback-jsonl`
+  writes one bounded JSON line per record (256KB per record, 5MB per file), and the
+  relaunch and port-busy steps are carried in the server's own messages.
+- **`/remember` runs the friction scan as its own command with a 10-minute
+  timeout.** Chained with other commands it was killed (exit 137).
+- Docs: the `/branch-review` and `/remember` READMEs, docs index and log, and the
+  standing plan are updated for the above.
+
+### Fixed
+- `/docs-builder`: `apply-reorg` keeps the plan at each file's new path, so drift
+  after a first sort no longer re-asks for every file; `search` errors on a missing
+  explicit outline. Drift and fence claims in the spec were corrected.
+- `/live-canvas`: the overlay opens the Finish box in Live mode after all comments
+  have streamed; the cleanup slot says N/A when the port was not bound.
+- `/branch-review` never forgives a merge of `origin/main` after the review,
+  matching `/release`, which ends the stop/stale loop.
+- `/branch-review` rule pin names the fix-ledger path without the kit dir, so the
+  ampcode, droid and opencode kits pass.
+
+---
+
 ## [4.2.0] - 2026-10-01
 
 ### Changed
