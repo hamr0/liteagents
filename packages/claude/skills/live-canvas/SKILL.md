@@ -70,7 +70,7 @@ claim the channel. Re-run /live-canvas and pick Live.
 ```
 <!-- mirror:literal:end -->
 
-Print the mode result as one line, filled now: `mode: live | json | json (non-Claude host) · asked: yes | N/A`.
+The `mode:` line is printed in the Phase 4 ready block; its format is in Phase 8.
 
 ---
 
@@ -162,17 +162,13 @@ Pass exactly the fields the mode table above gave; omit the rest. With both set,
 - Variant grid: labels A-E, a one-line "why this exists", the rendered variant, key differences. **Every variant container has `data-variant="X"`** (A-F); the overlay routes comments by it.
 - Responsive: side-by-side on desktop, tabs or horizontal scroll on mobile. All variants share `data/fixtures.ts`.
 
-Print this line, filled from what you wrote (each part greppable), after generating:
-
-```
-lab: variants <list> · data-variant: <N of N> · overlay: <served path> · init: target=<name> channelUrl|batchEndpoint|none · banner: yes · routes: <list>
-```
+The `lab:` line (format in Phase 8) is printed in the Phase 4 ready block, filled from what you wrote.
 
 ---
 
 ## Phase 4: Present
 
-Immediately present the lab. Do not start the dev server, check ports, open a browser or wait. Use the block for the chosen mode.
+Immediately present the lab. Do not start the dev server, check ports, open a browser or wait. Use the block for the chosen mode and fill its last two lines (`mode:`, `lab:`, formats in Phase 8) before printing.
 
 **Live:**
 
@@ -186,6 +182,9 @@ Make sure your dev server is running, then:
   2. Click any element → type → Save
   3. Each Save streams here instantly — I'll acknowledge and edit the corresponding variant
   4. When you're done, fill "Overall Direction", click Finish, then tell me "done"
+
+mode: live · asked: yes | N/A
+lab: <as in Phase 8>
 ```
 
 **JSON:**
@@ -200,6 +199,9 @@ Then tell me "done" — I'll read .claude-design/feedback.jsonl. (If the overlay
 live-canvas-feedback.json instead, paste its contents here.)
 
 (To use Live mode next time: relaunch with `live-claude` and pick Live when /live-canvas asks.)
+
+mode: json | json (non-Claude host) · asked: yes | N/A
+lab: <as in Phase 8>
 ```
 
 Then go straight to Phase 5.
@@ -218,7 +220,7 @@ Several tags together: batch the acknowledgements, edit one at a time so hot-rel
 
 **On "done" (Live after Finish, or JSON after Submit):** read `.claude-design/feedback.jsonl` (one JSON record per line; the last line is the latest submit), or the pasted JSON. Each record is `{version, target, timestamp, comments[], overall}`. Read `overall` first: it is the overall direction. Then apply each comment: `element.selector`, `text`, `variant`. Live-mode comments already streamed arrive as channel tags; the Finish record carries only the overall direction and anything undelivered. If the file is missing, ask the user to paste the downloaded JSON or describe the feedback in plain English.
 
-Print: `feedback: read <path | pasted> · comments <N> · overall: yes | no`.
+Your reply to "done" starts with the line `feedback: <as in Phase 8>`, then the edits.
 
 **No overlay feedback, or user prefers questions:**
 
@@ -279,8 +281,13 @@ Delete only what this skill created:
 
 If cleanup is interrupted, say what was deleted and what remains, with manual steps.
 
-**The final message ends with this line, filled from checks run now** (run `test ! -e .claude-design`, then print its result), also after an abort:
+**The final message ends with these six lines, in this order, filled from what you did and checks run now** (run `test ! -e .claude-design`, then print its result). After an abort: `mode:` and `lab:` as known, `feedback:`, `plan:` and `memory:` are `N/A (aborted)`.
 ```
+mode: live | json | json (non-Claude host) · asked: yes | N/A
+lab: variants <list> · data-variant: <N of N> · overlay: <served path> · init: target=<name> channelUrl|batchEndpoint|none · banner: yes · routes: <list>
+feedback: read <path | pasted> · comments <N> · overall: yes | no
+plan: DESIGN_PLAN.md written (<N> lines) | N/A (aborted)
+memory: created | updated | N/A (aborted)
 cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (port not bound)
 ```
 
@@ -288,13 +295,13 @@ cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | no
 
 Write `DESIGN_PLAN.md` in the project root with these headings: Summary (scope, target, winner variant, key improvements), Files to Change (checklist), Implementation Steps, Component API (props, state, events), Required UI States (loading, empty, error, disabled, validation), Accessibility Checklist, Testing Checklist, Design Tokens.
 
-Print: `plan: DESIGN_PLAN.md written (<N> lines) | N/A (aborted)`.
+The `plan:` line is in the final report (8.1).
 
 ### 8.3 Design memory
 
 Create or update `DESIGN_MEMORY.md`. New file headings: Brand Tone (adjectives, avoid), Layout & Spacing (density, grid, radius, shadows), Typography, Color (primary, secondary, neutral strategy, semantic), Interaction Patterns (forms, modals/drawers, tables/lists, feedback), Accessibility Rules, Repo Conventions (component structure, styling approach, primitives). Existing file: append new patterns, replace conflicting guidance with the latest decision, keep it concise.
 
-Print: `memory: created | updated | N/A (aborted)`.
+The `memory:` line is in the final report (8.1).
 
 ---
 

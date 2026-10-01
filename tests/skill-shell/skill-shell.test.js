@@ -964,6 +964,18 @@ for (const kit of KITS) {
       'plan: DESIGN_PLAN.md written (<N> lines) | N/A (aborted)',
       'memory: created | updated | N/A (aborted)'].map(p => has(lc, p))));
 
+  specCheck(`${kit.name}/live-canvas: final report block lists all six slots in order; mode/lab sit in the ready blocks, feedback leads the done reply`, () => {
+    const i = lc.indexOf('The final message ends with these six lines, in this order');
+    const blk = i < 0 ? '' : lc.slice(i);
+    const at = ['mode: live | json', 'lab: variants <list>', 'feedback: read <path', 'plan: DESIGN_PLAN.md written', 'memory: created', 'cleanup: .claude-design/ absent'].map(p => blk.indexOf(p));
+    const ready = (a, b) => section(lc, a, b);
+    return allOf(
+      i >= 0 && at.every((x, k) => x >= 0 && (k === 0 || x > at[k - 1])) ? true : 'final report block missing or slots out of order',
+      has(ready('Live Canvas ready — Live mode', '**JSON:**'), 'mode: live · asked: yes | N/A lab:'),
+      has(ready('Live Canvas ready — JSON mode', 'Then go straight to Phase 5'), 'mode: json | json (non-Claude host) · asked: yes | N/A lab:'),
+      has(lc, 'Your reply to "done" starts with the line `feedback:'));
+  });
+
   specCheck(`${kit.name}/live-canvas: plugin tool names, Live Finish endpoint, server messages printed verbatim`, () => allOf(
     ...['mcp__plugin_live-canvas-channel_live-canvas__channel_open',
       'mcp__plugin_live-canvas-channel_live-canvas__batch_open',
