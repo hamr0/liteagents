@@ -24,12 +24,14 @@ break it.
 tree is dirty (list the paths), `/self-review` reviews commits not the working
 tree, commit then re-run. No worker spawned.
 
-**Hashes given** (`$ARGUMENTS`: one or more) → review exactly those commits,
-nothing else, each via `git show <sha>`, on any branch. Validate each with
-`git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`.
-Hash mode never rewrites `self-review-sha:`.
+**Hashes or a range given** (`$ARGUMENTS`: one or more hashes, or `<a>..<b>`)
+→ review exactly those commits, nothing else, on any branch: each hash via
+`git show <sha>`, a range via `git log <a>..<b>` and `git diff <a>..<b>`.
+Validate each hash, and both ends of a range, with
+`git rev-parse --verify <x>^{commit}`; reject anything starting with `-`.
+Hash/range mode never rewrites `self-review-sha:`.
 
-**No hash** → on `main`/`master`, stop and ask for one or more hashes.
+**Neither** → on `main`/`master`, stop and ask for hashes or a range.
 Otherwise the bookmark is one line, `self-review-sha:`, in `/branch-review`'s
 record (`/self-review` is its only writer):
 ```
@@ -123,7 +125,7 @@ ledger entry, report it as "your call" instead — the anchor rule wins over
 "every". Relay one line, filled (A + D + Y = N), so a dropped append shows:
 `ledger: <N> items → <A> appended, <D> already there, <Y> your call`
 
-**Last act (no-hash mode only; hash mode leaves the bookmark) — rewrite only
+**Last act (no-hash mode only; hash/range mode leaves the bookmark) — rewrite only
 the bookmark line**, never another line in the file. Write it when you relay the report — it records what was checked and does not
 wait for the user's pick.
 It also drops any old `debrief-sha:` line:

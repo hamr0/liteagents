@@ -76,8 +76,8 @@ the staged diff or the working tree, and it does not review a subset. The most e
 failure this command can have is reviewing 800 committed lines while 200 uncommitted lines
 of today's actual work go unread.
 
-`$ARGUMENTS` is **no hash** (the committed work on the current branch) or **one or
-more commit hashes** (exactly those commits).
+`$ARGUMENTS` is **no hash** (the committed work on the current branch), **one or more
+commit hashes**, or a **range** `<a>..<b>` (exactly those commits).
 
 In no-hash mode, next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
 is behind `origin/main`, the stop names how many commits behind, that reviewing now is
@@ -88,8 +88,8 @@ With a clean tree:
 
 | Input | Resolves to |
 |---|---|
-| one or more hashes | exactly those commits (each via `git show <sha>`, validated with `git rev-parse --verify <sha>^{commit}`, none starting with `-`), on any branch including `main`. **Hash mode** writes no record and runs no Stage 4 docs sweep; the report says "hash review — no record written; /release needs a branch review". Ledger appends work as usual |
-| no hash, on `main`/`master` | stop and ask for one or more hashes |
+| one or more hashes, or a range `<a>..<b>` | exactly those commits (each hash via `git show <sha>`, a range via `git log`/`git diff <a>..<b>`; each hash and both range ends validated with `git rev-parse --verify <x>^{commit}`, none starting with `-`), on any branch including `main`. **Hash mode** writes no record and runs no Stage 4 docs sweep; the report says "hash review — no record written; /release needs a branch review". Ledger appends work as usual |
+| no hash, on `main`/`master` | stop and ask for hashes or a range |
 | no hash | current branch vs its merge-base with `main` (`git diff $(git merge-base main HEAD)..HEAD`), with re-review below; empty diff → say so and stop |
 
 The worker records the **HEAD SHA** it reviewed and reports the resolved target (the

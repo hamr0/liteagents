@@ -1,7 +1,7 @@
 ---
 name: branch-review
 description: Review a branch before merge [target] [level]
-argument-hint: [commit hash ...] or empty [effort level]
+argument-hint: [commit hash ... | a..b] or empty [effort level]
 allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---
@@ -67,8 +67,8 @@ at the current HEAD SHA.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
-`$ARGUMENTS` is **no hash** (the committed work on the current branch) or **one
-or more commit hashes** (exactly those commits).
+`$ARGUMENTS` is **no hash** (the committed work on the current branch), **one
+or more commit hashes**, or a **range** `<a>..<b>` (exactly those commits).
 
 **The orchestrator runs this check before spawning anyone**, so a dirty tree
 costs no worker; the worker then re-runs it as its own first act, because a
@@ -101,13 +101,15 @@ branch passes; no `origin` remote or no `origin/main` → skip the check and say
 so. The orchestrator runs it before spawning, the worker re-runs it.
 
 With a clean tree:
-1. **Hashes given** → review exactly those commits, nothing else, each via
-   `git show <sha>`, on any branch including `main`. Validate each with
-   `git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`.
-   **Hash mode** writes **no record** and runs no Stage 4 docs sweep; the
-   report says "hash review — no record written; /release needs a branch
-   review". Skip the re-review logic below. Ledger appends work as usual.
-2. **No hash, on `main`/`master`** → stop and ask for one or more hashes.
+1. **Hashes or a range given** → review exactly those commits, nothing else,
+   on any branch including `main`: each hash via `git show <sha>`, a range via
+   `git log <a>..<b>` and `git diff <a>..<b>`. Validate each hash, and both
+   ends of a range, with `git rev-parse --verify <x>^{commit}`; reject
+   anything starting with `-`. **Hash mode** (hashes or range) writes **no
+   record** and runs no Stage 4 docs sweep; the report says "hash review — no
+   record written; /release needs a branch review". Skip the re-review logic
+   below. Ledger appends work as usual.
+2. **No hash, on `main`/`master`** → stop and ask for hashes or a range.
 3. **No hash** → the current branch vs its merge-base with `main`
    (`git diff $(git merge-base main HEAD)..HEAD`), with the re-review logic
    below. If that is empty there is nothing committed to review — say so and

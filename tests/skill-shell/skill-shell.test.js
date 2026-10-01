@@ -1001,12 +1001,18 @@ for (const kit of KITS) {
     has(sr, '`/self-review` reviews commits not the working tree'),
     sr.includes('Overlap accepted') || sr.includes('git diff HEAD') ? 'stale: uncommitted add-in still present' : true));
   specCheck(`${kit.name}/self-review: no hash on main stops and asks for hashes; hash mode reviews exactly those via git show`, () => allOf(
-    has(sr, 'on `main`/`master`, stop and ask for one or more hashes'),
-    has(sr, 'review exactly those commits, nothing else, each via `git show <sha>`'),
-    has(sr, '`git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`')));
+    has(sr, 'on `main`/`master`, stop and ask for hashes or a range'),
+    has(sr, 'each hash via `git show <sha>`'),
+    has(sr, '`git rev-parse --verify <x>^{commit}`; reject anything starting with `-`')));
+  specCheck(`${kit.name}/self-review: range <a>..<b> validates both ends, reviews git log/diff of it, leaves the bookmark`, () => allOf(
+    has(sr, 'one or more hashes, or `<a>..<b>`'),
+    has(sr, 'a range via `git log <a>..<b>` and `git diff <a>..<b>`'),
+    has(sr, 'both ends of a range'),
+    has(sr, 'Hash/range mode never rewrites `self-review-sha:`'),
+    has(sr, 'hash/range mode leaves the bookmark')));
   specCheck(`${kit.name}/self-review: hash mode leaves the bookmark; last act is no-hash only`, () => allOf(
-    has(sr, 'Hash mode never rewrites `self-review-sha:`'),
-    has(sr, '**Last act (no-hash mode only; hash mode leaves the bookmark)')));
+    has(sr, 'Hash/range mode never rewrites `self-review-sha:`'),
+    has(sr, '**Last act (no-hash mode only; hash/range mode leaves the bookmark)')));
   specCheck(`${kit.name}/self-review: bookmark that is an ancestor of main's merge-base counts as no bookmark`, () => allOf(
     has(sr, 'git merge-base --is-ancestor <sha> $(git merge-base main HEAD)'),
     has(sr, 'already-merged branch')));
@@ -1017,14 +1023,17 @@ for (const kit of KITS) {
     has(sr, 'A corrected `file:line` is noted as "corrected" in the relay.')));
   specCheck(`${kit.name}/branch-review: target is no-hash or hashes only, old range/ref/path list gone`, () => allOf(
     has(brs, '`$ARGUMENTS` is **no hash**'),
-    has(brs, 'review exactly those commits, nothing else, each via `git show <sha>`'),
-    has(brs, '`git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`'),
+    has(brs, 'review exactly those commits, nothing else, on any branch including `main`: each hash via `git show <sha>`'),
+    has(brs, '`git rev-parse --verify <x>^{commit}`; reject anything starting with `-`'),
     brs.includes('A file or directory path') || brs.includes('A single ref') ? 'stale: old target list still present' : true));
   specCheck(`${kit.name}/branch-review: no hash on main stops; behind-main check is no-hash only`, () => allOf(
-    has(brs, '**No hash, on `main`/`master`** → stop and ask for one or more hashes.'),
+    has(brs, '**No hash, on `main`/`master`** → stop and ask for hashes or a range.'),
     has(brs, '**No hash only — check the branch is not behind `main`.**')));
   specCheck(`${kit.name}/branch-review: hash mode writes no record, no Stage 4 sweep`, () => allOf(
-    has(brs, '**Hash mode** writes **no record** and runs no Stage 4 docs sweep'),
+    has(brs, '**Hash mode** (hashes or range) writes **no record** and runs no Stage 4 docs sweep'),
+    has(brs, 'a range via `git log <a>..<b>` and `git diff <a>..<b>`'),
+    has(brs, 'both ends of a range'),
+    has(brs, 'or a **range** `<a>..<b>`'),
     has(brs, 'hash review — no record written; /release needs a branch review')));
   specCheck(`${kit.name}/branch-review: fail-first load-failure reds get a mutation on a temp copy of HEAD`, () =>
     has(brs, 'If most reds are load failures, also run a mutation on a temp copy of HEAD (outside the repo) and report the assertion reds.'));

@@ -12,11 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **One target rule for `/self-review` and `/branch-review`.** No hash: the
   committed work on the current branch (a dirty tree stops and asks for a
-  commit; on `main`/`master` it stops and asks for hashes). One or more hashes:
-  exactly those commits via `git show`, on any branch. `/branch-review` no
+  commit; on `main`/`master` it stops and asks for hashes or a range). One or
+  more hashes, or a range `<a>..<b>`: exactly those commits (`git show` per
+  hash, `git log`/`git diff` for a range; both range ends validated), on any
+  branch. `/branch-review` no
   longer accepts a range, a ref or a path. **`/self-review` no longer reviews
   uncommitted changes.**
-- Hash mode moves no bookmark or record: `/branch-review` writes no
+- Hash/range mode moves no bookmark or record: `/branch-review` writes no
   `last-review.md` and runs no docs sweep ("hash review — no record written;
   /release needs a branch review"); `/self-review` leaves `self-review-sha:`.
   The behind-`origin/main` check is no-hash only.

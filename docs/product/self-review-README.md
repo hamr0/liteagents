@@ -47,13 +47,14 @@ only the facts and told to try to break them, doesn't carry that incentive.
 `/self-review` reviews **commits, never the working tree**. A dirty tree is a stop:
 commit first, then re-run. The target is one of:
 
-- **One or more commit hashes** → exactly those commits, nothing else (each via
-  `git show <sha>`), on any branch including `main`. Each is validated with
-  `git rev-parse --verify <sha>^{commit}`; anything starting with `-` is rejected.
-  Hash mode never rewrites the bookmark below.
-- **No hash** → the committed work on the current branch since the last
-  self-review, via the bookmark. On `main`/`master` with no hash it stops and asks
-  for one or more hashes.
+- **One or more commit hashes, or a range `<a>..<b>`** → exactly those commits,
+  nothing else (each hash via `git show <sha>`, a range via `git log`/`git diff
+  <a>..<b>`), on any branch including `main`. Each hash, and both ends of a range,
+  is validated with `git rev-parse --verify <x>^{commit}`; anything starting with
+  `-` is rejected. This mode never rewrites the bookmark below.
+- **Neither** → the committed work on the current branch since the last
+  self-review, via the bookmark. On `main`/`master` it stops and asks for hashes
+  or a range.
 
 This works via a **bookmark**: one line, `self-review-sha:`, living inside
 `.claude/remember/last-review.md` — the same record `/branch-review` writes.
@@ -73,7 +74,7 @@ treated as no bookmark. Valid → the range is `<bookmark>..HEAD`. No bookmark, 
 one that fails a check → the whole branch, `$(git merge-base main HEAD)..HEAD`.
 Range empty → "nothing new since the last self-review," and no worker is spawned.
 
-At the end of every no-hash run the orchestrator rewrites the bookmark to the current
+At the end of every run without hashes or a range the orchestrator rewrites the bookmark to the current
 HEAD, touching only that one line (and dropping any old `debrief-sha:` line) —
 every other line in `last-review.md` (`sha:`, `branch:`, `verdict:`,
 `blockers:`, …) is left exactly as it was. The rewrite happens when the report
