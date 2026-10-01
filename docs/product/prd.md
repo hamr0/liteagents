@@ -101,11 +101,11 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 - [ ] No /branch-review A/B or real run has exercised a ready-verdict target (ready record, re-review marking a blocker fixed, Stage 4 docs commit on a settled review).
 
 ### Nits found this round
-- [ ] /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
-- [ ] /remember: the `labels.json` path is never named in the spec. The worker wrote .claude/remember/friction/labels.json, overwriting the prior run's file.
+- [x] Fixed on chore/fix-ledger (f6a6b39). /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
+- [x] Fixed on chore/fix-ledger (d323c91). /remember: the `labels.json` path is never named in the spec. The worker wrote .claude/remember/friction/labels.json, overwriting the prior run's file.
 - [ ] /remember: the spec has no format for "episode removed whose lesson is already an existing fact", no tie-break for which episode goes on equal dates, and says "relay verbatim" but count's stdout is a long JSON.
-- [ ] docs-builder: SKILL.md line 13 "`docs-builder/docs-builder.cjs`" reads like a subfolder; the script sits beside SKILL.md (wording nit).
-- [ ] docs-builder (low priority): gitignored root .md files (TEST_REPORT.md) appear in reorg with no skip. Owner says docs-builder behaved fine (it asked).
+- [x] Fixed on chore/fix-ledger (d323c91). docs-builder: SKILL.md line 13 "`docs-builder/docs-builder.cjs`" reads like a subfolder; the script sits beside SKILL.md (wording nit).
+- [x] Fixed on chore/fix-ledger (c98dae7, discover now skips gitignored .md). docs-builder (low priority): gitignored root .md files (TEST_REPORT.md) appear in reorg with no skip. Owner says docs-builder behaved fine (it asked).
 - [ ] skill-shell RULE_PINS pinned a claude-only path — the per-kit test went red only after mirroring; pins must use kit-neutral text.
 
 ### Parked (so nothing lives only in chat)
@@ -116,7 +116,7 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
   - documented in docs/product/live-canvas-README.md (Origin pinning) and live-canvas-channel-README.md.
 - [ ] The overlay Finish fix is pinned only by a source-level test. Behaviour was proven by the browser run. No DOM test harness exists.
 - [ ] docs-builder `search`: a query whose first word ends in `.json` is read as the outline path (docs-builder.cjs line 941).
-- [ ] Nit: the docs-builder.cjs comment at line 2140 says "ampcode -> AGENT.md". The amp kit is a deliberate mirror of claude (CLAUDE.md) per owner. The comment is the stale part.
+- [x] Fixed on chore/fix-ledger (d323c91). Nit: the docs-builder.cjs comment at line 2140 says "ampcode -> AGENT.md". The amp kit is a deliberate mirror of claude (CLAUDE.md) per owner. The comment is the stale part.
 - [ ] `expectedTests` floors in tests/run-all-tests.js are far below actual: skill-shell 310 vs 1386, docs-builder 538 vs 735.
 - [ ] Unclear: live-canvas interview questions with no options (Location, Key tasks, Feedback).
 

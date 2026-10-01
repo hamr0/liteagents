@@ -360,7 +360,7 @@ marker-wrapped `<!-- DOCS_INDEX:START -->`/`<!-- DOCS_INDEX:END -->` block namin
 every session is exactly what this avoids — plus the same search hint `index.md` itself
 carries. `CONFIG=` picks the target (default `CLAUDE.md`), because the script is
 byte-identical across all four packages but their config filenames differ (`CLAUDE.md` /
-`AGENTS.md` / `AGENT.md`). Idempotent: an existing block is replaced in place, never
+`AGENTS.md`; the ampcode kit uses `CLAUDE.md`). Idempotent: an existing block is replaced in place, never
 duplicated; the rest of the file is left alone.
 
 **A commit advisory now closes both `apply-reorg` and `archive`.** `git mv` stages a rename
