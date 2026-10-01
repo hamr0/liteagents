@@ -1263,6 +1263,8 @@ for (const kit of KITS) {
       '`git status --porcelain`, at start and again before you report',
       'only `fix-ledger.md` and `last-review.md` may differ',
       'it must list only the files on the record\'s `docs:` line']],
+    ['proof line: an empty diff is `none`, `all on docs:` needs a non-empty diff', [
+      'An empty diff is `none`; `all on docs:` only when the diff is non-empty and every path is on the record\'s `docs:` line']],
     ['dirty tree stops with (a)(b)(c), never a subset review', [
       '**Before resolving anything, run `git status --porcelain`.**',
       '(a) the tree is dirty, listing the uncommitted paths; (b) `/branch-review` reviews commits, not the working tree; (c) **commit the work to the branch, then re-run `/branch-review`.**',

@@ -296,6 +296,7 @@ End with:
 - **Docs sweep: N changes checked — A added, F fixed, C already correct, commit `<sha|none>`**
   (same numbers as the `sweep:` line), or **deferred — unsettled**.
 - `proof: md5 — only fix-ledger.md, last-review.md differ | <what else differed> · diff-names <sha>..HEAD: <none | all on docs: | NOT on docs: <paths>>`
+  An empty diff is `none`; `all on docs:` only when the diff is non-empty and every path is on the record's `docs:` line.
 - `liveness: <N> checked, <K> dead: <file · snippet, ...> | n/a: first review · disproved: <bullet — reason, ...> | none`
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
 - **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review; nobody fills the gap from memory.

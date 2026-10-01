@@ -240,7 +240,7 @@ reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present an
 The closing block also carries two proof lines for the orchestrator to read at a glance:
 `proof:` (the md5 comparison of `.claude/remember/` — only the ledger and the record may
 differ — plus `git diff --name-only <sha>..HEAD`, which must list only files on the record's
-`docs:` line) and `liveness:` (open ledger bullets whose anchor is gone, and any bullet the
+`docs:` line; an empty diff reads `none`, and `all on docs:` needs a non-empty diff) and `liveness:` (open ledger bullets whose anchor is gone, and any bullet the
 review disproved and deleted, with the reason; `n/a: first review` when no sweep ran).
 
 ---
