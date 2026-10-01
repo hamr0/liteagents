@@ -76,23 +76,24 @@ the staged diff or the working tree, and it does not review a subset. The most e
 failure this command can have is reviewing 800 committed lines while 200 uncommitted lines
 of today's actual work go unread.
 
-Next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
+`$ARGUMENTS` is **no hash** (the committed work on the current branch) or **one or
+more commit hashes** (exactly those commits).
+
+In no-hash mode, next, `git fetch origin` and `git merge-base --is-ancestor origin/main HEAD`. If the branch
 is behind `origin/main`, the stop names how many commits behind, that reviewing now is
 wasted because syncing afterwards makes the review stale, and the remedy: merge
 `origin/main` (or rebase), then re-run. A never-pushed branch, or no `origin/main`, skips it.
 
-With a clean tree, `$ARGUMENTS` is interpreted in order:
+With a clean tree:
 
 | Input | Resolves to |
 |---|---|
-| empty | current branch vs its merge-base with `main` (`git diff $(git merge-base main HEAD)..HEAD`); empty diff → say so and stop |
-| a range (`main..HEAD`, `origin/main...HEAD`) | `git diff <range>` |
-| a single ref (branch/tag/SHA, confirmed with `git rev-parse --verify`) | that ref's merge-base against `HEAD` |
-| a file or directory path | that target |
-| anything else | ask |
+| one or more hashes | exactly those commits (each via `git show <sha>`, validated with `git rev-parse --verify <sha>^{commit}`, none starting with `-`), on any branch including `main`. **Hash mode** writes no record and runs no Stage 4 docs sweep; the report says "hash review — no record written; /release needs a branch review". Ledger appends work as usual |
+| no hash, on `main`/`master` | stop and ask for one or more hashes |
+| no hash | current branch vs its merge-base with `main` (`git diff $(git merge-base main HEAD)..HEAD`), with re-review below; empty diff → say so and stop |
 
 The worker records the **HEAD SHA** it reviewed and reports the resolved target (the
-literal range or path), so the orchestrator sees what was actually read rather than
+literal range or hashes), so the orchestrator sees what was actually read rather than
 assuming.
 
 **Why the tree must be clean first, always:** `/release`'s own precondition is a review at
@@ -144,8 +145,8 @@ it go red. A test that passes against both the buggy and the fixed source is a t
 and proves nothing; every one found is flagged. The count is `fail-first N/M files`, where
 M is every test file the diff adds or changes with no exclusions (a file that cannot go red
 still counts, named with its reason — `12/15`, never `12/12`), and the report says whether
-each red was a failed assertion or a load failure against the old source (weaker proof).
-The report also says explicitly when tests
+each red was a failed assertion or a load failure against the old source (weaker proof). If most reds are load failures, it also runs a mutation on a temp copy of
+HEAD (outside the repo) and reports the assertion reds. The report also says explicitly when tests
 are the branch's only evidence for its own claims.
 
 ### Stage 2 — Security (always full)
@@ -304,22 +305,22 @@ half of the record with no way to tell which write did it.
 ```
 sha: <full HEAD sha>
 branch: <branch>
-target: <resolved range or path>
+target: <resolved range>
 level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 ran, stage2 ran, stage3 ran
-s2 secrets: <ran: … | N/A: … | NOT RUN: …>
-s2 tenant-isolation: <ran: … | N/A: … | NOT RUN: …>
-s2 rate-limiting: <ran: … | N/A: … | NOT RUN: …>
-s2 error-handling: <ran: … | N/A: … | NOT RUN: …>
-s2 authorization: <ran: … | N/A: … | NOT RUN: …>
-s2 data-access: <ran: … | N/A: … | NOT RUN: …>
-s2 injection: <ran: … | N/A: … | NOT RUN: …>
-s2 auth-session: <ran: … | N/A: … | NOT RUN: …>
-s2 trust-boundaries: <ran: … | N/A: … | NOT RUN: …>
-s2 config: <ran: … | N/A: … | NOT RUN: …>
-s2 dependencies: <ran: … | N/A: … | NOT RUN: …>
+s2 secrets: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 tenant-isolation: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 rate-limiting: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 error-handling: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 authorization: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 data-access: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 injection: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 auth-session: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
+s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: … | NOT RUN: …>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
@@ -349,7 +350,8 @@ repeats (N = total − K − I), `M` the bullets appended this run; no ledger fi
 **`self-review-sha:` is a different command's field, sharing this file.** It's `/self-review`'s
 bookmark — the commit its next run resumes from — and `/branch-review` is not its writer:
 before overwriting the record whole, it reads any existing `self-review-sha:` line and
-re-appends it unchanged as the new record's last line. A record from before the rename
+re-appends it unchanged as the new record's last line — in every case, even when the old
+record was treated as No file. A record from before the rename
 holds `debrief-sha:` instead; with no `self-review-sha:` present, that old line is carried
 forward verbatim (`/self-review` reads both names). `/branch-review` never sets, reads
 the *value* of, or reasons about that line — it only carries it. This is why every reader of

@@ -1,13 +1,13 @@
 ---
 name: self-review
 description: Verify what you delivered since the last self-review with real runs, and review its structure
-allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git merge-base:*)
+allowed-tools: Read, Grep, Glob, Edit, Write, Agent, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git rev-parse:*), Bash(git merge-base:*)
 disable-model-invocation: true
 ---
 Answer "verify what you delivered, what did you gloss over, what did I miss?"
-about everything since the last self-review — committed or not — before
-`/branch-review`. The orchestrator resolves the range and hands off; a
-spawned worker tries to break it.
+about committed work since the last self-review, before `/branch-review`. The
+orchestrator resolves the range and hands off; a spawned worker tries to
+break it.
 
 ## Guardrails
 - **Spawn a worker, mid tier stated explicitly** (omitted inherits the
@@ -20,38 +20,44 @@ spawned worker tries to break it.
 - **Ask and surface only. Never fixes anything.** The user picks.
 
 ## 1. Orchestrator — resolve the range, then hand off
-The bookmark is one line, `self-review-sha:`, in `/branch-review`'s record
-(`/self-review` is its only writer):
+**Dirty tree first:** `git status --porcelain` prints any line → stop: the
+tree is dirty (list the paths), `/self-review` reviews commits not the working
+tree, commit then re-run. No worker spawned.
+
+**Hashes given** (`$ARGUMENTS`: one or more) → review exactly those commits,
+nothing else, each via `git show <sha>`, on any branch. Validate each with
+`git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`.
+Hash mode never rewrites `self-review-sha:`.
+
+**No hash** → on `main`/`master`, stop and ask for one or more hashes.
+Otherwise the bookmark is one line, `self-review-sha:`, in `/branch-review`'s
+record (`/self-review` is its only writer):
 ```
 grep '^self-review-sha:' .claude/remember/last-review.md || grep '^debrief-sha:' .claude/remember/last-review.md
 ```
 No `self-review-sha:` line → the old `debrief-sha:` name, once (that is what
-the `||` does; the new name wins if both exist). Fails either check, or
-starts with `-` → **no bookmark** (no branch check needed — ancestry alone
-proves it belongs to this history):
+the `||` does; the new name wins if both exist). Fails either check, starts
+with `-`, or the third exits 0 (an ancestor of `main`'s merge-base is from an
+already-merged branch) → **no bookmark**:
 ```
 git rev-parse --verify <sha>
 git merge-base --is-ancestor <sha> HEAD
+git merge-base --is-ancestor <sha> $(git merge-base main HEAD)
 ```
-Valid → range `<sha>..HEAD`. No bookmark → whole branch, that commit's
-`..HEAD` (`git merge-base main HEAD`). Either way add uncommitted changes:
-```
-git diff HEAD
-git status --porcelain
-```
-Range empty **and** tree clean → "nothing new since the last self-review," stop,
-no worker spawned. Otherwise hand off — what was done, claims made (works /
-tested / done), files changed, loose ends only you can know (a peer session
-not told, a silent open question, unshipped state) — and spawn one
-mid-tier worker. **Overlap accepted:** uncommitted work seen again once
-committed is over-work, never a miss.
+Valid (third command exits non-zero) → range `<sha>..HEAD`. No bookmark →
+whole branch, `git merge-base main HEAD`..`HEAD`. Range empty → "nothing new
+since the last self-review," stop, no worker spawned. Otherwise hand off —
+what was done, claims made (works / tested / done), files changed, the
+baseline suite totals if known, loose ends only you can know (a peer session
+not told, a silent open question, unshipped state) — and spawn one mid-tier
+worker.
 
 ## 2. Worker — try to break it, not confirm it
 Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
-- **No regression?** Run the FULL suite, cite totals vs. before — no run
+- **No regression?** Run the FULL suite, cite totals vs. the handoff baseline — no run
   behind a claim counts as not checked.
 - **Cleanup?** Speculative code, an abstraction for one caller, redundant
   tests. Dead code — grep the symbol repo-wide before flagging. State
@@ -71,7 +77,7 @@ scoped:
 never looks like "skipped"); tag every item `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
-full-suite: <command> exit <code> <totals> vs before <totals> | NOT RUN: <reason>
+full-suite: <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
 cleanup: <N> items | none found: <what was checked, one phrase>
 ```
@@ -106,6 +112,10 @@ which, if any, to remove: no answer → they all stay; remove only on the
 user's explicit say-so naming the items. Items the user fixes now are not
 removed by hand — `/refactor`'s revalidation drops them once the finding no
 longer holds.
+**One path per bullet:** anchor the first file, name the others in the
+scenario slot. **One snippet per item** (a second item on the same line
+anchors a different nearby line). A corrected `file:line` is noted as
+"corrected" in the relay.
 Dedupe with plain `grep -F "<snippet>" .claude/remember/fix-ledger.md`
 (never `git grep` — gitignored). **Anchor rule:** a verbatim snippet `grep
 -F` can find; missing (usually an `idea`) → anchor where it should go; no line to name → no
@@ -113,8 +123,8 @@ ledger entry, report it as "your call" instead — the anchor rule wins over
 "every". Relay one line, filled (A + D + Y = N), so a dropped append shows:
 `ledger: <N> items → <A> appended, <D> already there, <Y> your call`
 
-**Last act — rewrite only the bookmark line**, never another line in the file.
-Write it when you relay the report — it records what was checked and does not
+**Last act (no-hash mode only; hash mode leaves the bookmark) — rewrite only
+the bookmark line**, never another line in the file. Write it when you relay the report — it records what was checked and does not
 wait for the user's pick.
 It also drops any old `debrief-sha:` line:
 ```

@@ -1,7 +1,7 @@
 ---
 name: branch-review
 description: Review a branch before merge [target] [level]
-argument-hint: [file, branch (e.g. main), range (main..HEAD), or empty] [effort level]
+argument-hint: [commit hash ...] or empty [effort level]
 allowed-tools: Read, Grep, Glob, Agent, Edit, Write, Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git fetch:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git grep:*), Bash(git rev-list:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(rg:*)
 disable-model-invocation: true
 ---
@@ -67,6 +67,9 @@ at the current HEAD SHA.
 
 ## Target — check the tree first, then interpret `$ARGUMENTS`
 
+`$ARGUMENTS` is **no hash** (the committed work on the current branch) or **one
+or more commit hashes** (exactly those commits).
+
 **The orchestrator runs this check before spawning anyone**, so a dirty tree
 costs no worker; the worker then re-runs it as its own first act, because a
 review that takes the tree's state on trust is the thing this command exists
@@ -88,7 +91,7 @@ This is forced by the design, not a preference: `/release`'s precondition is a
 review at the current HEAD SHA, and any commit made after the review makes it
 stale. **The only correct order is commit → review → release.**
 
-**Then check the branch is not behind `main`.** Run `git fetch origin`, then
+**No hash only — check the branch is not behind `main`.** Run `git fetch origin`, then
 `git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say
 all three things: (a) the branch is behind `origin/main` by N commits
 (`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted,
@@ -97,18 +100,21 @@ into the branch (or rebase), then re-run `/branch-review`. A never-pushed
 branch passes; no `origin` remote or no `origin/main` → skip the check and say
 so. The orchestrator runs it before spawning, the worker re-runs it.
 
-With a clean tree, interpret `$ARGUMENTS` in this order:
-1. **Empty** → the current branch vs its merge-base with `main`
-   (`git diff $(git merge-base main HEAD)..HEAD`). If that is empty there is
-   nothing committed to review — say so and stop.
-2. **A range** like `main..HEAD` or `origin/main...HEAD` → `git diff <range>`.
-3. **A single ref** (branch / tag / SHA — confirm with `git rev-parse
-   --verify`) → that ref's merge-base against `HEAD`.
-4. **A file or directory path** → that target.
-5. Otherwise → ask.
+With a clean tree:
+1. **Hashes given** → review exactly those commits, nothing else, each via
+   `git show <sha>`, on any branch including `main`. Validate each with
+   `git rev-parse --verify <sha>^{commit}`; reject anything starting with `-`.
+   **Hash mode** writes **no record** and runs no Stage 4 docs sweep; the
+   report says "hash review — no record written; /release needs a branch
+   review". Skip the re-review logic below. Ledger appends work as usual.
+2. **No hash, on `main`/`master`** → stop and ask for one or more hashes.
+3. **No hash** → the current branch vs its merge-base with `main`
+   (`git diff $(git merge-base main HEAD)..HEAD`), with the re-review logic
+   below. If that is empty there is nothing committed to review — say so and
+   stop.
 
 Record the **HEAD SHA** you reviewed, and **report the target you resolved**
-(the literal range or path) in your output, so the orchestrator can see what
+(the literal range or hashes) in your output, so the orchestrator can see what
 was actually read rather than assuming.
 
 **Re-review after fixes: read `.amp/remember/last-review.md` first.** Its
@@ -218,7 +224,8 @@ if none).
   a file that cannot go red (e.g. comment-only) still counts in M, named with
   its reason — `12/15`, never `12/12`. Say whether each red was a failed
   assertion or the test failing to load against the old source (missing
-  import/export), which is weaker proof.
+  import/export), which is weaker proof. If most reds are load failures, also run a mutation on a temp
+copy of HEAD (outside the repo) and report the assertion reds.
 
 Structure (dead code, state ownership, naming, duplication, performance) is
 not this stage's job — `/self-review` surfaces it.
@@ -385,7 +392,7 @@ grep -cE '@ [0-9a-f]{7,40} · idea$' .amp/remember/fix-ledger.md
 ```
 N = total − K − I, M = bullets appended this run. **Carry `self-review-sha:` forward
 first** (`/self-review`'s bookmark, never set here), verbatim, as the last line
-— or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
+— in every case, even when the old record was treated as No file — or, if the record has no `self-review-sha:` but has an old `debrief-sha:`, that line:
 ```
 sha: <full HEAD sha>
 branch: <branch>
@@ -394,17 +401,17 @@ level: <low | medium | high | max>
 verdict: <ready | blocked>
 date: <YYYY-MM-DD>
 coverage: stage1 <ran|NOT RUN>, stage2 <ran|NOT RUN>, stage3 <ran|NOT RUN>
-s2 secrets: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 tenant-isolation: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 rate-limiting: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 error-handling: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 authorization: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 data-access: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 injection: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 auth-session: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 trust-boundaries: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 config: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
-s2 dependencies: <ran: whole-repo command or file:line | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 secrets: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 tenant-isolation: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 rate-limiting: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 error-handling: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 authorization: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 data-access: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 injection: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 auth-session: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
+s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
 tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
@@ -419,7 +426,7 @@ self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or om
 ```
 
 Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the
-rest — `s2 secrets: ran: <command, N hits>`; `sweep: ran: 3 changes — 2 added,
+rest — `s2 secrets: ran: <command> → clean`; `sweep: ran: 3 changes — 2 added,
 1 fixed, 0 already correct`. `/release` reads them mechanically: a line left as
 the template, or `NOT RUN`, fails it. `docs: none` alone cannot tell a sweep
 that found nothing from one that never ran; `sweep:` can.

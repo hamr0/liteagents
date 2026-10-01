@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **One target rule for `/self-review` and `/branch-review`.** No hash: the
+  committed work on the current branch (a dirty tree stops and asks for a
+  commit; on `main`/`master` it stops and asks for hashes). One or more hashes:
+  exactly those commits via `git show`, on any branch. `/branch-review` no
+  longer accepts a range, a ref or a path. **`/self-review` no longer reviews
+  uncommitted changes.**
+- Hash mode moves no bookmark or record: `/branch-review` writes no
+  `last-review.md` and runs no docs sweep ("hash review — no record written;
+  /release needs a branch review"); `/self-review` leaves `self-review-sha:`.
+  The behind-`origin/main` check is no-hash only.
+
+### Fixed
+- `/self-review`: a bookmark that is an ancestor of `main`'s merge-base (an
+  already-merged branch) is treated as no bookmark.
+- `/branch-review`: `self-review-sha:` is carried forward in every case,
+  including when the old record is treated as No file; when most fail-first
+  reds are load failures it also runs a mutation on a temp copy of HEAD; the
+  `s2` lines read `ran: <command or file:line> → <clean | finding: file:line>`
+  (`/release`'s check is unchanged).
+- `/self-review`: the handoff carries the baseline suite totals
+  (`full-suite:` ends `vs before <totals | unknown>`); ledger appends use one
+  path and one snippet per bullet, and a corrected `file:line` is noted as
+  "corrected" in the relay.
+
+---
+
 ## [4.1.0] - 2026-10-01
 
 ### Added
