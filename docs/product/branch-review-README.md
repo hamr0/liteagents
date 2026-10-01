@@ -185,7 +185,7 @@ open blocker named pushed-through by the user, by name, in the invocation — ne
 Pushing through never changes the verdict (`blocked` stands, no override field, `/release`
 still stops and asks live); it only unblocks the sweep. A blocker neither fixed nor
 pushed through leaves the review **unsettled** → deferred (`docs sweep: deferred —
-unsettled`). When it does run, it always sweeps the **whole branch** (`main..HEAD`), never a
+unsettled`). When it does run, it always sweeps the **whole branch** (`git merge-base main HEAD`..`HEAD`), never a
 re-review's narrower `<recorded sha>..HEAD`: a single run at the end, over the whole
 branch, means no narrower range can leave an earlier commit undocumented. The worker lists
 every user-visible change from the commit bodies, diff, and recent `.claude/stash/` notes;

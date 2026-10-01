@@ -24,7 +24,7 @@ Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
   - self-review-sha is always carried forward.
   - stale "committed or not" lines fixed.
 - State: /self-review clean (2 rounds). Mirrored. /branch-review READY at 5d6d416, plus docs commit ac3109f.
-- NOT released.
+- Merged into refactor/remember-trim at b0758d6. NOT released.
 
 ### Branch refactor/remember-trim
 - Checked out in /home/hamr/PycharmProjects/liteagents (the worktree is gone).
@@ -34,7 +34,7 @@ Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
 - Before/after A/B on frozen input passed. All script outputs were byte-identical.
 - 617367b: end-of-branch mirror of friction.cjs to the 3 kits. Done.
 - 7696019: `count` re-lists a hot entry whose last attempt is failed and not yet redrafted. Adds the 56-day decay boundary test.
-- NOT yet done: /branch-review READY, then the combine with fix/review-targets.
+- /branch-review READY at e1a56b4 (docs commit 91edf7b). Combined with fix/review-targets at merge b0758d6; the combined branch still needs its own re-review.
 
 ## 2. Release plan
 
@@ -46,7 +46,7 @@ Owner rule: the remember branch AND the review-skills branch are both clean befo
   - Reviews must run there. The ledger and last-review.md live in its gitignored .claude/remember/.
 - [ ] remember branch: /self-review until zero Fix-now.
 - [ ] remember branch: /branch-review reaches READY.
-- [ ] Combine: merge fix/review-targets into refactor/remember-trim (or a release branch).
+- [x] Combine: merge fix/review-targets into refactor/remember-trim (or a release branch).
 - [ ] Re-run /branch-review on the combined branch. A merge after review makes the record stale.
 - [ ] /release. Expected v4.2.0:
   - Added: review targets.

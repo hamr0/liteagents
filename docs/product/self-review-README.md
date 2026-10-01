@@ -125,7 +125,7 @@ sentence and cited commands/numbers preserved exactly; the worker's four report
 lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`) are relayed too, and
 every relayed item keeps its `nit`/`change`/`idea` tag and its `file:line`. The
 two added lines read `<N> items` or `none found: <what was checked>`, so "checked,
-found nothing" never looks like "skipped". Rewording to fit the
+found nothing" never looks like "skipped". The `full-suite:` line ends `vs before <totals | unknown>` — `unknown` when the handoff carried no baseline. Rewording to fit the
 user's own output style is fine — a field run under a "plain wording" style
 correctly kept everything else identical while reflowing the sentences.
 Adding, dropping, merging, re-ranking, or weakening an item is **not** "as-is,"
@@ -148,7 +148,9 @@ they all stay, and removal happens only on the user's explicit say-so naming the
 Items the user fixes now are not removed by hand — `/refactor`'s next revalidation
 drops them once the finding no longer holds. The bullet shape is inlined in the spec,
 and a stale ledger header (no `idea` definition) is replaced with `/branch-review`'s
-current one, bullets untouched — `/branch-review` applies the same rule.
+current one, bullets untouched — `/branch-review` applies the same rule. One path per
+bullet (anchor the first file, name the others in the scenario slot) and one snippet per
+item; a corrected `file:line` is noted as "corrected" in the relay.
 
 **Anchor rule.** A bullet needs a verbatim snippet `grep -F` can still find. For
 something *missing* (usually an `idea`), that's the existing line where it should go. No line can be
