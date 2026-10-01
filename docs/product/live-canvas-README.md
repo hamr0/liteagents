@@ -148,6 +148,8 @@ Click the pink **Finish** (Live) or **Submit** (JSON) button:
 1. Type the overall direction: e.g. *"Go with B's layout, A's button styling"*
 2. Click Finish, then tell Claude "done"
 
+If the server refuses the POST (403 origin pin, 413 size cap) the overlay downloads the file instead and toasts "Saved as download", so feedback is never lost.
+
 Skill then reads `.claude-design/feedback.jsonl` for the overall direction (one JSON record per line; if the overlay downloaded `live-canvas-feedback.json` instead, paste it), and:
 - Generates `DESIGN_PLAN.md` in project root (winner, files to change, component API, states, a11y checklist)
 - Updates or creates `DESIGN_MEMORY.md` with the patterns it learned

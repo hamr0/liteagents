@@ -250,6 +250,27 @@ async function main() {
     !!guard && /!isLive\s*&&/.test(guard), guard);
   check('overlay doc points batchEndpoint at the channel server',
     overlay.includes("batchEndpoint: 'http://localhost:8788/feedback-jsonl'"));
+
+  console.log('\n== overlay: a refused POST (403/413) falls back to the download ==');
+  const src = overlay.slice(overlay.indexOf('const submitBatch'), overlay.indexOf('// ---------- UI'));
+  const runSubmit = async (res) => {
+    let clicked = 0;
+    const stub = {
+      state: { comments: [], target: 't', overall: 'x', batchEndpoint: 'http://x/feedback-jsonl' },
+      fetch: async () => res,
+      Blob: function () {}, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+      el: () => ({ click() { clicked++; } }),
+      document: { body: { appendChild() {}, removeChild() {} } },
+      setTimeout: () => {},
+    };
+    const keys = Object.keys(stub);
+    const fn = new Function(...keys, src + '\nreturn submitBatch;')(...keys.map(k => stub[k]));
+    return { ret: await fn(), clicked };
+  };
+  const refused = await runSubmit({ ok: false, status: 403 });
+  check('403 triggers the download fallback', refused.clicked === 1 && !!refused.ret, JSON.stringify(refused));
+  const accepted = await runSubmit({ ok: true, status: 200 });
+  check('200 does not download', accepted.clicked === 0 && accepted.ret === true, JSON.stringify(accepted));
 }
 
 main().catch(e => { failed++; failures.push(`crashed: ${e.stack || e}`); console.log(e); }).then(() => {
