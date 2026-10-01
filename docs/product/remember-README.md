@@ -146,6 +146,9 @@ quote.
 - **Runs `friction.cjs` first** (best-effort) against the global sessions root, regenerating
   `.claude/remember/friction/` so the antigen data below is always fresh. If no sessions root
   resolves it says so out loud and consolidates stashes only — never silently skips.
+  The scan walks the whole sessions root and can take a minute or more, so the spec runs it
+  as its own command (nothing chained before or after it) with a 10-minute tool timeout;
+  chained with other commands it was killed (exit 137).
 - Reads `.claude/stash/*.md` → **Facts** + **Episodes** (via sonnet, skipping already-processed stashes).
   Stashes are handed out in **batches of up to 5 per agent, using as few agents as possible** —
   one agent reading several sessions sees a lesson recur and writes it once, where one agent

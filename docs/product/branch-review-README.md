@@ -237,6 +237,12 @@ Output (11 keyed lines, `ran` / `N/A` / `NOT RUN` each), copied into the record 
 reason. `coverage:` says `stage2 ran` only when all 11 `s2` lines are present and none says
 `NOT RUN`, otherwise `stage2 NOT RUN`.
 
+The closing block also carries two proof lines for the orchestrator to read at a glance:
+`proof:` (the md5 comparison of `.claude/remember/` — only the ledger and the record may
+differ — plus `git diff --name-only <sha>..HEAD`, which must list only files on the record's
+`docs:` line) and `liveness:` (open ledger bullets whose anchor is gone, and any bullet the
+review disproved and deleted, with the reason; `n/a: first review` when no sweep ran).
+
 ---
 
 ## 5. The fix ledger
