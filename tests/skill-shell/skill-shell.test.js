@@ -1257,7 +1257,7 @@ for (const kit of KITS) {
     ['worker: mid tier stated, no sub-spawn, escalate, never edits code', [
       'Spawn a worker, mid tier stated explicitly', '**Escalate, never assume.**',
       'a relayed "I executed X" is hearsay.', '**No edits — three exceptions.**',
-      '`.claude/remember/fix-ledger.md` (append bullets; never rewrite or delete)']],
+      'remember/fix-ledger.md` (append bullets; never rewrite or delete)']],
     ['two proof checks: porcelain at start and end, md5 compare, git diff names only docs: files', [
       '**Prove it with two checks, because neither sees what the other does.**',
       '`git status --porcelain`, at start and again before you report',
