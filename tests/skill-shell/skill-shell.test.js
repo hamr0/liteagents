@@ -946,9 +946,34 @@ for (const kit of KITS) {
 
   const lc = flat(read(skillPath(kit, 'live-canvas')));
   specCheck(`${kit.name}/live-canvas: cleanup: final line and inferredStyles brief field`, () => allOf(
-    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
+    has(lc, 'cleanup: .claude-design/ absent (test ! -e → ok) · routes removed: <list | none> · overlay copy removed: <path | N/A> · App reverted: yes | N/A · channel_close: called | N/A (JSON mode)'),
     has(lc, '"inferredStyles": { "colors": {}, "spacing": {}, "radius": {}, "typography": {}, "shadows": {}, "sources": ['),
     has(lc, '`"inferredStyles": "NOT RUN: <why>"`')));
+
+  specCheck(`${kit.name}/live-canvas: the five one-line rules`, () => allOf(
+    ...['**Always ask the feedback mode** with `AskUserQuestion`',
+      '**Never run the install or relaunch commands yourself.**',
+      '**Never start the dev server,**',
+      '**The overlay is always wired:**',
+      '**Only delete what this skill created,**'].map(p => has(lc, p))));
+
+  specCheck(`${kit.name}/live-canvas: mode, lab, feedback, plan and memory output slots`, () => allOf(
+    ...['mode: live | json | json (non-Claude host) · asked: yes | N/A',
+      'lab: variants <list> · data-variant: <N of N> · overlay: <served path> · init: target=<name> channelUrl|batchEndpoint|none · banner: yes · routes: <list>',
+      'feedback: read <path | pasted> · comments <N> · overall: yes | no',
+      'plan: DESIGN_PLAN.md written (<N> lines) | N/A (aborted)',
+      'memory: created | updated | N/A (aborted)'].map(p => has(lc, p))));
+
+  specCheck(`${kit.name}/live-canvas: plugin tool names, Live Finish endpoint, server messages printed verbatim`, () => allOf(
+    ...['mcp__plugin_live-canvas-channel_live-canvas__channel_open',
+      'mcp__plugin_live-canvas-channel_live-canvas__batch_open',
+      'mcp__plugin_live-canvas-channel_live-canvas__channel_close',
+      "Init with `channelUrl: 'http://localhost:8788'` and `batchEndpoint: 'http://localhost:8788/feedback-jsonl'`.",
+      '| `no_channel_capability` | Print the result\'s `message` verbatim and STOP.',
+      '| `in_use` | Print the result\'s `message` verbatim and STOP',
+      'read `.claude-design/feedback.jsonl`'].map(p => has(lc, p)),
+    lc.includes('mcp__live-canvas__') ? 'stale tool name mcp__live-canvas__' : true,
+    lc.includes('/__live_canvas/feedback') ? 'fake batchEndpoint still present' : true));
 
   const db = flat(read(skillPath(kit, 'docs-builder')));
   specCheck(`${kit.name}/docs-builder: finish: line records commit and ledger stamp`, () =>
