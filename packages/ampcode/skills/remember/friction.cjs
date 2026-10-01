@@ -2519,9 +2519,10 @@ function sessionDateFromId(id, runDate) {
 /**
  * `count <labels.json> <ledger.json> [clusters.json] [runDate] [outLedgerPath]`
  * Merges classifier labels (index -> "drop" | "ag-NNN" | "new:theme" | {label:
- * "new:theme", rule: "<one-line rule>"}) by label, counts distinct new conversations
- * (one per cluster INDEX, never per hash or per group), and applies the ledger rules
- * mechanically. Prints the count report to stdout; writes the updated ledger to
+ * "new:theme", rule: "<one-line rule>"}; "new" and "new:<anything>" both mean new, and the
+ * theme text is ignored -- the name is the first two words of the cluster's top_keywords) by label, counts
+ * distinct new conversations (one per cluster INDEX, never per hash or per group), and
+ * applies the ledger rules mechanically, including decay and escalation detection. Prints the count report to stdout; writes the updated ledger to
  * outLedgerPath if given, else also to stdout.
  */
 function nextAntigenId(ledger) {
@@ -2563,6 +2564,21 @@ function defaultRunDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Antigen name for a `new:` cluster: the first two words of its top_keywords, lowercase,
+ *  hyphen-joined. Real top_keywords entries are often bigrams ("measuring suverying"), so we
+ *  split into words first. Fewer than 2 words -> whatever exists; none -> "unnamed".
+ *  The model's own theme text is ignored. */
+function themeFromKeywords(cluster) {
+  const words = (cluster.top_keywords || []).join(' ').toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length > 0 ? words.slice(0, 2).join('-') : 'unnamed';
+}
+
+/** An `observing` entry with no new evidence for more than 8 weeks expires. */
+const DECAY_DAYS = 56;
+function daysBetween(fromDate, toDate) {
+  return (Date.parse(toDate) - Date.parse(fromDate)) / 86400000;
+}
+
 /**
  * Pure core of `count`: merges classifier labels into the ledger and produces the
  * count report. Throws on malformed input (bad ledger/clusters/labels shape); does
@@ -2586,7 +2602,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     const isObjLabel = raw && typeof raw === 'object';
     const lbl = isObjLabel ? raw.label : raw;
     const rule = isObjLabel ? raw.rule : undefined;
-    const isNewLabel = typeof lbl === 'string' && lbl.startsWith('new:');
+    const isNewLabel = lbl === 'new' || (typeof lbl === 'string' && lbl.startsWith('new:'));
     const known = lbl === 'drop' || VALID_ID.test(lbl) || isNewLabel;
     if (!known) { malformed.push({ index: i, label: lbl }); continue; }
     if (lbl === 'drop') continue;
@@ -2596,7 +2612,8 @@ function countLedger(ledger, labels, clusters, runDate) {
   }
 
   const byId = new Map(ledger.entries.map(e => [e.id, e]));
-  const report = { matched: [], newEntries: [], droppedNew1session: [], malformed, badLedgerRef: [] };
+  const report = { matched: [], newEntries: [], droppedNew1session: [], malformed, badLedgerRef: [],
+    decay: { expired: [], reactivated: [] }, needs_rephrase: [], escalated: [] };
 
   for (const [label, idxs] of agGroups.entries()) {
     const entry = byId.get(label);
@@ -2657,6 +2674,11 @@ function countLedger(ledger, labels, clusters, runDate) {
     } else if (newConversations > 0) {
       entry.evidence.sessions += newConversations;
       entry.evidence.last_seen = runDate;
+      if (entry.status === 'expired') {
+        entry.status = 'observing';
+        entry.history.push({ date: runDate, event: 'reactivated' });
+        report.decay.reactivated.push(entry.id);
+      }
       if (entry.status === 'hot' && recurredWhileHotCount > 0) {
         entry.recurred_while_hot = (entry.recurred_while_hot || 0) + recurredWhileHotCount;
       }
@@ -2690,7 +2712,7 @@ function countLedger(ledger, labels, clusters, runDate) {
     const id = nextAntigenId(ledger);
     const newEntry = {
       id,
-      class: label.slice(4),
+      class: themeFromKeywords(cluster),
       class_hints: buildClassHints(cluster),
       status,
       rule,
@@ -2708,6 +2730,35 @@ function countLedger(ledger, labels, clusters, runDate) {
     ledger.entries.push(newEntry);
     byId.set(id, newEntry);
     report.newEntries.push({ label, idxs: [i], sessions: combinedSessions, status, hashes, createdId: id });
+  }
+
+  // Decay: observing entries with no new evidence for more than 8 weeks. Entries are kept.
+  // hot never expires by age; escalated/rejected are untouched.
+  for (const e of ledger.entries) {
+    if (e.status === 'observing' && e.evidence.last_seen && daysBetween(e.evidence.last_seen, runDate) > DECAY_DAYS) {
+      e.status = 'expired';
+      e.history.push({ date: runDate, event: 'expired — no new evidence in 8+ weeks' });
+      report.decay.expired.push(e.id);
+    }
+  }
+
+  // Escalation: a hot entry that recurred twice while loaded had a failing phrasing. Mark the
+  // attempt failed and reset the counter. With 2 earlier failures it escalates; otherwise the
+  // model writes attempt n+1 (the script never invents rule text).
+  for (const e of ledger.entries) {
+    if (e.status !== 'hot' || (e.recurred_while_hot || 0) < 2) continue;
+    const attempts = e.attempts || [];
+    const earlierFailures = attempts.filter(a => a.outcome === 'failed').length;
+    if (attempts.length > 0) attempts[attempts.length - 1].outcome = 'failed';
+    e.recurred_while_hot = 0;
+    if (earlierFailures >= 2) {
+      e.status = 'escalated';
+      e.history.push({ date: runDate, event: 'escalated — 3 phrasings failed' });
+      report.escalated.push(e.id);
+    } else {
+      e.history.push({ date: runDate, event: `attempt ${attempts.length} failed — recurred while hot, needs new phrasing` });
+      report.needs_rephrase.push(e.id);
+    }
   }
 
   return { ledger, report };

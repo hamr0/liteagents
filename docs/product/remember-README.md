@@ -176,9 +176,9 @@ quote.
   not.)
 - Reads `.claude/remember/friction/antigen_clusters.json` → **Antigens** (step 4):
   1. **4a. Classify** — sonnet labels each cluster once: `drop` (self-directed), an
-     existing ledger id (same mistake class), or `new:<theme>` (theme derived
-     mechanically from the cluster's own top keywords, not freeform prose) plus a
-     one-line, classifier-authored `rule` for that theme — the only LLM-authored field
+     existing ledger id (same mistake class), or `new` (`count` names the entry
+     from the cluster's own top two keywords, never from model prose) plus a
+     one-line, classifier-authored `rule` — the only LLM-authored field
      here. No merging, no arithmetic — that's 4c.
   2. **4b. Route + tier** — recurring + severe → antigen; recurring + mild → Fact;
      one-off (<2 sessions) → nothing yet, re-surfaces next run. Tier is driven by
@@ -186,8 +186,10 @@ quote.
      recorded), Low (2, ledger `observing` only).
   3. **4c. Count** — `friction.cjs count` is a deterministic script, not the LLM: session
      identity, promotion (`observing`→`hot` at sessions >= 5, which appends a history line
-     and re-stamps `attempts[last].adopted` to the run date), the adopted-date gate, and
-     decay all happen mechanically against `ledger.json`.
+     and re-stamps `attempts[last].adopted` to the run date), the adopted-date gate, 
+     decay and reactivation, the naming of new entries, and failed-attempt/escalation
+     detection all happen mechanically against `ledger.json`; `count_report.json` lists
+     `decay`, `needs_rephrase` and `escalated` ids for the step-8 slots.
 - Step 5 renders the Antigens section with `friction.cjs render` — byte-for-byte from the
   ledger, no LLM paraphrase. `friction.cjs check` validates the ledger/MEMORY.md invariants
   (I6-new, I7); `friction.cjs migrate-attempts` is a one-time fixer for hand-drifted `rule`
@@ -198,7 +200,8 @@ quote.
   the evidence that promoted it, every phrasing ever tried. Two things it buys:
   1. **Failure detection without statistics** — if a class fires again *while its rule is
      loaded* (`recurred_while_hot`), the phrasing demonstrably failed: at 2 recurrences the
-     rule is rephrased (never reusing a failed phrasing — the `attempts` list is the
+     rule is rephrased (`count` marks the attempt failed and lists the id in `needs_rephrase`; the
+     model writes the new wording, never reusing a failed phrasing — the `attempts` list is the
      rejected-edit buffer); after 2 failed phrasings the antigen is **ESCALATED**: removed
      from hot, recorded as a Fact ("no phrasing fixes this"), and flagged for a human
      decision — enforcement (a hook) or accepted limit.
@@ -308,7 +311,11 @@ supplied beside it. Observed in the field: a run told to keep 10 and handed a 5-
 list removed 7, the 2 extras were never folded, and one lesson left memory with nothing
 carrying it.
 
-**4a classify.** `new:<theme>` derives mechanically from `top_keywords[0]` and `[1]`; this
+**4a classify.** The model's label is just `new`; `count` derives the name from the first two words
+of `top_keywords` (lowercase, hyphen-joined; fewer than 2 words uses what exists, none gives
+`unnamed`). Real `top_keywords` entries are bigrams (`measuring suverying`, `baking assessing`),
+so the old "`[0]` + `[1]`" rule made the model write four words
+(`new:measuring-suverying-baking-assessing`); it no longer writes the theme at all. Deriving the name mechanically
 raised measured 5-run exact-label agreement from 0.884 to ~0.97-0.99 by removing wording
 variance, and what remains is genuine classification disagreement (drop vs. new:, or which
 existing id). Naming the entry's specific claim plus a negative example bounds an existing-id
@@ -355,7 +362,10 @@ identity fix — without it `last_seen` would refresh on every re-scan and nothi
 The 8-week window matches the ~7-week transcript retention (older evidence can no longer be
 re-verified against source logs). Entries are kept (append-only doctrine) and merely stop
 rendering; `hot` never expires by age because a loaded rule that stops recurring is the rule
-working, not staleness.
+working, not staleness. `count` applies it: an `observing` entry whose
+`last_seen` is more than 56 days before the run date becomes `expired`; a later new conversation
+matching it sets it back to `observing` (history "reactivated"); both id lists land in
+`count_report.json` for the `decay:` slot.
 
 **`friction.cjs render`.** Prints the Antigens section byte-for-byte, no LLM paraphrase:
 `### High Confidence (loaded — applies every session)` / `### Medium Confidence (observing — not

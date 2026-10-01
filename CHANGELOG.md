@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **`/remember` trimmed from 641 to 258 lines.** The *why* moved to
+  `docs/product/remember-README.md`; every rule in the spec is one line, each pinned
+  by a skill-shell test phrase; 13 new step-8 report slots make required steps
+  visible in the output (a skipped step is a missing line).
+- **`friction.cjs count` now does three jobs the model did by hand.** New antigens are
+  named from the first two words of the cluster's own `top_keywords` (lowercase,
+  hyphen-joined; real keywords are bigrams, so "[0] + [1]" gave four words). The
+  model's label is just `new`, any theme text is ignored; a real run had written
+  `new:measuring-suverying-baking-assessing`, now `measuring-suverying`. `observing` entries with no new evidence
+  for more than 56 days become `expired`, and an expired entry matched by a new
+  conversation returns to `observing` ("reactivated"); `hot` is never aged out.
+  A `hot` entry with `recurred_while_hot >= 2` gets its attempt marked `failed` and the
+  counter reset; with 2 earlier failures it is `escalated`. `count_report.json` carries
+  `decay: {expired, reactivated}`, `needs_rephrase` and `escalated`; the model only
+  writes attempt n+1's wording and records the Fact for escalated ids.
+
 ## [4.1.0] - 2026-10-01
 
 ### Added
