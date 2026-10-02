@@ -4,7 +4,7 @@ Date: 2026-10-02. The standing plan: rewritten each round of changes, committed.
 
 ## 1. Where we are
 
-### Branch chore/v5-drop-skill-creator (uncommitted when written)
+### Branch chore/v5-drop-skill-creator (committed, reviewed)
 - Fixed: /release hand-back prints `gh pr merge --admin --merge --delete-branch` (a release PR lands as a merge commit, not a squash).
 - Fixed: /remember Episodes rule has the same-date tie-break and the already-a-fact removal line; "relay verbatim" is scoped to user-facing output.
 - Pinned: three new skill-shell pins, each seen red on the old text first.
@@ -100,7 +100,7 @@ Owner rule: one review and one release for both trims.
 
 ## 3. Open ledger
 
-File: .claude/remember/fix-ledger.md. It has 3 `- ` bullets now: 2 change, 1 idea. Re-count before acting (`grep -c '^- '`).
+File: .claude/remember/fix-ledger.md. It has 4 `- ` bullets now: 2 change, 2 idea. Re-count before acting (`grep -c '^- '`).
 
 - The 2 live-canvas server bullets (Origin check, bounded /feedback-jsonl) are fixed in code (839bf7f).
 - Several other bullets were fixed last round (stale "committed or not" lines, s2 slot, fail-first, friction skip list).
