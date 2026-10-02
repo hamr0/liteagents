@@ -1186,6 +1186,19 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/release: Phase 0.5 reports one block of every pre-check outcome`, () =>
     has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>'));
 
+  specCheck(`${kit.name}/release: hand-back step 4 merges with --merge (merge commit), never --squash`, () => allOf(
+    has(rl, '`gh pr merge --admin --merge --delete-branch`'),
+    rl.includes('--admin --squash') ? 'stale: "--admin --squash" still present' : true));
+
+  const rmEp = flat(read(skillPath(kit, 'remember')));
+  specCheck(`${kit.name}/remember: episodes rule has the same-date tie-break and the already-a-fact removal line`, () => allOf(
+    has(rmEp, 'the one later in the file is the newer'),
+    has(rmEp, 'still counts as folded')));
+
+  specCheck(`${kit.name}/remember: relay-verbatim rule is scoped to user-facing output, consumed JSON is input`, () => allOf(
+    has(rmEp, '**Relay script output verbatim,**'),
+    has(rmEp, 'is input, not something to relay')));
+
   const tg = flat(read(skillPath(kit, 'test-generate')));
   specCheck(`${kit.name}/test-generate: broken-by: slot per test, mutation actually run, no "mentally"`, () => allOf(
     has(tg, 'broken-by: <mutation made> → red: <test name> | NOT RUN: <reason>'),

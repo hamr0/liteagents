@@ -165,7 +165,11 @@ quote.
   second copy — re-processing an already-filed stash must not create a near-duplicate pair. An
   aging episode's *lesson* is handed to the fact rewrite; the narrative is removed. There is no
   episode archive — git already holds the history, and an archive that is never loaded is not
-  memory.
+  memory. When episodes share a date, the one later in the file is the newer. A removed episode
+  whose lesson is already an existing fact is named as removed, with the fact that holds its
+  lesson, and still counts as folded.
+- **"Relay script output verbatim" covers output meant for the user.** JSON a step consumes
+  (e.g. `friction.cjs count`'s stdout) is input, not something to relay.
 - **A pre-write length gate runs BEFORE `MEMORY.md` is written, not after** — a check that
   only runs post-write can merely describe damage already on disk. Every line in the draft
   Facts section must be ≤180 chars, including lines carried over unchanged from the previous

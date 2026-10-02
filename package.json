@@ -1,7 +1,7 @@
 {
   "name": "liteagents",
-  "version": "4.4.0",
-  "description": "AI development toolkit with 10 specialized agents and 13 capabilities including live-canvas UI design with click-to-annotate feedback. Simple one-question installer for Claude, Opencode, Ampcode, and Droid.",
+  "version": "4.5.0",
+  "description": "AI development toolkit with 10 specialized agents and 12 capabilities including live-canvas UI design with click-to-annotate feedback. Simple one-question installer for Claude, Opencode, Ampcode, and Droid.",
   "main": "index.js",
   "bin": {
     "liteagents": "./installer/cli.js",
