@@ -12,9 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - **`/skill-creator` is removed.** The catalog goes from 13 to 12
   capabilities (advisory ones 4 to 3; the nine deliberate actions are unchanged).
-  Claude Code now ships its own skill creator. The skill, its bundled scripts and
-  every kit copy are gone; counts and tables in the READMEs, manuals, per-kit config
-  files, `opencode.jsonc`, `package.json` and the installer tests are updated.
+  Claude Code now ships its own skill creator; Droid, opencode and Amp get no
+  replacement from this kit. The skill, its bundled scripts and every kit copy are
+  gone; counts and tables in the READMEs, manuals, per-kit config files,
+  `opencode.jsonc`, `package.json` and the installer tests are updated. Upgrading
+  does not delete the old copy: the installer only copies over. Remove it by hand:
+  `~/.claude/skills/skill-creator/`, `~/.config/amp/skills/skill-creator/`,
+  `~/.factory/commands/skill-creator.md` and `~/.factory/commands/skill-creator/`,
+  `~/.config/opencode/command/skill-creator.md` and
+  `~/.config/opencode/command/skill-creator/`.
 
 ### Changed
 - `/release`: the hand-back prints `gh pr merge --admin --merge --delete-branch`
