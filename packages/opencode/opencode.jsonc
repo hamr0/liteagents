@@ -103,10 +103,6 @@
     }
   },
   "command": {
-    "skill-creator": {
-      "template": "{file:./command/skill-creator.md}",
-      "description": "Create reusable skills with proper structure, validation, and documentation"
-    },
     "root-cause": {
       "template": "{file:./command/root-cause.md}",
       "description": "Find the cause before changing code - evidence, backward trace, one hypothesis, fix at the source"

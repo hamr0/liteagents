@@ -22,13 +22,13 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 13 skills + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 13 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 13 skills |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 13 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 12 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 12 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 12 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 12 commands |
 
-All four ship the same 10 subagents and the same 13 capabilities. Claude Code and
-Amp ship all 13 as skills; Droid and OpenCode expose all 13 as commands.
+All four ship the same 10 subagents and the same 12 capabilities. Claude Code and
+Amp ship all 12 as skills; Droid and OpenCode expose all 12 as commands.
 
 ---
 
@@ -60,9 +60,9 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 
 ## Commands & skills
 
-13 capabilities. On Claude Code and Amp all 13 are skills — Claude merged
+12 capabilities. On Claude Code and Amp all 12 are skills — Claude merged
 commands into skills, Amp removed commands outright. On Droid and OpenCode all
-13 are commands.
+12 are commands.
 
 | Command | What it's for |
 |---|---|
@@ -78,14 +78,13 @@ commands into skills, Amp removed commands outright. On Droid and OpenCode all
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
 | `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
-| `/skill-creator` | Build a new skill |
 
 <sub>`/live-canvas` runs in batch mode on Droid / OpenCode / Ampcode — the MCP channel
 plugin is Claude Code specific.</sub>
 
 **By category** — Development & testing (2): test-generate, root-cause ·
 Code operations (5): self-review, refactor, branch-review, security, release ·
-Session & memory (5): brainstorming, skill-creator, docs-builder, stash, remember ·
+Session & memory (4): brainstorming, docs-builder, stash, remember ·
 Design (1): live-canvas.
 
 ---
@@ -202,8 +201,8 @@ call an agent directly (`@quality-assurance review this code`) or run a command
 
 | Platform | Root | Config file | Subagents | Commands / skills |
 |---|---|---|---|---|
-| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (13), plus `plugins/` |
-| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (13) |
+| **Claude Code** | `~/.claude/` | `CLAUDE.md` | `agents/` | `skills/` (12), plus `plugins/` |
+| **Ampcode** | `~/.config/amp/` | `AGENT.md` | `agents/` | `skills/` (12) |
 | **Droid** | `~/.factory/` | `AGENTS.md` | `droids/` | `commands/` |
 | **OpenCode** | `~/.config/opencode/` | `AGENTS.md` | `agent/` | `command/` |
 

@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 13 commands & skills · Claude · Opencode · Ampcode · Droid**
+**10 specialized agents · 12 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -72,9 +72,8 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/brainstorming` | Turn a rough idea into a formed design by questioning |
 | `/root-cause` | Find the cause before changing code — evidence, backward trace, one hypothesis, fix at the source |
 | `/live-canvas` | UI variations with click-to-annotate feedback in the browser |
-| `/skill-creator` | Build a new skill |
 
-<sub>Claude Code and Amp ship all 13 as skills; Opencode and Droid expose all 13 as commands. All four also ship agent reference docs.</sub>
+<sub>Claude Code and Amp ship all 12 as skills; Opencode and Droid expose all 12 as commands. All four also ship agent reference docs.</sub>
 
 ---
 

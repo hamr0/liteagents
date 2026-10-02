@@ -56,13 +56,13 @@ const testSuites = [
     name: 'docs-builder',
     file: 'docs-builder/docs-builder.test.js',
     description: 'Tests docs-builder.cjs behaviour end-to-end in throwaway git repos',
-    expectedTests: 538
+    expectedTests: 739
   },
   {
     name: 'friction',
     file: 'friction/friction.test.js',
     description: 'Tests friction.cjs session dedup and empty-context cluster drop against ephemeral fixtures',
-    expectedTests: 323
+    expectedTests: 363
   },
   {
     name: 'version-check',
@@ -80,7 +80,7 @@ const testSuites = [
     name: 'mirror',
     file: 'mirror/mirror.test.js',
     description: 'Tests mirror.cjs frontmatter-shape freeze (refuses a weakened shape without --force) and orphan detection (a stray file with no packages/claude source, anywhere in a kit tree) against isolated fake repos',
-    expectedTests: 27
+    expectedTests: 30
   },
   {
     name: 'stub-check',
@@ -92,13 +92,13 @@ const testSuites = [
     name: 'skill-shell',
     file: 'skill-shell/skill-shell.test.js',
     description: 'Tests the literal shell commands shipped inside branch-review/refactor/release/self-review/stash markdown (ledger count, docs-only classifier, self-review bookmark script, stash total/processed counts), extracted from all 4 kits and run for real under bash (and zsh when present)',
-    expectedTests: 310
+    expectedTests: 1494
   },
   {
     name: 'live-canvas channel server',
     file: 'live-canvas/channel-server.test.js',
     description: 'Tests the real live-canvas channel server.js (with a stub MCP SDK) refuses non-loopback Origins with 403 before routing and echoes loopback ones',
-    expectedTests: 23
+    expectedTests: 47
   },
   {
     name: 'installer closing note',

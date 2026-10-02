@@ -22,7 +22,7 @@ const PACKAGE_VERSION = PACKAGE_JSON.version;
 const AGENT_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+specialized agents/) || [, '10'])[1];
 // Claude Code and Amp ship these as skills, Droid and opencode as commands,
 // so the banner counts capabilities rather than naming one shape.
-const CAPABILITY_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+capabilities/) || [, '13'])[1];
+const CAPABILITY_COUNT = (PACKAGE_JSON.description.match(/(\d+)\s+capabilities/) || [, '12'])[1];
 
 // ANSI color codes
 const colors = {

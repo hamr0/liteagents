@@ -1,8 +1,17 @@
 # Remaining work — skill shrink series (transient PRD)
 
-Date: 2026-10-01. The standing plan: rewritten each round of changes, committed.
+Date: 2026-10-02. The standing plan: rewritten each round of changes, committed.
 
 ## 1. Where we are
+
+### Branch chore/v5-drop-skill-creator (uncommitted when written)
+- Fixed: /release hand-back prints `gh pr merge --admin --merge --delete-branch` (a release PR lands as a merge commit, not a squash).
+- Fixed: /remember Episodes rule has the same-date tie-break and the already-a-fact removal line; "relay verbatim" is scoped to user-facing output.
+- Pinned: three new skill-shell pins, each seen red on the old text first.
+- Raised: `expectedTests` floors to the runner's real totals (docs-builder 739, friction 363, mirror 30, skill-shell 1494, live-canvas channel server 47).
+- Dropped by the owner (not fixed): the live-canvas interview questions with no options (Location, Key tasks, Feedback).
+- Removed: `/skill-creator`. 13 → 12 capabilities, advisory 4 → 3, the nine deliberate actions unchanged. The owner's call: the next release is v4.5.0.
+- Tests: `npm test` exit 0, 2970 passed.
 
 ### Released
 - liteagents v4.2.0 is on npm. Tag v4.2.0 is main 58284ea (PR #68, merged).
@@ -84,13 +93,14 @@ Owner rule: one review and one release for both trims.
   - re-run packages/claude/plugins/live-canvas-marketplace/setup.sh, or copy server.js into ~/.claude/plugins/live-canvas-marketplace.
   - bump the manifest stamp (liteagents_version).
 - [ ] agentic-toolkit mirror plus tag.
+- [ ] Release chore/v5-drop-skill-creator as v4.5.0 (/skill-creator removed, 13 → 12 capabilities).
 - [ ] Then come back for the fix-ledger cleanup (/refactor) and the nits in section 3.
 - [x] Run /remember for real once. Done 2026-10-01 on the installed trimmed skill; one crash (exit 137, chained commands) fixed in cda6549.
 - [ ] One real interactive /live-canvas Live run. The "ready block" slot placement and the full skill flow were only tested headless.
 
 ## 3. Open ledger
 
-File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 change, 3 idea. Re-count before acting (`grep -c '^- '`).
+File: .claude/remember/fix-ledger.md. It has 3 `- ` bullets now: 2 change, 1 idea. Re-count before acting (`grep -c '^- '`).
 
 - The 2 live-canvas server bullets (Origin check, bounded /feedback-jsonl) are fixed in code (839bf7f).
 - Several other bullets were fixed last round (stale "committed or not" lines, s2 slot, fail-first, friction skip list).
@@ -103,7 +113,7 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 ### Nits found this round
 - [x] Fixed on chore/fix-ledger (f6a6b39). /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
 - [x] Fixed on chore/fix-ledger (d323c91). /remember: the `labels.json` path is never named in the spec. The worker wrote .claude/remember/friction/labels.json, overwriting the prior run's file.
-- [ ] /remember: the spec has no format for "episode removed whose lesson is already an existing fact", no tie-break for which episode goes on equal dates, and says "relay verbatim" but count's stdout is a long JSON.
+- [x] Fixed on chore/v5-drop-skill-creator. /remember: the spec has no format for "episode removed whose lesson is already an existing fact", no tie-break for which episode goes on equal dates, and says "relay verbatim" but count's stdout is a long JSON.
 - [x] Fixed on chore/fix-ledger (d323c91). docs-builder: SKILL.md line 13 "`docs-builder/docs-builder.cjs`" reads like a subfolder; the script sits beside SKILL.md (wording nit).
 - [x] Fixed on chore/fix-ledger (c98dae7, discover now skips gitignored .md). docs-builder (low priority): gitignored root .md files (TEST_REPORT.md) appear in reorg with no skip. Owner says docs-builder behaved fine (it asked).
 - [ ] skill-shell RULE_PINS pinned a claude-only path — the per-kit test went red only after mirroring; pins must use kit-neutral text.
@@ -117,8 +127,8 @@ File: .claude/remember/fix-ledger.md. It has 15 `- ` bullets now: 5 nit, 7 chang
 - [ ] The overlay Finish fix is pinned only by a source-level test. Behaviour was proven by the browser run. No DOM test harness exists.
 - [ ] docs-builder `search`: a query whose first word ends in `.json` is read as the outline path (docs-builder.cjs line 941).
 - [x] Fixed on chore/fix-ledger (d323c91). Nit: the docs-builder.cjs comment at line 2140 says "ampcode -> AGENT.md". The amp kit is a deliberate mirror of claude (CLAUDE.md) per owner. The comment is the stale part.
-- [ ] `expectedTests` floors in tests/run-all-tests.js are far below actual: skill-shell 310 vs 1386, docs-builder 538 vs 735.
-- [ ] Unclear: live-canvas interview questions with no options (Location, Key tasks, Feedback).
+- [x] Fixed on chore/v5-drop-skill-creator. `expectedTests` floors in tests/run-all-tests.js were far below actual (skill-shell 310 vs 1386, docs-builder 538 vs 735).
+- [x] Dropped by the owner on chore/v5-drop-skill-creator: live-canvas interview questions with no options (Location, Key tasks, Feedback).
 
 ## 4. Next: more skill trims
 

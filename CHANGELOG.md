@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Removed
+- **`/skill-creator` is removed.** The catalog goes from 13 to 12
+  capabilities (advisory ones 4 to 3; the nine deliberate actions are unchanged).
+  Claude Code now ships its own skill creator. The skill, its bundled scripts and
+  every kit copy are gone; counts and tables in the READMEs, manuals, per-kit config
+  files, `opencode.jsonc`, `package.json` and the installer tests are updated.
+
+### Changed
+- `/release`: the hand-back prints `gh pr merge --admin --merge --delete-branch`
+  instead of `--squash`, so a release PR lands as a merge commit and the branch's
+  own commits stay on main.
+- `/remember`: the Episodes rule states the same-date tie-break (the one later in the
+  file is the newer) and how to report a removed episode whose lesson is already a
+  fact; "relay script output verbatim" is scoped to output meant for the user, and
+  JSON a step consumes is input.
+- Tests: new pins for the three wording changes above; test-count floors in
+  `tests/run-all-tests.js` raised to the real totals.
+
+---
+
 ## [4.4.0] - 2026-10-01
 
 ### Added
