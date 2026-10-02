@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.5.0] - 2026-10-02
 
 ### Removed
 - **`/skill-creator` is removed.** The catalog goes from 13 to 12
