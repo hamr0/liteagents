@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.6.0] - 2026-10-05
+
+### Fixed
+- `/docs-builder`: heavy model work always spawns. One spawn rule (mid tier stated, no
+  sub-spawning, user questions stay in the main session) and each model step says "spawn".
+- `/docs-builder`: the reorg approval list is one `from <file> to <dest> · <n> lines ·
+  <bucket>` line per row, replacing a pipe table that rendered malformed in AskUserQuestion.
+
+---
+
 ## [4.5.0] - 2026-10-02
 
 ### Removed

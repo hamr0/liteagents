@@ -2265,9 +2265,8 @@ function applyReorg(planFile) {
     const table = plan.rows.map((r, i) => ({ r, dest: dests[i].split(path.sep).join('/') }))
       .sort((a, b) => a.dest < b.dest ? -1 : a.dest > b.dest ? 1 : a.r.file < b.r.file ? -1 : 1);
     console.log(`approval table — ${table.length} row(s), sorted by destination`);
-    console.log('file | lines | → destination | bucket');
     for (const { r, dest } of table)
-      console.log(`${r.file} | ${r.lines}${r.oversized ? ' (oversized)' : ''} | → ${dest} | ${r.bucket}`);
+      console.log(`from ${r.file} to ${dest} · ${r.lines} lines${r.oversized ? ' (oversized)' : ''} · ${r.bucket}`);
     console.log('preview only — nothing moved, nothing written.');
     return;
   }

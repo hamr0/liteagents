@@ -71,7 +71,7 @@ the docs/ layout".
 ```
 
 **Steps 1, 3, 4, 6, 7 and lint are pure script — zero cost, zero model calls.** Only 2 and 5
-touch a model: step 2 is cheap tier, step 5 is mid tier. That split is the central design
+touch a model: step 2 is the main session's own classification pass, step 5 is mid-tier workers. That split is the central design
 decision. Bookkeeping — counting, matching keys, checking a list — is mechanical, so a
 script owns it; the model is only asked to judge and to write.
 
@@ -329,9 +329,10 @@ that the interview decides like everything else.
 The classification interview: feed the model the whole plan table (file, h1, snip, lines,
 suggested+reason) in **one call**, have it fill `bucket` (`product`/`wiki`/`logs`/`archive`) with
 a one-line reason per row, write the answers into `reorg-plan.json`, then show the user the
-full table via `AskUserQuestion` — approve all / correct specific rows / abort. The
-approval table has a mandated shape: **exactly four columns**, `file | lines | →
-destination | why`, `→ destination` is the row's **full destination path**
+rows in chat, then ask `AskUserQuestion` — approve all / correct specific rows / abort. The
+approval list has a mandated shape: **one line per row**, `from <file> to <dest> · <lines>
+lines · <bucket>` plus ` · why: <reason>`, shown in a normal chat message (a multi-column table
+renders malformed inside the question). `<dest>` is the row's **full destination path**
 (`docs/archive/PRD.md`), never the bare bucket word, and rows are **sorted by
 destination** so a misfiled doc stands out against its neighbours instead of scattering
 through a path-sorted list. Only after approval does `apply-reorg` run, and it refuses
@@ -435,6 +436,11 @@ reasoning and the evidence behind them, moved out of the skill so it can stay sh
 | propose + assign themes, read a doc for the interview | **cheapest tier** | structured labelling against a fixed list; no synthesis |
 | write pages | **mid tier** | semantic synthesis, cheaper and faster than the top reasoning tier |
 
+Heavy model work always spawns a worker with the tier stated explicitly; the worker is handed its
+inputs (it has no skill text of its own), does the work itself with no sub-spawning, and anything
+that asks the user stays in the main session. The step 2 classification is the exception: the main
+session does it in one pass because its result goes straight into the approval question.
+
 The skill never names a vendor model: names drift, and an omitted tier silently inherits the
 parent's, so the skill says to state the tier explicitly. The numbers below were measured on
 Claude Haiku 4.5 (cheap) and Sonnet 5 (mid) in August 2026 — the ratios and shapes carry over,
@@ -449,11 +455,11 @@ suffixes, the `logs/` group, sort order) was the riskiest thing the model comput
 
 What the script prints for the model to relay, so it never composes them:
 
-- `PREVIEW=1 node $DB apply-reorg` — `approval table — N row(s), sorted by destination`, rows
-  `file | lines | → destination | bucket`, then `preview only — nothing moved, nothing
-  written.`; exit 1 on an unclassified plan. It shares `destinationsFor()` with the real run,
-  so the preview can never disagree with the move. It has no `why` column: the reason is
-  the model's judgment, added when it shows the table.
+- `PREVIEW=1 node $DB apply-reorg` — `approval table — N row(s), sorted by destination`, one line
+  per row `from <file> to <dest> · <lines> lines[ (oversized)] · <bucket>`, then `preview only
+  — nothing moved, nothing written.`; exit 1 on an unclassified plan. It shares
+  `destinationsFor()` with the real run, so the preview can never disagree with the move. It
+  prints no `why`: the reason is the model's judgment, appended when it shows the rows.
 - The commit advisory tail — `BRANCH: <name>` (on `main`/`master`: `do NOT commit`),
   `QUESTION: Commit these N files now?` (naming files that already carried the operator's own
   edits), and `WARN: docs/.docs-builder/ is not gitignored — …` via `git check-ignore`. The
