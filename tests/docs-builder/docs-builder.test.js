@@ -3126,16 +3126,15 @@ function previewApplyReorg() {
   const before = treeChecksum(d), headBefore = git(d, ['rev-parse', 'HEAD']);
   const r = db(d, ['apply-reorg'], { PREVIEW: '1' });
   ok('preview exits 0', r.code, 0);
-  const rowsOut = r.out.split('\n').filter(l => l.includes('→'));
-  okTrue('table header names the four columns', /file \| lines \| → destination \| bucket/.test(r.out));
-  const body = rowsOut.filter(l => !/^file \|/.test(l));
+  const body = r.out.split('\n').filter(l => /^from /.test(l));
+  okTrue('every row is one `from <file> to <dest> · <n> lines` line', body.every(l => /^from \S+ to docs\/\S+ · \d+ lines/.test(l)));
   ok('one row per plan row', body.length, 5);
   ok('rows sorted by destination (archive, logs, product)',
-    body.map(l => l.split(' | ')[2]).join(','),
-    ['→ docs/archive/zeta.md', '→ docs/logs/fwd/y.md', '→ docs/product/BIG.md',
-     '→ docs/product/X-2.md', '→ docs/product/X.md'].join(','));
-  okTrue('oversized marker on the oversized row', /docs\/BIG\.md \| 600 \(oversized\) \| → docs\/product\/BIG\.md \| product/.test(r.out));
-  okTrue('collision suffix shown as full path', /docs\/b\/X\.md \| 7 \| → docs\/product\/X-2\.md \| product/.test(r.out));
+    body.map(l => l.split(' ')[3]).join(','),
+    ['docs/archive/zeta.md', 'docs/logs/fwd/y.md', 'docs/product/BIG.md',
+     'docs/product/X-2.md', 'docs/product/X.md'].join(','));
+  okTrue('oversized marker on the oversized row', body.includes('from docs/BIG.md to docs/product/BIG.md · 600 lines (oversized) · product'));
+  okTrue('collision suffix shown as full path', body.includes('from docs/b/X.md to docs/product/X-2.md · 7 lines · product'));
   ok('NOTHING moved or written (tree checksum identical)', treeChecksum(d), before);
   ok('no commit made', git(d, ['rev-parse', 'HEAD']), headBefore);
   // Same destinations as the real run: the preview's table is the real run's moves.

@@ -10,7 +10,9 @@ disable-model-invocation: true
 
 Keep project docs **current, complete and findable**, and split a file when it outgrows its row in `docs/index.md`. Why it works this way, measured numbers and history: `docs/product/docs-builder-README.md`.
 
-**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is the `docs-builder.cjs` script beside this file, the `$DB` path below (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages. Spawn each model step with its tier stated explicitly (an omitted tier inherits yours): **cheapest tier** to read, propose and assign themes; **mid tier** to write pages. Never name a vendor model.
+**This does NOT make docs cheaper to read — never sell it as a token saving.** Every mechanical step is the `docs-builder.cjs` script beside this file, the `$DB` path below (vanilla Node, zero deps). A model does two things only: classify and propose themes, and write pages.
+
+- **Heavy model work always spawns a worker, tier stated explicitly** (an omitted tier inherits the parent's). Never name a vendor model. Hand the worker its inputs — it has no skill text of its own — and it does the work itself, no sub-spawning. Anything that asks the user stays in the main session. Fall back to inline only if your tool cannot spawn.
 
 ## Setup
 
@@ -78,13 +80,13 @@ node $DB discover
 
 Scope with no argument: `.md` files at the repo root (top level only) plus everything under `docs/` (recursive; `product/`, `wiki/`, `logs/` re-checked every run, `docs/archive/` skipped; gitignored files are skipped). `node $DB discover <dir>` scopes to exactly `<dir>` instead. Writes `reorg-plan.json`: per file `h1`, `snip`, `lines`, an `oversized` boolean, and a mechanical `suggested` bucket + `reason`. `suggested` is a PRIOR, never a verdict. `bucket` is empty on every row discover has not classified before; files already in `product/`, `wiki/` or `logs/` are real rows and need a bucket too. `apply-reorg` reads only `bucket`.
 
-**2. Classification interview — the model's judgment, behind the approval gate.** Give the model the WHOLE plan table (`file`, `h1`, `snip`, `lines`, `suggested`+`reason`) in one call. It fills `bucket` (`product`/`wiki`/`logs`/`archive`) on every row where it is empty and keeps a one-line reason per row. Write only `bucket` into `reorg-plan.json`. A SHOUTED self-declared status (`**Status: CLOSED**`) is near-conclusive for `archive`; `suggested` never overrides the model. Then run:
+**2. Classification interview — the model's judgment, behind the approval gate.** Classify it yourself (no spawn), in one pass over the WHOLE plan table (`file`, `h1`, `snip`, `lines`, `suggested`+`reason`): fill `bucket` (`product`/`wiki`/`logs`/`archive`) on every row where it is empty and keep a one-line reason per row. Write only `bucket` into `reorg-plan.json`. A SHOUTED self-declared status (`**Status: CLOSED**`) is near-conclusive for `archive`; `suggested` never overrides the model. Then run:
 
 ```
 PREVIEW=1 node $DB apply-reorg
 ```
 
-It prints `approval table — N row(s), sorted by destination`, rows `file | lines | → destination | bucket`, then `preview only — nothing moved, nothing written.` (exit 1 if a row is still unclassified). Show the user those rows in that order as exactly four columns, `file | lines | → destination | why`: the `→ destination` full path and `(oversized)` marker exactly as printed, your one-line reason in `why`. Ask via `AskUserQuestion`: approve all / correct specific rows / abort. A correction changes `bucket` in the plan, then re-run the preview. Abort moves nothing.
+It prints `approval table — N row(s), sorted by destination`, one line per row `from <file> to <dest> · <lines> lines[ (oversized)] · <bucket>`, then `preview only — nothing moved, nothing written.` (exit 1 if a row is still unclassified). Show the user the rows in a normal chat message, in printed order, each as printed plus ` · why: <your one-line reason>`. Then ask via `AskUserQuestion` only "Approve these N moves?" — approve all / correct specific rows / abort. A correction changes `bucket` in the plan, then re-run the preview. Abort moves nothing.
 
 **3. Apply:**
 
@@ -120,7 +122,7 @@ After a successful commit run `node $DB ledger` to stamp the consolidation. With
 
 `node $DB cleanup docs/BIG.md` (use the file's current path) prints its size and estimated write cost, scans, prints a heading-shape table, writes `cleanup-shape.json`, then **STOPS**. Nothing past it runs — no archive, no page, no model call — until the interview below is answered.
 
-**Interview.** Read the document (cheapest tier, weighted to the opening, enough of the rest to name the other themes). Ask via `AskUserQuestion`, one question, exactly this shape:
+**Interview.** Spawn one cheapest-tier worker to read the document (weighted to the opening, enough of the rest to name the other themes); it returns the "mainly" theme and the other themes, and the MAIN session asks the user via `AskUserQuestion`, one question, exactly this shape:
 
 > **Question: Is this split right?**
 >
@@ -133,9 +135,9 @@ After a successful commit run `node $DB ledger` to stamp the consolidation. With
 
 Options at minimum **Confirm** (proceed with the themes exactly as stated) and **Correct** (the user names what the document is actually mainly about, and/or edits the other-themes list). A correction must change what gets built: the corrected "mainly" theme is the one marked `core: true`, the edited list is the fixed list proposed against. Never auto-detect and call it an interview.
 
-**2a. Propose (cheapest tier, ONE call over ALL headings).** Feed every `records[].key` plus its `snip` and the interview answer. Ask for a fixed theme list with a one-line gloss each; the interview's "mainly" theme is the core, exactly one; aim for no theme above ~30% of the lines. Its page carries the original's basename.
+**2a. Propose (spawn one cheapest-tier worker, ONE call over ALL headings).** Feed every `records[].key` plus its `snip` and the interview answer. Ask for a fixed theme list with a one-line gloss each; the interview's "mainly" theme is the core, exactly one; aim for no theme above ~30% of the lines. Its page carries the original's basename.
 
-**2b. Assign (cheapest tier, chunks of ~20 sections).** Each section gets a theme from that list. Never emit a positional index. Echo `records[].key` back verbatim, delimited in the prompt:
+**2b. Assign (spawn cheapest-tier workers, chunks of ~20 sections).** Each section gets a theme from that list. Never emit a positional index. Echo `records[].key` back verbatim, delimited in the prompt:
 
 ```
 <<<KEY>>>the exact key text<<<END>>>
@@ -160,7 +162,7 @@ node $DB cleanup-apply docs/BIG.md
 
 Refuses before doing anything if `labels.json` is missing or has no `core: true` theme. Otherwise it runs `plan` (one `docs/.docs-builder/tasks/task-<theme>.json` per page, estimated cost for pages still to write) and, if any page is missing, stops. Re-run the same command after step 5: once every page exists it archives the original, relocates the core page to the original's directory under its original basename, restores inbound links from the archive to that core page (the split pages keep their archive citations), and rebuilds `docs/index.md`. `node $DB plan` alone re-reports what is left (a theme whose page exists in `docs/wiki/`, override `PAGES=`, is `done`).
 
-**5. Write pages (mid tier, one agent per page).** Hand each writer agent its `task-<theme>.json`: the writer brief is inside it. A page counts as written only with YAML frontmatter and at least 10 lines; shorter is `PARTIAL` and is rewritten. Each agent reads only its own line ranges, every claim cited `(<file>:<start>-<end>)` inside those ranges, 250 lines a ceiling. Write the core page under `docs/wiki/` like the rest; `cleanup-apply` relocates it. Launch 3 at a time. Exit condition is a command: re-run `node $DB plan` and read it; step 5 is done only when it prints `all pages written` with no page listed `PARTIAL` (and no `page(s) exist but are not a finished page` WARN).
+**5. Write pages (spawn one mid-tier worker per page).** Hand each writer agent its `task-<theme>.json`: the writer brief is inside it. A page counts as written only with YAML frontmatter and at least 10 lines; shorter is `PARTIAL` and is rewritten. Each agent reads only its own line ranges, every claim cited `(<file>:<start>-<end>)` inside those ranges, 250 lines a ceiling. Write the core page under `docs/wiki/` like the rest; `cleanup-apply` relocates it. Launch 3 at a time. Exit condition is a command: re-run `node $DB plan` and read it; step 5 is done only when it prints `all pages written` with no page listed `PARTIAL` (and no `page(s) exist but are not a finished page` WARN).
 
 **6. Archive** — run for you by `cleanup-apply`; standalone `node $DB archive docs/BIG.md` is a verified move (hash, `git mv`, hash). Exit codes are not interchangeable:
 
