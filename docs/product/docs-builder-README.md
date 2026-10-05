@@ -71,7 +71,7 @@ the docs/ layout".
 ```
 
 **Steps 1, 3, 4, 6, 7 and lint are pure script — zero cost, zero model calls.** Only 2 and 5
-touch a model: step 2 is cheap tier, step 5 is mid tier. That split is the central design
+touch a model: step 2 is the main session's own classification pass, step 5 is mid-tier workers. That split is the central design
 decision. Bookkeeping — counting, matching keys, checking a list — is mechanical, so a
 script owns it; the model is only asked to judge and to write.
 
@@ -435,6 +435,11 @@ reasoning and the evidence behind them, moved out of the skill so it can stay sh
 |---|---|---|
 | propose + assign themes, read a doc for the interview | **cheapest tier** | structured labelling against a fixed list; no synthesis |
 | write pages | **mid tier** | semantic synthesis, cheaper and faster than the top reasoning tier |
+
+Heavy model work always spawns a worker with the tier stated explicitly; the worker is handed its
+inputs (it has no skill text of its own), does the work itself with no sub-spawning, and anything
+that asks the user stays in the main session. The step 2 classification is the exception: the main
+session does it in one pass because its result goes straight into the approval question.
 
 The skill never names a vendor model: names drift, and an omitted tier silently inherits the
 parent's, so the skill says to state the tier explicitly. The numbers below were measured on
