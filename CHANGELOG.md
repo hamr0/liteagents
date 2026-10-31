@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.6.1] - 2026-10-31
+
+### Security
+- live-canvas channel: `body-parser` 2.3.0 → 2.4.0 (CVE-2026-111181).
+
+### Changed
+- live-canvas channel dependencies updated: `@modelcontextprotocol/sdk` 1.32.0 (minimum raised to `^1.32.0`), `hono` 4.13.13, `@hono/node-server` 2.1.5, `zod` 4.6.7, `qs` 6.17.1, `fast-uri` 3.1.9, `ip-address` 10.7.5, `proxy-addr` 2.0.8.
+
+---
+
 ## [4.6.0] - 2026-10-05
 
 ### Fixed
