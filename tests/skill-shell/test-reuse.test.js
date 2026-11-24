@@ -118,7 +118,7 @@ for (const [k, slot] of Object.entries(SLOTS)) {
 }
 check('branch-review: record template carries green: forward', /^green: <this run's suite .*carried forward verbatim/m.test(read(SPECS['branch-review'])));
 check('self-review: writes green: line', read(SPECS['self-review']).includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
-check('release: reused-vs-RUN cross-check stops', /says `reused`\s+but this prints a line starting `RUN \(` → \*\*stop\*\*/.test(read(SPECS['release'])));
+check('release: reused-vs-RUN cross-check stops, against the Phase 0 line', /says `reused`\s+but the Phase 0 line starts `RUN \(` → \*\*stop\*\*/.test(read(SPECS['release'])));
 
 // Rules 1-4 pins. Claude kit only: widen to all kits at mirror time.
 const BR = read(SPECS['branch-review']), SR = read(SPECS['self-review']), RE = read(SPECS['release']);
@@ -151,6 +151,21 @@ const AR = read('packages/claude/skills/remember/AGENT_RULES.md');
 const DEV = AR.slice(AR.indexOf('<!-- DEV_RULES:START -->'), AR.indexOf('<!-- DEV_RULES:END -->'));
 check('DEV_RULES: gates run the full suite, coding runs targeted tests only, docs-only skips',
   DEV.includes('Gates (/self-review, /branch-review, /release) run the full suite; coding runs targeted tests only — a gate skips the run and cites the last proof when only docs changed since.') && !DEV.includes('One full test run per code change') && (DEV.match(/full suite/g) || []).length === 1);
+
+// Decide upfront: the orchestrator runs the decider after the dirty-tree check, before the worker section; the worker uses the line from its brief.
+const ORDER = {
+  'self-review': ['Dirty tree first', '## 2. Worker'],
+  'branch-review': ['Before resolving anything, run `git status --porcelain`', '## Stage 1'],
+  'release': ['The tree must be clean', '## Phase 0.5'],
+};
+for (const [k, [before, after]] of Object.entries(ORDER)) {
+  const t = read(SPECS[k]), d = t.indexOf(lines[k] || '\0'), a = t.indexOf(before), b = t.indexOf(after);
+  check(`${k}: decider block is after the dirty-tree check and before the worker section`, a >= 0 && b >= 0 && d > a && d < b, `dirty ${a} decider ${d} worker ${b}`);
+  check(`${k}: exactly one decider block`, t.split(lines[k] || '\0').length === 2);
+}
+check('self-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief; never run the decider yourself, never decide/.test(SR) && SR.includes('Pass that exact output line to the worker in its brief'));
+check('branch-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief \(never run the decider yourself, never decide\)/.test(BR) && BR.includes('Pass that exact output line to the worker in its brief'));
+check('release: Phase 0.5 uses the Phase 0 line, never re-runs it', RE.includes('use the decider line printed in Phase 0 (never re-run it') && RE.includes('Pass that\n  exact line to any worker'));
 
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

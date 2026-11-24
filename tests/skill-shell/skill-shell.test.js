@@ -802,7 +802,7 @@ for (const kit of KITS) {
     const rel = flat(read(kit.release));
     return allOf(
       has(rel, '`tests:` line'),
-      has(rel, '`REUSE` → covered'),
+      has(rel, kit.name === 'claude' ? '`REUSE …` → covered' : '`REUSE` → covered'),
       has(rel, '`NOT RUN`'));
   });
 
@@ -1426,8 +1426,8 @@ for (const kit of KITS) {
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
   specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
-    has(sr, kit.name === 'claude' ? 'gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN' : 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
-    has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
+    has(sr, kit.name === 'claude' ? 'Gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN' : 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
+    has(rl, kit.name === 'claude' ? 'Same rule as `/branch-review` Stage 1: `REUSE …` → covered, do not re-run' : 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
     has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
     sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
     rl.includes('Every exit code in this sequence') ? 'stale: second exit-code passage in release' : true,

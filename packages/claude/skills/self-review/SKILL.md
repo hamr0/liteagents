@@ -23,6 +23,13 @@ break it.
 tree is dirty (list the paths), `/self-review` reviews commits not the working
 tree, commit then re-run. No worker spawned.
 
+**Decide REUSE or RUN now, once:** run this line as printed and print its
+output; it stays valid for the whole run (gates only commit docs, which it
+ignores). Pass that exact output line to the worker in its brief.
+```
+f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
+```
+
 **Hashes or a range given** (`$ARGUMENTS`: one or more hashes, or `<a>..<b>`)
 → review exactly those commits, nothing else, on any branch: each hash via
 `git show <sha>`, a range via `git log <a>..<b>` and `git diff <a>..<b>`.
@@ -48,7 +55,7 @@ git merge-base --is-ancestor <sha> $(git merge-base main HEAD)
 Valid (third command exits non-zero) → range `<sha>..HEAD`. No bookmark →
 whole branch, `git merge-base main HEAD`..`HEAD`. Range empty → "nothing new
 since the last self-review," stop, no worker spawned. Otherwise hand off —
-what was done, claims made (works / tested / done), files changed, the
+the decider line above, what was done, claims made (works / tested / done), files changed, the
 baseline suite totals if known (`unverified` when the baseline is from an older sha that was not re-run), loose ends only you can know (a peer session
 not told, a silent open question, unshipped state) — and spawn one mid-tier
 worker.
@@ -58,14 +65,11 @@ Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced:
 - **Does it work?** Run the thing and targeted checks for what changed now,
   never the full suite; cite the command and numbers.
-- **No regression?** Run this line, as printed; gate rule per `DEV_RULES` and
-  `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN (…)` →
+- **No regression?** Use the decider line the orchestrator passed in your brief; never run the decider yourself, never decide. Gate rule per `DEV_RULES` and
+  `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` →
   run the FULL suite once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
   run alone is re-run alone before it is called real. No run behind a claim
   counts as not checked.
-  ```
-  f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
-  ```
 - **Cleanup?** Check the diff against the `DEV_RULES` block in the repo's
   agent config file; cite the rule each finding breaks, with `file:line`.
   Repo rules win; skip anything a linter or test already enforces; a smell is
