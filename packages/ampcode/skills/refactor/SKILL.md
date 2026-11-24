@@ -97,9 +97,28 @@ refactor and how to close each item.
    field: a run chained the review onto the owner's "commit" and the owner
    objected.
 
+## Duplicates mode — `$ARGUMENTS` is `duplicates [path]`
+Merges functions that do the same job. `[path]` bounds the search, else the
+repo. Everything else here (constraints, verification, HITL gates) still
+applies.
+
+1. **Find, no edits (worker).** Groups of functions doing the same job: same
+   name stem, same signature shape, or near-identical bodies. Grep by name,
+   read the bodies. Per group: every member as `file:line`, and whether the
+   bodies behave identically — if not, state the difference. Hand the list
+   back.
+2. **Ask (orchestrator).** Show the groups; the user picks which to merge
+   (AskUserQuestion). Only picked groups are edited.
+3. **Per picked group, one at a time (worker).** Pick the survivor. Write a
+   test pinning the current behaviour of every caller path, and see it fail
+   against a deliberate break of the survivor before you trust it. Point every
+   caller at the survivor, delete the rest, run the suite.
+4. **Never merge members whose behaviour differs.** Report the difference and
+   leave them be.
+
 ## Where to look — broad targets only
 Empty `$ARGUMENTS` is ledger mode; the surviving bullets are the scope, so skip
-this. When `$ARGUMENTS` names a specific file or function, that is the scope;
+this; so is `duplicates` mode. When `$ARGUMENTS` names a specific file or function, that is the scope;
 skip this too. When it names a whole area ("the auth module", "clean this
 up"), let
 recent change decide where inside it to start: `git log --oneline -- <path>`

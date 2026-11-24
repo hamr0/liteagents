@@ -330,6 +330,10 @@ for (const kit of KITS) {
     sr.includes('**Cleanup?**') && sr.includes('max 5 Cleanup items') && !/Structure/.test(sr) &&
     brv.includes('A /self-review Cleanup item'));
   const ref = flat(kit.refactor);
+  check(`${kit.name}/refactor: duplicates mode — list, user picks, pin callers, never merge differing behaviour`,
+    ref.includes('`$ARGUMENTS` is `duplicates [path]`') && ref.includes('the user picks which to merge') &&
+    ref.includes('test pinning the current behaviour of every caller path') &&
+    ref.includes('**Never merge members whose behaviour differs.**'));
   check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
     ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
 }

@@ -92,8 +92,8 @@ const testSuites = [
     name: 'skill-shell',
     file: 'skill-shell/skill-shell.test.js',
     description: 'Tests the literal shell commands shipped inside branch-review/refactor/release/self-review/stash markdown (ledger count, docs-only classifier, self-review bookmark script, stash total/processed counts), extracted from all 4 kits and run for real under bash (and zsh when present)',
-    // Floor is the bash-only total: CI has no zsh (950 bash-only, 1498 with zsh)
-    expectedTests: 950
+    // Floor is the bash-only total: CI has no zsh (954 bash-only, 1502 with zsh)
+    expectedTests: 954
   },
   {
     name: 'test-reuse',
