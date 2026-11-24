@@ -24,8 +24,7 @@ tree is dirty (list the paths), `/self-review` reviews commits not the working
 tree, commit then re-run. No worker spawned.
 
 **Decide REUSE or RUN now, once:** run this line as printed and print its
-output; it stays valid for the whole run (gates only commit docs, which it
-ignores). Pass that exact output line to the worker in its brief.
+output; it stays valid for the whole run (this command commits nothing). Pass that exact output line to the worker in its brief.
 ```
 f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
 ```
@@ -66,8 +65,8 @@ underspecced:
 - **Does it work?** Run the thing and targeted checks for what changed now,
   never the full suite; cite the command and numbers.
 - Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.
-- **No regression?** Use the decider line the orchestrator passed in your brief; never run the decider yourself, never decide. Gate rule per `DEV_RULES` and
-  `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` →
+- **No regression?** Use the decider line the orchestrator passed in your brief; never run the decider yourself, never decide. Gate rule per `DEV_RULES`:
+  `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` →
   run the FULL suite once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
   run alone is re-run alone before it is called real. No run behind a claim
   counts as not checked.
@@ -118,7 +117,7 @@ Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
 items. When you relay the report, the **orchestrator** (worker's turn is over
 by then) appends **every anchorable** item, both piles, to `.claude/remember/fix-ledger.md`
-right away, `/branch-review`'s format (header: the block under `### Ledger` in its SKILL.md), tagged `nit`/`change`/`idea` (Underspecced
+right away, `/branch-review`'s format (header: the block under `### Ledger` in its SKILL.md) and its dedupe rule, tagged `nit`/`change`/`idea` (Underspecced
 items → `idea`), bullet text verbatim. Bullet shape:
 ```
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit
@@ -131,7 +130,7 @@ removed by hand; `/refactor` drops them.
 scenario slot. **One snippet per item** (a second item on the same line
 anchors a different nearby line). A corrected `file:line` is noted as
 "corrected" in the relay.
-Append in `/branch-review`'s ledger format (its header and dedupe rule). **Anchor rule:** a verbatim snippet `grep
+**Anchor rule:** a verbatim snippet `grep
 -F` finds exactly once in its file (`grep -cF '<snippet>' <file>` prints 1; else a longer snippet or a nearby unique line); missing (usually an `idea`) → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead — the anchor rule wins over
 "every". Relay one line, filled (A + D + Y = N), so a dropped append shows:
@@ -149,13 +148,13 @@ echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 
-After a `RUN` that exited 0, write `green:` per `/branch-review` Stage 1
+No-hash mode only: after a `RUN` that exited 0, write `green:` per `/branch-review` Stage 1
 ("On `RUN`, write `green:`"):
 `green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**
 never counts. A third round with new
 Fix-now caused by the previous fix → stop: "redesign, don't patch again."
-**Not a gate:** `/branch-review` and `/release` don't require this to have
+**Not required:** `/branch-review` and `/release` don't require this to have
 run — close with "commit, then `/branch-review`," a sentence to **say**, never
 run.

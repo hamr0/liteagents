@@ -134,9 +134,10 @@ for (const [kit, K] of Object.entries(KIT_SPECS)) {
   check(t + 'self-review: writes green: line', SR.includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
   check(t + 'branch-review: owns the green: write rule (on RUN, after one full run, rev-parse, replace, no other line; never on REUSE)',
     /On `RUN`, write `green:`.*replace the record's `green:` line.*git rev-parse HEAD.*never touch another line.*Never write it on `REUSE`/s.test(BR));
-  check(t + 'self-review and release point to the branch-review write rule, no copy',
-    SR.includes('("On `RUN`, write `green:`")') && RE.includes('write `green:` per `/branch-review` Stage 1') && !/grep -v '\^green: '/.test(SR + RE));
-  check(t + 'release: writes green: on RUN (gate rule), runs the full suite', /run the full suite once[\s\S]*on exit 0 write `green:`/.test(RE));
+  check(t + 'self-review points to the branch-review write rule (no copy); release writes green: inline, touching no other line',
+    SR.includes('("On `RUN`, write `green:`")') && SR.includes('No-hash mode only: after a `RUN` that exited 0, write `green:`') && !BR.includes('`/self-review` and `/release` point here') &&
+    RE.includes("replace the record's `green:` line with\n  `green: <full HEAD sha> <cmd> exit 0 <totals>`, touching no other line") && !RE.includes('per `/branch-review` Stage 1') && !/grep -v '\^green: '/.test(SR + RE));
+  check(t + 'release: writes green: on RUN (gate rule), runs the full suite', /run the full suite once[\s\S]*on exit 0 replace the record's `green:` line/.test(RE));
   check(t + 'refactor: no green: slot, no post-commit full run, tests line is scoped only',
     !RF.includes('green: written') && !RF.includes('Who writes `green:`') && !RF.includes('then one full run') && !RF.includes('Never run it before the commit') && RF.includes('(scoped) | NOT RUN: <reason>') && !RF.includes('(scoped | full)'));
   check(t + 'refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
@@ -144,7 +145,7 @@ for (const [kit, K] of Object.entries(KIT_SPECS)) {
   check(t + 'self-review: works: is targeted only, never the full suite; no FULL-never-scoped header', /Run the thing and targeted checks[\s\S]*never the full suite/.test(SR) && !SR.includes('never\nscoped'));
   check(t + 'branch-review: Who-writes / commit-first paragraph gone', !BR.includes('Who writes `green:`') && !BR.includes('Commit first, one full run after') && !BR.includes('without re-running'));
   check(t + 'refactor: worker runs scoped tests only, never the full suite', /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF));
-  check(t + 'refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
+  check(t + 'refactor: tests line carries the (scoped) slot; no separate worker-reports sentence', RF.includes('(scoped) | NOT RUN: <reason>') && !RF.includes('The worker reports `tests:` as `scoped`'));
 
   // Decider: one line per spec, same as claude's after swapping the kit dir.
   const dl = {};

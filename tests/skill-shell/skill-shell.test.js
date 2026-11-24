@@ -323,7 +323,7 @@ for (const kit of KITS) {
     sr.includes('Copied or duplicate code is a `reuse:` item, not middle man'));
   check(`${kit.name}/self-review: ledger snippet must match exactly once; header named under ### Ledger`,
     sr.includes("finds exactly once in its file (`grep -cF '<snippet>' <file>` prints 1;") &&
-    sr.includes('(header: the block under `### Ledger` in its SKILL.md)') &&
+    sr.includes('(header: the block under `### Ledger` in its SKILL.md) and its dedupe rule') &&
     sr.includes("from the block under `### Ledger` in `/branch-review`'s SKILL.md;"));
   check(`${kit.name}/self-review: reuse: report line and the DEV_RULES standards pointer`,
     sr.includes('reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added') &&
@@ -1426,9 +1426,11 @@ for (const kit of KITS) {
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
   specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
-    has(sr, 'Gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN'),
-    has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE …` → covered, do not re-run'),
-    has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
+    has(sr, 'Gate rule per `DEV_RULES`: `REUSE …` → cite it (green sha and totals), no full run; `RUN'),
+    has(rl, '`REUSE …` → covered, do not re-run'),
+    rl.includes('Same rule as `/branch-review`') ? 'stale: release restates the branch-review pointer' : true,
+    has(sr, '(header: the block under `### Ledger` in its SKILL.md) and its dedupe rule'),
+    sr.includes("Append in `/branch-review`'s ledger format") ? 'stale: second ledger-format sentence in self-review' : true,
     sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
     rl.includes('Every exit code in this sequence') ? 'stale: second exit-code passage in release' : true,
     has(brs, '**Bugs and correctness.**'),
