@@ -78,7 +78,7 @@ _/remember syncs the block between the markers below into each repo's config (CL
 
 **Don't patch a patch.** A third fix on the same spot means the design is wrong — stop and propose the redesign. A new layer must hide more than its interface costs; otherwise inline it.
 
-**POC first, one module at a time.** Aim each POC at its riskiest assumption (module 0 = go/no-go); the test must be able to fail. Prove, don't assert — measure anything you call cheap or fast. No fitting to pass. A module works alone, then connects to what's built, before the next starts. Never ship the POC.
+**POC first, one module at a time.** Aim each POC at its riskiest assumption (module 0 = go/no-go); the test must be able to fail. Prove, don't assert — measure anything you call cheap or fast. No fitting to pass. Gates (/self-review, /branch-review, /release) run the full suite; coding runs targeted tests only — a gate skips the run and cites the last proof when only docs changed since. A module works alone, then connects to what's built, before the next starts. Never ship the POC.
 
 **No dependencies by default.** Start with the language itself, then its standard library. Add an outside package only when the standard library can't do it in under 100 lines, and say why. Outside packages must be maintained, lightweight, widely used and open-source — no vendor lock-in. Security code (crypto, auth, sanitizing) always uses a vetted library.
 

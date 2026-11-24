@@ -35,6 +35,11 @@ or more commit hashes**, or a **range** `<a>..<b>` (exactly those commits).
 
 **No hash only — check the branch is not behind `main`.** Run `git fetch origin`, then `git merge-base --is-ancestor origin/main HEAD`. Non-zero → **stop** and say all three things: (a) the branch is behind `origin/main` by N commits (`git rev-list --count HEAD..origin/main`); (b) reviewing now is wasted, because syncing afterwards makes the review stale; (c) merge `origin/main` into the branch (or rebase), then re-run `/branch-review`. A never-pushed branch passes; no `origin` remote or no `origin/main` → skip the check and say so.
 
+**Decide REUSE or RUN now, once** (after both checks pass, before spawning): run this line as printed and print its output; it stays valid for the whole run (Stage 4 commits only docs, which it ignores). Pass that exact output line to the worker in its brief.
+```
+f=.opencode/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
+```
+
 With a clean tree:
 1. **Hashes or a range given** → review exactly those commits, nothing else,
    on any branch including `main`: each hash via `git show <sha>`, a range via
@@ -81,11 +86,8 @@ was actually read rather than assuming.
 The diff is the subject, but **read the whole file around every hunk**. For multi-commit ranges, skim `git log <range>` for intent before
 judging.
 
-**Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the typecheck/build yourself, and the test suite once per code change by running this line as printed — `REUSE` → don't run it, cite the green sha and totals; `RUN` → run the full suite once and reuse that result. Docs-only changes (`docs/`, root `*.md`) never trigger a re-run. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden. Cite the command and its exit code.
-```
-f=.opencode/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
-```
-A suite that ran and exited 0 on a clean tree also sets the record's `green:` line. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
+**Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the typecheck/build yourself, and the test suite per the `DEV_RULES` gate rule using the decider line the orchestrator passed in your brief (never run the decider yourself, never decide) — `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` → run the full suite once, copy the printed reason into the `tests:` line (never write your own), then write `green:` (below). A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden. Cite the command and its exit code.
+**On `RUN`, write `green:`:** after the one full run exits 0 on the clean committed tree, replace the record's `green:` line with `green: <full sha from git rev-parse HEAD> <command> exit 0 <totals>` (`grep -v '^green: ' "$f" > "$f.tmp"`, append, `mv`), never touch another line; `/self-review` and `/release` point here. Never write it on `REUSE`. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
 
 - **Bugs and correctness.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases, error handling, type / contract
@@ -264,7 +266,7 @@ ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
-green: <this run's suite if it ran and exited 0 on a clean tree: full HEAD sha, command, exit 0, totals — written by /self-review or /branch-review, whichever last ran a green full suite; else carried forward verbatim, or omitted if absent>
+green: <this run's suite if it ran and exited 0 on a clean tree: full HEAD sha, command, exit 0, totals — written by the gate that ran the suite; else carried forward verbatim, or omitted if absent>
 ```
 
 Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the

@@ -802,7 +802,7 @@ for (const kit of KITS) {
     const rel = flat(read(kit.release));
     return allOf(
       has(rel, '`tests:` line'),
-      has(rel, kit.name === 'claude' ? '`REUSE …` → covered' : '`REUSE` → covered'),
+      has(rel, '`REUSE …` → covered'),
       has(rel, '`NOT RUN`'));
   });
 
@@ -973,7 +973,7 @@ for (const kit of KITS) {
   const sr = flat(read(skillPath(kit, 'self-review')));
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
-    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown'),
+    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown | unverified> | NOT RUN: <reason>'),
     has(sr, "same items, order, piles, and the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
@@ -1194,7 +1194,7 @@ for (const kit of KITS) {
 
   const rf = flat(read(skillPath(kit, 'refactor')));
   specCheck(`${kit.name}/refactor: final report carries the tests: line, not a bare pass count`, () => allOf(
-    has(rf, kit.name === 'claude' ? 'tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>' : 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
+    has(rf, 'tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>'),
     rf.includes('tests N pass / 0 fail') ? 'stale: bare "tests N pass / 0 fail" still present' : true));
 
   const rl = flat(read(skillPath(kit, 'release')));
@@ -1412,7 +1412,7 @@ for (const kit of KITS) {
     has(sr, "An old duplicate the diff didn't introduce → suggest `/refactor duplicates`"),
     sr.includes('rewrite only the bookmark line') ? 'stale: bookmark-only rewrite' : true));
   specCheck(`${kit.name}/branch-review: green: record line says who writes it`, () =>
-    has(brs, kit.name === 'claude' ? 'written by the gate that ran the suite' : 'written by /self-review or /branch-review, whichever last ran a green full suite'));
+    has(brs, 'written by the gate that ran the suite'));
   for (const [label, t] of [['branch-review', brs], ['refactor', rf], ['release', rl]]) {
     specCheck(`${kit.name}/${label}: worker guardrail overrides the Surgical dev rule`, () =>
       has(t, '(for workers this overrides the Surgical dev rule)'));
@@ -1426,8 +1426,8 @@ for (const kit of KITS) {
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
   specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
-    has(sr, kit.name === 'claude' ? 'Gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN' : 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
-    has(rl, kit.name === 'claude' ? 'Same rule as `/branch-review` Stage 1: `REUSE …` → covered, do not re-run' : 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
+    has(sr, 'Gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN'),
+    has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE …` → covered, do not re-run'),
     has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
     sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
     rl.includes('Every exit code in this sequence') ? 'stale: second exit-code passage in release' : true,

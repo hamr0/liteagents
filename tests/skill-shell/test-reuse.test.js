@@ -112,63 +112,75 @@ const SLOTS = {
   'branch-review': 'tests: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals>; build',
   'release': 'tests: REUSE|RUN · covered (reused <sha> <totals>) | ran <cmd> exit <code> <totals> · stale-grep',
 };
-for (const [k, slot] of Object.entries(SLOTS)) {
-  check(`${k}: slot line shape pinned`, read(SPECS[k]).includes(slot));
-  check(`${k}: run-alone-before-real sentence`, read(SPECS[k]).includes('is re-run alone before it is called real'));
-}
-check('branch-review: record template carries green: forward', /^green: <this run's suite .*carried forward verbatim/m.test(read(SPECS['branch-review'])));
-check('self-review: writes green: line', read(SPECS['self-review']).includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
-check('release: reused-vs-RUN cross-check stops, against the Phase 0 line', /says `reused`\s+but the Phase 0 line starts `RUN \(` → \*\*stop\*\*/.test(read(SPECS['release'])));
-
-// Rules 1-4 pins. Claude kit only: widen to all kits at mirror time.
-const BR = read(SPECS['branch-review']), SR = read(SPECS['self-review']), RE = read(SPECS['release']);
-const RF = read('packages/claude/skills/refactor/SKILL.md');
-check('branch-review: owns the green: write rule (on RUN, after one full run, rev-parse, replace, no other line; never on REUSE)',
-  /On `RUN`, write `green:`.*replace the record's `green:` line.*git rev-parse HEAD.*never touch another line.*Never write it on `REUSE`/s.test(BR));
-check('self-review and release point to the branch-review write rule, no copy',
-  SR.includes('("On `RUN`, write `green:`")') && RE.includes('write `green:` per `/branch-review` Stage 1') && !/grep -v '\^green: '/.test(SR + RE));
-check('release: writes green: on RUN (gate rule), runs the full suite', /run the full suite once[\s\S]*on exit 0 write `green:`/.test(RE));
-check('refactor: no green: slot, no post-commit full run, tests line is scoped only',
-  !RF.includes('green: written') && !RF.includes('Who writes `green:`') && !RF.includes('then one full run') && !RF.includes('Never run it before the commit') && RF.includes('(scoped) | NOT RUN: <reason>') && !RF.includes('(scoped | full)'));
-check('refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
-check('self-review: worker-side snippet check gone, orchestrator Anchor rule kept', !/Before reporting an anchorable item/.test(SR) && SR.includes('**Anchor rule:**'));
-check('self-review: works: is targeted only, never the full suite; no FULL-never-scoped header', /Run the thing and targeted checks[\s\S]*never the full suite/.test(SR) && !SR.includes('never\nscoped'));
-check('branch-review: Who-writes / commit-first paragraph gone', !BR.includes('Who writes `green:`') && !BR.includes('Commit first, one full run after') && !BR.includes('without re-running'));
-
-// Scoped-coding pins (claude kit only: widen to all kits at mirror time).
-check('refactor: worker runs scoped tests only, never the full suite', /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF));
-check('refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
-
-// Decider-reason, dev-rule and clarification pins (claude kit only: widen to all kits at mirror time).
-check('decider prints its own reason; one line (no newline), REUSE and docs regex unchanged',
-  DECIDER.includes('echo "RUN (no green: line)"') && DECIDER.includes("grep -vE '^(docs/|[^/]+\\.md$)'") && !DECIDER.includes('\n') && DECIDER.includes('echo "REUSE $(grep \'^green: \' "$f")"'));
-for (const [k, rel] of Object.entries(SPECS)) {
-  check(`${k}: tells the worker to copy the decider's reason into its line`,
-    /copy the printed reason into the `(full-suite|tests):` line/.test(read(rel)));
-}
-check('self-review: full-suite slot allows unverified baseline', SR.includes('vs before <totals | unknown | unverified>') && SR.includes('`unverified` when the baseline is from an older sha'));
-const AR = read('packages/claude/skills/remember/AGENT_RULES.md');
-const DEV = AR.slice(AR.indexOf('<!-- DEV_RULES:START -->'), AR.indexOf('<!-- DEV_RULES:END -->'));
-check('DEV_RULES: gates run the full suite, coding runs targeted tests only, docs-only skips',
-  DEV.includes('Gates (/self-review, /branch-review, /release) run the full suite; coding runs targeted tests only — a gate skips the run and cites the last proof when only docs changed since.') && !DEV.includes('One full test run per code change') && (DEV.match(/full suite/g) || []).length === 1);
-
-// Decide upfront: the orchestrator runs the decider after the dirty-tree check, before the worker section; the worker uses the line from its brief.
-const ORDER = {
-  'self-review': ['Dirty tree first', '## 2. Worker'],
-  'branch-review': ['Before resolving anything, run `git status --porcelain`', '## Stage 1'],
-  'release': ['The tree must be clean', '## Phase 0.5'],
+// Pins below run for all 4 kits. Specs differ from claude only by path substitution.
+const KIT_SPECS = {
+  claude: { dir: '.claude', br: 'packages/claude/skills/branch-review/SKILL.md', sr: 'packages/claude/skills/self-review/SKILL.md', re: 'packages/claude/skills/release/SKILL.md', rf: 'packages/claude/skills/refactor/SKILL.md', ar: 'packages/claude/skills/remember/AGENT_RULES.md' },
+  ampcode: { dir: '.amp', br: 'packages/ampcode/skills/branch-review/SKILL.md', sr: 'packages/ampcode/skills/self-review/SKILL.md', re: 'packages/ampcode/skills/release/SKILL.md', rf: 'packages/ampcode/skills/refactor/SKILL.md', ar: 'packages/ampcode/skills/remember/AGENT_RULES.md' },
+  droid: { dir: '.factory', br: 'packages/droid/commands/branch-review.md', sr: 'packages/droid/commands/self-review.md', re: 'packages/droid/commands/release.md', rf: 'packages/droid/commands/refactor.md', ar: 'packages/droid/commands/remember/AGENT_RULES.md' },
+  opencode: { dir: '.opencode', br: 'packages/opencode/command/branch-review.md', sr: 'packages/opencode/command/self-review.md', re: 'packages/opencode/command/release.md', rf: 'packages/opencode/command/refactor.md', ar: 'packages/opencode/command/remember/AGENT_RULES.md' },
 };
-for (const [k, [before, after]] of Object.entries(ORDER)) {
-  const t = read(SPECS[k]), d = t.indexOf(lines[k] || '\0'), a = t.indexOf(before), b = t.indexOf(after);
-  check(`${k}: decider block is after the dirty-tree check and before the worker section`, a >= 0 && b >= 0 && d > a && d < b, `dirty ${a} decider ${d} worker ${b}`);
-  check(`${k}: exactly one decider block`, t.split(lines[k] || '\0').length === 2);
-}
-check('self-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief; never run the decider yourself, never decide/.test(SR) && SR.includes('Pass that exact output line to the worker in its brief'));
-check('branch-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief \(never run the decider yourself, never decide\)/.test(BR) && BR.includes('Pass that exact output line to the worker in its brief'));
-check('release: Phase 0.5 uses the Phase 0 line, never re-runs it', RE.includes('use the decider line printed in Phase 0 (never re-run it') && RE.includes('Pass that\n  exact line to any worker'));
 const BARE = 'Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.';
-check('self-review: worker test step carries the bare-command line', SR.includes(BARE));
-check('refactor: worker test step carries the bare-command line', read('packages/claude/skills/refactor/SKILL.md').includes(BARE));
+for (const [kit, K] of Object.entries(KIT_SPECS)) {
+  const BR = read(K.br), SR = read(K.sr), RE = read(K.re), RF = read(K.rf), AR = read(K.ar);
+  const specs = { 'self-review': K.sr, 'branch-review': K.br, 'release': K.re };
+  const t = `${kit}/`;
+  check(t + 'release: reused-vs-RUN cross-check stops, against the Phase 0 line', /says `reused`\s+but the Phase 0 line starts `RUN \(` → \*\*stop\*\*/.test(RE));
+  check(t + 'release: no warning for `ran` + REUSE (normal after a gate run); the reused-vs-RUN stop is kept', !/says `ran` but/.test(RE) && !RE.includes('one-line warning only'));
+  for (const [k, slot] of Object.entries(SLOTS)) {
+    check(`${t}${k}: slot line shape pinned`, read(specs[k]).includes(slot));
+    check(`${t}${k}: run-alone-before-real sentence`, read(specs[k]).includes('is re-run alone before it is called real'));
+  }
+  check(t + 'branch-review: record template carries green: forward', /^green: <this run's suite .*carried forward verbatim/m.test(BR));
+  check(t + 'self-review: writes green: line', SR.includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
+  check(t + 'branch-review: owns the green: write rule (on RUN, after one full run, rev-parse, replace, no other line; never on REUSE)',
+    /On `RUN`, write `green:`.*replace the record's `green:` line.*git rev-parse HEAD.*never touch another line.*Never write it on `REUSE`/s.test(BR));
+  check(t + 'self-review and release point to the branch-review write rule, no copy',
+    SR.includes('("On `RUN`, write `green:`")') && RE.includes('write `green:` per `/branch-review` Stage 1') && !/grep -v '\^green: '/.test(SR + RE));
+  check(t + 'release: writes green: on RUN (gate rule), runs the full suite', /run the full suite once[\s\S]*on exit 0 write `green:`/.test(RE));
+  check(t + 'refactor: no green: slot, no post-commit full run, tests line is scoped only',
+    !RF.includes('green: written') && !RF.includes('Who writes `green:`') && !RF.includes('then one full run') && !RF.includes('Never run it before the commit') && RF.includes('(scoped) | NOT RUN: <reason>') && !RF.includes('(scoped | full)'));
+  check(t + 'refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
+  check(t + 'self-review: worker-side snippet check gone, orchestrator Anchor rule kept', !/Before reporting an anchorable item/.test(SR) && SR.includes('**Anchor rule:**'));
+  check(t + 'self-review: works: is targeted only, never the full suite; no FULL-never-scoped header', /Run the thing and targeted checks[\s\S]*never the full suite/.test(SR) && !SR.includes('never\nscoped'));
+  check(t + 'branch-review: Who-writes / commit-first paragraph gone', !BR.includes('Who writes `green:`') && !BR.includes('Commit first, one full run after') && !BR.includes('without re-running'));
+  check(t + 'refactor: worker runs scoped tests only, never the full suite', /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF));
+  check(t + 'refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
+
+  // Decider: one line per spec, same as claude's after swapping the kit dir.
+  const dl = {};
+  for (const [k, rel] of Object.entries(specs)) {
+    const m = read(rel).split('\n').map(l => l.trim()).filter(l => l.startsWith(`f=${K.dir}/remember/last-review.md; g=$(`));
+    dl[k] = m.length === 1 ? m[0] : null;
+    check(`${t}${k}: exactly one decider line, same as claude's modulo the kit dir`, m.length === 1 && m[0].replace(K.dir, '.claude') === DECIDER, `found ${m.length}`);
+  }
+  check(t + 'decider prints its own reason; one line (no newline), REUSE and docs regex unchanged',
+    DECIDER.includes('echo "RUN (no green: line)"') && DECIDER.includes("grep -vE '^(docs/|[^/]+\\.md$)'") && !DECIDER.includes('\n') && DECIDER.includes('echo "REUSE $(grep \'^green: \' "$f")"'));
+  for (const [k, rel] of Object.entries(specs)) {
+    check(`${t}${k}: tells the worker to copy the decider's reason into its line`,
+      /copy the printed reason into the `(full-suite|tests):` line/.test(read(rel)));
+  }
+  check(t + 'self-review: full-suite slot allows unverified baseline', SR.includes('vs before <totals | unknown | unverified>') && SR.includes('`unverified` when the baseline is from an older sha'));
+  const DEV = AR.slice(AR.indexOf('<!-- DEV_RULES:START -->'), AR.indexOf('<!-- DEV_RULES:END -->'));
+  check(t + 'DEV_RULES: gates run the full suite, coding runs targeted tests only, docs-only skips',
+    DEV.includes('Gates (/self-review, /branch-review, /release) run the full suite; coding runs targeted tests only — a gate skips the run and cites the last proof when only docs changed since.') && !DEV.includes('One full test run per code change') && (DEV.match(/full suite/g) || []).length === 1);
+
+  // Decide upfront: the orchestrator runs the decider after the dirty-tree check, before the worker section; the worker uses the line from its brief.
+  const ORDER = {
+    'self-review': ['Dirty tree first', '## 2. Worker'],
+    'branch-review': ['Before resolving anything, run `git status --porcelain`', '## Stage 1'],
+    'release': ['The tree must be clean', '## Phase 0.5'],
+  };
+  for (const [k, [before, after]] of Object.entries(ORDER)) {
+    const tx = read(specs[k]), d = tx.indexOf(dl[k] || '\0'), a = tx.indexOf(before), b = tx.indexOf(after);
+    check(`${t}${k}: decider block is after the dirty-tree check and before the worker section`, a >= 0 && b >= 0 && d > a && d < b, `dirty ${a} decider ${d} worker ${b}`);
+    check(`${t}${k}: exactly one decider block`, tx.split(dl[k] || '\0').length === 2);
+  }
+  check(t + 'self-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief; never run the decider yourself, never decide/.test(SR) && SR.includes('Pass that exact output line to the worker in its brief'));
+  check(t + 'branch-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief \(never run the decider yourself, never decide\)/.test(BR) && BR.includes('Pass that exact output line to the worker in its brief'));
+  check(t + 'release: Phase 0.5 uses the Phase 0 line, never re-runs it', RE.includes('use the decider line printed in Phase 0 (never re-run it') && RE.includes('Pass that\n  exact line to any worker'));
+  check(t + 'self-review: worker test step carries the bare-command line', SR.includes(BARE));
+  check(t + 'refactor: worker test step carries the bare-command line', RF.includes(BARE));
+}
 
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

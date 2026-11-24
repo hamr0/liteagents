@@ -23,6 +23,13 @@ break it.
 tree is dirty (list the paths), `/self-review` reviews commits not the working
 tree, commit then re-run. No worker spawned.
 
+**Decide REUSE or RUN now, once:** run this line as printed and print its
+output; it stays valid for the whole run (gates only commit docs, which it
+ignores). Pass that exact output line to the worker in its brief.
+```
+f=.amp/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
+```
+
 **Hashes or a range given** (`$ARGUMENTS`: one or more hashes, or `<a>..<b>`)
 → review exactly those commits, nothing else, on any branch: each hash via
 `git show <sha>`, a range via `git log <a>..<b>` and `git diff <a>..<b>`.
@@ -48,24 +55,22 @@ git merge-base --is-ancestor <sha> $(git merge-base main HEAD)
 Valid (third command exits non-zero) → range `<sha>..HEAD`. No bookmark →
 whole branch, `git merge-base main HEAD`..`HEAD`. Range empty → "nothing new
 since the last self-review," stop, no worker spawned. Otherwise hand off —
-what was done, claims made (works / tested / done), files changed, the
-baseline suite totals if known, loose ends only you can know (a peer session
+the decider line above, what was done, claims made (works / tested / done), files changed, the
+baseline suite totals if known (`unverified` when the baseline is from an older sha that was not re-run), loose ends only you can know (a peer session
 not told, a silent open question, unshipped state) — and spawn one mid-tier
 worker.
 
 ## 2. Worker — try to break it, not confirm it
 Real runs, not re-assertion, scoped to the range for cleanup/glossed/
-underspecced — the regression check is always the **FULL** suite, never
-scoped:
-- **Does it work?** Run the thing/tests now; cite the command and numbers.
-- **No regression?** Run this line, as printed. Same rule as `/branch-review`
-  Stage 1: `REUSE` → cite the green sha and totals; `RUN` → run the FULL suite
-  once, cite totals vs. the handoff baseline, and a failure that passes when
+underspecced:
+- **Does it work?** Run the thing and targeted checks for what changed now,
+  never the full suite; cite the command and numbers.
+- Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.
+- **No regression?** Use the decider line the orchestrator passed in your brief; never run the decider yourself, never decide. Gate rule per `DEV_RULES` and
+  `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` →
+  run the FULL suite once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
   run alone is re-run alone before it is called real. No run behind a claim
   counts as not checked.
-  ```
-  f=.amp/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
-  ```
 - **Cleanup?** Check the diff against the `DEV_RULES` block in the repo's
   agent config file; cite the rule each finding breaks, with `file:line`.
   Repo rules win; skip anything a linter or test already enforces; a smell is
@@ -88,7 +93,7 @@ scoped:
 `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
-full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
+full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown | unverified> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
 cleanup: <N> items | none found: <what was checked, one phrase> · smells: middle man <N|none> · shotgun <N|none> · name <N|none>
 reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added
@@ -144,8 +149,8 @@ echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 
-A full suite that **ran** and exited 0 on a clean tree also rewrites one line in
-the same file, the same way (replace, never duplicate; never on `reused`):
+After a `RUN` that exited 0, write `green:` per `/branch-review` Stage 1
+("On `RUN`, write `green:`"):
 `green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**

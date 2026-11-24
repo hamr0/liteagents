@@ -36,8 +36,10 @@ below — it is on by default, not a separate command.
   duplicates mode nothing may differ. `last-review.md` is
   `/branch-review`'s to write.
 
-## Ledger mode — `$ARGUMENTS` empty
-Work through `.opencode/remember/fix-ledger.md`, the non-blocking findings
+## Ledger mode — `$ARGUMENTS` empty or plain-text guidance
+Plain text that is not `duplicates` and names no file, directory or function
+(e.g. "fix all nits, nothing on vibes") is ledger mode; pass the text to the
+worker as guidance on which surviving bullets to take. Work through `.opencode/remember/fix-ledger.md`, the non-blocking findings
 `/self-review` and `/branch-review` have accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
@@ -99,7 +101,7 @@ A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding, not
 this mode's.
 
 ## Where to look — broad targets only
-Empty `$ARGUMENTS` is ledger mode; the surviving bullets are the scope, so skip
+Ledger mode (empty or plain-text `$ARGUMENTS`); the surviving bullets are the scope, so skip
 this; so is `duplicates` mode. When `$ARGUMENTS` names a specific file or function, that is the scope;
 skip this too. When it names a whole area ("the auth module", "clean this
 up"), let
@@ -178,9 +180,12 @@ Explain each change.
    scripts, `pytest.ini` / `pyproject.toml`, `go.mod`, `Cargo.toml`,
    `Makefile`). If none is found, **stop and ask** before claiming the
    refactor is done — silent green isn't acceptable.
-2. **Run the tests.** Scope to the affected area when possible (`-t`,
-   `--testPathPattern`, `pytest path/`, `go test ./pkg`); otherwise run
-   the suite.
+2. **Worker: run scoped tests only** — the tests for what it changed
+   (`-t`, `--testPathPattern`, `pytest path/`, `go test ./pkg`) plus any
+   fail-first proof this spec already requires — **never the full suite**
+   (gates run it; see `DEV_RULES`).
+   Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.
+   It does not commit. If no scope can be found, stop and hand that back.
 3. **Report** pass / fail counts and any failure's name + `file:line`.
 
 **Stop and ask** when (HITL gates — not all the time, only here):
@@ -210,10 +215,11 @@ Final report:
 - **refactor done, but K tests fail** — awaiting direction (revert /
   patch / update test).
 
-Either way the report carries this line, filled from the run:
+Either way the report carries these lines, filled from the run:
 ```
-tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>
+tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>
 ```
+The worker reports `tests:` as `scoped`.
 
 Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
 (why + options) · **uncertain** (what profiling or data would settle it) ·

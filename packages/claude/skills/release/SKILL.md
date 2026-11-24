@@ -92,8 +92,7 @@ match the two strings.
   and on exit 0 write `green:` per `/branch-review` Stage 1; any non-zero exit
   → **stop**; a failure that passes when run alone
   is re-run alone before it is called real. The record says `reused`
-  but the Phase 0 line starts `RUN (` → **stop**, unsafe. The record says `ran` but it
-  is `REUSE …` → one-line warning only.
+  but the Phase 0 line starts `RUN (` → **stop**, unsafe.
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
