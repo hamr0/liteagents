@@ -5,6 +5,40 @@ All notable changes to liteagents will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+---
+
+## [4.7.0] - 2026-11-24
+
+### Added
+- `/refactor duplicates [path]`: finds functions that do the same job, you pick, and it merges
+  one at a time (ledger steps 1 and 6 apply; the md5 proof says what each mode may change).
+- One source of the dev rules: the `DEV_RULES` block in `AGENT_RULES.md` is copied
+  byte-for-byte into each repo's config by `stub-check.cjs` (inserted before the MEMORY
+  include, `.bak` kept on replace). An unmanaged `## Dev Rules` section is replaced by the
+  managed block, config kept as `.bak`.
+- `/self-review` checks the diff against `DEV_RULES` (plus middle man, shotgun surgery,
+  mysterious name), quotes the spec line under Underspecced, and prints a fifth must-fill
+  `reuse:` report line; reuse items route to `/refactor duplicates`. Pinned in all 4 kits.
+- New `tests/skill-shell/test-reuse.test.js` suite (floor 21, bash-only) pins the decider
+  and slot lines; new `/refactor` and `/release` READMEs.
+
+### Changed
+- One full test suite per code change: `/self-review`, `/branch-review` and `/release` share
+  a `green:` record line and one REUSE/RUN decider line, decided once by the orchestrator
+  and passed to the worker. REUSE when only docs changed since the recorded green run;
+  RUN prints why. Gates run the full suite; coding runs targeted tests only (one rule, in
+  `DEV_RULES`). On RUN the gate runs the suite once and writes the `green:` line. Worker
+  test steps carry the bare-command line (no pipes, zsh-safe).
+- `/refactor` free-text args mean ledger mode; its scope is the picked item.
+- `/self-review`: per-smell cleanup slot, unique ledger anchors, exact ledger-header pointer.
+- `AGENT_RULES.md`: one review order, `/self-review` recommended not required,
+  `/branch-review` described correctly; the dependencies rule says no dependencies by
+  default; worker guardrails say the escalate rule overrides the Surgical dev rule.
+- `/release`: drops the `/code-review` fallback and migration-history sentences.
+- Rationale moved out of the specs into the READMEs; every rule stays as one line.
+- Mirrored to the ampcode, droid and opencode kits.
+
 ---
 
 ## [4.6.1] - 2026-10-31
