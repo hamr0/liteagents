@@ -121,8 +121,8 @@ ship) and **Later**.
 ## 5. Relay as-is, then ledger
 
 **"As-is" means:** same items, same order, same piles, and each item's failure
-sentence and cited commands/numbers preserved exactly; the worker's four report
-lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`) are relayed too, and
+sentence and cited commands/numbers preserved exactly; the worker's five report
+lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`) are relayed too, and
 every relayed item keeps its `nit`/`change`/`idea` tag and its `file:line`. The
 two added lines read `<N> items` or `none found: <what was checked>`, so "checked,
 found nothing" never looks like "skipped". The `full-suite:` line ends `vs before <totals | unknown>` — `unknown` when the handoff carried no baseline. Rewording to fit the

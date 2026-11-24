@@ -318,10 +318,14 @@ for (const kit of KITS) {
   check(`${kit.name}/self-review: underspecced: and cleanup: report lines`,
     sr.includes('underspecced: <N> items | none found: <what was checked, one phrase>') &&
     sr.includes('cleanup: <N> items | none found: <what was checked, one phrase>'));
+  check(`${kit.name}/self-review: reuse: report line and the DEV_RULES standards pointer`,
+    sr.includes('reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added') &&
+    sr.includes('every new function or class') && sr.includes('`reuse:` entry') &&
+    sr.includes('against the `DEV_RULES` block in the repo\'s') && sr.includes('cite the rule each finding breaks'));
   check(`${kit.name}/self-review: relay keeps tag and file:line; worker tags items`,
     sr.includes('**every relayed item keeps its tag (`nit`/`change`/`idea`) and its `file:line`**') &&
     sr.includes('tag every item `nit`/`change`/`idea`') &&
-    sr.includes("the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)"));
+    sr.includes("the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)"));
   check(`${kit.name}/self-review: item kind is Cleanup, no Structure left`,
     sr.includes('**Cleanup?**') && sr.includes('max 5 Cleanup items') && !/Structure/.test(sr) &&
     brv.includes('A /self-review Cleanup item'));
@@ -959,7 +963,7 @@ for (const kit of KITS) {
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
     has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
-    has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
+    has(sr, "same items, order, piles, and the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
   specCheck(`${kit.name}/remember: step-8 report lists I6-new, sync-rules, stub-check, version-check, docs, processed`, () => {

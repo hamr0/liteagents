@@ -68,27 +68,35 @@ scoped:
   ```
   f=.amp/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
   ```
-- **Cleanup?** Speculative code, an abstraction for one caller, redundant
-  tests. Dead code — grep the symbol repo-wide before flagging. State
+- **Cleanup?** Check the diff against the `DEV_RULES` block in the repo's
+  agent config file; cite the rule each finding breaks. Repo rules
+  win; skip anything a linter or test already enforces; a smell is labelled
+  "possible …", never a hard violation. Smells: middle man (a function that
+  only forwards to another), shotgun surgery (one change scattered over many
+  files — a missing shared piece), mysterious name. Dead code — grep the symbol repo-wide before flagging. State
   ownership — two or more functions assigning the same field: name both
   writers with `file:line`, grep every assignment repo-wide, not just the
   diff; a write from a callback, thread or lifecycle event counts (one app
-  writer racing a framework one is still two). Reuse — a new function, class,
-  file or name duplicating an existing one: name the existing one. Changed
+  writer racing a framework one is still two). Reuse — every new function or class
+  gets a `reuse:` entry; an existing match must be reused or carry a stated
+  reason. Same for a new file or name. Changed
   lines that trace to no request. Complexity, naming, duplication only when
   material. Performance (N+1, blocking calls in hot paths, unbounded loops)
   only with evidence.
 - **Glossed over?** Tradeoffs not flagged, claims untested as shipped, the
   handoff's loose ends verified, not just repeated.
-- **Underspecced?** What should have been part of this and is missing.
+- **Underspecced?** What should have been part of this and is missing. If a
+  PRD/issue/spec exists (e.g. `docs/product/prd.md`, issue refs in commit
+  messages), quote its line for each missing requirement or scope creep.
 
-**Report opens with four lines, always filled** (so "checked, found nothing"
+**Report opens with five lines, always filled** (so "checked, found nothing"
 never looks like "skipped"); tag every item `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
 full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
 cleanup: <N> items | none found: <what was checked, one phrase>
+reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added
 ```
 
 **The bar — Fix now and Later alike:** every item needs one concrete failure
@@ -103,8 +111,8 @@ in two piles: **Fix now** (changes
 whether you ship) and **Later**.
 
 ## 3. Orchestrator — relay as-is, then ledger
-**"As-is":** same items, order, piles, and the worker's four report lines
-(`works:`, `full-suite:`, `underspecced:`, `cleanup:`); each failure sentence and cited
+**"As-is":** same items, order, piles, and the worker's five report lines
+(`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`); each failure sentence and cited
 commands/numbers preserved; **every relayed item keeps its tag
 (`nit`/`change`/`idea`) and its `file:line`**. Reworded for the user's output style: fine.
 Added, dropped, merged, re-ranked, or weakened: not — your own
