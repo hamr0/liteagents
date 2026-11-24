@@ -116,5 +116,16 @@ check('branch-review: record template carries green: forward', /^green: <this ru
 check('self-review: writes green: line', read(SPECS['self-review']).includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
 check('release: reused-vs-RUN cross-check stops', /says `reused`\s+but this prints `RUN` → \*\*stop\*\*/.test(read(SPECS['release'])));
 
+// Rules 1-4 pins. Claude kit only: widen to all kits at mirror time.
+const BR = read(SPECS['branch-review']), SR = read(SPECS['self-review']), RE = read(SPECS['release']);
+const RF = read('packages/claude/skills/refactor/SKILL.md');
+check('branch-review: owns the green: writer rule (any passing full run, rev-parse, replace, no other line)',
+  /Who writes `green:`.*any full-suite run that exits 0 on a clean tree at HEAD.*git rev-parse HEAD.*Replace the old `green:` line.*never touch another line/s.test(BR));
+check('self-review: points to the green: rule instead of copying it', SR.includes('("Who writes `green:`")') && !SR.includes('never on `reused`'));
+check('refactor: green: slot + writes per branch-review rule + uncommitted case',
+  RF.includes('green: written <sha> | not written: <reason>') && RF.includes('Who writes `green:`') && /uncommitted[\s\S]*whoever commits/.test(RF));
+check('refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
+check('self-review: worker checks snippet uniqueness before reporting', /Before reporting an anchorable item, run its snippet's `grep -cF` check[\s\S]*see 1/.test(SR));
+
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

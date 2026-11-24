@@ -103,6 +103,8 @@ unless they do carry a real failure sentence. Each item is one kind, counted
 in one cap only. Max 5 failure-sentence items and max 5 Cleanup items, ranked,
 in two piles: **Fix now** (changes
 whether you ship) and **Later**.
+Before reporting an anchorable item, run its snippet's `grep -cF` check (§3 Anchor
+rule) and see 1; else pick a longer snippet or a nearby unique line.
 
 ## 3. Orchestrator — relay as-is, then ledger
 **"As-is":** same items, order, piles, and the worker's five report lines
@@ -144,8 +146,8 @@ echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 
-A full suite that **ran** and exited 0 on a clean tree also rewrites one line in
-the same file, the same way (replace, never duplicate; never on `reused`):
+`green:` is written per `/branch-review` Stage 1 ("Who writes `green:`") by any
+passing full run, not only this one:
 `green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**

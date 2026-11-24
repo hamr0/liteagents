@@ -40,8 +40,10 @@ below — it is on by default, not a separate command.
   duplicates mode nothing may differ. `last-review.md` is
   `/branch-review`'s to write.
 
-## Ledger mode — `$ARGUMENTS` empty
-Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
+## Ledger mode — `$ARGUMENTS` empty or plain-text guidance
+Plain text that is not `duplicates` and names no file, directory or function
+(e.g. "fix all nits, nothing on vibes") is ledger mode; pass the text to the
+worker as guidance on which surviving bullets to take. Work through `.claude/remember/fix-ledger.md`, the non-blocking findings
 `/self-review` and `/branch-review` have accumulated. Everything below (goals, constraints,
 verification, HITL gates) still applies; this section only says what to
 refactor and how to close each item.
@@ -103,7 +105,7 @@ A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding, not
 this mode's.
 
 ## Where to look — broad targets only
-Empty `$ARGUMENTS` is ledger mode; the surviving bullets are the scope, so skip
+Ledger mode (empty or plain-text `$ARGUMENTS`); the surviving bullets are the scope, so skip
 this; so is `duplicates` mode. When `$ARGUMENTS` names a specific file or function, that is the scope;
 skip this too. When it names a whole area ("the auth module", "clean this
 up"), let
@@ -214,10 +216,14 @@ Final report:
 - **refactor done, but K tests fail** — awaiting direction (revert /
   patch / update test).
 
-Either way the report carries this line, filled from the run:
+Either way the report carries these lines, filled from the run:
 ```
 tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>
+green: written <sha> | not written: <reason>
 ```
+A full-suite run that exits 0 and is committed writes `green:` per
+`/branch-review` Stage 1 ("Who writes `green:`"). Changes left uncommitted get
+no `green:` line (the tree is dirty): whoever commits then follows that rule.
 
 Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
 (why + options) · **uncertain** (what profiling or data would settle it) ·
