@@ -76,7 +76,7 @@ function decide(shell, d) {
 }
 
 const cases = [
-  ['no last-review.md -> RUN', () => repo(), w => w === 'RUN'],
+  ['no last-review.md -> RUN (no green: line)', () => repo(), w => w === 'RUN (no green: line)'],
   ['green at HEAD -> REUSE', () => { const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')} npm test exit 0 10 passed`); return d; },
     w => w === 'REUSE green: ' + w.split('green: ')[1] && w.includes('npm test exit 0 10 passed')],
   ['green, then docs/ + root README.md commit -> REUSE', () => {
@@ -84,15 +84,19 @@ const cases = [
     commit(d, 'docs/x.md', 'd'); commit(d, 'README.md', 'r'); return d; }, w => w.startsWith('REUSE ')],
   ['green, then src/x.js commit -> RUN', () => {
     const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')} npm test exit 0 10 passed`);
-    commit(d, 'src/x.js', 'x'); return d; }, w => w === 'RUN'],
+    commit(d, 'src/x.js', 'x'); return d; }, w => /^RUN \(green [0-9a-f]{7}, changed: src\/x\.js\)$/.test(w)],
   ['green, docs commit, then src commit -> RUN', () => {
     const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')} npm test exit 0 10 passed`);
-    commit(d, 'docs/x.md', 'd'); commit(d, 'src/x.js', 'x'); return d; }, w => w === 'RUN'],
+    commit(d, 'docs/x.md', 'd'); commit(d, 'src/x.js', 'x'); return d; }, w => /^RUN \(green [0-9a-f]{7}, changed: src\/x\.js\)$/.test(w)],
+  ['green, two src commits + docs commit -> reason lists only the non-docs files, space-separated', () => {
+    const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')} npm test exit 0 10 passed`);
+    commit(d, 'src/b.js', 'b'); commit(d, 'src/c.js', 'c'); commit(d, 'docs/x.md', 'd'); commit(d, 'README.md', 'r'); return d; },
+    w => /^RUN \(green [0-9a-f]{7}, changed: src\/b\.js src\/c\.js\)$/.test(w)],
   ['green sha not an ancestor (after reset) -> RUN', () => {
     const d = repo(); commit(d, 'docs/y.md', 'y'); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')} npm test exit 0 10 passed`);
-    git(d, 'reset', '-q', '--hard', 'HEAD~1'); return d; }, w => w === 'RUN'],
-  ['malformed green (short sha) -> RUN', () => { const d = repo(); writeGreen(d, 'green: abc123 npm test exit 0 1 passed'); return d; }, w => w === 'RUN'],
-  ['malformed green (no command) -> RUN', () => { const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')}`); return d; }, w => w === 'RUN'],
+    git(d, 'reset', '-q', '--hard', 'HEAD~1'); return d; }, w => /^RUN \(green [0-9a-f]{7} not an ancestor of HEAD\)$/.test(w)],
+  ['malformed green (short sha) -> RUN', () => { const d = repo(); writeGreen(d, 'green: abc123 npm test exit 0 1 passed'); return d; }, w => w === 'RUN (no green: line)'],
+  ['malformed green (no command) -> RUN', () => { const d = repo(); writeGreen(d, `green: ${git(d, 'rev-parse', 'HEAD')}`); return d; }, w => w === 'RUN (no green: line)'],
 ];
 for (const sh of SHELLS) {
   for (const [name, mk, ok] of cases) {
@@ -114,7 +118,7 @@ for (const [k, slot] of Object.entries(SLOTS)) {
 }
 check('branch-review: record template carries green: forward', /^green: <this run's suite .*carried forward verbatim/m.test(read(SPECS['branch-review'])));
 check('self-review: writes green: line', read(SPECS['self-review']).includes('`green: <full HEAD sha> <command> exit 0 <totals>`'));
-check('release: reused-vs-RUN cross-check stops', /says `reused`\s+but this prints `RUN` → \*\*stop\*\*/.test(read(SPECS['release'])));
+check('release: reused-vs-RUN cross-check stops', /says `reused`\s+but this prints a line starting `RUN \(` → \*\*stop\*\*/.test(read(SPECS['release'])));
 
 // Rules 1-4 pins. Claude kit only: widen to all kits at mirror time.
 const BR = read(SPECS['branch-review']), SR = read(SPECS['self-review']), RE = read(SPECS['release']);
@@ -133,6 +137,21 @@ check('branch-review: commit first, one full run after (worker scoped, post-comm
 check('refactor: worker runs scoped tests only, never the full suite; orchestrator commits then one full run',
   /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF) && /Orchestrator: review, commit, then one full run/.test(RF) && RF.includes('Never run it before the commit'));
 check('refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
+
+// Decider-reason, dev-rule and clarification pins (claude kit only: widen to all kits at mirror time).
+check('decider prints its own reason; one line (no newline), REUSE and docs regex unchanged',
+  DECIDER.includes('echo "RUN (no green: line)"') && DECIDER.includes("grep -vE '^(docs/|[^/]+\\.md$)'") && !DECIDER.includes('\n') && DECIDER.includes('echo "REUSE $(grep \'^green: \' "$f")"'));
+for (const [k, rel] of Object.entries(SPECS)) {
+  check(`${k}: tells the worker to copy the decider's reason into its line`,
+    /copy the printed reason into the `(full-suite|tests):` line/.test(read(rel)));
+}
+check('branch-review: worker-run green: is written by the orchestrator from the cited command and totals, no re-run',
+  /When the passing run was a worker's, the orchestrator writes `green:` from that run's cited command and totals, without re-running/.test(BR));
+check('self-review: full-suite slot allows unverified baseline', SR.includes('vs before <totals | unknown | unverified>') && SR.includes('`unverified` when the baseline is from an older sha'));
+const AR = read('packages/claude/skills/remember/AGENT_RULES.md');
+const DEV = AR.slice(AR.indexOf('<!-- DEV_RULES:START -->'), AR.indexOf('<!-- DEV_RULES:END -->'));
+check('DEV_RULES: one full run per code change (scoped before commit, commit, one full run on clean tree, dirty-tree run wasted)',
+  /One full test run per code change: before committing run only the tests for what you changed, commit, then run the full suite once on the clean tree[^.]*a full run on a dirty tree is wasted/.test(DEV) && (DEV.match(/full test run/g) || []).length === 1);
 
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

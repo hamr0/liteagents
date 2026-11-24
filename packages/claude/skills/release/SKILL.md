@@ -78,15 +78,15 @@ match the two strings.
   (`fix-ledger.md` is never on `docs:`): re-review, or leave the ledger
   uncommitted until after the release.
 - **`tests:` line** — run this line as printed. Same rule as `/branch-review`
-  Stage 1: `REUSE` → covered, do not re-run; `RUN` (or build part missing, or
+  Stage 1: `REUSE` → covered, do not re-run; `RUN (…)` (or build part missing, or
   `NOT RUN`) → run the project's real test command once, and build if there is
-  one, in Phase 1 and cite command + exit code; any non-zero exit → **stop**;
+  one, in Phase 1 and cite command + exit code, and copy the printed reason into the `tests:` line; any non-zero exit → **stop**;
   a failure that passes when run alone
   is re-run alone before it is called real. The record says `reused`
-  but this prints `RUN` → **stop**, unsafe. The record says `ran` but this
+  but this prints a line starting `RUN (` → **stop**, unsafe. The record says `ran` but this
   prints `REUSE` → one-line warning only.
   ```
-  f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
+  f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
   ```
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,

@@ -49,7 +49,7 @@ Valid (third command exits non-zero) → range `<sha>..HEAD`. No bookmark →
 whole branch, `git merge-base main HEAD`..`HEAD`. Range empty → "nothing new
 since the last self-review," stop, no worker spawned. Otherwise hand off —
 what was done, claims made (works / tested / done), files changed, the
-baseline suite totals if known, loose ends only you can know (a peer session
+baseline suite totals if known (`unverified` when the baseline is from an older sha that was not re-run), loose ends only you can know (a peer session
 not told, a silent open question, unshipped state) — and spawn one mid-tier
 worker.
 
@@ -59,12 +59,12 @@ underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
 - **No regression?** Run this line, as printed. Same rule as `/branch-review`
-  Stage 1: `REUSE` → cite the green sha and totals; `RUN` → run the FULL suite
-  once, cite totals vs. the handoff baseline, and a failure that passes when
+  Stage 1: `REUSE` → cite the green sha and totals; `RUN (…)` → run the FULL suite
+  once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
   run alone is re-run alone before it is called real. No run behind a claim
   counts as not checked.
   ```
-  f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
+  f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); c=$(git diff --name-only "$g" HEAD 2>/dev/null | grep -vE '^(docs/|[^/]+\.md$)'); if [ -z "$g" ]; then echo "RUN (no green: line)"; elif ! git merge-base --is-ancestor "$g" HEAD 2>/dev/null; then echo "RUN (green $(printf %s "$g" | cut -c1-7) not an ancestor of HEAD)"; elif [ -z "$c" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo "RUN (green $(printf %s "$g" | cut -c1-7), changed: $(printf '%s\n' "$c" | paste -sd' ' - | cut -c1-200))"; fi
   ```
 - **Cleanup?** Check the diff against the `DEV_RULES` block in the repo's
   agent config file; cite the rule each finding breaks, with `file:line`.
@@ -88,7 +88,7 @@ scoped:
 `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
-full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
+full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown | unverified> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
 cleanup: <N> items | none found: <what was checked, one phrase> · smells: middle man <N|none> · shotgun <N|none> · name <N|none>
 reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added

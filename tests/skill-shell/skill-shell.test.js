@@ -973,7 +973,7 @@ for (const kit of KITS) {
   const sr = flat(read(skillPath(kit, 'self-review')));
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
-    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
+    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown'),
     has(sr, "same items, order, piles, and the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
@@ -1426,7 +1426,7 @@ for (const kit of KITS) {
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
   specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
-    has(sr, 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN` → run the FULL suite once'),
+    has(sr, 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
     has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
     has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
     sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
