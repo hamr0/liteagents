@@ -127,5 +127,12 @@ check('refactor: green: slot + writes per branch-review rule + uncommitted case'
 check('refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
 check('self-review: worker checks snippet uniqueness before reporting', /Before reporting an anchorable item, run its snippet's `grep -cF` check[\s\S]*see 1/.test(SR));
 
+// Commit-first pins (claude kit only: widen to all kits at mirror time).
+check('branch-review: commit first, one full run after (worker scoped, post-commit run writes green:, dirty-tree run wasted, fix in new commit)',
+  /Commit first, one full run after[\s\S]*scoped tests[\s\S]*never the full suite[\s\S]*clean committed tree[\s\S]*dirty tree is a wasted run[\s\S]*new commit \(no amend/.test(BR));
+check('refactor: worker runs scoped tests only, never the full suite; orchestrator commits then one full run',
+  /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF) && /Orchestrator: review, commit, then one full run/.test(RF) && RF.includes('Never run it before the commit'));
+check('refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
+
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);
