@@ -7,22 +7,18 @@ disable-model-invocation: true
 ---
 Pre-merge review gate. **General review**, then a **full security audit**, then an adversarial verify pass, then a **docs sweep**. It **never edits code**: findings are reported and handed back, and fixing is a separate, separately authorized action. The docs sweep is the one stage that writes, and only to docs — it updates the project's docs for what this branch changed and commits exactly that.
 
-Only **Critical** and **High** findings block the merge. Everything else is appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local, cumulative list, living beside `MEMORY.md`, usually gitignored, that `/refactor` (no arguments) works through between features. The report is blockers plus the ledger count. This command never runs `/refactor` itself — it nudges.
-
-Run this **before** `/release`, which refuses to run without a review at the current HEAD SHA.
+Only **Critical** and **High** findings block the merge. Everything else is appended to the **fix ledger** (`.claude/remember/fix-ledger.md`) — a local, cumulative list, living beside `MEMORY.md`, usually gitignored, that `/refactor` (no arguments) works through between features. The report is blockers plus the ledger count. This command never runs `/refactor` itself.
 
 ## Guardrails
-- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
-  parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name), and hand it this file's path — a
+- **Spawn a worker, mid tier stated explicitly** (an omitted tier inherits the
+  parent's; never a vendor model name), and hand it this file's path — a
   worker has no skill text of its own. Fall back to running inline if your
   tool has no subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
-  that this spec does not cover → **stop and report it to the orchestrator**
-  (the main session). Never improvise, never widen scope, never fix a side
-  issue you noticed along the way (for workers this overrides the Surgical dev
-  rule).
-- **The worker does the work itself — no delegation.** The review subagent must **not** spawn subagents of its own. Everything it reports has to be something it read, ran, or grepped with its own tool calls; a relayed "I executed X" is hearsay. (Same rule `/security` carries inside stage 2.)
+  that this spec does not cover → **stop and report it to the orchestrator**.
+  Never improvise, never widen scope, never fix a side issue you noticed (for
+  workers this overrides the Surgical dev rule).
+- **The worker does the work itself — no sub-spawning.** Everything it reports has to be something it read, ran, or grepped with its own tool calls; a relayed "I executed X" is hearsay.
 - **No edits — three exceptions.** You have no authorization to change code, even for a finding you are certain about. Report it. The only files you may write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or delete), `.claude/remember/last-review.md` (overwrite; the review record described at the end of this file), and the doc files Stage 4 touches — edited and then committed by that stage alone, never for code, skills, config, or tests.
 - **Prove it with two checks, because neither sees what the other does.** `git status --porcelain`, at start and again before you report, proves the tree is clean — no code or config changed, and, when Stage 4 ran (review settled), that its doc edits landed as the last act before you report. It cannot police your own two `.claude/` writes (`.claude/` is normally gitignored), so also hash the files there before you start and again before you report:
   ```
@@ -97,14 +93,13 @@ f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\
 ```
 A suite that ran and exited 0 on a clean tree also sets the record's `green:` line. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline — `$?` after a pipe is the last element's status, so piping into `tail` reports `0` for a suite that failed. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
 
-- **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
-  races, wrong defaults, broken edge cases.
+- **Bugs and correctness.** Logic errors, off-by-one, null/undefined paths,
+  races, wrong defaults, broken edge cases, error handling, type / contract
+  violations, broken invariants.
 - **Loose ends.** TODO / FIXME / XXX added by this diff, half-finished
   branches, silently swallowed errors, stub bodies, mocked-out paths,
   "temporary" names, abandoned feature flags, commented-out blocks, debug
   leftovers (stray `console.log` / `print` / `debugger` / `dbg!`).
-- **Correctness.** Edge cases, error handling, type / contract violations,
-  broken invariants.
 - **Test quality, not just test presence.** For every test the diff adds or
   changes, establish that it **can actually fail**. **Revert the source, not the
   test:** take the pre-change version of the file under test with `git show

@@ -1418,6 +1418,17 @@ for (const kit of KITS) {
     has(ar, 'recommended, not required'),
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
+  specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
+    has(sr, 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN` → run the FULL suite once'),
+    has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
+    has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
+    sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
+    rl.includes('Every exit code in this sequence') ? 'stale: second exit-code passage in release' : true,
+    has(brs, '**Bugs and correctness.**'),
+    brs.includes('**Bugs needing a fix.**') || brs.includes('- **Correctness.**') ? 'stale: split bug/correctness bullets' : true,
+    has(rf, "counted as `/branch-review`'s `ledger:` line is (N = total − K − I)"),
+    ar.includes('**No fitting to pass.**') || ar.includes('**One module at a time.**') || ar.includes('**Necessity:**')
+      ? 'stale: AGENT_RULES restates a Dev Rules item' : true));
 }
 
 // ---------------------------------------------------------------------------

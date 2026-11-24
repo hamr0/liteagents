@@ -31,11 +31,11 @@ Every task runs through three layers. Do not skip ahead to code.
    - **Problem & goal** — what we're solving and why now
    - **Go / no-go** — the 1–2 capabilities the product stands or falls on; usually module 0's riskiest assumption (e.g. "can a phone camera read the ID?"). Fails → stop
    - **Out of scope** — what we're explicitly not doing
-   - **Modules** — the pieces to build, in order (see [*One module at a time*](#validate-before-you-build))
+   - **Modules** — the pieces to build, in order, one at a time (see [Dev Rules](#dev-rules))
    - **Open questions** — unknowns that don't block; never silently assumed
 
    Every POC result updates the PRD; one that flips the go/no-go or a module's assumption is a spec change, not a footnote.
-2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). When the work is done, propose `/self-review`, then `/branch-review`, then `/release`, in that order. `/self-review` checks the committed work since the last self-review with a separate mid-tier worker that tries to break the claims with real runs; it only surfaces, never fixes, and is recommended, not required. `/branch-review` is a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code. `/release` is the mechanical pre-release gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
+2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [Dev Rules](#dev-rules)). When the work is done, propose `/self-review`, then `/branch-review`, then `/release`, in that order. `/self-review` checks the committed work since the last self-review with a separate mid-tier worker that tries to break the claims with real runs; it only surfaces, never fixes, and is recommended, not required. `/branch-review` is a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code. `/release` is the mechanical pre-release gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
 3. **Environment — the standing context.** This file primes every session. Critical-path protections (secrets, auth, schema, CI) are stated as **Always / Ask / Never** below and bind you as written. Where your tool offers a permission allow/ask/deny list, mirror them there so they are enforced and not merely requested.
 
 **Execution loop — work the way a program runs:**
@@ -57,7 +57,6 @@ Every task runs through three layers. Do not skip ahead to code.
 - **Learning Style**: Understands concepts, needs executable instructions
 - **Expects**: Step-by-step guidance, ready-to-run commands, and the *why* behind each recommendation
 - **Comfortable with**: Command-line operations and scripts
-- **Builds a lot of web apps** — assume any UI work will be consumed on phones as well as desktop
 
 ### Required Safeguards (Always / Ask / Never)
 
@@ -103,21 +102,13 @@ _/remember syncs the block between the markers below into each repo's config (CL
 ### Validate Before You Build
 
 - **POC everything first.** Before committing to a design, build a quick proof-of-concept (~15 min) that validates the core logic. Keep it stupidly simple — manual steps are fine, hardcoded values are fine, no tests needed yet
-- **Graduation criteria:** POC validates logic and covers most common scenarios → stop, design properly, then build with structure, tests, and error handling. Never ship the POC — rewrite it
+- **Graduation criteria:** POC validates logic and covers most common scenarios → stop, design properly, then build with structure, tests, and error handling.
 - **Aim the POC at the load-bearing claim — not the easy part.** Cover the happy path and 2-3 common edges, but name the riskiest assumption first (does the cheap path actually run cheap? does the library really do X? does the perf hold?), then point the spike straight at *that*. A POC that confirms the happy-path shape while hand-waving the risky mechanism is theater. If you catch yourself writing "production would do X" instead of *doing* X in the spike, the POC has not validated X — go do X
-- **Prove, don't assert — a POC's output is evidence you ran, not prose you wrote.** Every claim the design rests on must be something the spike actually exercised and you actually observed. **Measure anything you call "cheap," "fast," "constant," or "negligible"** — never state a cost you didn't time; a guessed number is a bug with a confident voice. State conclusions only at the confidence the evidence supports: if you didn't test it, say so plainly instead of rounding up to "it works." Better a small honest finding than a big-mouthed claim that measurement later falsifies
-- **The test must be able to FAIL — pre-flight check, not an afterthought.** Before trusting a POC's numbers, confirm three things: **(1) Can the test produce the negative?** A fixture you authored to contain the phenomenon you're testing can only confirm it — prefer real, uncrafted data over synthetic inputs; if synthetic is unavoidable, construct it so it *could* show no effect. **(2) Is the harness free of confounds?** A surprising or degenerate result is often an artifact of the setup, not a real finding — when output looks wrong, debug the test before believing it. **(3) Did the test actually exercise the variable?** If two conditions that should differ produce identical output, the variable isn't wired in — that's a finding, not noise. Run this checklist every time, especially when a result confirms what you hoped
-- **One module at a time.** Build the PRD's modules in order, never several at once. Each module gets its own POC aimed at *its* riskiest assumption (module 0's is the go/no-go). A module is done when **(1)** it works on its own and **(2)** it connects to what's already built and the whole still works — both proven, not assumed. Only then start the next
-- **No fitting to pass.** Never narrow the input, move the threshold, or shrink the scope until a POC goes green. Report the failure and take it back to the PRD
+- **Test the POC's test.** Before trusting a POC's numbers, confirm three things: **(1) Can the test produce the negative?** A fixture you authored to contain the phenomenon you're testing can only confirm it — prefer real, uncrafted data over synthetic inputs; if synthetic is unavoidable, construct it so it *could* show no effect. **(2) Is the harness free of confounds?** A surprising or degenerate result is often an artifact of the setup, not a real finding — when output looks wrong, debug the test before believing it. **(3) Did the test actually exercise the variable?** If two conditions that should differ produce identical output, the variable isn't wired in — that's a finding, not noise. Run this checklist every time, especially when a result confirms what you hoped
 
 ### External Dependency Checklist
 
-Before adding any external dependency (order: [Dev Rules](#dev-rules)), all of these must be true:
-- **Necessity:** Can't reasonably implement this with stdlib in <100 lines
-- **Maintained:** Active commits in the last 6 months, responsive maintainer
-- **Lightweight:** Few transitive dependencies (check the dep tree, not just the top-level)
-- **Established:** Widely used, not a single-maintainer hobby project for production-critical code
-- **Security-aware:** For security-critical domains (crypto, auth, sanitization, parsing untrusted input), a vetted library is *required* — never roll your own
+Order of preference is in [Dev Rules](#dev-rules). Two concrete tests: **maintained** means commits in the last 6 months and a responsive maintainer; **lightweight** means few transitive dependencies — check the whole tree, not just the top level.
 
 ### Language Selection
 

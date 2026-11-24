@@ -11,14 +11,15 @@ It does not review code. Review is a separate command that must have run
 first.
 
 ## Guardrails
-- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
-  parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name). Fall back to running inline if
-  your tool has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (an omitted tier inherits the
+  parent's; never a vendor model name). Run inline if your tool has no
+  subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
-  that this spec does not cover → **stop and report it to the orchestrator**
-  (the main session). Never improvise, never widen scope, never fix a finding
-  you noticed along the way (for workers this overrides the Surgical dev rule).
+  that this spec does not cover → **stop and report it to the orchestrator**.
+  Never improvise, never widen scope, never fix a finding you noticed (for
+  workers this overrides the Surgical dev rule).
+- **The worker does the work itself — no sub-spawning.** Every command it cites
+  is one it ran with its own tool calls.
 - **Nothing leaves the machine.** No `git push`, no `gh`, no `npm publish`,
   under any circumstance — not even if every gate is green. You report the
   sequence; a human authorizes it.
@@ -85,13 +86,14 @@ gone after a compaction or a handover. Read the file; match the two strings.
   `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
-- **`tests:` line** — run this line as printed (docs-only = the same
-  `^(docs/|[^/]+\.md$)` as the stale-grep above). `REUSE` → covered, do not
-  re-run. `RUN` (or build part missing, or `NOT RUN`) → run the project's real
-  test command once, and build if there is one, yourself in Phase 1 and cite
-  command + exit code. Any non-zero exit → **stop**. The record says `reused`
+- **`tests:` line** — run this line as printed. Same rule as `/branch-review`
+  Stage 1: `REUSE` → covered, do not re-run; `RUN` (or build part missing, or
+  `NOT RUN`) → run the project's real test command once, and build if there is
+  one, in Phase 1 and cite command + exit code; any non-zero exit → **stop**;
+  a failure that passes when run alone
+  is re-run alone before it is called real. The record says `reused`
   but this prints `RUN` → **stop**, unsafe. The record says `ran` but this
-  prints `REUSE` → one-line warning only. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden.
+  prints `REUSE` → one-line warning only.
   ```
   f=.factory/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
   ```
@@ -135,12 +137,12 @@ scanned, so treat a missing answer as a **stop**, never as a pass.
 Detect the stack first (`package.json`, `pyproject.toml`, `go.mod`,
 `Cargo.toml`, `Makefile`) and run only what exists. Report each item **pass /
 fail / N/A** with the exact command and exit code; a check not run is a
-**fail**; N/A needs a stated reason. Read the exit code off the bare command
+**fail**; N/A needs a stated reason. **Every exit code in this file, the
+hand-back sequence included, is read off the bare command**
 (`cmd > /tmp/out 2>&1; e=$?`), never a pipeline — `$?` after a pipe is the
 last element's status. A test command that can outlast your tool's default
-command timeout must be run with a longer timeout (or in the background and
-waited on until it exits); a run that timed out is not a pass, and the report
-cites the suite's totals as well as the exit code. Emit a coverage row: `ran? ✓/✗` · evidence · verdict.
+timeout gets a longer one; a timed-out run is not a pass, and the report cites
+the suite's totals as well as the exit code. Emit a coverage row: `ran? ✓/✗` · evidence · verdict.
 A ✗ is **Blocked 🛑**.
 
 - **Lint / format clean** — only if a linter or formatter is configured.
@@ -219,8 +221,7 @@ orchestrator can run them on the user's named go:
 >    this one ran on the same machine; CI is the only differently-configured
 >    instrument in the chain, and this is the first time it sees the branch.
 >    A test that passes locally because of a path, a fixture, or a tool that
->    exists only on your box fails here and nowhere earlier. Read the exit
->    code off the bare command. Red → stop, fix, re-review, and start again.
+>    exists only on your box fails here and nowhere earlier. Red → stop, fix, re-review, and start again.
 > 4. `gh pr merge --admin --merge --delete-branch` (main is PR-protected;
 >    owner-authorized admin merge on a solo repo). **Keep `--merge`** — `gh`
 >    requires an explicit merge-method flag (`--squash` / `--merge` /
@@ -231,12 +232,6 @@ orchestrator can run them on the user's named go:
 >    `gh workflow run publish.yml`) — manual by design
 > 7. Verify it is actually live (`npm view <pkg> version`, and the published
 >    tarball's contents), not the working tree
-
-**Every exit code in this sequence is read off the bare command, including
-the ones you type yourself.** The rule is not just for the worker: a
-pipeline reports its last element's status, so `gh run watch --exit-status |
-tail -2; echo $?` prints `0` for a failed run. That has already turned a red
-CI into a green reading in a real release.
 
 Final line: **Cut ✅ (vX.Y.Z — ready to push)** or **Blocked 🛑** with the
 specific reason.

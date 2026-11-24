@@ -7,13 +7,11 @@ orchestrator resolves the range and hands off; a spawned worker tries to
 break it.
 
 ## Guardrails
-- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
-  parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name — this spec names the tier,
-  you translate it to whatever your spawn tool calls its mid tier), and hand
-  it this file's path — a worker has no skill text of its own. **No
-  delegation, no sub-spawning** — every command the worker cites is one it
-  ran itself.
+- **Spawn one worker, mid tier stated explicitly** (an omitted tier inherits the
+  parent's; never a vendor model name), and hand it this file's path — a
+  worker has no skill text of its own. It does the work itself: **no
+  sub-spawning**, every command it cites is one it ran. **Escalate, never
+  assume.**
 - **Ask and surface only. Never fixes anything.** The user picks.
 
 ## 1. Orchestrator — resolve the range, then hand off
@@ -56,31 +54,25 @@ Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
-- **No regression?** One full suite per code change: run this line, as printed.
-  `REUSE` → don't run it; cite the green sha and totals. `RUN` → run the FULL
-  suite once, cite totals vs. the handoff baseline, reuse that result for every
-  later step. No run behind a claim counts as not checked. `docs/` and root
-  `*.md` changes never trigger a re-run. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden.
+- **No regression?** Run this line, as printed. Same rule as `/branch-review`
+  Stage 1: `REUSE` → cite the green sha and totals; `RUN` → run the FULL suite
+  once, cite totals vs. the handoff baseline, and a failure that passes when
+  run alone is re-run alone before it is called real. No run behind a claim
+  counts as not checked.
   ```
   f=.opencode/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
   ```
 - **Cleanup?** Check the diff against the `DEV_RULES` block in the repo's
-  agent config file; cite the rule each finding breaks. Repo rules
-  win; skip anything a linter or test already enforces; a smell is labelled
-  "possible …", never a hard violation. Smells: middle man (a function that
-  only forwards to another), shotgun surgery (one change scattered over many
-  files — a missing shared piece), mysterious name. Dead code — grep the symbol repo-wide before flagging. State
-  ownership — two or more functions assigning the same field: name both
-  writers with `file:line`, grep every assignment repo-wide, not just the
-  diff; a write from a callback, thread or lifecycle event counts (one app
-  writer racing a framework one is still two). Reuse — every new function or class
-  gets a `reuse:` entry; an existing match must be reused or carry a stated
-  reason. Same for a new file or name. An old duplicate the diff didn't
-  introduce → suggest `/refactor duplicates`; a reuse item whose fix is a
-  merge goes there too, never to ledger mode (it refuses behaviour changes). Changed
-  lines that trace to no request. Complexity, naming, duplication only when
-  material. Performance (N+1, blocking calls in hot paths, unbounded loops)
-  only with evidence.
+  agent config file; cite the rule each finding breaks, with `file:line`.
+  Repo rules win; skip anything a linter or test already enforces; a smell is
+  labelled "possible …", never a hard violation. Smells: middle man (a
+  function that only forwards to another), shotgun surgery (one change
+  scattered over many files — a missing shared piece), mysterious name. Dead
+  code — grep the symbol repo-wide before flagging. Reuse: every new function or
+  class gets a `reuse:` entry. An old duplicate the diff didn't introduce →
+  suggest `/refactor duplicates`; a reuse item whose fix is a merge goes there
+  too, never to ledger mode (it refuses behaviour changes). Performance (N+1,
+  blocking calls in hot paths, unbounded loops) only with evidence.
 - **Glossed over?** Tradeoffs not flagged, claims untested as shipped, the
   handoff's loose ends verified, not just repeated.
 - **Underspecced?** What should have been part of this and is missing. If a
@@ -131,8 +123,7 @@ longer holds.
 scenario slot. **One snippet per item** (a second item on the same line
 anchors a different nearby line). A corrected `file:line` is noted as
 "corrected" in the relay.
-Dedupe with plain `grep -F "<snippet>" .opencode/remember/fix-ledger.md`
-(never `git grep` — gitignored). **Anchor rule:** a verbatim snippet `grep
+Append in `/branch-review`'s ledger format (its header and dedupe rule). **Anchor rule:** a verbatim snippet `grep
 -F` can find; missing (usually an `idea`) → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead — the anchor rule wins over
 "every". Relay one line, filled (A + D + Y = N), so a dropped append shows:

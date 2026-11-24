@@ -5,21 +5,15 @@ Refactor $ARGUMENTS. A targeted refactor includes the performance pass
 below — it is on by default, not a separate command.
 
 ## Guardrails
-- **Spawn a worker, mid tier stated explicitly** (omitted inherits the
-  parent's, not the balanced one; not cheapest/fastest either — judgment
-  degrades there; never a vendor model name). Fall back to running inline if
-  your tool has no subagent mechanism.
+- **Spawn a worker, mid tier stated explicitly** (an omitted tier inherits the
+  parent's; never a vendor model name). Run inline if your tool has no
+  subagent mechanism.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
-  that this spec does not cover → **stop and report it to the orchestrator**
-  (the main session). Never improvise, never widen scope, never fix a side
-  issue you noticed along the way (for workers this overrides the Surgical dev
-  rule).
-- **The worker does the work itself — no delegation.** The fixer must **not**
-  spawn subagents of its own. Every edit it reports, and every test run it
-  cites, has to be one it made or ran with its own tool calls: a relayed "I
-  fixed it and the suite is green" from a sub-worker is hearsay, and this
-  command's whole output is the claim that a change landed and the tests still
-  pass. A fix that delegates its work is a report about a report.
+  that this spec does not cover → **stop and report it to the orchestrator**.
+  Never improvise, never widen scope, never fix a side issue you noticed (for
+  workers this overrides the Surgical dev rule).
+- **The worker does the work itself — no sub-spawning.** Every edit it reports
+  and every test run it cites is one it made or ran with its own tool calls.
 - **The HITL gates below belong to the orchestrator, not the worker.** A
   subagent cannot hold a conversation with the user, so it cannot run a gate
   that ends in *stop and ask*. When one trips — a failing test, a crossed
@@ -65,27 +59,24 @@ refactor and how to close each item.
    "cleaned by other work". Hit → re-read the surrounding code; if the finding
    no longer holds, delete the bullet with a one-line reason. What survives is
    the work list.
-4. **Fix only surviving `nit` bullets** (untagged bullets count as `nit`),
-   one bullet per change, under the constraints below. Delete each bullet as
-   its fix lands. **Surviving `change` and `idea` bullets: the worker lists
-   them in its report ("left: change" / "left: idea") and changes nothing
-   about them** — they need a behaviour change, a redesign or a build, not a
-   refactor, and the worker cannot ask. A `nit` that turns out to need one is
-   **retagged `change` in place**, not fixed and not left silently. The
-   **orchestrator** then asks the user, per `change`/`idea` item: **keep**
-   (stays in the ledger), **drop** (the orchestrator deletes the bullet) or
-   **spec it** (the user describes it; it becomes its own task on its own
-   branch *after* this run — never built in ledger mode, whose diff must have
-   NO behavior changes).
+4. **Fix only surviving `nit` bullets** (tags: `/branch-review`'s ledger
+   header; untagged = `nit`), one bullet per change, under the constraints
+   below. Delete each bullet as its fix lands. **Surviving `change` and `idea`
+   bullets are listed in the report ("left: change" / "left: idea") and left
+   untouched** — the worker cannot ask. A `nit` that turns out to need a
+   behaviour change is **retagged `change` in place**. The **orchestrator**
+   then asks the user, per `change`/`idea` item: **keep** (stays in the
+   ledger), **drop** (the orchestrator deletes the bullet) or **spec it** (it
+   becomes its own task on its own branch *after* this run — never built in
+   ledger mode, whose diff must have NO behavior changes).
 5. Run the tests as described below. Then report: **fixed / dropped / left**
-   with the reason per left item, ending with **N nits, K changes, I ideas** remaining
-   — counted the same mechanical way `/branch-review` does:
+   with the reason per left item, ending with **N nits, K changes, I ideas**
+   remaining, counted as `/branch-review`'s `ledger:` line is (N = total − K − I):
    ```
    grep -c '^- ' .opencode/remember/fix-ledger.md
    grep -cE '@ [0-9a-f]{7,40} · change$' .opencode/remember/fix-ledger.md
    grep -cE '@ [0-9a-f]{7,40} · idea$' .opencode/remember/fix-ledger.md
    ```
-   First is the total bullet count, second is K, third is I; N = total − K − I.
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
    `/branch-review`** on this branch — ledger mode is a fixer, not a review,
    and its diff gets the ordinary gate. That is a sentence you *say*, not a
