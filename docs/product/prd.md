@@ -1,207 +1,102 @@
-# Remaining work — skill shrink series (transient PRD)
+# One full test run per code change — gates run it, coding does not (transient PRD)
 
-Date: 2026-10-02. The standing plan: rewritten each round of changes, committed.
+Date: 2026-11-24. Rewritten each round. Branch: feat/test-reuse.
 
-## 1. Where we are
+## 1. Problem
 
-### Branch chore/v5-drop-skill-creator (committed, reviewed)
-- Fixed: /release hand-back prints `gh pr merge --admin --merge --delete-branch` (a release PR lands as a merge commit, not a squash).
-- Fixed: /remember Episodes rule has the same-date tie-break and the already-a-fact removal line; "relay verbatim" is scoped to user-facing output.
-- Pinned: three new skill-shell pins, each seen red on the old text first.
-- Raised: `expectedTests` floors to the runner's real totals (docs-builder 739, friction 363, mirror 30, skill-shell 1494, live-canvas channel server 47).
-- Dropped by the owner (not fixed): the live-canvas interview questions with no options (Location, Key tasks, Feedback).
-- Removed: `/skill-creator`. 13 → 12 capabilities, advisory 4 → 3, the nine deliberate actions unchanged. The owner's call: the next release is v4.5.0.
-- Tests: `npm test` exit 0, 2970 passed.
+The owner's rule: one full suite run per code change. The field does not follow it.
 
-### Released
-- liteagents v4.2.0 is on npm. Tag v4.2.0 is main 58284ea (PR #68, merged).
-  - /remember trim 641 → 258 lines.
-  - friction.cjs `count`: theme naming, decay, escalation.
-  - review targets (hash, range).
-- agentic-toolkit v3.2.0 is tagged (225e330).
-- ~/.claude is synced. Manifest stamp is 4.2.0.
+- Field tests in beeperbox counted 2-4 full runs per code change. Later runs hit 2 at the same sha: `/self-review`'s `works:` step re-ran the full suite although the decider said `REUSE`.
+- This branch has 5 fix commits for it: the `green:` line, `/refactor` writes `green:`, commit-first, decider prints its reason, then an unfixed `works:` re-run. Each added prose. A worker skipped each one next time.
+- Root cause: the full suite has many owners. Workers, orchestrators, `/refactor` and normal coding all run it, and any of them writes `green:`. That breaks "one writer per piece of state". Five patches on one spot breaks "don't patch a patch".
+- Separate: a worker-side ledger anchor check (`grep -cF` = 1) in `/self-review` was half-followed. The orchestrator's identical check worked every time.
 
-### Branch refactor/branch-review-trim (top of the stack)
-- Checkout: /home/hamr/PycharmProjects/liteagents. Stacked on refactor/docs-builder-trim, which is stacked on refactor/live-canvas-trim. All local. NOT pushed.
-- One review and one release cover the whole stack: 20 commits over main (`git log --oneline main..HEAD`).
-- branch-review trim finished, mirrored to ampcode, droid, opencode:
-  - 21bc361 trim 479 → 304 lines (SKILL.md is 307 now).
-  - 43563c3 escalate-to-orchestrator bullet restored in the closing block.
-  - 51aaa24 merge-after-review loop fix: a merge of origin/main after the review is never forgiven, matching /release.
-  - 6c68e6d closing block gains the `proof:` and `liveness:` lines.
-- cda6549 /remember runs the friction scan as its own command with a 10-minute timeout (chained, it was killed, exit 137).
-- 42292f1 skill-shell RULE_PINS fix (pin was claude-only path).
-- 8c637a3 end-of-branch mirror of the above.
-- Old-vs-new headless A/B of branch-review: 14 runs (main known-answer plus 6 control scenarios, old and new).
-  - Both found the planted docs-builder pageStatus empty-file crash.
-  - 5 of 6 controls identical.
-  - Control 4 (docs-only merge after review) differs as intended: old forgave it, new re-reviews.
-  - No run committed, pushed or merged.
+## 2. Decision (the owner's design)
 
-### Branch refactor/docs-builder-trim (middle of the stack)
-- HEAD 4c91fdc when written. Stacked on refactor/live-canvas-trim.
-- 11 commits over main below the branch-review work:
+The full suite is a review-gate matter. Gates run it. Coding does not.
 
-live-canvas (6):
-- 839bf7f server: pins the first origin. One bounded JSON line per record (256KB per record, 5MB file). Messages carry the relaunch and port-busy steps.
-- 8a68f94 trim 1099 → 304 lines. Why moves to the README. Live Finish writes feedback.jsonl.
-- 468769b cleanup slot says N/A (port not bound).
-- a7cb776 slots moved into the messages the model always prints (ready block, final report).
-- c498281 end-of-branch mirror to ampcode, droid, opencode.
-- 2160f03 overlay: Live Finish opens the Finish box after all comments streamed.
-- SKILL.md is 311 lines now (1099 on main).
+- **Coding** (workers, orchestrators, `/refactor`, normal work) runs targeted tests only, for what changed. It never runs the full suite and never writes the proof line. Targeted runs are never recorded and never count as proof.
+- **The 3 gates** (`/self-review`, `/branch-review`, `/release`) each run the existing decider one-liner, unchanged. It prints `REUSE` if the recorded sha is an ancestor of HEAD and only docs changed since (regex `^(docs/|[^/]+\.md$)`), else `RUN (<reason>)`.
+  - `REUSE`: cite the proof. Run nothing. That includes no `works:` re-run of the full suite.
+  - `RUN`: run the FULL suite once on the clean committed tree (every gate stops on a dirty tree). Then write the proof line `green: <full sha> <cmd> exit 0 <totals>` to `.claude/remember/last-review.md`.
+- Testing starts at `/self-review`. `/branch-review`: docs only since the proof, no run; code changed, full run #2 and a new proof. `/release`: same check; it runs tests only if something changed between the gates, else it skips and uses the last proof. Docs are excluded.
+- Several writers is fine. All writers are gates following one rule, stated once.
+- **Where the rule lives:** one place, the DEV_RULES block in `AGENT_RULES.md` (loaded in every repo). The POC-first sentence becomes "Gates run the full suite; coding runs targeted tests only". The 3 gate skills and `/refactor` point to it. They keep only their must-fill output slot and the decider line.
+- The ledger anchor uniqueness check stays with the orchestrator. The worker-side copy in `/self-review` goes.
+- Plain sh + git, works in bash and zsh. No new script. No node dependency. Language-agnostic and cross-CLI.
 
-docs-builder (5):
-- 326797c script helpers: `PREVIEW=1 apply-reorg` approval table, default file args, BRANCH / QUESTION / WARN lines, writer brief in each task file.
-- 530aae6 drift fix: apply-reorg writes new paths back to the plan. `search` errors on a missing explicit outline.
-- 07396a4 trim 1009 → 194 lines.
-- aa0edf1 hand-sync to ampcode, droid, opencode. Split slot covers cleanup mode.
-- 4c91fdc index rebuild.
-- SKILL.md is 194 lines now (1009 on main).
+## 3. Go/no-go (module 0)
 
-Tests: `npm test` exit 0, 2940 passed, 0 failed at 8c637a3 (2856 at 4c91fdc).
+A field run in beeperbox: `/self-review` → a code commit → `/branch-review` → `/release`. Count full-suite runs per code change.
 
-### Validation done
-- live-canvas headless A/B (scratch only, not linked here):
-  - round 1: output slots missing.
-  - fixed by structure (slots moved into always-printed messages).
-  - round 2: all six slots present.
-- live-canvas real-browser run with the new server and overlay:
-  - Save streamed.
-  - a page on a second port got 403.
-  - Finish wrote one line to feedback.jsonl.
-  - it FOUND the overlay Finish bug (2160f03). Headless A/B and tests had not.
-- docs-builder A/B on a frozen "multis" corpus (24 docs):
-  - first run: moves, index and tree identical, old vs new.
-  - drift: old re-asked 24/24, new re-asked 0.
-  - split: archived original byte-identical.
-  - all 8 slots filled in 3 runs.
-  - zero forbidden git commands.
+- Pass: exactly 1 full run per code change. All by gates. 0 by coding work. 0 duplicates at the same sha.
+- The test can fail: the baseline was 2-4 runs. Any coding-side full run, or a second run at one sha, is a fail.
+- Run it on a pre-change snapshot first to confirm the count is really 2-4 there. Do not clone after the fix commit.
+- If it fails, the design is wrong. Do not add a sixth patch. Stop and redesign.
 
-## 2. Release plan
+## 4. Out of scope
 
-Owner rule: one review and one release for both trims.
+- "Affected tests only" and test-impact selection for multi-hour suites. Solo-dev scope. "If we get asked we change."
+- A new script or helper for the proof line. A node dependency.
+- Changing the decider one-liner or the docs regex.
+- Recording or counting targeted runs.
+- Enforcing "coding never runs the full suite" mechanically. It is a rule in DEV_RULES. A hook is a different feature.
 
-- [ ] Owner runs /self-review, then /branch-review, then /release over the whole stack.
-- [ ] /release. Expected v4.3.0 (minor):
-  - Added: docs-builder script helpers; /branch-review proof: and liveness: lines.
-  - Changed: /live-canvas, /docs-builder, /branch-review trims.
-  - Fixed: live-canvas server and overlay, docs-builder drift, /branch-review merge-after-review loop, /remember friction scan timeout.
-- [ ] Owner authorizes push, PR, merge, tag and publish each by name.
-- [ ] Verify live: `npm view` plus the tarball.
-- [ ] Sync ~/.claude, INCLUDING the live-canvas plugin server:
-  - re-run packages/claude/plugins/live-canvas-marketplace/setup.sh, or copy server.js into ~/.claude/plugins/live-canvas-marketplace.
-  - bump the manifest stamp (liteagents_version).
-- [ ] agentic-toolkit mirror plus tag.
-- [ ] Release chore/v5-drop-skill-creator as v4.5.0 (/skill-creator removed, 13 → 12 capabilities).
-- [ ] Then come back for the fix-ledger cleanup (/refactor) and the nits in section 3.
-- [x] Run /remember for real once. Done 2026-10-01 on the installed trimmed skill; one crash (exit 137, chained commands) fixed in cda6549.
-- [ ] One real interactive /live-canvas Live run. The "ready block" slot placement and the full skill flow were only tested headless.
+## 5. Modules (build order)
 
-## 3. Open ledger
+0. Go/no-go field run, before and after (section 3). The after-run closes the branch.
+1. **DEV_RULES rewrite.** One sentence replaces the POC-first "One full test run per code change…" sentence in `AGENT_RULES.md`. Claude package first.
+2. **Gate skills point to it.** `/self-review`, `/branch-review`, `/release` delete their duplicated prose, keep the slot and the decider line. `/self-review`'s `works:` is targeted checks only, never the full suite (decision 4). `/release` writes the proof on `RUN`, as `/branch-review` does (decision 2).
+3. **`/refactor`: targeted only.** Delete the post-commit full run and the `green: written` slot (decision 3).
+4. **Delete the worker-side anchor check** in `/self-review`. The orchestrator's check stays.
+5. **Tests.** Update pins in `tests/skill-shell/test-reuse.test.js`. Remove or invert the pin of each deleted rule. Fail-first proof: run each new pin against the old text and see it fail.
+6. **End of branch.** `node scripts/mirror.cjs diff`, then `sync && check`, to droid, ampcode, opencode. Restore the two loosened cross-kit pins in `tests/skill-shell/skill-shell.test.js` (~976 and ~1429) to full text. Sweep the new `AGENT_RULES.md` to all project copies (45 per the owner; the 2026-09-18 sweep counted 49). Bump `~/.claude` and its manifest stamp.
 
-File: .claude/remember/fix-ledger.md. It has 4 `- ` bullets now: 2 change, 2 idea. Re-count before acting (`grep -c '^- '`).
+## 6. What gets deleted (build checklist)
 
-- The 2 live-canvas server bullets (Origin check, bounded /feedback-jsonl) are fixed in code (839bf7f).
-- Several other bullets were fixed last round (stale "committed or not" lines, s2 slot, fail-first, friction skip list).
-- Drop them all through /refactor revalidation. Never by hand.
-- Nits found this round and Parked items are now also in the fix ledger (2026-10-01) so /refactor sees them.
-- [ ] `git rev-list --merges` misses a fast-forward pull of main (rare).
-- [ ] branch-review spec gaps C-H left as-is by owner choice: diff scope in hash mode, unreachable main Stage-4 branch, NOT RUN slot gap, blockers-none shapes, pushed-through mechanism unspecified, grep vs git grep.
-- [ ] No /branch-review A/B or real run has exercised a ready-verdict target (ready record, re-review marking a blocker fixed, Stage 4 docs commit on a settled review).
+`packages/claude/skills/remember/AGENT_RULES.md`, DEV_RULES, POC-first bullet:
+- "One full test run per code change: before committing run only the tests for what you changed, commit, then run the full suite once on the clean tree — review skills reuse that run, and a full run on a dirty tree is wasted." Replace with "Gates run the full suite; coding runs targeted tests only."
 
-### Nits found this round
-- [x] Fixed on chore/fix-ledger (f6a6b39). /branch-review: on a re-review through a merge, the closing `proof:` line said "all on docs:" while the record said `docs: none`. Disagreement (seen in A/B control 4).
-- [x] Fixed on chore/fix-ledger (d323c91). /remember: the `labels.json` path is never named in the spec. The worker wrote .claude/remember/friction/labels.json, overwriting the prior run's file.
-- [x] Fixed on chore/v5-drop-skill-creator. /remember: the spec has no format for "episode removed whose lesson is already an existing fact", no tie-break for which episode goes on equal dates, and says "relay verbatim" but count's stdout is a long JSON.
-- [x] Fixed on chore/fix-ledger (d323c91). docs-builder: SKILL.md line 13 "`docs-builder/docs-builder.cjs`" reads like a subfolder; the script sits beside SKILL.md (wording nit).
-- [x] Fixed on chore/fix-ledger (c98dae7, discover now skips gitignored .md). docs-builder (low priority): gitignored root .md files (TEST_REPORT.md) appear in reorg with no skip. Owner says docs-builder behaved fine (it asked).
-- [ ] skill-shell RULE_PINS pinned a claude-only path — the per-kit test went red only after mirroring; pins must use kit-neutral text.
+`branch-review/SKILL.md`, Stage 1:
+- Replace the "Run the typecheck/build yourself, and the test suite once per code change by running this line as printed — `REUSE` → … `RUN (…)` → …" sentence with a pointer plus the decider line. Keep "copy the printed reason into the `tests:` line". Keep the timeout and exit-code advice only if DEV_RULES does not carry it.
+- The whole "**Who writes `green:`:**" paragraph: "any full-suite run that exits 0 on a clean tree at HEAD — a worker's, or the orchestrator's own re-run …", "When the passing run was a worker's, the orchestrator writes `green:` from that run's cited command and totals, without re-running", and "**Commit first, one full run after:** a worker that changes code runs only scoped tests…". Replace with the gate-only rule: on `RUN`, write `green:` after the one full run. Keep "Replace the old `green:` line (`grep -v '^green: ' …`), never touch another line".
+- Record template line "`green: <this run's suite …> — written by /self-review or /branch-review, whichever last ran a green full suite`": reword to "written by the gate that ran the suite".
 
-### Parked (so nothing lives only in chat)
-- [ ] live-canvas origin pin limit:
-  - it pins the first origin.
-  - it cannot stop a script on the same origin as the lab.
-  - a stray page that connects first blocks the lab until channel close.
-  - documented in docs/product/live-canvas-README.md (Origin pinning) and live-canvas-channel-README.md.
-- [ ] The overlay Finish fix is pinned only by a source-level test. Behaviour was proven by the browser run. No DOM test harness exists.
-- [ ] docs-builder `search`: a query whose first word ends in `.json` is read as the outline path (docs-builder.cjs line 941).
-- [x] Fixed on chore/fix-ledger (d323c91). Nit: the docs-builder.cjs comment at line 2140 says "ampcode -> AGENT.md". The amp kit is a deliberate mirror of claude (CLAUDE.md) per owner. The comment is the stale part.
-- [x] Fixed on chore/v5-drop-skill-creator. `expectedTests` floors in tests/run-all-tests.js were far below actual (skill-shell 310 vs 1386, docs-builder 538 vs 735).
-- [x] Dropped by the owner on chore/v5-drop-skill-creator: live-canvas interview questions with no options (Location, Key tasks, Feedback).
+`self-review/SKILL.md`:
+- Worker header: "the regression check is always the **FULL** suite, never scoped". Rewrite: the worker runs the decider; the gate rule says what to do.
+- "**Does it work?** Run the thing/tests now; cite the command and numbers." Make it targeted only, and never a full run on `REUSE`.
+- "Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN (…)` → run the FULL suite once, copy the printed reason into the `full-suite:` line…, and a failure that passes when run alone is re-run alone…": cut to a pointer to DEV_RULES. Keep the decider line and the `full-suite:` slot.
+- "Before reporting an anchorable item, run its snippet's `grep -cF` check (§3 Anchor rule) and see 1; else pick a longer snippet or a nearby unique line." Delete (worker side). Keep §3's orchestrator "**Anchor rule:** a verbatim snippet `grep -F` finds exactly once…".
+- "`green:` is written per `/branch-review` Stage 1 ("Who writes `green:`") by any passing full run, not only this one": rewrite to: this gate writes it after its own `RUN`.
 
-## 4. Next: more skill trims
+`release/SKILL.md`, `tests:` line:
+- "run the project's real test command once, … in Phase 1": point to DEV_RULES. Add the proof write on `RUN`. Keep the `reused` vs `RUN (` stop and the `ran` vs `REUSE` warning.
 
-Top SKILL.md sizes now (`wc -l packages/claude/skills/*/SKILL.md`):
-1. live-canvas 311 (trimmed)
-2. branch-review 307 (trimmed)
-3. remember 258 (trimmed)
-4. release 242
-5. root-cause 236
-6. refactor 228
+`refactor/SKILL.md`, "After the refactor":
+- Step 4, "**Orchestrator: review, commit, then one full run.** … run the full suite once on the clean tree at HEAD — it verifies the worker and writes `green:` per `/branch-review` Stage 1 … Never run it before the commit." Delete the step.
+- Step 2: keep "scoped tests only … never the full suite", but cite DEV_RULES instead of restating.
+- Report slot `green: written <sha> | not written: <reason>` and the paragraph "The `green:` line is filled by the orchestrator from its post-commit full run … `not written: uncommitted`, and whoever commits then follows that rule." Delete.
+- `tests: <cmd> exit <code> <totals> (scoped | full)`: drop `| full`.
 
-Next three to trim: release (242), root-cause (236), refactor (228). One skill per branch, same recipe. docs-builder is 194 (trimmed).
+`tests/skill-shell/test-reuse.test.js`:
+- Line ~127 pin "Who writes `green:`…any full-suite run…". Replace with the gate-only rule.
+- Line ~130 pin `green: written <sha> | not written: <reason>` and "Who writes `green:`" in `/refactor`. Invert: must be absent.
+- Line ~132 pin "self-review: worker checks snippet uniqueness". Invert: must be absent.
+- Line ~136 pin "Commit first, one full run after…". Delete or replace.
+- Line ~138 pin "Orchestrator: review, commit, then one full run" and "Never run it before the commit". Invert.
+- Line ~149 pin "the orchestrator writes `green:` from that run's cited command and totals, without re-running". Delete.
+- Line ~154 pin on the DEV_RULES "One full test run per code change…" sentence. Replace with the new sentence.
 
-### Recipe
-- [ ] Branch from main. Measure `wc -l`.
-- [ ] Read-only cut-list worker. Classify every paragraph as STEP / RULE / WHY / JUDGMENT / SLOT-MISSING / DUP, with line ranges. It also reports existing pins, README gaps and contradictions, and what the scripts really do.
-- [ ] Owner signs off on a plain-words summary BEFORE any edit.
-- [ ] Additive script helpers first, in an existing script. Then the skill (it depends on their exact output).
-- [ ] Trim in packages/claude only. No sync. Write a command inventory old → new.
-- [ ] Add fail-first tests.
-- [ ] Before/after A/B on frozen input.
-- [ ] Claude-kit tests green.
-- [ ] End mirror, once, at the end of the branch.
-- [ ] Full `npm test`.
-- [ ] /self-review, then /branch-review, then /release.
+`tests/skill-shell/skill-shell.test.js` (cross-kit pins):
+- ~976: `works:` / `full-suite:` slot pins and the relay-rule pin. Restore to full text after the edits.
+- ~1429: "Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN" and the `/release` twin. Update to the new pointer wording, restored to full text.
 
-## 5. Lessons
+## 7. Decisions
 
-From /remember:
-- Sign-off before edits. The cut-list and plain summary caught a README that contradicted the skill and a stale claim.
-- Model doing arithmetic, dates or naming is a bug waiting. Move counts, dates, thresholds, names and file lists into the existing script.
-- The real A/B run found a bug the tests missed. Check real data shapes before writing a rule or a test.
-- A/B method that worked:
-  - Freeze the live or nondeterministic input once.
-  - Copy the repo twice into scratch.
-  - Run headless `claude -p "/<skill>"` with an explicit --allowedTools list and a short appended test note.
-  - Swap the installed SKILL.md temporarily. Keep a backup and restore it after.
-  - Pass bar: script outputs byte-identical. Compare model-written parts by counts, items and filled slots, never by wording.
-- Claude first, mirror once at branch end. Briefs must say "packages/claude only, no sync".
-- Worktrees are fine for parallel edits. Reviews must run in the main checkout, where the ledger and review record live.
-- Every kept rule is one line plus a test pin. Every skippable step gets a must-fill slot line. Every new test is proven red on the old code first.
-- Park problems on the ledger, not only in chat.
-- A filter or skip list duplicated in two places drifts. Keep one list and one helper.
-- Standing rule: a sonnet worker writes every code, spec and doc edit. The orchestrator only decides and verifies.
-- Measured: remember 641 → 258 lines.
+The owner settled the open questions: "self-review runs tests, branch-review runs tests, release runs tests if any changes between them, else skipped and use last tests, docs are excluded."
 
-From live-canvas and docs-builder:
-- Slots printed mid-run get skipped. Put them in messages the model always prints, plus one final report block. Round 1 of the live-canvas A/B had slots missing; round 2 had all six.
-- A real browser run found a bug that headless A/B and tests could not: the overlay Finish guard (2160f03). Run the real thing once.
-- Spot-check the cut-list's claims. It over-stated "skips inline code spans". Running the script gave the true rule.
-- Additive script helpers first, skill second. The skill depends on exact script output.
-- Stacking two skill trims on one branch means one review and one release.
-- A cleanup command using `pkill -f <pattern>` can kill the session's own plugin. Match by pid file instead.
-- Measured: live-canvas 1099 → 311 lines, docs-builder 1009 → 194 lines, branch-review 479 → 307 lines.
-
-## Verified on write
-
-Checked 2026-10-01 with git, wc, grep, gh, npm view and a fresh `npm test`. Branch-review round facts re-checked at 8c637a3.
-
-- Confirmed (branch-review round): branch refactor/branch-review-trim, `git rev-list --count main..HEAD` is 20, commit hashes above from `git log`. `npm test` exit 0, 2940 passed, 0 failed; `mirror.cjs check` exit 0. branch-review SKILL.md is 307 lines. fix-ledger.md has 15 `- ` bullets.
-- Not checked (branch-review round): the A/B results are the coordinator's report, not re-read here; the nits come from the coordinator's report.
-- The items below were checked at 4c91fdc and are not re-checked, except where restated above.
-
-- Confirmed: branch is refactor/docs-builder-trim, HEAD 4c91fdc, tree clean (before and after `npm test`). `git log --oneline main..HEAD` lists exactly 11 commits, all hashes above.
-- Confirmed: `npm view liteagents version` is 4.2.0. v4.2.0 tag and main are both 58284ea. PR #68 is MERGED with merge commit 58284eaf.
-- Confirmed: agentic-toolkit tag v3.2.0 is 225e330 (local clone, sibling dir).
-- Confirmed: ~/.claude/manifest.json liteagents_version is 4.2.0.
-- Confirmed: `npm test` exit 0, Passed 2856, Failed 0 (fresh run at 4c91fdc).
-- Confirmed: SKILL.md lines. live-canvas 1099 on main, 311 now. docs-builder 1009 on main, 194 now. branch-review 479, release 242, root-cause 236, refactor 228.
-- Confirmed: floors. skill-shell floor 310, actual 1386. docs-builder floor 538, actual 735.
-- Confirmed: fix-ledger.md has 15 `- ` bullets: 5 nit, 7 change, 3 idea.
-- Confirmed: origin-pin limit is documented in docs/product/live-canvas-README.md and live-canvas-channel-README.md.
-- Confirmed: docs-builder.cjs line 941 reads a first arg ending `.json` as the outline path. Line 2140 comment says "ampcode -> AGENT.md".
-- Corrected: the live-canvas trim commit message says 304 lines; the file is 311 now (later fixes added lines).
-- Corrected: the plan said "top 5" next; the top 5 includes live-canvas and remember, which are already trimmed. Listed the next four untrimmed.
-- Not checked: the A/B results (scratch files, not read by this write); the real-browser run details (403, feedback.jsonl line); the 256KB / 5MB server limits (not re-read in server.js); the tarball content of v4.2.0; the claim that the 2 server bullets and "several" others are fixed (not re-run through /refactor); whether ~/.claude plugin server.js matches the repo.
+1. **Name stays `green:`.** The decider is unchanged. A rename is churn in 4 kits and every field record.
+2. **All 3 gates follow the same rule:** run the decider; `REUSE` skips and cites the last proof; `RUN` runs the full suite once and writes the proof line. `/release` now writes `green:` on `RUN`, like the others.
+3. **`/refactor`:** the `green: written` slot is deleted. Only `tests: ... (scoped)` stays.
+4. **`/self-review` `works:`** may run targeted checks on `REUSE`, never the full suite.
+5. **Dirty tree:** dropped. `/self-review` already stops on a dirty tree ("Dirty tree first"), so every gate runs on a clean committed tree.
