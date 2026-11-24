@@ -123,19 +123,20 @@ check('release: reused-vs-RUN cross-check stops', /says `reused`\s+but this prin
 // Rules 1-4 pins. Claude kit only: widen to all kits at mirror time.
 const BR = read(SPECS['branch-review']), SR = read(SPECS['self-review']), RE = read(SPECS['release']);
 const RF = read('packages/claude/skills/refactor/SKILL.md');
-check('branch-review: owns the green: writer rule (any passing full run, rev-parse, replace, no other line)',
-  /Who writes `green:`.*any full-suite run that exits 0 on a clean tree at HEAD.*git rev-parse HEAD.*Replace the old `green:` line.*never touch another line/s.test(BR));
-check('self-review: points to the green: rule instead of copying it', SR.includes('("Who writes `green:`")') && !SR.includes('never on `reused`'));
-check('refactor: green: slot + writes per branch-review rule + uncommitted case',
-  RF.includes('green: written <sha> | not written: <reason>') && RF.includes('Who writes `green:`') && /uncommitted[\s\S]*whoever commits/.test(RF));
+check('branch-review: owns the green: write rule (on RUN, after one full run, rev-parse, replace, no other line; never on REUSE)',
+  /On `RUN`, write `green:`.*replace the record's `green:` line.*git rev-parse HEAD.*never touch another line.*Never write it on `REUSE`/s.test(BR));
+check('self-review and release point to the branch-review write rule, no copy',
+  SR.includes('("On `RUN`, write `green:`")') && RE.includes('write `green:` per `/branch-review` Stage 1') && !/grep -v '\^green: '/.test(SR + RE));
+check('release: writes green: on RUN (gate rule), runs the full suite', /run the full suite once[\s\S]*on exit 0 write `green:`/.test(RE));
+check('refactor: no green: slot, no post-commit full run, tests line is scoped only',
+  !RF.includes('green: written') && !RF.includes('Who writes `green:`') && !RF.includes('then one full run') && !RF.includes('Never run it before the commit') && RF.includes('(scoped) | NOT RUN: <reason>') && !RF.includes('(scoped | full)'));
 check('refactor: free-text args = ledger mode', /## Ledger mode — `\$ARGUMENTS` empty or plain-text guidance/.test(RF) && RF.includes('pass the text to the\nworker as guidance'));
-check('self-review: worker checks snippet uniqueness before reporting', /Before reporting an anchorable item, run its snippet's `grep -cF` check[\s\S]*see 1/.test(SR));
+check('self-review: worker-side snippet check gone, orchestrator Anchor rule kept', !/Before reporting an anchorable item/.test(SR) && SR.includes('**Anchor rule:**'));
+check('self-review: works: is targeted only, never the full suite; no FULL-never-scoped header', /Run the thing and targeted checks[\s\S]*never the full suite/.test(SR) && !SR.includes('never\nscoped'));
+check('branch-review: Who-writes / commit-first paragraph gone', !BR.includes('Who writes `green:`') && !BR.includes('Commit first, one full run after') && !BR.includes('without re-running'));
 
-// Commit-first pins (claude kit only: widen to all kits at mirror time).
-check('branch-review: commit first, one full run after (worker scoped, post-commit run writes green:, dirty-tree run wasted, fix in new commit)',
-  /Commit first, one full run after[\s\S]*scoped tests[\s\S]*never the full suite[\s\S]*clean committed tree[\s\S]*dirty tree is a wasted run[\s\S]*new commit \(no amend/.test(BR));
-check('refactor: worker runs scoped tests only, never the full suite; orchestrator commits then one full run',
-  /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF) && /Orchestrator: review, commit, then one full run/.test(RF) && RF.includes('Never run it before the commit'));
+// Scoped-coding pins (claude kit only: widen to all kits at mirror time).
+check('refactor: worker runs scoped tests only, never the full suite', /Worker: run scoped tests only[\s\S]*never the full suite/.test(RF));
 check('refactor: tests line is reported scoped by the worker', RF.includes('The worker reports `tests:` as `scoped`'));
 
 // Decider-reason, dev-rule and clarification pins (claude kit only: widen to all kits at mirror time).
@@ -145,13 +146,11 @@ for (const [k, rel] of Object.entries(SPECS)) {
   check(`${k}: tells the worker to copy the decider's reason into its line`,
     /copy the printed reason into the `(full-suite|tests):` line/.test(read(rel)));
 }
-check('branch-review: worker-run green: is written by the orchestrator from the cited command and totals, no re-run',
-  /When the passing run was a worker's, the orchestrator writes `green:` from that run's cited command and totals, without re-running/.test(BR));
 check('self-review: full-suite slot allows unverified baseline', SR.includes('vs before <totals | unknown | unverified>') && SR.includes('`unverified` when the baseline is from an older sha'));
 const AR = read('packages/claude/skills/remember/AGENT_RULES.md');
 const DEV = AR.slice(AR.indexOf('<!-- DEV_RULES:START -->'), AR.indexOf('<!-- DEV_RULES:END -->'));
-check('DEV_RULES: one full run per code change (scoped before commit, commit, one full run on clean tree, dirty-tree run wasted)',
-  /One full test run per code change: before committing run only the tests for what you changed, commit, then run the full suite once on the clean tree[^.]*a full run on a dirty tree is wasted/.test(DEV) && (DEV.match(/full test run/g) || []).length === 1);
+check('DEV_RULES: gates run the full suite, coding runs targeted tests only, docs-only skips',
+  DEV.includes('Gates (/self-review, /branch-review, /release) run the full suite; coding runs targeted tests only — a gate skips the run and cites the last proof when only docs changed since.') && !DEV.includes('One full test run per code change') && (DEV.match(/full suite/g) || []).length === 1);
 
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

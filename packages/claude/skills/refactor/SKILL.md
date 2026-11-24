@@ -186,14 +186,10 @@ Explain each change.
    refactor is done — silent green isn't acceptable.
 2. **Worker: run scoped tests only** — the tests for what it changed
    (`-t`, `--testPathPattern`, `pytest path/`, `go test ./pkg`) plus any
-   fail-first proof this spec already requires — **never the full suite**.
+   fail-first proof this spec already requires — **never the full suite**
+   (gates run it; see `DEV_RULES`).
    It does not commit. If no scope can be found, stop and hand that back.
 3. **Report** pass / fail counts and any failure's name + `file:line`.
-4. **Orchestrator: review, commit, then one full run.** After reviewing the
-   diff and committing (on the user's go, per the hand-back step), run the full
-   suite once on the clean tree at HEAD — it verifies the worker and writes
-   `green:` per `/branch-review` Stage 1 ("Who writes `green:`", which also
-   covers a failing run). Never run it before the commit.
 
 **Stop and ask** when (HITL gates — not all the time, only here):
 - `$ARGUMENTS` names a whole area — the candidate list above is handed back
@@ -224,13 +220,9 @@ Final report:
 
 Either way the report carries these lines, filled from the run:
 ```
-tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>
-green: written <sha> | not written: <reason>
+tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>
 ```
-The worker reports `tests:` as `scoped`. The `green:` line is filled by the
-orchestrator from its post-commit full run (`/branch-review` Stage 1, "Who
-writes `green:`"); while the changes are uncommitted it reads `not written:
-uncommitted`, and whoever commits then follows that rule.
+The worker reports `tests:` as `scoped`.
 
 Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
 (why + options) · **uncertain** (what profiling or data would settle it) ·

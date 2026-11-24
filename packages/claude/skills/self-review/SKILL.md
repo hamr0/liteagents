@@ -55,12 +55,12 @@ worker.
 
 ## 2. Worker — try to break it, not confirm it
 Real runs, not re-assertion, scoped to the range for cleanup/glossed/
-underspecced — the regression check is always the **FULL** suite, never
-scoped:
-- **Does it work?** Run the thing/tests now; cite the command and numbers.
-- **No regression?** Run this line, as printed. Same rule as `/branch-review`
-  Stage 1: `REUSE` → cite the green sha and totals; `RUN (…)` → run the FULL suite
-  once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
+underspecced:
+- **Does it work?** Run the thing and targeted checks for what changed now,
+  never the full suite; cite the command and numbers.
+- **No regression?** Run this line, as printed; gate rule per `DEV_RULES` and
+  `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN (…)` →
+  run the FULL suite once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
   run alone is re-run alone before it is called real. No run behind a claim
   counts as not checked.
   ```
@@ -103,8 +103,6 @@ unless they do carry a real failure sentence. Each item is one kind, counted
 in one cap only. Max 5 failure-sentence items and max 5 Cleanup items, ranked,
 in two piles: **Fix now** (changes
 whether you ship) and **Later**.
-Before reporting an anchorable item, run its snippet's `grep -cF` check (§3 Anchor
-rule) and see 1; else pick a longer snippet or a nearby unique line.
 
 ## 3. Orchestrator — relay as-is, then ledger
 **"As-is":** same items, order, piles, and the worker's five report lines
@@ -146,8 +144,8 @@ echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
 
-`green:` is written per `/branch-review` Stage 1 ("Who writes `green:`") by any
-passing full run, not only this one:
+After a `RUN` that exited 0, write `green:` per `/branch-review` Stage 1
+("On `RUN`, write `green:`"):
 `green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**

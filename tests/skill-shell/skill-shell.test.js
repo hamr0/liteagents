@@ -1194,7 +1194,7 @@ for (const kit of KITS) {
 
   const rf = flat(read(skillPath(kit, 'refactor')));
   specCheck(`${kit.name}/refactor: final report carries the tests: line, not a bare pass count`, () => allOf(
-    has(rf, 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
+    has(rf, kit.name === 'claude' ? 'tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>' : 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
     rf.includes('tests N pass / 0 fail') ? 'stale: bare "tests N pass / 0 fail" still present' : true));
 
   const rl = flat(read(skillPath(kit, 'release')));
@@ -1412,7 +1412,7 @@ for (const kit of KITS) {
     has(sr, "An old duplicate the diff didn't introduce → suggest `/refactor duplicates`"),
     sr.includes('rewrite only the bookmark line') ? 'stale: bookmark-only rewrite' : true));
   specCheck(`${kit.name}/branch-review: green: record line says who writes it`, () =>
-    has(brs, 'written by /self-review or /branch-review, whichever last ran a green full suite'));
+    has(brs, kit.name === 'claude' ? 'written by the gate that ran the suite' : 'written by /self-review or /branch-review, whichever last ran a green full suite'));
   for (const [label, t] of [['branch-review', brs], ['refactor', rf], ['release', rl]]) {
     specCheck(`${kit.name}/${label}: worker guardrail overrides the Surgical dev rule`, () =>
       has(t, '(for workers this overrides the Surgical dev rule)'));
@@ -1426,7 +1426,7 @@ for (const kit of KITS) {
     has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
     ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
   specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
-    has(sr, 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
+    has(sr, kit.name === 'claude' ? 'gate rule per `DEV_RULES` and `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN' : 'Same rule as `/branch-review` Stage 1: `REUSE` → cite the green sha and totals; `RUN'),
     has(rl, 'Same rule as `/branch-review` Stage 1: `REUSE` → covered, do not re-run'),
     has(sr, "Append in `/branch-review`'s ledger format (its header and dedupe rule)"),
     sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,

@@ -79,9 +79,10 @@ match the two strings.
   uncommitted until after the release.
 - **`tests:` line** — run this line as printed. Same rule as `/branch-review`
   Stage 1: `REUSE` → covered, do not re-run; `RUN (…)` (or build part missing, or
-  `NOT RUN`) → run the project's real test command once, and build if there is
-  one, in Phase 1 and cite command + exit code, and copy the printed reason into the `tests:` line; any non-zero exit → **stop**;
-  a failure that passes when run alone
+  `NOT RUN`) → run the full suite once, and build if there is one, in Phase 1,
+  cite command + exit code, copy the printed reason into the `tests:` line,
+  and on exit 0 write `green:` per `/branch-review` Stage 1; any non-zero exit
+  → **stop**; a failure that passes when run alone
   is re-run alone before it is called real. The record says `reused`
   but this prints a line starting `RUN (` → **stop**, unsafe. The record says `ran` but this
   prints `REUSE` → one-line warning only.
