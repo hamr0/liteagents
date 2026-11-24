@@ -80,7 +80,7 @@ _/remember syncs the block between the markers below into each repo's config (CL
 
 **POC first, one module at a time.** Aim each POC at its riskiest assumption (module 0 = go/no-go); the test must be able to fail. Prove, don't assert — measure anything you call cheap or fast. No fitting to pass. A module works alone, then connects to what's built, before the next starts. Never ship the POC.
 
-**Dependencies, simplest first.** Vanilla language → standard library → external, only when stdlib can't do it in <100 lines. External deps must be maintained, lightweight, widely adopted; security-critical code always gets a vetted library. Open-source only, no vendor lock-in.
+**No dependencies by default.** Start with the language itself, then its standard library. Add an outside package only when the standard library can't do it in under 100 lines, and say why. Outside packages must be maintained, lightweight, widely used and open-source — no vendor lock-in. Security code (crypto, auth, sanitizing) always uses a vetted library.
 
 **Simple > clever.** Fewer moving parts, fewer deps, less config; readable by a junior beats elegant. Call out overcomplication before building. Express over NestJS, Flask over Django, unless the project needs the framework.
 
