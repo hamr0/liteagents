@@ -25,7 +25,7 @@ Every task runs through three layers. Do not skip ahead to code.
    - **Scope is the exception — ask it wide.** "What is this *not* doing?" is worth asking about the whole build, not just module 0. Out of scope is the cheapest answer I can give you and the one that saves the most build.
    - **Floor: one round is not an interview.** Never start building while a prerequisite of the go / no-go is still assumed. **Done** = the go / no-go and its 1–2 capabilities are settled and the scope boundary is drawn; everything still loose is an **Open question** in the PRD, never a silent assumption.
 
-   Restate what you heard and get my explicit sign-off on the load-bearing decisions *before* you execute. A wrong assumption caught here costs a sentence; caught after building costs the build.
+   Restate what you heard and get my explicit sign-off on the load-bearing decisions *before* you execute.
 
    Write the outcome down as a **PRD**. A PRD is a portal, not a deliverable — where the conversation starts and the doc every POC refines. Minimum content, whatever the form:
    - **Problem & goal** — what we're solving and why now
@@ -41,8 +41,6 @@ Every task runs through three layers. Do not skip ahead to code.
 **Execution loop — work the way a program runs:**
 1. **Selection** — every POC is a branch: pass → next module, fail → back to the PRD as a spec change.
 2. **Iteration** — repeat POC → update PRD → next POC until the go/no-go is answered; the loop invariant is *everything built so far still works on its own*.
-
-> The model is brilliant at execution and blind to intent. You can outsource the typing; you cannot outsource the understanding. Surface assumptions — don't bury them.
 
 ---
 
@@ -153,7 +151,7 @@ particular toolchain spells it.
 - **Reads like a spec.** Someone new to the code should learn what the feature does by reading it
 - **Self-contained.** Sets up its own state, runs, cleans up. No ordering dependencies, and no reliance on project directories, user config, or ambient environment
 - **Deterministic.** Flaky tests erode trust. A dependency on timing, network, or global state is a defect in the test
-- **Never sleep for a condition — poll for it.** Sleeping then asserting is wrong at every value: too short and it flakes under load, too long and the suite drags, and a real async bug looks identical to a guess that was too short. Wait on the condition itself, re-reading the state *inside* the loop, with a timeout that names what it was waiting for. A fixed delay is only correct once you have waited for the triggering condition, the delay comes from a documented interval rather than a guess, and a comment says why
+- **Never sleep for a condition — poll for it.** Sleeping then asserting is wrong at every value. Wait on the condition itself, re-reading the state *inside* the loop, with a timeout that names what it was waiting for. A fixed delay is only correct once you have waited for the triggering condition, the delay comes from a documented interval, and a comment says why
 
 ### Anti-patterns
 
@@ -180,12 +178,12 @@ These are the failure classes that show up in nearly every quickly-built app, re
 
 Throwaway POCs are exempt while you validate logic (per [Dev Rules](#dev-rules): POC first) — hardcoded values and missing error handling are fine in a 15-minute spike. The moment a POC graduates to a real build, every applicable invariant becomes mandatory. The one item that holds even for a POC: never commit a real secret.
 
-1. **No secrets in the repo.** Keys, tokens, and credentials load from the environment / a secret store at runtime — never hardcoded, never logged. `.env` is gitignored; only a value-less `.env.example` is committed. Scan history before trusting a repo. One leaked key is a breached database or a runaway bill.
+1. **No secrets in the repo.** Keys, tokens, and credentials load from the environment / a secret store at runtime — never hardcoded, never logged. `.env` is gitignored; only a value-less `.env.example` is committed. Scan history before trusting a repo.
 2. **Scope every data access to its owner.** Each record read or written is constrained to the requesting principal — via DB-level rules (RLS / row policies) and/or an application-layer ownership check. Never trust a client-supplied id without a gate. If the storage layer offers row-level policies, enabling them is not optional, and "on but too broad" still fails.
-3. **Bound every reachable endpoint.** Rate-limit public routes AND authenticated mutation/write routes AND abuse-prone inbound paths (mail, webhooks). An unbounded route is a free DoS and bill amplifier — a script in a loop should not be able to take the service down.
+3. **Bound every reachable endpoint.** Rate-limit public routes AND authenticated mutation/write routes AND abuse-prone inbound paths (mail, webhooks).
 4. **Handle the unhappy path.** Every IO / network / DB / third-party call has an explicit failure path. Nothing fails silently. Internal detail (stack traces, queries, secrets) never reaches the client. Async/background work carries its own catch. A warning nobody has to act on is not a check — either it halts / reds the run, or it is counted and surfaced where a human reads it. Record what you asked a dependency for and what you got back. Read and record the stop/finish reason of every external or model call — a cut-off answer (length/max_tokens) is never the same as no answer.
 5. **Authorization is not authentication.** "Logged in" never implies "allowed". Every state-changing or privileged action checks ownership AND role/permission. If swapping an id in a request would expose or mutate someone else's data, it's a bug — return 403.
-6. **Data access scales.** No queries inside loops, no per-render repeated round-trips, indexes on every filtered/joined column. Code that's fine at 10 users and collapses at 1,000 is a latent outage.
+6. **Data access scales.** No queries inside loops, no per-render repeated round-trips, indexes on every filtered/joined column.
 
 Also hold the line on:
 

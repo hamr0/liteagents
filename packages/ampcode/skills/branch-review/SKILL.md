@@ -20,7 +20,7 @@ Only **Critical** and **High** findings block the merge. Everything else is appe
   workers this overrides the Surgical dev rule).
 - **The worker does the work itself — no sub-spawning.** Everything it reports has to be something it read, ran, or grepped with its own tool calls; a relayed "I executed X" is hearsay.
 - **No edits — three exceptions.** You have no authorization to change code, even for a finding you are certain about. Report it. The only files you may write are `.amp/remember/fix-ledger.md` (append bullets; never rewrite or delete), `.amp/remember/last-review.md` (overwrite; the review record described at the end of this file), and the doc files Stage 4 touches — edited and then committed by that stage alone, never for code, skills, config, or tests.
-- **Prove it with two checks, because neither sees what the other does.** `git status --porcelain`, at start and again before you report, proves the tree is clean — no code or config changed, and, when Stage 4 ran (review settled), that its doc edits landed as the last act before you report. It cannot police your own two `.amp/` writes (`.amp/` is normally gitignored), so also hash the files there before you start and again before you report:
+- **Prove it with two checks, because neither sees what the other does.** `git status --porcelain`, at start and again before you report, must show the tree clean (Stage 4's doc edits committed as the last act). `.amp/` is gitignored, so also hash the files there before you start and again before you report:
   ```
   find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
@@ -82,16 +82,14 @@ was actually read rather than assuming.
 **Stage 2 (security) always runs full, at every level.**
 
 ## Stage 1 — General review
-The diff is the subject, but **read the whole file around every hunk** — a
-hunk-only read cannot see that a caller further down the same file is now
-wrong. For multi-commit ranges, skim `git log <range>` for intent before
+The diff is the subject, but **read the whole file around every hunk**. For multi-commit ranges, skim `git log <range>` for intent before
 judging.
 
 **Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the typecheck/build yourself, and the test suite once per code change by running this line as printed — `REUSE` → don't run it, cite the green sha and totals; `RUN` → run the full suite once and reuse that result. Docs-only changes (`docs/`, root `*.md`) never trigger a re-run. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden. Cite the command and its exit code.
 ```
 f=.amp/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
 ```
-A suite that ran and exited 0 on a clean tree also sets the record's `green:` line. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline — `$?` after a pipe is the last element's status, so piping into `tail` reports `0` for a suite that failed. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
+A suite that ran and exited 0 on a clean tree also sets the record's `green:` line. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
 
 - **Bugs and correctness.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases, error handling, type / contract
@@ -106,8 +104,7 @@ A suite that ran and exited 0 on a clean tree also sets the record's `green:` li
   <base-sha>:<path>`, run the test against that copy, and watch it go red. Do
   this **without dirtying the branch** — write the old version to a temp
   location outside the repo; the tree must still be clean at exit. A test that
-  passes against both the buggy and the fixed source is a tautology and proves
-  nothing. Flag every one you find, and say so explicitly when the tests are
+  passes against both the buggy and the fixed source is a tautology. Flag every one you find, and say so explicitly when the tests are
   the branch's only evidence for its claims. **Required, every test file the
   diff adds or changes — one red run per file is enough; checking a sample of
   the files is a skip.** Count them as `fail-first N/M files` on the
@@ -178,7 +175,7 @@ correct.
 Then the findings, ordered most severe first.
 
 ### 🚨 Critical / High (blocks merge)
-A **reproduced** failure only: a failing test, a broken build, a security exposure, or a bug with a written failure scenario you confirmed in stage 3. A finding about **style, wording or structure** is **never** a blocker — including in a doc or spec. But prose is not automatically harmless: in a repo whose deliverable *is* a specification, a **normative requirement stated two incompatible ways** is a reproduced defect, because two conforming implementations built from it diverge. Judge by whether a behaviour changes, not by whether the file holds code — and judge it **per finding, not per repo**, since a diff mixing code and specification is the normal case. A finding already dismissed with evidence in this project's stash or memory cannot come back at a higher severity without **new** evidence — check before escalating.
+A **reproduced** failure only: a failing test, a broken build, a security exposure, or a bug with a written failure scenario you confirmed in stage 3. A finding about **style, wording or structure** is **never** a blocker — including in a doc or spec. But prose is not automatically harmless: in a repo whose deliverable *is* a specification, a **normative requirement stated two incompatible ways** is a reproduced defect. Judge by whether a behaviour changes, not by whether the file holds code — and judge it **per finding, not per repo**, since a diff mixing code and specification is the normal case. A finding already dismissed with evidence in this project's stash or memory cannot come back at a higher severity without **new** evidence — check before escalating.
 
 ### Ledger (non-blocking — medium / low)
 Not in the report. **Append** each one as a single bullet to
@@ -208,9 +205,9 @@ Not in the report. **Append** each one as a single bullet to
 
 **A ledger bullet's failure scenario is subject to stage 3 like any other.** Either confirm it, or prefix the scenario with `UNVERIFIED:` so `/refactor` retests before acting.
 
-The **snippet is the anchor**: 20–60 verbatim characters from the line, unique enough for `git grep -F` to find it after lines shift. No line numbers, no TODO comments in code — the ledger is the single writer. Before appending, dedupe with **plain `grep -F "<snippet>" .amp/remember/fix-ledger.md`** (plain `grep`, never `git grep` — the ledger is gitignored, so `git grep` says "not found" every time); if it is already there, skip it. Do not touch existing bullets.
+The **snippet is the anchor**: 20–60 verbatim characters from the line, unique enough for `git grep -F` to find it after lines shift. No line numbers, no TODO comments in code. Before appending, dedupe with **plain `grep -F "<snippet>" .amp/remember/fix-ledger.md`** (plain `grep`, never `git grep` — the ledger is gitignored); if it is already there, skip it. Do not touch existing bullets.
 
-**A bullet you disprove is deleted, not annotated** — if an existing bullet's finding no longer holds, or never did, remove the line and say why on the `liveness:` line (the one case a reviewer may remove a line; same judgement as `/refactor`'s revalidation).
+**A bullet you disprove is deleted, not annotated** — if an existing bullet's finding no longer holds, or never did, remove the line and say why on the `liveness:` line.
 
 Each blocking finding: **Location** (`file:line`) · **What's wrong** ·
 **Failure scenario** (inputs/state → result) · **Why it matters** ·
@@ -289,7 +286,7 @@ blocker; the liveness sweep's counts) and `n/a: first review` otherwise.
 
 `blockers: none` when ready; otherwise one line per blocker, nothing more — reasoning goes in the report, non-blocking findings in the ledger.
 
-**There is no override field, no `verdict: overridden`** — releasing over `blocked` is a live decision at `/release`'s hand-back, in conversation.
+**There is no override field, no `verdict: overridden`**
 
 End with:
 - **Reviewed at HEAD `<sha>` on `<branch>`, target `<range or path>`; tree
@@ -304,6 +301,6 @@ End with:
   An empty diff is `none`; `all on docs:` only when the diff is non-empty and every path is on the record's `docs:` line.
 - `liveness: <N> checked, <K> dead: <file · snippet, ...> | n/a: first review · disproved: <bullet — reason, ...> | none`
 - One-line verdict: **Ready to merge? Yes / No / Not until these are fixed.**
-- **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review; nobody fills the gap from memory.
+- **A run that produces no record is not a review** — silence is never a pass. `/release` treats a missing record as no review.
 - **Escalate to the orchestrator** with the findings. It decides what gets fixed and by whom. Say plainly what you could not verify.
 

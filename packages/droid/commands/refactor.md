@@ -15,14 +15,11 @@ below — it is on by default, not a separate command.
   workers this overrides the Surgical dev rule).
 - **The worker does the work itself — no sub-spawning.** Every edit it reports
   and every test run it cites is one it made or ran with its own tool calls.
-- **The HITL gates below belong to the orchestrator, not the worker.** A
-  subagent cannot hold a conversation with the user, so it cannot run a gate
-  that ends in *stop and ask*. When one trips — a failing test, a crossed
-  public API boundary, a change bigger than the bullet asked for — the worker
-  **stops there and hands the situation back**, with the options and its
-  reasoning but no choice made. The orchestrator asks. A worker that picks
-  revert / patch / update-test on the user's behalf has answered a question it
-  was never allowed to ask.
+- **The HITL gates below belong to the orchestrator, not the worker.** When one
+  trips — a failing test, a crossed public API boundary, a change bigger than
+  the bullet asked for — the worker **stops there and hands the situation
+  back**, with the options and its reasoning but no choice made. The
+  orchestrator asks.
 - **Edit only the picked item** (a surviving ledger bullet or a picked
   duplicate group). Ledger mode's scope is the bullets that survive
   revalidation, one change per bullet — not the neighbouring code, not the
@@ -31,18 +28,14 @@ below — it is on by default, not a separate command.
 - **Prove the blast radius with two checks, because neither sees what the
   other does.** `git status --porcelain` at exit must list only files the
   picked item named — that is this command's scope guarantee, and unlike
-  `/branch-review` it is not expected to be empty. It cannot police the
-  memory directory: `.factory/` is normally gitignored, so porcelain stays
-  empty whether you deleted a fixed bullet, wrote nothing, or overwrote
-  `MEMORY.md`. So also hash the files there before you start and again before
-  you report:
+  `/branch-review` it is not expected to be empty. `.factory/` is gitignored, so also
+  hash the files there before you start and again before you report:
   ```
   find .factory/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
   and show the comparison: in ledger mode only `fix-ledger.md` may differ; in
-  duplicates mode nothing may differ. `last-review.md` in
-  particular is `/branch-review`'s to write —
-  a fixer that touches it forges the gate that judges its own work.
+  duplicates mode nothing may differ. `last-review.md` is
+  `/branch-review`'s to write.
 
 ## Ledger mode — `$ARGUMENTS` empty
 Work through `.factory/remember/fix-ledger.md`, the non-blocking findings
@@ -79,13 +72,9 @@ refactor and how to close each item.
    grep -cE '@ [0-9a-f]{7,40} · idea$' .factory/remember/fix-ledger.md
    ```
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
-   `/branch-review`** on this branch — ledger mode is a fixer, not a review,
-   and its diff gets the ordinary gate. That is a sentence you *say*, not a
-   sequence you *run*. They are two separate calls and both are the user's:
-   an answer of "commit", "yes" or "go" authorizes the commit and nothing
-   after it. Never start `/branch-review` off the back of it. Observed in the
-   field: a run chained the review onto the owner's "commit" and the owner
-   objected.
+   `/branch-review`** on this branch Say it, never run it: they are two
+   separate calls and both are the user's — "commit", "yes" or "go"
+   authorizes the commit and nothing after it.
 
 ## Duplicates mode — `$ARGUMENTS` is `duplicates [path]`
 Merges functions that do the same job. `[path]` bounds the search, else the
@@ -116,9 +105,8 @@ this; so is `duplicates` mode. When `$ARGUMENTS` names a specific file or functi
 skip this too. When it names a whole area ("the auth module", "clean this
 up"), let
 recent change decide where inside it to start: `git log --oneline -- <path>`
-and weight the files that keep coming back. A refactor is an investment in the
-*next* change to that code, so code nobody edits pays the worst return — say
-which files you picked and what churn you saw.
+and weight the files that keep coming back. Say which files
+you picked and what churn you saw.
 
 **Do not edit yet.** After weighting by churn, list candidates — file(s) ·
 what is wrong · the change proposed · strength (strong / worth exploring /
@@ -133,10 +121,8 @@ edited.
 - Better naming
 - **Shrink the interface, not the pieces.** A caller should have to learn
   *less* after the refactor than before — fewer entry points, fewer
-  parameters, fewer ordering rules and error modes to keep in mind. Splitting
-  one messy function into five that the caller must now sequence itself makes
-  the code worse: the same complexity, spread thinner, behind a bigger surface.
-  Push complexity *inward*; private helpers inside the thing are fine, they are
+  parameters, fewer ordering rules and error modes to keep in mind. Push
+  complexity *inward*; private helpers inside the thing are fine, they are
   not part of what a caller must learn. This targets the surface callers
   *inside the change* see — narrowing something outside callers depend on is an
   API change, which is the public-API gate below, not a free win.
@@ -160,21 +146,18 @@ When `$ARGUMENTS` names a target, look for wasted work as well as messy
 work: time and space complexity, N+1 queries, I/O inside a loop, needless
 allocations, the same value recomputed repeatedly.
 
-**Ground every finding before you touch it.** Performance claims are easy
-to invent. A finding counts as **confirmed** only with at least one of:
+**Ground every finding before you touch it.** A finding counts as **confirmed** only with at least one of:
 - a profile, benchmark or log line showing call frequency or duration,
 - the path sits on an obvious hot loop or per-request handler with real
   volume,
 - the user supplied evidence in the request.
 
 Without one of those it is **uncertain — report it, do not optimise it.**
-Speculative optimisation is scope creep with a stopwatch.
 
 Fix confirmed findings under the same constraints as any other refactor:
 minimal change, one obvious shape, no behaviour change, no API change.
 After each such edit, re-read the changed region and confirm it still
-computes the same answer — a perf change that quietly alters semantics is
-the worst kind. Report per finding: **location** (`file:line`), **cost**
+computes the same answer Report per finding: **location** (`file:line`), **cost**
 (concrete — "N+1 over ~1k rows on every page load", not "could be
 faster"), **change**, **expected improvement**, **trade-off**
 (readability / memory / consistency).
@@ -191,9 +174,6 @@ as a new bullet, like any other side finding.
 Explain each change.
 
 ## After the refactor — verify it didn't break anything
-
-"Existing tests must pass" is the load-bearing constraint, and the only
-honest way to know is to run them.
 
 1. **Detect the project's test command** (look for `package.json`
    scripts, `pytest.ini` / `pyproject.toml`, `go.mod`, `Cargo.toml`,

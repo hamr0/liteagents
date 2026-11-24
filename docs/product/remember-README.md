@@ -404,3 +404,20 @@ and is due at >=5 changed docs.
 **Step-8 slot lines.** Every required step has a report line filled with its result or
 `NOT RUN: <reason>`, so a skip shows. The tests pin the phrases, which proves the slot is in the
 spec in every kit, not that a worker fills it.
+
+---
+
+## Why AGENT_RULES.md reads the way it does
+
+- The model is brilliant at execution and blind to intent: you can outsource the typing, not the
+  understanding, so the spec interview surfaces assumptions rather than burying them. A wrong
+  assumption caught there costs a sentence; caught after building it costs the build.
+- Sleeping then asserting in a test is wrong at every value: too short flakes under load, too
+  long drags the suite, and a real async bug looks identical to a guess that was too short.
+- The security invariants name their cost so the rule is not read as style: one leaked key is a
+  breached database or a runaway bill, an unbounded route is a free DoS and bill amplifier, and
+  code fine at 10 users that collapses at 1,000 is a latent outage.
+- Restatements of the `DEV_RULES` block (POC first, prove don't assert, no fitting to pass, one
+  module at a time, the dependency order) live once, in that block. The long-form sections keep
+  only what the block lacks: the three-part check on a POC's own test, aiming the POC at the
+  load-bearing claim, graduation, and what "maintained" and "lightweight" mean concretely.

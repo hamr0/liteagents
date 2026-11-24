@@ -32,8 +32,8 @@ record (`/self-review` is its only writer):
 ```
 grep '^self-review-sha:' .opencode/remember/last-review.md || grep '^debrief-sha:' .opencode/remember/last-review.md
 ```
-No `self-review-sha:` line → the old `debrief-sha:` name, once (that is what
-the `||` does; the new name wins if both exist). Fails either check, starts
+No `self-review-sha:` line → the old `debrief-sha:` name, once; the new name
+wins if both exist. Fails either check, starts
 with `-`, or the third exits 0 (an ancestor of `main`'s merge-base is from an
 already-merged branch) → **no bookmark**:
 ```
@@ -79,8 +79,8 @@ scoped:
   PRD/issue/spec exists (e.g. `docs/product/prd.md`, issue refs in commit
   messages), quote its line for each missing requirement or scope creep.
 
-**Report opens with five lines, always filled** (so "checked, found nothing"
-never looks like "skipped"); tag every item `nit`/`change`/`idea`:
+**Report opens with five lines, always filled**; tag every item
+`nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
 full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
@@ -90,9 +90,8 @@ reuse: <N new functions/classes> · <name> → <search command> → <existing na
 ```
 
 **The bar — Fix now and Later alike:** every item needs one concrete failure
-sentence — specific input/state → what breaks. "Will mislead the next
-reader" is not one: no input, no state, no break named. Can't write it →
-drop it, count only (`dropped: N`). **Carve-out:** a Cleanup item may
+sentence — specific input/state → what breaks. Can't write it → drop it,
+count only (`dropped: N`). **Carve-out:** a Cleanup item may
 replace the failure sentence with the rule it breaks plus the `file:line`(s)
 that prove it; Cleanup items always go in **Later**, never **Fix now**,
 unless they do carry a real failure sentence. Each item is one kind, counted
@@ -110,15 +109,14 @@ recommendation is allowed only marked as yours, separate from the worker's
 items. When you relay the report, the **orchestrator** (worker's turn is over
 by then) appends **every anchorable** item, both piles, to `.opencode/remember/fix-ledger.md`
 right away, `/branch-review`'s format (header: its Ledger section), tagged `nit`/`change`/`idea` (Underspecced
-items → `idea`: missing, an option not debt), bullet text verbatim. Bullet shape:
+items → `idea`), bullet text verbatim. Bullet shape:
 ```
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit
 ```
 **Stale header:** if ``grep -F '`idea` =' .opencode/remember/fix-ledger.md`` finds nothing, replace the header block with the current one from `/branch-review`'s Ledger section; bullets are never touched. Then ask
 which, if any, to remove: no answer → they all stay; remove only on the
 user's explicit say-so naming the items. Items the user fixes now are not
-removed by hand — `/refactor`'s revalidation drops them once the finding no
-longer holds.
+removed by hand; `/refactor` drops them.
 **One path per bullet:** anchor the first file, name the others in the
 scenario slot. **One snippet per item** (a second item on the same line
 anchors a different nearby line). A corrected `file:line` is noted as
@@ -130,8 +128,7 @@ ledger entry, report it as "your call" instead — the anchor rule wins over
 `ledger: <N> items → <A> appended, <D> already there, <Y> your call`
 
 **Last act (no-hash mode only; hash/range mode leaves the bookmark) — rewrite only
-the bookmark and `green:` lines**, never another line in the file. Write it when you relay the report — it records what was checked and does not
-wait for the user's pick.
+the bookmark and `green:` lines**, never another line in the file. Write it when you relay the report, not after the user's pick.
 It also drops any old `debrief-sha:` line:
 ```
 F=.opencode/remember/last-review.md
@@ -147,8 +144,7 @@ the same file, the same way (replace, never duplicate; never on `reused`):
 `green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**
-never counts; fixing a Later item anyway is new uncommitted work the next
-run checks like any other, not a re-run trigger. A third round with new
+never counts. A third round with new
 Fix-now caused by the previous fix → stop: "redesign, don't patch again."
 **Not a gate:** `/branch-review` and `/release` don't require this to have
 run — close with "commit, then `/branch-review`," a sentence to **say**, never

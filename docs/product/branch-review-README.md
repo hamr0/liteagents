@@ -149,6 +149,16 @@ each red was a failed assertion or a load failure against the old source (weaker
 HEAD (outside the repo) and reports the assertion reds. The report also says explicitly when tests
 are the branch's only evidence for its own claims.
 
+**One suite per code change.** Stage 1 runs the decider line `/self-review` and `/release`
+also carry (the test-reuse suite asserts it byte-identical across the three): it reads the
+record's `green:` line and prints `REUSE` (a full green suite already exists at an ancestor
+and only `docs/` and root `*.md` changed since — cite its sha and totals, run nothing) or
+`RUN` (run the full suite once and reuse that result). Docs-only changes never trigger a
+re-run; a failure that passes when run alone is re-run alone before it is called real, and
+reported either way. A suite that ran and exited 0 on a clean tree sets the record's `green:`
+line. Structure checks against the `DEV_RULES` block and the `reuse:` line belong to
+`/self-review`, not here.
+
 ### Stage 2 — Security (always full)
 `/branch-review` doesn't reimplement a checklist; it delegates. It locates and reads the
 installed `security` spec (`security/SKILL.md` or `security.md`, whichever the tool ships)
@@ -619,3 +629,26 @@ sequence, including the ones typed by hand.
 4. The fix commit is reported (2 fixed, 2 dropped, 0 left), then `/branch-review` reviews
    the `chore/fix-ledger` branch like any ordinary change before it merges.
 
+---
+
+## Why the spec reads the way it does
+
+- **Read the whole file around every hunk.** A hunk-only read cannot see that a caller
+  further down the same file is now wrong.
+- **Exit codes are read off the bare command.** `$?` after a pipe is the last element's
+  status, so piping into `tail` reports `0` for a suite that failed.
+- **Proof checks.** `git status --porcelain` cannot see the review's own `.claude/` writes
+  because `.claude/` is normally gitignored; hashing the directory covers that, and the
+  `git diff --name-only` check catches an edit that escaped Stage 4's scope.
+- **A spec's normative requirement stated two incompatible ways is a blocker** because two
+  conforming implementations built from it diverge.
+- **The ledger is the single writer of anchors.** No line numbers and no TODO comments in code;
+  a bullet it disproves is deleted, the one case a reviewer may remove a line, on the same
+  judgement as `/refactor`'s revalidation. `git grep` is wrong for the dedupe because the
+  ledger is gitignored, so it says "not found" every time.
+- **No override field.** Releasing over `blocked` is a live decision at `/release`'s
+  hand-back, in conversation.
+- **A run that produces no record is not a review.** `/release` treats a missing record as no
+  review and nobody fills the gap from memory.
+- **A test that passes against both the buggy and the fixed source is a tautology** and proves
+  nothing, hence the red run against the pre-change source.
