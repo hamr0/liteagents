@@ -1380,6 +1380,47 @@ for (const kit of KITS) {
 }
 
 // ---------------------------------------------------------------------------
+// h. One-rule-one-reading fixes: refactor's scope covers duplicates mode, the
+//    bookmark rewrite names the green: line, AGENT_RULES states one order and
+//    no self-contradicting gate, worker guardrails override Surgical, /release
+//    no longer names a record-less review or migration history.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- normative single-reading pins --${colors.reset}`);
+for (const kit of KITS) {
+  const sr = flat(read(kit.selfReview)), brs = flat(read(kit.branchReview));
+  const rf = flat(read(kit.refactor)), rl = flat(read(kit.release));
+  const rulesPath = kit.name === 'claude' ? 'packages/claude/skills/remember/AGENT_RULES.md'
+    : kit.name === 'ampcode' ? 'packages/ampcode/skills/remember/AGENT_RULES.md'
+    : kit.name === 'droid' ? 'packages/droid/commands/remember/AGENT_RULES.md'
+    : 'packages/opencode/command/remember/AGENT_RULES.md';
+  const ar = flat(read(rulesPath));
+  specCheck(`${kit.name}/refactor: scope is the picked item; duplicates mode takes ledger steps 1 and 6`, () => allOf(
+    has(rf, '**Edit only the picked item** (a surviving ledger bullet or a picked duplicate group)'),
+    has(rf, 'in duplicates mode nothing may differ'),
+    has(rf, "and so do ledger mode's step 1 (tree clean, not on `main`) and step 6 (hand back: commit, then `/branch-review` — say it, never run it)"),
+    has(rf, "A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding"),
+    rf.includes('Edit only what a surviving bullet names') ? 'stale: surviving-bullet-only scope' : true));
+  specCheck(`${kit.name}/self-review: bookmark rewrite names both lines it writes; reuse routes to /refactor duplicates`, () => allOf(
+    has(sr, 'rewrite only the bookmark and `green:` lines'),
+    has(sr, "An old duplicate the diff didn't introduce → suggest `/refactor duplicates`"),
+    sr.includes('rewrite only the bookmark line') ? 'stale: bookmark-only rewrite' : true));
+  specCheck(`${kit.name}/branch-review: green: record line says who writes it`, () =>
+    has(brs, 'written by /self-review or /branch-review, whichever last ran a green full suite'));
+  for (const [label, t] of [['branch-review', brs], ['refactor', rf], ['release', rl]]) {
+    specCheck(`${kit.name}/${label}: worker guardrail overrides the Surgical dev rule`, () =>
+      has(t, '(for workers this overrides the Surgical dev rule)'));
+  }
+  specCheck(`${kit.name}/release: no /code-review fallback, no migration-history sentences`, () => allOf(
+    ...['/code-review', "predates this file's introduction", 'A record from before these lines existed']
+      .map(p => rl.includes(p) ? `stale: ${p}` : true)));
+  specCheck(`${kit.name}/AGENT_RULES: one review order, /self-review recommended not required, /branch-review reports never fixes`, () => allOf(
+    has(ar, 'propose `/self-review`, then `/branch-review`, then `/release`, in that order'),
+    has(ar, 'recommended, not required'),
+    has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
+    ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);

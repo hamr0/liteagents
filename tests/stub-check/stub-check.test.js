@@ -365,14 +365,39 @@ const block = (body) => `${DEV_START}\n${body}\n${DEV_END}`;
 }
 
 {
-  const unmanaged = CURRENT + '\n## Dev Rules (mandatory)\n\nhand-written\n';
+  // An unmanaged section outside the markers is REPLACED, up to the next ## heading.
+  const before = CURRENT + '\n## Dev Rules (mandatory)\n\nhand-written\n\n### sub\n\nmore\n\n';
+  const after = '## Next section\n\nkeep me ## byte-identical\n';
+  const unmanaged = before + after;
   const repo = withRules(repoWith(unmanaged));
   const r = run(repo);
-  check('dev rules: unmanaged heading -> one-line notice naming it',
-    /unmanaged "## Dev Rules \(mandatory\)"/.test(r.stdout) && r.stdout.split('\n').length === 1,
-    JSON.stringify(r.stdout));
-  check('dev rules: unmanaged heading -> config untouched',
-    read(repo) === unmanaged && !fs.existsSync(BAK(repo)));
+  const out = read(repo);
+  check('dev rules: unmanaged section -> one line naming what was replaced',
+    /unmanaged "## Dev Rules \(mandatory\)"/.test(r.stdout) && /replaced/.test(r.stdout)
+      && r.stdout.split('\n').length === 1, JSON.stringify(r.stdout));
+  check('dev rules: unmanaged section swapped for the managed block, old .bak kept',
+    out === CURRENT + '\n' + block(DEV_BODY) + '\n\n' + after
+      && fs.existsSync(BAK(repo)) && fs.readFileSync(BAK(repo), 'utf8') === unmanaged,
+    JSON.stringify(out));
+  check('dev rules: text after the old section (next ## heading) survives byte-identical',
+    out.endsWith(after) && !out.includes('hand-written') && !out.includes('### sub'));
+  const r2 = run(repo);
+  check('dev rules: second run after replacing is silent, no change', r2.stdout === '' && read(repo) === out);
+}
+
+{
+  // Section ending at a marker or EOF.
+  const atMarker = '# p\n\n## Dev Rules\n\nold\n\n<!-- MEMORY:START -->\n@.claude/remember/MEMORY.md\n<!-- MEMORY:END -->\n';
+  const repo = withRules(repoWith(atMarker));
+  run(repo);
+  check('dev rules: unmanaged section ending at a marker stops there',
+    read(repo) === '# p\n\n' + block(DEV_BODY) + '\n\n<!-- MEMORY:START -->\n@.claude/remember/MEMORY.md\n<!-- MEMORY:END -->\n',
+    JSON.stringify(read(repo)));
+  const atEof = '# p\n\n## Dev Rules\n\nold\n';
+  const repo2 = withRules(repoWith(atEof));
+  run(repo2);
+  check('dev rules: unmanaged section running to EOF is replaced',
+    read(repo2) === '# p\n\n' + block(DEV_BODY) + '\n', JSON.stringify(read(repo2)));
 }
 
 {

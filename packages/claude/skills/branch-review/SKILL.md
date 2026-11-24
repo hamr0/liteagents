@@ -20,7 +20,8 @@ Run this **before** `/release`, which refuses to run without a review at the cur
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
-  issue you noticed along the way.
+  issue you noticed along the way (for workers this overrides the Surgical dev
+  rule).
 - **The worker does the work itself — no delegation.** The review subagent must **not** spawn subagents of its own. Everything it reports has to be something it read, ran, or grepped with its own tool calls; a relayed "I executed X" is hearsay. (Same rule `/security` carries inside stage 2.)
 - **No edits — three exceptions.** You have no authorization to change code, even for a finding you are certain about. Report it. The only files you may write are `.claude/remember/fix-ledger.md` (append bullets; never rewrite or delete), `.claude/remember/last-review.md` (overwrite; the review record described at the end of this file), and the doc files Stage 4 touches — edited and then committed by that stage alone, never for code, skills, config, or tests.
 - **Prove it with two checks, because neither sees what the other does.** `git status --porcelain`, at start and again before you report, proves the tree is clean — no code or config changed, and, when Stage 4 ran (review settled), that its doc edits landed as the last act before you report. It cannot police your own two `.claude/` writes (`.claude/` is normally gitignored), so also hash the files there before you start and again before you report:
@@ -275,7 +276,7 @@ ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
-green: <this run's suite if it ran and exited 0 on a clean tree: full HEAD sha, command, exit 0, totals; else carried forward verbatim, or omitted if absent>
+green: <this run's suite if it ran and exited 0 on a clean tree: full HEAD sha, command, exit 0, totals — written by /self-review or /branch-review, whichever last ran a green full suite; else carried forward verbatim, or omitted if absent>
 ```
 
 Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the

@@ -318,7 +318,7 @@ reverted by hand.
 
 The one block whose content it owns is `DEV_RULES`: the dev rules live once, in `AGENT_RULES.md`, and
 are copied byte-for-byte into each repo's config, because a copy written once and never re-synced
-drifts (this repo's own CLAUDE.md had gone two rules stale).
+drifts (this repo's own CLAUDE.md had gone two rules stale). An unmanaged `## Dev Rules` section outside the markers is replaced by the managed block on the first run (config kept as `.bak`), up to the next `## ` heading, marker, or end of file.
 
 **Legacy migration.** Old `.claude/friction/` contents are discarded, not moved: friction
 regenerates all output every run, so stale copies carry no unique information and moving them

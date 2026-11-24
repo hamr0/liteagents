@@ -16,7 +16,8 @@ below — it is on by default, not a separate command.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a side
-  issue you noticed along the way.
+  issue you noticed along the way (for workers this overrides the Surgical dev
+  rule).
 - **The worker does the work itself — no delegation.** The fixer must **not**
   spawn subagents of its own. Every edit it reports, and every test run it
   cites, has to be one it made or ran with its own tool calls: a relayed "I
@@ -31,14 +32,14 @@ below — it is on by default, not a separate command.
   reasoning but no choice made. The orchestrator asks. A worker that picks
   revert / patch / update-test on the user's behalf has answered a question it
   was never allowed to ask.
-- **Edit only what a surviving bullet names.** Ledger mode's scope is the
-  bullets that survive revalidation, one change per bullet — not the
-  neighbouring code, not the formatting, not a second finding noticed on the
-  way past. Anything else goes back to the orchestrator to become a new
-  bullet.
+- **Edit only the picked item** (a surviving ledger bullet or a picked
+  duplicate group). Ledger mode's scope is the bullets that survive
+  revalidation, one change per bullet — not the neighbouring code, not the
+  formatting, not a second finding noticed on the way past. Anything else goes
+  back to the orchestrator to become a new bullet.
 - **Prove the blast radius with two checks, because neither sees what the
-  other does.** `git status --porcelain` at exit must list only files a
-  surviving bullet named — that is this command's scope guarantee, and unlike
+  other does.** `git status --porcelain` at exit must list only files the
+  picked item named — that is this command's scope guarantee, and unlike
   `/branch-review` it is not expected to be empty. It cannot police the
   memory directory: `.amp/` is normally gitignored, so porcelain stays
   empty whether you deleted a fixed bullet, wrote nothing, or overwrote
@@ -47,7 +48,8 @@ below — it is on by default, not a separate command.
   ```
   find .amp/remember -maxdepth 1 -type f -exec md5sum {} + | sort -k2
   ```
-  and show the comparison: only `fix-ledger.md` may differ. `last-review.md` in
+  and show the comparison: in ledger mode only `fix-ledger.md` may differ; in
+  duplicates mode nothing may differ. `last-review.md` in
   particular is `/branch-review`'s to write —
   a fixer that touches it forges the gate that judges its own work.
 
@@ -100,7 +102,8 @@ refactor and how to close each item.
 ## Duplicates mode — `$ARGUMENTS` is `duplicates [path]`
 Merges functions that do the same job. `[path]` bounds the search, else the
 repo. Everything else here (constraints, verification, HITL gates) still
-applies.
+applies, and so do ledger mode's step 1 (tree clean, not on `main`) and
+step 6 (hand back: commit, then `/branch-review` — say it, never run it).
 
 1. **Find, no edits (worker).** Groups of functions doing the same job: same
    name stem, same signature shape, or near-identical bodies. Grep by name,
@@ -115,6 +118,9 @@ applies.
    caller at the survivor, delete the rest, run the suite.
 4. **Never merge members whose behaviour differs.** Report the difference and
    leave them be.
+
+A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding, not
+this mode's.
 
 ## Where to look — broad targets only
 Empty `$ARGUMENTS` is ledger mode; the surviving bullets are the scope, so skip

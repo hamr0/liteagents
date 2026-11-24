@@ -75,7 +75,9 @@ scoped:
   diff; a write from a callback, thread or lifecycle event counts (one app
   writer racing a framework one is still two). Reuse — every new function or class
   gets a `reuse:` entry; an existing match must be reused or carry a stated
-  reason. Same for a new file or name. Changed
+  reason. Same for a new file or name. An old duplicate the diff didn't
+  introduce → suggest `/refactor duplicates`; a reuse item whose fix is a
+  merge goes there too, never to ledger mode (it refuses behaviour changes). Changed
   lines that trace to no request. Complexity, naming, duplication only when
   material. Performance (N+1, blocking calls in hot paths, unbounded loops)
   only with evidence.
@@ -137,7 +139,7 @@ ledger entry, report it as "your call" instead — the anchor rule wins over
 `ledger: <N> items → <A> appended, <D> already there, <Y> your call`
 
 **Last act (no-hash mode only; hash/range mode leaves the bookmark) — rewrite only
-the bookmark line**, never another line in the file. Write it when you relay the report — it records what was checked and does not
+the bookmark and `green:` lines**, never another line in the file. Write it when you relay the report — it records what was checked and does not
 wait for the user's pick.
 It also drops any old `debrief-sha:` line:
 ```

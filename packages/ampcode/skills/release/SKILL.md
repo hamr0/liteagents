@@ -21,7 +21,7 @@ first.
 - **Escalate, never assume.** Anything you cannot decide, cannot verify, or
   that this spec does not cover → **stop and report it to the orchestrator**
   (the main session). Never improvise, never widen scope, never fix a finding
-  you noticed along the way.
+  you noticed along the way (for workers this overrides the Surgical dev rule).
 - **Nothing leaves the machine.** No `git push`, no `gh`, no `npm publish`,
   under any circumstance — not even if every gate is green. You report the
   sequence; a human authorizes it.
@@ -60,11 +60,10 @@ orchestrator "did a review run?" puts the question to the one party with an
 incentive to say yes, so its word is not evidence — and neither is a SHA
 quoted from a chat message, which is the same claim in another costume and is
 gone after a compaction or a handover. Read the file; match the two strings.
-**No such file, or no `sha:` line in it = no review**, never a pass. A review
-that predates this file's introduction has no record, so it does not count.
+**No such file, or no `sha:` line in it = no review**, never a pass.
 
 - **No review**, or no recorded SHA obtainable → **stop**: "No review at
-  `<sha>`. Run `/branch-review medium` (or `/code-review medium`) first."
+  `<sha>`. Run `/branch-review medium` first."
 - **Stale** — recorded SHA ≠ `git rev-parse HEAD` → **stop** and ask for a
   re-review, **unless every file**
   in `git diff --name-only <recorded sha>..HEAD` is forgiven. **This overrides
@@ -106,7 +105,7 @@ that predates this file's introduction has no record, so it does not count.
   nonzero → **stop**: "review record lacks stage-2 evidence — re-run
   `/branch-review`". It needs all 11 `s2 <key>:` lines (each `ran:` or `N/A:`,
   never `NOT RUN` or an unfilled template) and a `sweep:` line that is not
-  `deferred`. A record from before these lines existed fails it — intended.
+  `deferred`.
   The keys are listed literally rather than derived: the security spec is not
   reliably readable from here, and a test pins this list to security's.
   ```

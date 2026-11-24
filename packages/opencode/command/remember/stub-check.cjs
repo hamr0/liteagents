@@ -37,8 +37,10 @@
  * no DEV_RULES pair, the block is inserted just before MEMORY:START (appended
  * when there is none). A differing block is replaced only after the config is
  * copied to <config>.bak (single file, overwritten, like sync-rules.cjs). An
- * unmanaged `## Dev Rules` heading outside the markers is reported and left
- * alone, and nothing is inserted next to it. Only this script writes the block.
+ * unmanaged `## Dev Rules` section outside the markers (heading up to the next
+ * `## ` heading, a marker, or EOF) is replaced by the managed block, same
+ * .bak; if a managed block already exists it is only reported. Only this
+ * script writes the block.
  *
  * Missing MEMORY / AGENT_RULES marker pairs are not this script's business —
  * step 5 creates them.
@@ -205,10 +207,10 @@ function check(repo) {
     const dev = blockRange(lines, DEV);
     const outside = lines.findIndex(
       (l, n) => /^##\s+Dev Rules\b/i.test(l) && !(dev && n >= dev.from && n < dev.to));
-    if (outside !== -1) {
+    if (outside !== -1 && dev) {
       notes.push(
         `${CONFIG_FILE}: unmanaged "${lines[outside].trim()}" (line ${outside + 1}) is outside the `
-        + `DEV_RULES markers — delete it and re-run so the managed block replaces it`);
+        + `DEV_RULES markers and a managed block already exists — delete the unmanaged one`);
     }
     if (dev) {
       if (lines.slice(dev.from, dev.to).join('\n') !== want.join('\n')) {
@@ -217,7 +219,17 @@ function check(repo) {
         changed = true;
         fixes.push(`${CONFIG_FILE}: DEV_RULES block replaced from ${RULES_REL} (previous config kept as ${CONFIG_FILE}.bak)`);
       }
-    } else if (outside === -1) {
+    } else if (outside !== -1) {
+      // The unmanaged section runs to the next `## ` heading, a marker, or EOF.
+      let end = lines.findIndex((l, n) => n > outside && (/^## /.test(l) || /^<!--\s*\S+:START\s*-->$/.test(l.trim())));
+      if (end === -1) end = lines.length;
+      while (end > outside + 1 && lines[end - 1].trim() === '') end--;   // keep the blank lines before what follows
+      const head = lines[outside].trim();
+      lines.splice(outside, end - outside, DEV.start, ...want, DEV.end);
+      backup = true;
+      changed = true;
+      fixes.push(`${CONFIG_FILE}: unmanaged "${head}" (lines ${outside + 1}-${end}) replaced by the DEV_RULES block (previous config kept as ${CONFIG_FILE}.bak)`);
+    } else {
       const at = lines.findIndex((l) => l.trim() === MEM.start);
       const block = [DEV.start, ...want, DEV.end, ''];
       if (at === -1) {
