@@ -56,8 +56,14 @@ Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced — the regression check is always the **FULL** suite, never
 scoped:
 - **Does it work?** Run the thing/tests now; cite the command and numbers.
-- **No regression?** Run the FULL suite, cite totals vs. the handoff baseline — no run
-  behind a claim counts as not checked.
+- **No regression?** One full suite per code change: run this line, as printed.
+  `REUSE` → don't run it; cite the green sha and totals. `RUN` → run the FULL
+  suite once, cite totals vs. the handoff baseline, reuse that result for every
+  later step. No run behind a claim counts as not checked. `docs/` and root
+  `*.md` changes never trigger a re-run. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden.
+  ```
+  f=.opencode/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
+  ```
 - **Cleanup?** Speculative code, an abstraction for one caller, redundant
   tests. Dead code — grep the symbol repo-wide before flagging. State
   ownership — two or more functions assigning the same field: name both
@@ -76,7 +82,7 @@ scoped:
 never looks like "skipped"); tag every item `nit`/`change`/`idea`:
 ```
 works: <command> exit <code> <totals> | NOT RUN: <reason>
-full-suite: <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
+full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
 cleanup: <N> items | none found: <what was checked, one phrase>
 ```
@@ -134,6 +140,10 @@ grep -vE '^(self-review|debrief)-sha:' "$F" > "$F.tmp"
 echo "self-review-sha: <full HEAD sha>" >> "$F.tmp"
 mv "$F.tmp" "$F"
 ```
+
+A full suite that **ran** and exited 0 on a clean tree also rewrites one line in
+the same file, the same way (replace, never duplicate; never on `reused`):
+`green: <full HEAD sha> <command> exit 0 <totals>`
 
 **Loop guard:** re-run after fixes until zero **Fix now** remain — **Later**
 never counts; fixing a Later item anyway is new uncommitted work the next

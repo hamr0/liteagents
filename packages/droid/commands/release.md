@@ -86,12 +86,16 @@ that predates this file's introduction has no record, so it does not count.
   `docs/`/root nor ever on `docs:` (`/branch-review` only appends to or prunes it, it
   never sweeps it). That is the rule working, not a case to carve out:
   re-review, or leave the ledger uncommitted until after the release.
-- **`tests:` line** — tests exit 0 **and** build exit 0 or `N/A: <reason>`
-  **and** recorded `sha:` = HEAD → covered, do not re-run. Otherwise (HEAD
-  moved past `sha:` by forgiven commits, line absent, build part missing, or
-  `NOT RUN`) → run the project's real test command, and build if there is
-  one, yourself in Phase 1 and cite command + exit code. Any non-zero exit →
-  **stop**.
+- **`tests:` line** — run this line as printed (docs-only = the same
+  `^(docs/|[^/]+\.md$)` as the stale-grep above). `REUSE` → covered, do not
+  re-run. `RUN` (or build part missing, or `NOT RUN`) → run the project's real
+  test command once, and build if there is one, yourself in Phase 1 and cite
+  command + exit code. Any non-zero exit → **stop**. The record says `reused`
+  but this prints `RUN` → **stop**, unsafe. The record says `ran` but this
+  prints `REUSE` → one-line warning only. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden.
+  ```
+  f=.factory/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
+  ```
 - **`coverage:` naming any stage `NOT RUN`** → **stop**. A `ready` from a run
   that skipped the security stage is not the same fact as one that did not,
   and this line is the only place the difference is visible to you.
@@ -120,7 +124,7 @@ bump commit it makes later cannot invalidate the review it just checked.
 Report this block, every field filled from what you ran (never "all checks
 passed"):
 ```
-sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>
+sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: REUSE|RUN · covered (reused <sha> <totals>) | ran <cmd> exit <code> <totals> · stale-grep: <output | empty>
 ```
 `stale-grep` is the output of the `git diff --name-only <sha>..HEAD | grep -vE …`
 check above, or `empty` when it printed nothing.
@@ -145,8 +149,7 @@ A ✗ is **Blocked 🛑**.
   apply cleanly and are ordered.
 - **In sync with `origin`** — not behind `origin/main`; a never-pushed branch
   passes.
-- **Tests / build** — only per the `tests:` bullet in Phase 0.5 (HEAD moved
-  past `sha:`, line absent, build part missing, or `NOT RUN`).
+- **Tests / build** — only per the `tests:` bullet in Phase 0.5.
 
 Security is **not** re-run here — it is stage 2 of the review, already
 confirmed in Phase 0.5.

@@ -90,7 +90,11 @@ hunk-only read cannot see that a caller further down the same file is now
 wrong. For multi-commit ranges, skim `git log <range>` for intent before
 judging.
 
-**Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the test suite and the typecheck/build yourself and cite the command and its exit code. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline — `$?` after a pipe is the last element's status, so piping into `tail` reports `0` for a suite that failed. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
+**Commit messages are claims, not evidence.** A message saying a fix was "proven red→green", a bug reproduced, or a test added is something to re-test, not a fact to accept. Run the typecheck/build yourself, and the test suite once per code change by running this line as printed — `REUSE` → don't run it, cite the green sha and totals; `RUN` → run the full suite once and reuse that result. Docs-only changes (`docs/`, root `*.md`) never trigger a re-run. A failure that passes when run alone (e.g. a timeout under load) is re-run alone before it is called real, and reported either way, never hidden. Cite the command and its exit code.
+```
+f=.claude/remember/last-review.md; g=$(sed -n 's/^green: \([0-9a-f]\{40\}\) .*/\1/p' "$f" 2>/dev/null); if [ -n "$g" ] && git merge-base --is-ancestor "$g" HEAD 2>/dev/null && [ -z "$(git diff --name-only "$g" HEAD | grep -vE '^(docs/|[^/]+\.md$)')" ]; then echo "REUSE $(grep '^green: ' "$f")"; else echo RUN; fi
+```
+A suite that ran and exited 0 on a clean tree also sets the record's `green:` line. Read that code off the bare command (`cmd > /tmp/out 2>&1; e=$?`), never off a pipeline — `$?` after a pipe is the last element's status, so piping into `tail` reports `0` for a suite that failed. A suite that can outlast your tool's default command timeout needs a longer timeout (or a background run waited on to exit); a timed-out run is not a pass, and cite the suite's totals with the exit code. The result goes on the record's `tests:` line — the build part is required (`build N/A: <reason>` if none).
 
 - **Bugs needing a fix.** Logic errors, off-by-one, null/undefined paths,
   races, wrong defaults, broken edge cases.
@@ -261,7 +265,7 @@ s2 trust-boundaries: <ran: <command or file:line> → <clean | finding: file:lin
 s2 config: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
 s2 dependencies: <ran: <command or file:line> → <clean | finding: file:line> | N/A: why it holds repo-wide, not just this diff | NOT RUN: reason>
 checks: fail-first <N/M files|NOT RUN: reason>, secrets-history <all-branches|NOT RUN: reason>
-tests: <command> exit <code>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
+tests: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals>; build <command> exit <code> | build N/A: <reason> | NOT RUN: <reason>
 docs-commit: <full sha | none>
 docs: <space-separated paths the sweep changed | none — never prose>
 sweep: <ran: N changes — A added, F fixed, C already correct | deferred: unsettled | main: no edits>
@@ -271,6 +275,7 @@ ledger-liveness: <N> checked, <K> dead | n/a: first review
 blockers:
 - <file:line> · <one-sentence claim, no scenario, no suggested fix>
 self-review-sha: <carried forward verbatim (or the old debrief-sha: line), or omitted if absent>
+green: <this run's suite if it ran and exited 0 on a clean tree: full HEAD sha, command, exit 0, totals; else carried forward verbatim, or omitted if absent>
 ```
 
 Fill each `s2` line, and `sweep:`, by keeping one alternative and deleting the

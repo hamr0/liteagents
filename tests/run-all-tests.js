@@ -96,6 +96,13 @@ const testSuites = [
     expectedTests: 946
   },
   {
+    name: 'test-reuse',
+    file: 'skill-shell/test-reuse.test.js',
+    description: 'Tests the one-full-suite-per-code-change decider line (identical in claude self-review/branch-review/release), run as printed in throwaway git repos, plus the slot line shapes',
+    // Floor is the bash-only total: CI has no zsh (21 bash-only, 29 with zsh)
+    expectedTests: 21
+  },
+  {
     name: 'live-canvas channel server',
     file: 'live-canvas/channel-server.test.js',
     description: 'Tests the real live-canvas channel server.js (with a stub MCP SDK) refuses non-loopback Origins with 403 before routing and echoes loopback ones',

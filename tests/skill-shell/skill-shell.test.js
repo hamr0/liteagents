@@ -343,7 +343,7 @@ console.log(`\n${colors.bright}-- docs-only classifier --${colors.reset}`);
 const DOCS_LINE_RE = /grep -vE '[^']*'/;
 
 function extractDocsGrep(content, label) {
-  const lines = content.split('\n').filter(l => DOCS_LINE_RE.test(l));
+  const lines = content.split('\n').filter(l => DOCS_LINE_RE.test(l) && !l.includes('g=$(sed -n \'s/^green:')); // the test-reuse decider embeds the same regex; tests/skill-shell/test-reuse.test.js covers it
   if (lines.length !== 1) {
     throw new Error(`${label}: expected exactly 1 docs-only grep line, found ${lines.length}`);
   }
@@ -783,11 +783,11 @@ for (const kit of KITS) {
     if (writer.length !== 1) return `expected exactly 1 "tests: " template line in branch-review, found ${writer.length}`;
     const alts = writer[0].match(/build N\/A: <reason>|NOT RUN: <reason>/g) || [];
     if (alts.length !== 2) return `writer line lost its N/A / NOT RUN alternatives: ${writer[0]}`;
-    if (!/^tests: <command> exit <code>; build <command> exit <code> \|/.test(writer[0])) return `writer line shape changed: ${writer[0]}`;
+    if (!/^tests: REUSE\|RUN · reused <sha> \(docs only since\) <totals> \| ran <command> exit <code> <totals>; build <command> exit <code> \|/.test(writer[0])) return `writer line shape changed: ${writer[0]}`;
     const rel = flat(read(kit.release));
     return allOf(
       has(rel, '`tests:` line'),
-      has(rel, 'tests exit 0 **and** build exit 0 or `N/A: <reason>`'),
+      has(rel, '`REUSE` → covered'),
       has(rel, '`NOT RUN`'));
   });
 
@@ -958,7 +958,7 @@ for (const kit of KITS) {
   const sr = flat(read(skillPath(kit, 'self-review')));
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
-    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
+    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
     has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
@@ -1184,7 +1184,7 @@ for (const kit of KITS) {
 
   const rl = flat(read(skillPath(kit, 'release')));
   specCheck(`${kit.name}/release: Phase 0.5 reports one block of every pre-check outcome`, () =>
-    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>'));
+    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: REUSE|RUN · covered (reused <sha> <totals>) | ran <cmd> exit <code> <totals> · stale-grep: <output | empty>'));
 
   specCheck(`${kit.name}/release: hand-back step 4 merges with --merge (merge commit), never --squash`, () => allOf(
     has(rl, '`gh pr merge --admin --merge --delete-branch`'),
@@ -1361,7 +1361,7 @@ for (const kit of KITS) {
       ...['secrets', 'tenant-isolation', 'rate-limiting', 'error-handling', 'authorization', 'data-access',
         'injection', 'auth-session', 'trust-boundaries', 'config', 'dependencies'].map(k => `s2 ${k}`),
       'checks', 'tests', 'docs-commit', 'docs', 'sweep', 'ledger', 'prior-blockers', 'ledger-liveness',
-      'blockers', 'self-review-sha'];
+      'blockers', 'self-review-sha', 'green'];
     return got.join(',') === want.join(',') || `record fields: ${got.join(',')}`;
   });
 
