@@ -123,18 +123,9 @@ Run friction analysis, then consolidate `.opencode/stash/*.md` + friction antige
      @.opencode/remember/MEMORY.md
      <!-- MEMORY:END -->
      ```
-   - If `.opencode/remember/AGENT_RULES.md` exists, compose a second, independent section. The file itself is **never `@`-referenced** (a standards guide, not hot context); the section is a path pointer plus the two inline rules that change what you TYPE. Write it verbatim:
+   - If `.opencode/remember/AGENT_RULES.md` exists, compose a second, independent section: a path pointer only — the file is **never `@`-referenced** (a standards guide, not hot context). Write it verbatim:
      ```
      <!-- AGENT_RULES:START -->
-     **One writer per piece of state.** One function assigns each field; everything else
-     calls it. Grep who writes it before you write it — and if a write can land from a
-     callback, thread, or lifecycle, the reader must tell stale from fresh.
-
-     **Surgical changes only.** Touch what the task requires. Dead code, nits, bugs you
-     pass: if it's inside or affects the code you're already changing and the fix changes
-     no behavior, fix it and say so — otherwise report it and say what it costs to leave
-     it. A problem you don't fix goes in the report, never in a comment.
-
      Standards guide (read when designing/building something new, not hot context):
      .opencode/remember/AGENT_RULES.md
      <!-- AGENT_RULES:END -->
@@ -145,7 +136,7 @@ Run friction analysis, then consolidate `.opencode/stash/*.md` + friction antige
      ```bash
      node ~/.config/opencode/command/remember/stub-check.cjs
      ```
-     It edits only inside the marker pairs: repairs a MEMORY include that is not `@.opencode/remember/MEMORY.md`, demotes an `@`-include of `AGENT_RULES.md` to a plain pointer, never touches user prose, and will not repoint a MEMORY include at a file that does not exist (report it instead). Silent when current; relay what it prints in the step-8 report.
+     It edits only inside the marker pairs: syncs the `DEV_RULES` block byte-for-byte from `AGENT_RULES.md` (inserted before MEMORY if absent, `.bak` of the config kept when a differing block is replaced; this script is its only writer), repairs a MEMORY include that is not `@.opencode/remember/MEMORY.md`, demotes an `@`-include of `AGENT_RULES.md` to a plain pointer, never touches user prose, and will not repoint a MEMORY include at a file that does not exist (report it instead). Silent when current; relay what it prints in the step-8 report.
 
    MEMORY.md format:
    ```markdown

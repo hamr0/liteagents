@@ -3,13 +3,13 @@
 ## Table of Contents
 1. [Operating Flow](#operating-flow)
 2. [Communication Protocol](#communication-protocol)
-3. [Development Standards](#development-standards)
-4. [Testing Standards](#testing-standards)
-5. [Security & Robustness Invariants](#security--robustness-invariants)
-6. [Environment](#environment)
-7. [Development Workflow](#development-workflow)
-8. [Twelve-Factor Checklist](#twelve-factor-checklist)
-9. [CLAUDE.md Stub](#claudemd-stub)
+3. [Dev Rules](#dev-rules)
+4. [Development Standards](#development-standards)
+5. [Testing Standards](#testing-standards)
+6. [Security & Robustness Invariants](#security--robustness-invariants)
+7. [Environment](#environment)
+8. [Development Workflow](#development-workflow)
+9. [Twelve-Factor Checklist](#twelve-factor-checklist)
 
 ---
 
@@ -38,11 +38,9 @@ Every task runs through three layers. Do not skip ahead to code.
 2. **Verify — define "good" up front, then prove it.** Write down what success looks like *before* changing code. Prove with measurement and tests, not assertion (see [*Prove, don't assert*](#validate-before-you-build)). When the work is done, first propose `/self-review` — the committed work since the last self-review, checked by a separate mid-tier worker that tries to break the claims with real runs; it only surfaces, never fixes, and is not a gate (checkable: a self-review report naming the commands it ran and their totals exists before `/branch-review` is proposed) — then `/branch-review` — a general review plus a full `/security` audit, which reports findings and never fixes them — and then `/release`, the mechanical pre-release gate. You never merge or release on your own (see [Required Safeguards](#required-safeguards-always--ask--never)). External signal — a real test run, a real deploy, a gold-standard reference — beats a confident paragraph every time.
 3. **Environment — the standing context.** This file primes every session. Critical-path protections (secrets, auth, schema, CI) are stated as **Always / Ask / Never** below and bind you as written. Where your tool offers a permission allow/ask/deny list, mirror them there so they are enforced and not merely requested.
 
-**Execution order — work the way a program runs, in this order, nothing skipped:**
-1. **Sequence** — do the PRD's modules in the order listed; never start module N+1 while module N is unproven.
-2. **Selection** — every POC is a branch: pass → next module, fail → back to the PRD as a spec change.
-3. **Iteration** — repeat POC → update PRD → next POC until the go/no-go is answered; the loop invariant is *everything built so far still works on its own*.
-4. **Verify** — assert before you move: a step is done when you ran the proof and saw it pass, not when you wrote that it did.
+**Execution loop — work the way a program runs:**
+1. **Selection** — every POC is a branch: pass → next module, fail → back to the PRD as a spec change.
+2. **Iteration** — repeat POC → update PRD → next POC until the go/no-go is answered; the loop invariant is *everything built so far still works on its own*.
 
 > The model is brilliant at execution and blind to intent. You can outsource the typing; you cannot outsource the understanding. Surface assumptions — don't bury them.
 
@@ -53,7 +51,6 @@ Every task runs through three layers. Do not skip ahead to code.
 ### Core Rules
 - **Spec first, then checkpoint**: see [Operating Flow §1](#operating-flow). Never run ahead on an unverified assumption — flag it and stop
 - **Fact-Based**: Base all recommendations on verified, current information. Prefer external signal (a real run, a real source) over a confident guess
-- **Simplicity Advocate**: Call out overcomplications and suggest simpler alternatives
 
 ### User Profile
 - **Technical Level**: Non-coder but technically savvy
@@ -69,7 +66,35 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **Always** identify affected files before making changes, and explain what will change and why
 - **Ask first** — stop and get explicit sign-off — before modifying authentication systems, database schema or migrations, CI workflows, or `.claude/settings.json`
 - **Never** put secrets in the tree — see [Security & Robustness Invariants §1](#security--robustness-invariants)
-- **Never** commit to `main`. Commit to a new branch (name doesn't matter), then propose `/self-review`, `/branch-review`, and `/release`, in that order; merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
+- **Never** commit to `main`. Commit to a new branch (name doesn't matter); the review order is [Operating Flow §2](#operating-flow). Merging and releasing are my call, made by name — "approve", "good", or "go" on a draft is not that call
+
+---
+
+_/remember syncs the block between the markers below into each repo's config (CLAUDE.md / AGENTS.md / AGENT.md). Edit it here only._
+
+<!-- DEV_RULES:START -->
+## Dev Rules
+
+**Spec first.** Interview for the decision, not the task. Ask in batched rounds — only questions whose prerequisites are settled, each with your recommended answer; look up facts yourself, ask me only the choices that are mine. Pin module 0, ask what is out of scope, write a PRD (problem, go/no-go, out of scope, modules, open questions). One round is not an interview; never build on an assumed prerequisite.
+
+**Reuse before you add.** Before adding a function, class, file, or dependency, search for the one that already does it, and report what you reused. A near-duplicate needs a stated reason the original couldn't be extended. One thing, one name, repo-wide.
+
+**Don't patch a patch.** A third fix on the same spot means the design is wrong — stop and propose the redesign. A new layer must hide more than its interface costs; otherwise inline it.
+
+**POC first, one module at a time.** Aim each POC at its riskiest assumption (module 0 = go/no-go); the test must be able to fail. Prove, don't assert — measure anything you call cheap or fast. No fitting to pass. A module works alone, then connects to what's built, before the next starts. Never ship the POC.
+
+**Dependencies, simplest first.** Vanilla language → standard library → external, only when stdlib can't do it in <100 lines. External deps must be maintained, lightweight, widely adopted; security-critical code always gets a vetted library. Open-source only, no vendor lock-in.
+
+**Simple > clever.** Fewer moving parts, fewer deps, less config; readable by a junior beats elegant. Call out overcomplication before building. Express over NestJS, Flask over Django, unless the project needs the framework.
+
+**Every line earns its place.** If you can't say what breaks when it's deleted, delete it. No speculative code, no abstraction for one use case.
+
+**One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it — and if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh.
+
+**Surgical changes only.** Touch what the task requires; match existing style. Dead code, nits, bugs you pass: if it's inside or affects the code you're already changing and the fix changes no behavior, fix it and say so — otherwise report it and say what it costs to leave it. A problem you don't fix goes in the report, never in a comment.
+
+**Responsive web UI is mandatory.** Any web UI must work on mobile by default — fluid layouts, viewport meta, breakpoints, no horizontal scroll. Verify in DevTools device emulation before claiming a UI task is done. POCs exempt; real projects are not.
+<!-- DEV_RULES:END -->
 
 ---
 
@@ -85,17 +110,9 @@ Not courtesies. These bind you as written, whether or not your tool enforces the
 - **One module at a time.** Build the PRD's modules in order, never several at once. Each module gets its own POC aimed at *its* riskiest assumption (module 0's is the go/no-go). A module is done when **(1)** it works on its own and **(2)** it connects to what's already built and the whole still works — both proven, not assumed. Only then start the next
 - **No fitting to pass.** Never narrow the input, move the threshold, or shrink the scope until a POC goes green. Report the failure and take it back to the PRD
 
-### Dependency Hierarchy
-
-Always exhaust the simpler option before reaching for the next:
-
-1. **Vanilla language** — Write it yourself using only language primitives. If it's <50 lines and not security-critical, this is the answer
-2. **Standard library** — Use built-in modules (`os`, `json`, `pathlib`, `http`, `fs`, `crypto`). The stdlib is tested, maintained, and has zero supply chain risk
-3. **External library** — Only when both vanilla and stdlib are insufficient. Must pass the checklist below
-
 ### External Dependency Checklist
 
-Before adding any external dependency, all of these must be true:
+Before adding any external dependency (order: [Dev Rules](#dev-rules)), all of these must be true:
 - **Necessity:** Can't reasonably implement this with stdlib in <100 lines
 - **Maintained:** Active commits in the last 6 months, responsive maintainer
 - **Lightweight:** Few transitive dependencies (check the dep tree, not just the top-level)
@@ -107,38 +124,13 @@ Before adding any external dependency, all of these must be true:
 - **Use widely-adopted languages only** — Python, JavaScript/TypeScript, Go, Rust. No niche languages unless the domain demands it
 - **Pick the lightest language that fits the domain:** shell scripts for automation, Python for data/backend/CLI, TypeScript for web, Go for systems/infra, Rust for performance-critical
 - **Minimize the polyglot tax.** Every language in the stack adds CI config, tooling, and onboarding friction. Do not add a new language for one microservice — use what's already in the stack unless there's a compelling reason
-- **Vanilla over frameworks.** Express over NestJS, Flask over Django, unless the project genuinely needs the framework's structure. Structure can always be added later; removing a framework is painful
 
-### Build Rules
+### More build rules
 
-- **Open-source only.** Always use open-source solutions. No vendor lock-in
-- **Lightweight over complex.** If two solutions solve the same problem, use the one with fewer moving parts, fewer dependencies, and less configuration
-- **Every line earns its place.** If you can't say what breaks when it's deleted, delete it. No speculative code, no "might need this later", no abstractions for one use case. One function, one concern, one owner — small blocks beat spaghetti
-- **Simple > clever.** Readable code that a junior can follow beats elegant code that requires a PhD to debug
-- **One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it. Ownership says *where*, not *when* — if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh
 - **Split the decision from the machinery.** A branch whose outcome matters, tangled with a framework, IO, or UI object, moves into a pure function; the framework class applies the result. Extract to pin a branch, not to raise coverage — a one-line delegation in its own file buys a test that cannot fail
 - **Claims in comments must be checkable.** "The only place that writes X" is a claim — run the grep first, and expect the next reader to re-run it. A name search proves an edge exists, never that one doesn't
-- **Read before you write; reuse before you add.** Before adding a function, class, file, or dependency, search for the one that already does it — and say in your report what you found and reused. If you add a near-duplicate anyway, name the existing one and say why it couldn't be extended. Reuse its **name** too: one thing, one name, repo-wide — a second name for the same concept is a duplicate nobody can grep for
-- **Don't patch a patch.** A third fix landing on the same spot means the design is wrong, not the line — stop, say so, and propose the redesign instead of adding a fourth patch. The same test applies to a layer: a new file, wrapper, or abstraction must hide more complexity than its interface adds; if reading it costs as much as reading what it hides, inline it
 - **Containerize only when necessary.** Start with a virtualenv or bare metal. Docker adds value for deployment parity and isolation — not for running a script
-- **Responsive web UI is mandatory in dev projects.** Any web UI must be usable on mobile by default — fluid layouts, viewport meta tag, breakpoints for narrow screens, no horizontal scroll. Test in DevTools device emulation before declaring a UI task done. POCs are exempt (validate the idea first), but the moment a POC graduates to a real project this becomes a hard requirement
-- **Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style even if you'd do it differently. Only clean up orphans your own change created. Dead code, nits, bugs you pass on the way: if it's inside or affects the code you're already changing, and the fix changes no behavior, fix it and say so. Otherwise report it — say what it costs to leave it. "It would be nicer" is not a cost. Every changed line traces to the request or to a fix you named
 - **Meter the whole unit of work.** Usage and cost sum every call a unit of work makes; the last call's number is never the total, and one unpriced call makes the total unknown, not zero
-
-### Red Flags — Stop and Flag These
-- Over-engineering simple problems
-- Adding external dependencies for trivial operations
-- Frameworks where a library or stdlib would suffice
-- Vendor-specific implementations when open alternatives exist
-- Writing a new function, class, or file without first searching for the one that already does it, or coining a second name for something the repo already names
-- Stacking a third patch on the same spot instead of stopping and proposing a redesign
-- Starting to build after one round of questions, or asking me something you could have looked up yourself
-- Skipping POC validation for unproven ideas
-- POC-ing only the easy part while hand-waving the risky mechanism, or claiming a cost ("cheap"/"fast"/"constant") you never measured
-- Authoring a fixture/corpus that *guarantees* the result (a test that can't return the negative), or trusting a degenerate-looking number without auditing the harness for confounds — use real uncrafted data; the test must be able to fail
-- Fitting a POC to pass (narrowed input, moved threshold, shrunk scope) instead of reporting the failure; starting module N+1 while module N is unproven
-
-A problem you see and don't fix goes in the report, never in a comment. Comments are where findings go to be forgotten.
 
 ---
 
@@ -195,7 +187,7 @@ particular toolchain spells it.
 
 These are the failure classes that show up in nearly every quickly-built app, regardless of stack or language. Treat them as **build-time invariants** — satisfy them as you write the code, not as a cleanup pass. Apply each where it fits the thing you're building (a library has no endpoints; a CLI has no tenant isolation) — skip what genuinely doesn't apply, never skip what does.
 
-Throwaway POCs are exempt while you validate logic (per **POC first** above) — hardcoded values and missing error handling are fine in a 15-minute spike. The moment a POC graduates to a real build, every applicable invariant becomes mandatory. The one item that holds even for a POC: never commit a real secret.
+Throwaway POCs are exempt while you validate logic (per [Dev Rules](#dev-rules): POC first) — hardcoded values and missing error handling are fine in a 15-minute spike. The moment a POC graduates to a real build, every applicable invariant becomes mandatory. The one item that holds even for a POC: never commit a real secret.
 
 1. **No secrets in the repo.** Keys, tokens, and credentials load from the environment / a secret store at runtime — never hardcoded, never logged. `.env` is gitignored; only a value-less `.env.example` is committed. Scan history before trusting a repo. One leaked key is a breached database or a runaway bill.
 2. **Scope every data access to its owner.** Each record read or written is constrained to the requesting principal — via DB-level rules (RLS / row policies) and/or an application-layer ownership check. Never trust a client-supplied id without a gate. If the storage layer offers row-level policies, enabling them is not optional, and "on but too broad" still fails.
@@ -210,7 +202,6 @@ Also hold the line on:
 - **Model output is untrusted input too.** Validate it against a schema and key every decision on a typed field — never regex-parse the model's prose for a number, id, or verdict.
 - **Guard lookups keyed by an external string.** Look the key up only among the map's own entries, never inherited ones — an inherited member can otherwise answer for a key the map never had, so "not found → throw" is bypassed.
 - **Parameterize every query.** Never string-build SQL.
-- **Use vetted libraries for security-critical code** — see [External Dependency Checklist](#external-dependency-checklist).
 - **Bind least-privilege.** Loopback, not `0.0.0.0`, unless the port is deliberately public.
 
 **Verify at two moments, not one.**
@@ -259,33 +250,3 @@ The [Twelve-Factor App](https://12factor.net) methodology for modern, scalable a
 | 10 | Dev/Prod Parity | Keep dev, staging, and production as similar as possible |
 | 11 | Logs | Treat logs as event streams to stdout |
 | 12 | Admin Processes | Run admin/maintenance tasks as one-off processes |
-
----
-
-## CLAUDE.md Stub
-
-Copy this to any project's CLAUDE.md. These are mandatory rules, not suggestions.
-
-```markdown
-## Dev Rules
-
-**Spec first — quality of questions over quantity.** Interview to find the decision, not the task. Ask in batched rounds, only questions whose prerequisites are settled, each with your recommended answer under it; find facts yourself and ask me only the choices that are mine. Pin module 0 down to the decision, sketch later modules only enough to know they don't change it, and ask what's out of scope for the whole build. One round is not an interview; never build on an assumed prerequisite. Write a PRD with problem/goal, go/no-go, out-of-scope, modules, open questions. POCs refine it.
-
-**Reuse before you add.** Search for the existing function, class, or name before writing a new one, and report what you reused; a near-duplicate needs a stated reason the original couldn't be extended. A third patch on the same spot means propose a redesign, not a fourth patch.
-
-**POC first, one module at a time.** Each module's POC targets its riskiest assumption (module 0 = go/no-go); the test must be able to fail; prove, don't assert — measure anything you call cheap/fast/constant. No fitting to pass. A module works on its own, then connects to what's built, before the next starts. Never ship the POC.
-
-**Dependency hierarchy — follow strictly:** vanilla language → standard library → external (only when stdlib can't do it in <100 lines). External deps must be maintained, lightweight, and widely adopted. Exception: always use vetted libraries for security-critical code (crypto, auth, sanitization).
-
-**Lightweight over complex.** Fewer moving parts, fewer deps, less config. Express over NestJS, Flask over Django, unless the project genuinely needs the framework. Simple > clever. Readable > elegant.
-
-**Open-source only.** No vendor lock-in. Every line of code earns its place — if you can't say what breaks when it's deleted, delete it. No speculative code, no premature abstractions.
-
-**One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it — and if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh.
-
-**Surgical changes only.** Touch what the task requires. Dead code, nits, bugs you pass: if it's inside or affects the code you're already changing and the fix changes no behavior, fix it and say so — otherwise report it and say what it costs to leave it. A problem you don't fix goes in the report, never in a comment.
-
-**Responsive web UI is mandatory.** Any web UI must work on mobile by default — fluid layouts, viewport meta, breakpoints, no horizontal scroll. Verify in DevTools device emulation before claiming a UI task is done. POCs exempt; real projects are not.
-
-For full development and testing standards, see `.claude/remember/AGENT_RULES.md`.
-```

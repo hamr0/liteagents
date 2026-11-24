@@ -85,8 +85,8 @@ const testSuites = [
   {
     name: 'stub-check',
     file: 'stub-check/stub-check.test.js',
-    description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
-    expectedTests: 24
+    description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file, and syncs the DEV_RULES block from AGENT_RULES.md',
+    expectedTests: 34
   },
   {
     name: 'skill-shell',

@@ -316,6 +316,10 @@ satisfy a naming convention is worse than reporting it. The existing-pair rule e
 run once restored inline rules into a CLAUDE.md whose owner had cut them, and the edit had to be
 reverted by hand.
 
+The one block whose content it owns is `DEV_RULES`: the dev rules live once, in `AGENT_RULES.md`, and
+are copied byte-for-byte into each repo's config, because a copy written once and never re-synced
+drifts (this repo's own CLAUDE.md had gone two rules stale).
+
 **Legacy migration.** Old `.claude/friction/` contents are discarded, not moved: friction
 regenerates all output every run, so stale copies carry no unique information and moving them
 would overwrite fresh output.

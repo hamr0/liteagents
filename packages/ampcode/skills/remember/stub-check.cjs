@@ -30,7 +30,18 @@
  *     rewriting it to the new one would break a working include to satisfy a
  *     naming convention. That case is reported, not repaired.
  *
- * Missing marker pairs are not this script's business — step 5 creates them.
+ * Third block, DEV_RULES, is the one exception to "shape, not content": its
+ * content is NOT user-owned. It is replaced byte-for-byte with the block
+ * between the same markers in the installed AGENT_RULES.md, so every repo
+ * carries the one current wording instead of a stale copy. If the config has
+ * no DEV_RULES pair, the block is inserted just before MEMORY:START (appended
+ * when there is none). A differing block is replaced only after the config is
+ * copied to <config>.bak (single file, overwritten, like sync-rules.cjs). An
+ * unmanaged `## Dev Rules` heading outside the markers is reported and left
+ * alone, and nothing is inserted next to it. Only this script writes the block.
+ *
+ * Missing MEMORY / AGENT_RULES marker pairs are not this script's business —
+ * step 5 creates them.
  */
 
 const fs = require('fs');
@@ -42,6 +53,8 @@ const CONFIG_FILE = 'AGENT.md';
 
 const MEM = { start: '<!-- MEMORY:START -->', end: '<!-- MEMORY:END -->' };
 const RULES = { start: '<!-- AGENT_RULES:START -->', end: '<!-- AGENT_RULES:END -->' };
+
+const DEV = { start: '<!-- DEV_RULES:START -->', end: '<!-- DEV_RULES:END -->' };
 
 const MEMORY_REL = `${PROJECT_DIR}/remember/MEMORY.md`;
 const RULES_REL = `${PROJECT_DIR}/remember/AGENT_RULES.md`;
@@ -94,6 +107,10 @@ function escapesRepo(repo, target) {
     p = path.resolve(path.dirname(p), to);
   }
   return true;                                      // a link cycle: refuse
+}
+
+function readLines(file) {
+  try { return fs.readFileSync(file, 'utf8').split('\n'); } catch (e) { return null; }
 }
 
 /** Index range of the lines strictly between a marker pair, or null. */
@@ -178,8 +195,49 @@ function check(repo) {
     }
   }
 
+  // ── DEV_RULES block: content synced from the installed AGENT_RULES.md ──────
+  let backup = false;
+  const rulesFile = path.join(repo, RULES_REL);
+  const srcLines = escapesRepo(repo, rulesFile) ? null : readLines(rulesFile);
+  const src = srcLines && blockRange(srcLines, DEV);
+  if (src) {
+    const want = srcLines.slice(src.from, src.to);
+    const dev = blockRange(lines, DEV);
+    const outside = lines.findIndex(
+      (l, n) => /^##\s+Dev Rules\b/i.test(l) && !(dev && n >= dev.from && n < dev.to));
+    if (outside !== -1) {
+      notes.push(
+        `${CONFIG_FILE}: unmanaged "${lines[outside].trim()}" (line ${outside + 1}) is outside the `
+        + `DEV_RULES markers — delete it and re-run so the managed block replaces it`);
+    }
+    if (dev) {
+      if (lines.slice(dev.from, dev.to).join('\n') !== want.join('\n')) {
+        lines.splice(dev.from, dev.to - dev.from, ...want);
+        backup = true;
+        changed = true;
+        fixes.push(`${CONFIG_FILE}: DEV_RULES block replaced from ${RULES_REL} (previous config kept as ${CONFIG_FILE}.bak)`);
+      }
+    } else if (outside === -1) {
+      const at = lines.findIndex((l) => l.trim() === MEM.start);
+      const block = [DEV.start, ...want, DEV.end, ''];
+      if (at === -1) {
+        if (lines[lines.length - 1] !== '') lines.push('');
+        lines.push(...block.slice(0, -1), '');
+      } else {
+        lines.splice(at, 0, ...block);
+      }
+      changed = true;
+      fixes.push(`${CONFIG_FILE}: DEV_RULES block inserted from ${RULES_REL}`);
+    }
+  }
+
   if (changed) {
     try {
+      if (backup) {
+        const bak = `${config}.bak`;
+        if (escapesRepo(repo, bak)) throw new Error(`${CONFIG_FILE}.bak leaves the repo via a symlink`);
+        fs.copyFileSync(config, bak);
+      }
       fs.writeFileSync(config, lines.join('\n'));
     } catch (e) {
       return { fixes: [], notes: [`${CONFIG_FILE} not repaired: ${e.message}`], changed: false };
