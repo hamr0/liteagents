@@ -71,7 +71,8 @@ scoped:
   Repo rules win; skip anything a linter or test already enforces; a smell is
   labelled "possible …", never a hard violation. Smells: middle man (a
   function that only forwards to another), shotgun surgery (one change
-  scattered over many files — a missing shared piece), mysterious name. Dead
+  scattered over many files — a missing shared piece), mysterious name. Copied
+  or duplicate code is a `reuse:` item, not middle man. Dead
   code — grep the symbol repo-wide before flagging. Reuse: every new function or
   class gets a `reuse:` entry. An old duplicate the diff didn't introduce →
   suggest `/refactor duplicates`; a reuse item whose fix is a merge goes there
@@ -89,7 +90,7 @@ scoped:
 works: <command> exit <code> <totals> | NOT RUN: <reason>
 full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>
 underspecced: <N> items | none found: <what was checked, one phrase>
-cleanup: <N> items | none found: <what was checked, one phrase>
+cleanup: <N> items | none found: <what was checked, one phrase> · smells: middle man <N|none> · shotgun <N|none> · name <N|none>
 reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added
 ```
 
@@ -112,12 +113,12 @@ Added, dropped, merged, re-ranked, or weakened: not — your own
 recommendation is allowed only marked as yours, separate from the worker's
 items. When you relay the report, the **orchestrator** (worker's turn is over
 by then) appends **every anchorable** item, both piles, to `.amp/remember/fix-ledger.md`
-right away, `/branch-review`'s format (header: its Ledger section), tagged `nit`/`change`/`idea` (Underspecced
+right away, `/branch-review`'s format (header: the block under `### Ledger` in its SKILL.md), tagged `nit`/`change`/`idea` (Underspecced
 items → `idea`), bullet text verbatim. Bullet shape:
 ```
 - `path/file.js` · "verbatim snippet from the line" · what's wrong · failure scenario · YYYY-MM-DD @ <short sha> · nit
 ```
-**Stale header:** if ``grep -F '`idea` =' .amp/remember/fix-ledger.md`` finds nothing, replace the header block with the current one from `/branch-review`'s Ledger section; bullets are never touched. Then ask
+**Stale header:** if ``grep -F '`idea` =' .amp/remember/fix-ledger.md`` finds nothing, replace the header block with the current one from the block under `### Ledger` in `/branch-review`'s SKILL.md; bullets are never touched. Then ask
 which, if any, to remove: no answer → they all stay; remove only on the
 user's explicit say-so naming the items. Items the user fixes now are not
 removed by hand; `/refactor` drops them.
@@ -126,7 +127,7 @@ scenario slot. **One snippet per item** (a second item on the same line
 anchors a different nearby line). A corrected `file:line` is noted as
 "corrected" in the relay.
 Append in `/branch-review`'s ledger format (its header and dedupe rule). **Anchor rule:** a verbatim snippet `grep
--F` can find; missing (usually an `idea`) → anchor where it should go; no line to name → no
+-F` finds exactly once in its file (`grep -cF '<snippet>' <file>` prints 1; else a longer snippet or a nearby unique line); missing (usually an `idea`) → anchor where it should go; no line to name → no
 ledger entry, report it as "your call" instead — the anchor rule wins over
 "every". Relay one line, filled (A + D + Y = N), so a dropped append shows:
 `ledger: <N> items → <A> appended, <D> already there, <Y> your call`

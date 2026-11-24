@@ -318,6 +318,13 @@ for (const kit of KITS) {
   check(`${kit.name}/self-review: underspecced: and cleanup: report lines`,
     sr.includes('underspecced: <N> items | none found: <what was checked, one phrase>') &&
     sr.includes('cleanup: <N> items | none found: <what was checked, one phrase>'));
+  check(`${kit.name}/self-review: per-smell cleanup slot, duplicate code is reuse not middle man`,
+    sr.includes('cleanup: <N> items | none found: <what was checked, one phrase> · smells: middle man <N|none> · shotgun <N|none> · name <N|none>') &&
+    sr.includes('Copied or duplicate code is a `reuse:` item, not middle man'));
+  check(`${kit.name}/self-review: ledger snippet must match exactly once; header named under ### Ledger`,
+    sr.includes("finds exactly once in its file (`grep -cF '<snippet>' <file>` prints 1;") &&
+    sr.includes('(header: the block under `### Ledger` in its SKILL.md)') &&
+    sr.includes("from the block under `### Ledger` in `/branch-review`'s SKILL.md;"));
   check(`${kit.name}/self-review: reuse: report line and the DEV_RULES standards pointer`,
     sr.includes('reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added') &&
     sr.includes('every new function or class') && sr.includes('`reuse:` entry') &&
