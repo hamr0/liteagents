@@ -4,8 +4,7 @@ description: Verify, write the CHANGELOG, cut a version — then hand the releas
 Release **preparation** orchestrator for the **current branch**. It runs its own
 short mechanical checks, writes the CHANGELOG, bumps the version and
 commits — then **stops and reports**. It never pushes, opens a PR, merges,
-tags, or publishes: those are yours to authorize by name. The general docs
-sweep runs earlier, in `/branch-review`.
+tags, or publishes: those are yours to authorize by name.
 
 It does not review code. Review is a separate command that must have run
 first.
@@ -82,11 +81,11 @@ match the two strings.
   (`fix-ledger.md` is never on `docs:`): re-review, or leave the ledger
   uncommitted until after the release.
 - **`tests:` line** — use the decider line printed in Phase 0 (never re-run it,
-  never decide a different way). Same rule as `/branch-review`
-  Stage 1: `REUSE …` → covered, do not re-run; `RUN (…)` (or build part missing, or
-  `NOT RUN`) → run the full suite once, and build if there is one, in Phase 1,
+  never decide a different way). `REUSE …` → covered, do not re-run (a record `tests:` line with no build part → run the build only, not the suite);
+  `RUN (…)` → run the full suite once, and build if there is one, in Phase 1,
   cite command + exit code, copy the printed reason into the `tests:` line,
-  and on exit 0 write `green:` per `/branch-review` Stage 1; any non-zero exit
+  and on exit 0 replace the record's `green:` line with
+  `green: <full HEAD sha> <cmd> exit 0 <totals>`, touching no other line; any non-zero exit
   → **stop**; a failure that passes when run alone
   is re-run alone before it is called real. The record says `reused`
   but the Phase 0 line starts `RUN (` → **stop**, unsafe.

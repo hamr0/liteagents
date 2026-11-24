@@ -77,7 +77,7 @@ refactor and how to close each item.
    grep -cE '@ [0-9a-f]{7,40} · idea$' .amp/remember/fix-ledger.md
    ```
 6. **Hand it back; do not chain it.** Say plainly: **commit, then run
-   `/branch-review`** on this branch Say it, never run it: they are two
+   `/branch-review`** on this branch. Say it, never run it: they are two
    separate calls and both are the user's — "commit", "yes" or "go"
    authorizes the commit and nothing after it.
 
@@ -97,7 +97,7 @@ step 6 (hand back: commit, then `/branch-review` — say it, never run it).
 3. **Per picked group, one at a time (worker).** Pick the survivor. Write a
    test pinning the current behaviour of every caller path, and see it fail
    against a deliberate break of the survivor before you trust it. Point every
-   caller at the survivor, delete the rest, run the suite.
+   caller at the survivor, delete the rest, run the scoped tests (After the refactor, step 2).
 4. **Never merge members whose behaviour differs.** Report the difference and
    leave them be.
 
@@ -105,8 +105,7 @@ A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding, not
 this mode's.
 
 ## Where to look — broad targets only
-Ledger mode (empty or plain-text `$ARGUMENTS`); the surviving bullets are the scope, so skip
-this; so is `duplicates` mode. When `$ARGUMENTS` names a specific file or function, that is the scope;
+Skip this in ledger mode (the surviving bullets are the scope) and in `duplicates` mode. When `$ARGUMENTS` names a specific file or function, that is the scope;
 skip this too. When it names a whole area ("the auth module", "clean this
 up"), let
 recent change decide where inside it to start: `git log --oneline -- <path>`
@@ -162,7 +161,7 @@ Without one of those it is **uncertain — report it, do not optimise it.**
 Fix confirmed findings under the same constraints as any other refactor:
 minimal change, one obvious shape, no behaviour change, no API change.
 After each such edit, re-read the changed region and confirm it still
-computes the same answer Report per finding: **location** (`file:line`), **cost**
+computes the same answer. Report per finding: **location** (`file:line`), **cost**
 (concrete — "N+1 over ~1k rows on every page load", not "could be
 faster"), **change**, **expected improvement**, **trade-off**
 (readability / memory / consistency).
@@ -219,11 +218,10 @@ Final report:
 - **refactor done, but K tests fail** — awaiting direction (revert /
   patch / update test).
 
-Either way the report carries these lines, filled from the run:
+Either way the report carries this line, filled from the run:
 ```
 tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>
 ```
-The worker reports `tests:` as `scoped`.
 
 Plus the performance pass: **confirmed-and-fixed** · **confirmed-but-asking**
 (why + options) · **uncertain** (what profiling or data would settle it) ·
