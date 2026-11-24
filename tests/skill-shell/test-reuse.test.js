@@ -166,6 +166,9 @@ for (const [k, [before, after]] of Object.entries(ORDER)) {
 check('self-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief; never run the decider yourself, never decide/.test(SR) && SR.includes('Pass that exact output line to the worker in its brief'));
 check('branch-review: worker uses the decider line from its brief, never runs it', /decider line the orchestrator passed in your brief \(never run the decider yourself, never decide\)/.test(BR) && BR.includes('Pass that exact output line to the worker in its brief'));
 check('release: Phase 0.5 uses the Phase 0 line, never re-runs it', RE.includes('use the decider line printed in Phase 0 (never re-run it') && RE.includes('Pass that\n  exact line to any worker'));
+const BARE = 'Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.';
+check('self-review: worker test step carries the bare-command line', SR.includes(BARE));
+check('refactor: worker test step carries the bare-command line', read('packages/claude/skills/refactor/SKILL.md').includes(BARE));
 
 console.log(`\nTotal tests: ${passed + failed}\nPassed: ${passed}\nFailed: ${failed}`);
 process.exit(failed ? 1 : 0);

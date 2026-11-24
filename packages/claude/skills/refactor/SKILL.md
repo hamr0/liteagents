@@ -188,6 +188,7 @@ Explain each change.
    (`-t`, `--testPathPattern`, `pytest path/`, `go test ./pkg`) plus any
    fail-first proof this spec already requires — **never the full suite**
    (gates run it; see `DEV_RULES`).
+   Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.
    It does not commit. If no scope can be found, stop and hand that back.
 3. **Report** pass / fail counts and any failure's name + `file:line`.
 

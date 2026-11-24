@@ -65,6 +65,7 @@ Real runs, not re-assertion, scoped to the range for cleanup/glossed/
 underspecced:
 - **Does it work?** Run the thing and targeted checks for what changed now,
   never the full suite; cite the command and numbers.
+- Run tests bare, never piped: `<test command> > /tmp/out 2>&1; echo "exit $?"` — read the code from that line, then the totals from /tmp/out.
 - **No regression?** Use the decider line the orchestrator passed in your brief; never run the decider yourself, never decide. Gate rule per `DEV_RULES` and
   `/branch-review` Stage 1: `REUSE …` → cite it (green sha and totals), no full run; `RUN (…)` →
   run the FULL suite once, copy the printed reason into the `full-suite:` line (never write your own), cite totals vs. the handoff baseline, and a failure that passes when
