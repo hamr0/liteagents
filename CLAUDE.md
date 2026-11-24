@@ -11,23 +11,29 @@ subagent* section) first. Short version: edit
 `packages/claude` only, then `node scripts/mirror.cjs sync && node
 scripts/mirror.cjs check`. Never hand-edit a droid/ampcode/opencode file.
 
-## Dev Rules (mandatory — full source: `.claude/remember/AGENT_RULES.md`)
+<!-- DEV_RULES:START -->
+## Dev Rules
 
-**Simple > clever.** Readable code a junior can follow beats elegant code that needs a PhD to debug. Be the Simplicity Advocate: call out overcomplications and suggest simpler alternatives BEFORE building, not after.
+**Spec first.** Interview for the decision, not the task. Ask in batched rounds — only questions whose prerequisites are settled, each with your recommended answer; look up facts yourself, ask me only the choices that are mine. Pin module 0, ask what is out of scope, write a PRD (problem, go/no-go, out of scope, modules, open questions). One round is not an interview; never build on an assumed prerequisite.
 
-**Every line must have a purpose.** No speculative code, no "might need this later", no abstractions for one use case. If you split one file into N similar files, stop and check whether N=1 with a few extra lines is clearer.
+**Reuse before you add.** Before adding a function, class, file, or dependency, search for the one that already does it, and report what you reused. A near-duplicate needs a stated reason the original couldn't be extended. One thing, one name, repo-wide.
 
-**Surgical changes only.** Touch what the task requires; nothing else. Don't "improve" adjacent code, comments, or formatting. Match existing style.
+**Don't patch a patch.** A third fix on the same spot means the design is wrong — stop and propose the redesign. A new layer must hide more than its interface costs; otherwise inline it.
 
-**Dependency hierarchy — exhaust simpler first:** vanilla language → standard library → external (only when stdlib can't do it in <100 lines). External deps must be maintained, lightweight, widely adopted. Exception: always use vetted libraries for security-critical code.
+**POC first, one module at a time.** Aim each POC at its riskiest assumption (module 0 = go/no-go); the test must be able to fail. Prove, don't assert — measure anything you call cheap or fast. No fitting to pass. A module works alone, then connects to what's built, before the next starts. Never ship the POC.
 
-**Lightweight over complex.** Vanilla over frameworks. Express over NestJS, Flask over Django, plain JS over React if the project doesn't genuinely need it. Open-source only, no vendor lock-in.
+**No dependencies by default.** Start with the language itself, then its standard library. Add an outside package only when the standard library can't do it in under 100 lines, and say why. Outside packages must be maintained, lightweight, widely used and open-source — no vendor lock-in. Security code (crypto, auth, sanitizing) always uses a vetted library.
 
-**Responsive web UI is mandatory.** User builds web apps consumed on phones — fluid layouts, viewport meta, no horizontal scroll. Test in DevTools device emulation before claiming a UI task is done.
+**Simple > clever.** Fewer moving parts, fewer deps, less config; readable by a junior beats elegant. Call out overcomplication before building. Express over NestJS, Flask over Django, unless the project needs the framework.
 
-**POC first.** Validate logic with ~15min proof-of-concept before designing properly. Never ship the POC — rewrite it.
+**Every line earns its place.** If you can't say what breaks when it's deleted, delete it. No speculative code, no abstraction for one use case.
 
-For full standards (testing, twelve-factor, deployment), see `.claude/remember/AGENT_RULES.md`.
+**One writer per piece of state.** One function assigns each field; everything else calls it. Grep who writes it before you write it — and if a write can land from a callback, thread, or lifecycle, the reader must tell stale from fresh.
+
+**Surgical changes only.** Touch what the task requires; match existing style. Dead code, nits, bugs you pass: if it's inside or affects the code you're already changing and the fix changes no behavior, fix it and say so — otherwise report it and say what it costs to leave it. A problem you don't fix goes in the report, never in a comment.
+
+**Responsive web UI is mandatory.** Any web UI must work on mobile by default — fluid layouts, viewport meta, breakpoints, no horizontal scroll. Verify in DevTools device emulation before claiming a UI task is done. POCs exempt; real projects are not.
+<!-- DEV_RULES:END -->
 
 <!-- MEMORY:START -->
 @.claude/remember/MEMORY.md

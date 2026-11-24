@@ -121,8 +121,8 @@ ship) and **Later**.
 ## 5. Relay as-is, then ledger
 
 **"As-is" means:** same items, same order, same piles, and each item's failure
-sentence and cited commands/numbers preserved exactly; the worker's four report
-lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`) are relayed too, and
+sentence and cited commands/numbers preserved exactly; the worker's five report
+lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`) are relayed too, and
 every relayed item keeps its `nit`/`change`/`idea` tag and its `file:line`. The
 two added lines read `<N> items` or `none found: <what was checked>`, so "checked,
 found nothing" never looks like "skipped". The `full-suite:` line ends `vs before <totals | unknown>` — `unknown` when the handoff carried no baseline. Rewording to fit the
@@ -158,6 +158,18 @@ named → it doesn't go in the ledger at all — `/refactor` deletes any bullet 
 anchor has no hit, so an anchor-less one would just die there — and it stays in the
 report instead as "this is a feature — your call."
 
+**One suite per code change, and the dev rules.** The `No regression?` check runs the same
+decider line `/branch-review` and `/release` carry: it reads the record's `green:` line and
+prints `REUSE` (a full suite already ran green at an ancestor, and only `docs/` and root `*.md`
+changed since — cite its sha and totals) or `RUN` (run the full suite once, reuse that result
+for every later step). `/branch-review` Stage 1 owns the full prose; a full suite that ran and
+exited 0 on a clean tree rewrites the `green:` line, the only line besides the bookmark this
+command writes. The `Cleanup?` check is run against the `DEV_RULES` block in the repo's agent
+config file (the one copy of the dev rules, synced by `/remember`), citing the rule each
+finding breaks, and the report's `reuse:` line lists every new function or class with the
+search that looked for an existing match. An old duplicate the diff did not introduce is
+suggested to `/refactor duplicates`.
+
 ## 6. Consuming the tags
 
 `/branch-review`'s closing line and `/refactor`'s ledger-mode report both count the
@@ -189,3 +201,20 @@ diff and grepped for count language a digit-only sweep can't see — and found
 spelled as a word, one line the earlier pass's search had no way to catch. One
 concrete failure sentence, one `grep`, caught by *running* the check rather than
 re-asserting the sweep was complete.
+
+---
+
+## Why the spec reads the way it does
+
+- The **checked, found nothing** lines (`underspecced:`, `cleanup:`) are always filled so that
+  "checked, found nothing" never looks like "skipped".
+- A real example of an item that fails the bar: "will mislead the next reader" names no input,
+  no state and no break, and got through in the field.
+- The **bookmark is written when the report is relayed**, not after the user's pick: it records
+  what was checked, so it does not wait for the pick.
+- Underspecced items are tagged `idea`: something missing is an option, not debt.
+- `/refactor`'s revalidation, not a hand edit, removes items the user fixes now, because it
+  drops a bullet exactly when its finding no longer holds.
+- Fixing a **Later** item after a run is new uncommitted work the next run checks like any
+  other; it is not a reason to re-run.
+- The old `debrief-sha:` line is read by `||` once and the new name wins when both exist.

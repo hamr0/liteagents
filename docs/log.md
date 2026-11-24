@@ -34,3 +34,4 @@
 ## [2026-10-02] reorg | discover only — 1 of 11 row(s) await the classification interview
 ## [2026-10-02] index-flat | 12 row(s) (11 product, 0 logs, 1 archive)
 ## [2026-10-02] apply-reorg | moved 0, skipped 0, 0 oversized split candidate(s), 0 link(s) rewritten, 0 sync failure(s), 0 empty dir(s) removed, CLAUDE.md updated: true
+## [2026-11-24] index-flat | 14 row(s) (13 product, 0 logs, 1 archive)

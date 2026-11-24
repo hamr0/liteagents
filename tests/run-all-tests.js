@@ -85,15 +85,22 @@ const testSuites = [
   {
     name: 'stub-check',
     file: 'stub-check/stub-check.test.js',
-    description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file',
-    expectedTests: 24
+    description: 'Tests stub-check.cjs repairs the MEMORY include and demotes the pre-v2.19 AGENT_RULES @-include, editing only inside the markers and never repointing at a missing file, and syncs the DEV_RULES block from AGENT_RULES.md',
+    expectedTests: 34
   },
   {
     name: 'skill-shell',
     file: 'skill-shell/skill-shell.test.js',
     description: 'Tests the literal shell commands shipped inside branch-review/refactor/release/self-review/stash markdown (ledger count, docs-only classifier, self-review bookmark script, stash total/processed counts), extracted from all 4 kits and run for real under bash (and zsh when present)',
-    // Floor is the bash-only total: CI has no zsh (946 bash-only, 1494 with zsh)
-    expectedTests: 946
+    // Floor is the bash-only total: CI has no zsh (954 bash-only, 1502 with zsh)
+    expectedTests: 954
+  },
+  {
+    name: 'test-reuse',
+    file: 'skill-shell/test-reuse.test.js',
+    description: 'Tests the one-full-suite-per-code-change decider line (identical in claude self-review/branch-review/release), run as printed in throwaway git repos, plus the slot line shapes',
+    // Floor is the bash-only total: CI has no zsh (21 bash-only, 29 with zsh)
+    expectedTests: 21
   },
   {
     name: 'live-canvas channel server',

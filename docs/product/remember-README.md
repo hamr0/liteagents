@@ -316,6 +316,10 @@ satisfy a naming convention is worse than reporting it. The existing-pair rule e
 run once restored inline rules into a CLAUDE.md whose owner had cut them, and the edit had to be
 reverted by hand.
 
+The one block whose content it owns is `DEV_RULES`: the dev rules live once, in `AGENT_RULES.md`, and
+are copied byte-for-byte into each repo's config, because a copy written once and never re-synced
+drifts (this repo's own CLAUDE.md had gone two rules stale). An unmanaged `## Dev Rules` section outside the markers is replaced by the managed block on the first run (config kept as `.bak`), up to the next `## ` heading, marker, or end of file.
+
 **Legacy migration.** Old `.claude/friction/` contents are discarded, not moved: friction
 regenerates all output every run, so stale copies carry no unique information and moving them
 would overwrite fresh output.
@@ -400,3 +404,20 @@ and is due at >=5 changed docs.
 **Step-8 slot lines.** Every required step has a report line filled with its result or
 `NOT RUN: <reason>`, so a skip shows. The tests pin the phrases, which proves the slot is in the
 spec in every kit, not that a worker fills it.
+
+---
+
+## Why AGENT_RULES.md reads the way it does
+
+- The model is brilliant at execution and blind to intent: you can outsource the typing, not the
+  understanding, so the spec interview surfaces assumptions rather than burying them. A wrong
+  assumption caught there costs a sentence; caught after building it costs the build.
+- Sleeping then asserting in a test is wrong at every value: too short flakes under load, too
+  long drags the suite, and a real async bug looks identical to a guess that was too short.
+- The security invariants name their cost so the rule is not read as style: one leaked key is a
+  breached database or a runaway bill, an unbounded route is a free DoS and bill amplifier, and
+  code fine at 10 users that collapses at 1,000 is a latent outage.
+- Restatements of the `DEV_RULES` block (POC first, prove don't assert, no fitting to pass, one
+  module at a time, the dependency order) live once, in that block. The long-form sections keep
+  only what the block lacks: the three-part check on a POC's own test, aiming the POC at the
+  load-bearing claim, graduation, and what "maintained" and "lightweight" mean concretely.

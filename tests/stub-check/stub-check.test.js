@@ -301,6 +301,112 @@ console.log(`\n${colors.bright}${colors.cyan}stub-check.cjs${colors.reset}\n`);
     fs.readFileSync(path.join(repo, 'cfg', 'real.md'), 'utf8').slice(0, 60));
 }
 
+// 16-20. DEV_RULES block: synced byte-for-byte from the installed AGENT_RULES.md.
+//        Only the rules file in .claude/remember/ is the source; no file, no sync.
+const DEV_START = '<!-- DEV_RULES:START -->', DEV_END = '<!-- DEV_RULES:END -->';
+const DEV_BODY = '## Dev Rules\n\n**Reuse before you add.** Search first.';
+const RULES_FILE = (repo) => path.join(repo, '.claude', 'remember', 'AGENT_RULES.md');
+const BAK = (repo) => CFG(repo) + '.bak';
+function withRules(repo, body = DEV_BODY) {
+  fs.writeFileSync(RULES_FILE(repo),
+    `# rules\n\nintro\n\n${DEV_START}\n${body}\n${DEV_END}\n\nmore\n`);
+  return repo;
+}
+const block = (body) => `${DEV_START}\n${body}\n${DEV_END}`;
+
+{
+  const repo = withRules(repoWith(CURRENT));
+  const r = run(repo);
+  const out = read(repo);
+  check('dev rules: no markers -> inserted before MEMORY:START',
+    out === CURRENT.replace('<!-- MEMORY:START -->', `${block(DEV_BODY)}\n\n<!-- MEMORY:START -->`)
+      && /DEV_RULES block inserted/.test(r.stdout),
+    JSON.stringify(out));
+  check('dev rules: insert needs no .bak', !fs.existsSync(BAK(repo)));
+  const r2 = run(repo);
+  check('dev rules: second run silent, no change',
+    r2.stdout === '' && read(repo) === out, JSON.stringify(r2.stdout));
+}
+
+{
+  const stale = CURRENT.replace('<!-- MEMORY:START -->',
+    `${block('## Dev Rules\n\nold wording')}\n\n<!-- MEMORY:START -->`);
+  const repo = withRules(repoWith(stale));
+  const r = run(repo);
+  check('dev rules: stale block replaced by the AGENT_RULES block',
+    read(repo) === stale.replace('## Dev Rules\n\nold wording', DEV_BODY)
+      && /DEV_RULES block replaced/.test(r.stdout),
+    JSON.stringify(read(repo)));
+  check('dev rules: stale replace keeps the old config as .bak',
+    fs.existsSync(BAK(repo)) && fs.readFileSync(BAK(repo), 'utf8') === stale);
+}
+
+{
+  const cur = CURRENT.replace('<!-- MEMORY:START -->',
+    `${block(DEV_BODY)}\n\n<!-- MEMORY:START -->`);
+  const repo = withRules(repoWith(cur));
+  const before = fs.statSync(CFG(repo)).mtimeMs;
+  const r = run(repo);
+  check('dev rules: current block untouched, silent, no .bak',
+    r.stdout === '' && read(repo) === cur && !fs.existsSync(BAK(repo))
+      && fs.statSync(CFG(repo)).mtimeMs === before, JSON.stringify(r.stdout));
+}
+
+{
+  const prose = '# proj\n\nmy own prose, keep.\n\n';
+  const tail = '\n\ntrailing prose ## not a heading\n';
+  const stale = prose + block('x') + '\n\n' + CURRENT.split('\n\n').slice(1).join('\n\n') + tail;
+  const repo = withRules(repoWith(stale));
+  run(repo);
+  const out = read(repo);
+  check('dev rules: prose outside the markers is byte-identical',
+    out.startsWith(prose + block(DEV_BODY) + '\n\n') && out.endsWith(tail),
+    JSON.stringify(out));
+}
+
+{
+  // An unmanaged section outside the markers is REPLACED, up to the next ## heading.
+  const before = CURRENT + '\n## Dev Rules (mandatory)\n\nhand-written\n\n### sub\n\nmore\n\n';
+  const after = '## Next section\n\nkeep me ## byte-identical\n';
+  const unmanaged = before + after;
+  const repo = withRules(repoWith(unmanaged));
+  const r = run(repo);
+  const out = read(repo);
+  check('dev rules: unmanaged section -> one line naming what was replaced',
+    /unmanaged "## Dev Rules \(mandatory\)"/.test(r.stdout) && /replaced/.test(r.stdout)
+      && r.stdout.split('\n').length === 1, JSON.stringify(r.stdout));
+  check('dev rules: unmanaged section swapped for the managed block, old .bak kept',
+    out === CURRENT + '\n' + block(DEV_BODY) + '\n\n' + after
+      && fs.existsSync(BAK(repo)) && fs.readFileSync(BAK(repo), 'utf8') === unmanaged,
+    JSON.stringify(out));
+  check('dev rules: text after the old section (next ## heading) survives byte-identical',
+    out.endsWith(after) && !out.includes('hand-written') && !out.includes('### sub'));
+  const r2 = run(repo);
+  check('dev rules: second run after replacing is silent, no change', r2.stdout === '' && read(repo) === out);
+}
+
+{
+  // Section ending at a marker or EOF.
+  const atMarker = '# p\n\n## Dev Rules\n\nold\n\n<!-- MEMORY:START -->\n@.claude/remember/MEMORY.md\n<!-- MEMORY:END -->\n';
+  const repo = withRules(repoWith(atMarker));
+  run(repo);
+  check('dev rules: unmanaged section ending at a marker stops there',
+    read(repo) === '# p\n\n' + block(DEV_BODY) + '\n\n<!-- MEMORY:START -->\n@.claude/remember/MEMORY.md\n<!-- MEMORY:END -->\n',
+    JSON.stringify(read(repo)));
+  const atEof = '# p\n\n## Dev Rules\n\nold\n';
+  const repo2 = withRules(repoWith(atEof));
+  run(repo2);
+  check('dev rules: unmanaged section running to EOF is replaced',
+    read(repo2) === '# p\n\n' + block(DEV_BODY) + '\n', JSON.stringify(read(repo2)));
+}
+
+{
+  const repo = repoWith(CURRENT);              // no AGENT_RULES.md installed
+  const r = run(repo);
+  check('dev rules: no installed AGENT_RULES.md -> nothing inserted',
+    r.stdout === '' && read(repo) === CURRENT);
+}
+
 console.log(`\n${colors.bright}${'='.repeat(60)}${colors.reset}`);
 console.log(`Total tests: ${passed + failed}`);
 console.log(`${colors.green}Passed: ${passed}${colors.reset}`);

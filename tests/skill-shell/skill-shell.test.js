@@ -318,14 +318,29 @@ for (const kit of KITS) {
   check(`${kit.name}/self-review: underspecced: and cleanup: report lines`,
     sr.includes('underspecced: <N> items | none found: <what was checked, one phrase>') &&
     sr.includes('cleanup: <N> items | none found: <what was checked, one phrase>'));
+  check(`${kit.name}/self-review: per-smell cleanup slot, duplicate code is reuse not middle man`,
+    sr.includes('cleanup: <N> items | none found: <what was checked, one phrase> · smells: middle man <N|none> · shotgun <N|none> · name <N|none>') &&
+    sr.includes('Copied or duplicate code is a `reuse:` item, not middle man'));
+  check(`${kit.name}/self-review: ledger snippet must match exactly once; header named under ### Ledger`,
+    sr.includes("finds exactly once in its file (`grep -cF '<snippet>' <file>` prints 1;") &&
+    sr.includes('(header: the block under `### Ledger` in its SKILL.md) and its dedupe rule') &&
+    sr.includes("from the block under `### Ledger` in `/branch-review`'s SKILL.md;"));
+  check(`${kit.name}/self-review: reuse: report line and the DEV_RULES standards pointer`,
+    sr.includes('reuse: <N new functions/classes> · <name> → <search command> → <existing name | none> … | none added') &&
+    sr.includes('every new function or class') && sr.includes('`reuse:` entry') &&
+    sr.includes('against the `DEV_RULES` block in the repo\'s') && sr.includes('cite the rule each finding breaks'));
   check(`${kit.name}/self-review: relay keeps tag and file:line; worker tags items`,
     sr.includes('**every relayed item keeps its tag (`nit`/`change`/`idea`) and its `file:line`**') &&
     sr.includes('tag every item `nit`/`change`/`idea`') &&
-    sr.includes("the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)"));
+    sr.includes("the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)"));
   check(`${kit.name}/self-review: item kind is Cleanup, no Structure left`,
     sr.includes('**Cleanup?**') && sr.includes('max 5 Cleanup items') && !/Structure/.test(sr) &&
     brv.includes('A /self-review Cleanup item'));
   const ref = flat(kit.refactor);
+  check(`${kit.name}/refactor: duplicates mode — list, user picks, pin callers, never merge differing behaviour`,
+    ref.includes('`$ARGUMENTS` is `duplicates [path]`') && ref.includes('the user picks which to merge') &&
+    ref.includes('test pinning the current behaviour of every caller path') &&
+    ref.includes('**Never merge members whose behaviour differs.**'));
   check(`${kit.name}/refactor: change/idea get keep/drop/spec-it, never built in ledger mode`,
     ref.includes('**keep**') && ref.includes('**drop**') && ref.includes('**spec it**') && ref.includes('never built in ledger mode'));
 }
@@ -343,7 +358,7 @@ console.log(`\n${colors.bright}-- docs-only classifier --${colors.reset}`);
 const DOCS_LINE_RE = /grep -vE '[^']*'/;
 
 function extractDocsGrep(content, label) {
-  const lines = content.split('\n').filter(l => DOCS_LINE_RE.test(l));
+  const lines = content.split('\n').filter(l => DOCS_LINE_RE.test(l) && !l.includes('g=$(sed -n \'s/^green:')); // the test-reuse decider embeds the same regex; tests/skill-shell/test-reuse.test.js covers it
   if (lines.length !== 1) {
     throw new Error(`${label}: expected exactly 1 docs-only grep line, found ${lines.length}`);
   }
@@ -783,11 +798,11 @@ for (const kit of KITS) {
     if (writer.length !== 1) return `expected exactly 1 "tests: " template line in branch-review, found ${writer.length}`;
     const alts = writer[0].match(/build N\/A: <reason>|NOT RUN: <reason>/g) || [];
     if (alts.length !== 2) return `writer line lost its N/A / NOT RUN alternatives: ${writer[0]}`;
-    if (!/^tests: <command> exit <code>; build <command> exit <code> \|/.test(writer[0])) return `writer line shape changed: ${writer[0]}`;
+    if (!/^tests: REUSE\|RUN · reused <sha> \(docs only since\) <totals> \| ran <command> exit <code> <totals>; build <command> exit <code> \|/.test(writer[0])) return `writer line shape changed: ${writer[0]}`;
     const rel = flat(read(kit.release));
     return allOf(
       has(rel, '`tests:` line'),
-      has(rel, 'tests exit 0 **and** build exit 0 or `N/A: <reason>`'),
+      has(rel, '`REUSE …` → covered'),
       has(rel, '`NOT RUN`'));
   });
 
@@ -958,8 +973,8 @@ for (const kit of KITS) {
   const sr = flat(read(skillPath(kit, 'self-review')));
   specCheck(`${kit.name}/self-review: works: and full-suite: report lines, named in the relay rule`, () => allOf(
     has(sr, 'works: <command> exit <code> <totals> | NOT RUN: <reason>'),
-    has(sr, 'full-suite: <command> exit <code> <totals> vs before <totals | unknown> | NOT RUN: <reason>'),
-    has(sr, "same items, order, piles, and the worker's four report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`)")));
+    has(sr, 'full-suite: REUSE|RUN · reused <sha> (docs only since) <totals> | ran <command> exit <code> <totals> vs before <totals | unknown | unverified> | NOT RUN: <reason>'),
+    has(sr, "same items, order, piles, and the worker's five report lines (`works:`, `full-suite:`, `underspecced:`, `cleanup:`, `reuse:`)")));
 
   const rm = read(skillPath(kit, 'remember'));
   specCheck(`${kit.name}/remember: step-8 report lists I6-new, sync-rules, stub-check, version-check, docs, processed`, () => {
@@ -1179,12 +1194,12 @@ for (const kit of KITS) {
 
   const rf = flat(read(skillPath(kit, 'refactor')));
   specCheck(`${kit.name}/refactor: final report carries the tests: line, not a bare pass count`, () => allOf(
-    has(rf, 'tests: <cmd> exit <code> <totals> (scoped | full) | NOT RUN: <reason>'),
+    has(rf, 'tests: <cmd> exit <code> <totals> (scoped) | NOT RUN: <reason>'),
     rf.includes('tests N pass / 0 fail') ? 'stale: bare "tests N pass / 0 fail" still present' : true));
 
   const rl = flat(read(skillPath(kit, 'release')));
   specCheck(`${kit.name}/release: Phase 0.5 reports one block of every pre-check outcome`, () =>
-    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: covered | re-run <cmd> exit <code> · stale-grep: <output | empty>'));
+    has(rl, 'sha: <recorded> vs <HEAD> match yes|no · verdict: <value> · coverage: <line> · s2-check: exit <code> · tests: REUSE|RUN · covered (reused <sha> <totals>) | ran <cmd> exit <code> <totals> · stale-grep: <output | empty>'));
 
   specCheck(`${kit.name}/release: hand-back step 4 merges with --merge (merge commit), never --squash`, () => allOf(
     has(rl, '`gh pr merge --admin --merge --delete-branch`'),
@@ -1361,7 +1376,7 @@ for (const kit of KITS) {
       ...['secrets', 'tenant-isolation', 'rate-limiting', 'error-handling', 'authorization', 'data-access',
         'injection', 'auth-session', 'trust-boundaries', 'config', 'dependencies'].map(k => `s2 ${k}`),
       'checks', 'tests', 'docs-commit', 'docs', 'sweep', 'ledger', 'prior-blockers', 'ledger-liveness',
-      'blockers', 'self-review-sha'];
+      'blockers', 'self-review-sha', 'green'];
     return got.join(',') === want.join(',') || `record fields: ${got.join(',')}`;
   });
 
@@ -1369,6 +1384,60 @@ for (const kit of KITS) {
     const n = read(kit.branchReview).split('\n').length;
     return n <= 330 || `branch-review is ${n} lines`;
   });
+}
+
+// ---------------------------------------------------------------------------
+// h. One-rule-one-reading fixes: refactor's scope covers duplicates mode, the
+//    bookmark rewrite names the green: line, AGENT_RULES states one order and
+//    no self-contradicting gate, worker guardrails override Surgical, /release
+//    no longer names a record-less review or migration history.
+// ---------------------------------------------------------------------------
+console.log(`\n${colors.bright}-- normative single-reading pins --${colors.reset}`);
+for (const kit of KITS) {
+  const sr = flat(read(kit.selfReview)), brs = flat(read(kit.branchReview));
+  const rf = flat(read(kit.refactor)), rl = flat(read(kit.release));
+  const rulesPath = kit.name === 'claude' ? 'packages/claude/skills/remember/AGENT_RULES.md'
+    : kit.name === 'ampcode' ? 'packages/ampcode/skills/remember/AGENT_RULES.md'
+    : kit.name === 'droid' ? 'packages/droid/commands/remember/AGENT_RULES.md'
+    : 'packages/opencode/command/remember/AGENT_RULES.md';
+  const ar = flat(read(rulesPath));
+  specCheck(`${kit.name}/refactor: scope is the picked item; duplicates mode takes ledger steps 1 and 6`, () => allOf(
+    has(rf, '**Edit only the picked item** (a surviving ledger bullet or a picked duplicate group)'),
+    has(rf, 'in duplicates mode nothing may differ'),
+    has(rf, "and so do ledger mode's step 1 (tree clean, not on `main`) and step 6 (hand back: commit, then `/branch-review` — say it, never run it)"),
+    has(rf, "A new duplicate introduced by a diff is `/self-review`'s `reuse:` finding"),
+    rf.includes('Edit only what a surviving bullet names') ? 'stale: surviving-bullet-only scope' : true));
+  specCheck(`${kit.name}/self-review: bookmark rewrite names both lines it writes; reuse routes to /refactor duplicates`, () => allOf(
+    has(sr, 'rewrite only the bookmark and `green:` lines'),
+    has(sr, "An old duplicate the diff didn't introduce → suggest `/refactor duplicates`"),
+    sr.includes('rewrite only the bookmark line') ? 'stale: bookmark-only rewrite' : true));
+  specCheck(`${kit.name}/branch-review: green: record line says who writes it`, () =>
+    has(brs, 'written by the gate that ran the suite'));
+  for (const [label, t] of [['branch-review', brs], ['refactor', rf], ['release', rl]]) {
+    specCheck(`${kit.name}/${label}: worker guardrail overrides the Surgical dev rule`, () =>
+      has(t, '(for workers this overrides the Surgical dev rule)'));
+  }
+  specCheck(`${kit.name}/release: no /code-review fallback, no migration-history sentences`, () => allOf(
+    ...['/code-review', "predates this file's introduction", 'A record from before these lines existed']
+      .map(p => rl.includes(p) ? `stale: ${p}` : true)));
+  specCheck(`${kit.name}/AGENT_RULES: one review order, /self-review recommended not required, /branch-review reports never fixes`, () => allOf(
+    has(ar, 'propose `/self-review`, then `/branch-review`, then `/release`, in that order'),
+    has(ar, 'recommended, not required'),
+    has(ar, 'a correctness review, a full `/security` audit and a docs sweep; it reports and never fixes code'),
+    ar.includes('(checkable:') ? 'stale: self-contradicting "checkable" gate' : true));
+  specCheck(`${kit.name}: one rule one place — decider prose in /branch-review, pointer elsewhere`, () => allOf(
+    has(sr, 'Gate rule per `DEV_RULES`: `REUSE …` → cite it (green sha and totals), no full run; `RUN'),
+    has(rl, '`REUSE …` → covered, do not re-run'),
+    rl.includes('Same rule as `/branch-review`') ? 'stale: release restates the branch-review pointer' : true,
+    has(sr, '(header: the block under `### Ledger` in its SKILL.md) and its dedupe rule'),
+    sr.includes("Append in `/branch-review`'s ledger format") ? 'stale: second ledger-format sentence in self-review' : true,
+    sr.includes('(never `git grep` — gitignored)') ? 'stale: ledger dedupe copy in self-review' : true,
+    rl.includes('Every exit code in this sequence') ? 'stale: second exit-code passage in release' : true,
+    has(brs, '**Bugs and correctness.**'),
+    brs.includes('**Bugs needing a fix.**') || brs.includes('- **Correctness.**') ? 'stale: split bug/correctness bullets' : true,
+    has(rf, "counted as `/branch-review`'s `ledger:` line is (N = total − K − I)"),
+    ar.includes('**No fitting to pass.**') || ar.includes('**One module at a time.**') || ar.includes('**Necessity:**')
+      ? 'stale: AGENT_RULES restates a Dev Rules item' : true));
 }
 
 // ---------------------------------------------------------------------------
