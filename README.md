@@ -65,7 +65,7 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `/docs-builder` | Reorg, index, and split a docs corpus so search actually finds things |
 | `/self-review` | Review your code and its structure since the last self-review, with real runs — gives Fix now items, and puts nits, changes and ideas in the fix ledger |
 | `/branch-review` | Full pre-merge review, docs sweep — blockers reported, nits to the fix ledger |
-| `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area |
+| `/refactor` | Work the fix ledger's `nit` bullets; with args, refactor and optimize a named area; `duplicates [path]` merges functions that do the same job |
 | `/release` | CHANGELOG, version bump, local commit, then hand back the merge sequence |
 | `/security` | Standalone vulnerability audit (also stage 2 of `/branch-review`) |
 | `/test-generate` | Generate a test suite and verify each test exercises real code |
@@ -168,12 +168,16 @@ for you to pick from — no more hours spent nudging divs to find out what you a
 - **`/release`** — does the last pre-release chore: runs short mechanical checks (lint,
   migrations, in sync with `origin`; tests only if the review record's `tests:` line doesn't
   cover them), writes the CHANGELOG entry, bumps the version, commits locally. Then it tells you you're ready to merge, and hands the
-  sequence back. It never pushes.
+  sequence back. It never pushes. The three gates (`/self-review`, `/branch-review`, `/release`)
+  run the full test suite once per code change and reuse that green result when only docs changed
+  since; coding runs targeted tests only.
 - **`/refactor`** — with no arguments, works the fix ledger: fixes `nit` bullets, lists
   `change` and `idea` bullets (bigger than a refactor) and asks you to keep, drop or spec each. Cumulative by design: nits
   pile up until you choose to clear them, so review and release never drown in them.
   With a whole-area argument it first lists candidates (what is wrong, the proposed
-  change, strength) and stops; only the ones you pick are edited.
+  change, strength) and stops; only the ones you pick are edited. `/refactor duplicates [path]`
+  lists groups of functions doing the same job and merges only the ones you pick, never members
+  whose behaviour differs.
 
 ---
 
