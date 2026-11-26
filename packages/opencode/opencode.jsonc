@@ -9,7 +9,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Define scope with structured Product Requirement Documents"
+      "description": "Creates a PRD through structured discovery. Use when defining scope, to outline what needs to be built. Not for task lists, epics, architecture, UI design, market research or code."
     },
         "2-generate-tasks": {
       "prompt": "{file:./agent/2-generate-tasks.md}",
@@ -19,7 +19,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Break PRDs into granular, actionable task lists"
+      "description": "Converts a PRD into a granular, actionable development task list. Use for detailed planning of a PRD. Not for writing the PRD, designing the system or writing code."
     },
         "3-process-task-list": {
       "prompt": "{file:./agent/3-process-task-list.md}",
@@ -29,7 +29,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Execute tasks iteratively with progress tracking and review checkpoints"
+      "description": "Executes a task list one task at a time with sequential commits, pausing for review. Use for iterative implementation of an existing list. Not for writing the list or free-form coding."
     },
     "ui-designer": {
       "prompt": "{file:./agent/ui-designer.md}",
@@ -39,7 +39,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "UI/UX design, wireframes, prototypes, accessibility, design systems"
+      "description": "Designs lightweight, functional UI with simplified flows. Use for UI/UX design, user journeys, low-fidelity mockups, flow simplification and framework selection. Not for building the UI, system design, PRDs or review."
     },
     "quality-assurance": {
       "prompt": "{file:./agent/quality-assurance.md}",
@@ -49,7 +49,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Test architecture, quality gates, requirements traceability, risk assessment"
+      "description": "Reviews code quality, test architecture and coverage, and makes quality gate calls. Use for code review and improvement recommendations. Not for fixing code or the full pre-merge review and security audit."
     },
     "feature-planner": {
       "prompt": "{file:./agent/feature-planner.md}",
@@ -59,7 +59,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Epics, user stories, prioritization, backlog management, retrospectives"
+      "description": "Creates epics and user stories, prioritizes and manages the backlog. Use for story refinement, prioritization and backlog navigation. Not for the PRD, task lists, architecture, UI, research or code."
     },
     "code-developer": {
       "prompt": "{file:./agent/code-developer.md}",
@@ -69,17 +69,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Implementation, debugging, refactoring, code best practices"
-    },
-    "orchestrator": {
-      "prompt": "{file:./agent/orchestrator.md}",
-      "mode": "primary",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
-      },
-      "description": "Analyze intent, coordinate workflows, route to optimal agent sequences"
+      "description": "Implements code, debugs, refactors and optimizes. Use for code implementation, debugging, refactoring and development best practices. Not for architecture, product scope or UI design."
     },
     "system-architect": {
       "prompt": "{file:./agent/system-architect.md}",
@@ -89,7 +79,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "System design, technology selection, API design, scalability planning"
+      "description": "Designs MVP-first architectures with a preference for open source. Use for system design, HLA/HLD, technology selection and architecture validation from epics, stories or PRDs. Not for code, scope, tasks, UI or review."
       },
     "market-researcher": {
       "prompt": "{file:./agent/market-researcher.md}",
@@ -99,7 +89,7 @@
         "edit": true,
         "bash": true
       },
-      "description": "Market analysis, competitive research, project discovery, brainstorming"
+      "description": "Researches markets, analyzes competitors and writes project briefs. Use for market research, competitive analysis and initial project discovery. Not for code, PRDs, tasks, stories, architecture, UI or review."
     }
   },
   "command": {

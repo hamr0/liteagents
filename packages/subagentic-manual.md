@@ -22,12 +22,12 @@ Or copy a kit manually:
 
 | Platform | Installation | What lands there |
 |----------|--------------|------------------|
-| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 10 subagents + 12 skills + live-canvas-channel plugin |
-| **Droid** | `cp -r packages/droid/* ~/.factory/` | 10 subagents + 12 commands |
-| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 10 subagents + 12 skills |
-| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 10 subagents + 12 commands |
+| **Claude Code** | `cp -r packages/claude/* ~/.claude/` | 9 subagents + 12 skills + live-canvas-channel plugin |
+| **Droid** | `cp -r packages/droid/* ~/.factory/` | 9 subagents + 12 commands |
+| **Ampcode** | `cp -r packages/ampcode/* ~/.config/amp/` | 9 subagents + 12 skills |
+| **OpenCode** | `cp -r packages/opencode/* ~/.config/opencode/` | 9 subagents + 12 commands |
 
-All four ship the same 10 subagents and the same 12 capabilities. Claude Code and
+All four ship the same 9 subagents and the same 12 capabilities. Claude Code and
 Amp ship all 12 as skills; Droid and OpenCode expose all 12 as commands.
 
 ---
@@ -44,11 +44,10 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 | `2-generate-tasks` | Break a PRD into granular, actionable tasks |
 | `3-process-task-list` | Execute tasks one at a time with review checkpoints |
 
-**Specialist agents (7)**
+**Specialist agents (6)**
 
 | Agent | What it's for |
 |---|---|
-| `orchestrator` | Read intent, route to the right agent sequence |
 | `code-developer` | Implementation, debugging, refactoring |
 | `quality-assurance` | Test architecture, quality gates, risk assessment |
 | `feature-planner` | Epics, user stories, prioritization, backlog |
@@ -180,7 +179,7 @@ you to pick from — no more hours spent nudging divs to find out what you actua
 
 ## Workflow patterns
 
-Predefined multi-agent sequences the orchestrator can run. Ask for one by name, or just
+Predefined multi-agent sequences Claude can run. Ask for one by name, or just
 describe the work and let it route.
 
 | Workflow | Sequence | When |
@@ -189,11 +188,10 @@ describe the work and let it route.
 | **Brownfield** | system-architect → feature-planner | Understand an existing codebase |
 | **Feature** | feature-planner → 1-create-prd → 2-generate-tasks → 3-process-task-list | Add a feature to an existing product |
 | **Bug Fix** | code-developer → quality-assurance | Fix and verify |
-| **Sprint** | feature-planner (*sprint-plan) → 2-generate-tasks | Plan a sprint from the backlog |
 
 Each step is a decision point you approve before it runs. To skip the routing entirely,
 call an agent directly (`@quality-assurance review this code`) or run a command
-(`/test-generate src/auth.js`). Droid and OpenCode have no orchestrator — invoke commands directly.
+(`/test-generate src/auth.js`).
 
 ---
 

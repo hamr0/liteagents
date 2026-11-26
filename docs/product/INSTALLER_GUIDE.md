@@ -67,7 +67,7 @@ version, read from `package.json` — not a literal string):
 
 ```
                   LITEAGENTS
-        vX.Y.Z | 10 agents + 12 capabilities per tool
+        vX.Y.Z | 9 agents + 12 capabilities per tool
 
 What would you like to do?
 
@@ -138,7 +138,7 @@ A log of each run is written to `~/.liteagents-install.log`.
 
 ## Tools
 
-liteagents installs the **same content set into each tool**: 10 specialized agents and all 12 capabilities. Claude Code and Amp ship those 12 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
+liteagents installs the **same content set into each tool**: 9 specialized agents and all 12 capabilities. Claude Code and Amp ship those 12 as skills; Droid and opencode ship them as commands. Claude Code additionally receives the live-canvas plugin marketplace, which is a native Claude Code feature.
 
 | Tool | Default path | Description |
 |------|--------------|-------------|
@@ -426,7 +426,7 @@ Strange characters like `[32m` mean the terminal doesn't support ANSI colors.
 A collection of AI agents, commands, and skills that enhance AI-powered development tools (Claude Code, Opencode, Ampcode, Droid). It installs pre-built agents and commands for common development tasks.
 
 **Q: Are there different editions or variants?**
-No. Each tool receives the full package — 10 agents and 12 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
+No. Each tool receives the full package — 9 agents and 12 capabilities, as skills on Claude Code and Amp, as commands on Droid and opencode (Claude Code also gets the live-canvas plugin marketplace as a native feature). There are no Lite/Standard/Pro variants.
 
 **Q: Can I install multiple tools?**
 Yes. Select any combination in one run. Each tool is installed to its own directory with no conflicts.
@@ -569,7 +569,7 @@ is where the per-kit shape lives, and it is already correct:
 
 | | subagents | commands |
 |---|---|---|
-| claude | `name, description, when_to_use, model, color` | `Bash(git diff:*)` |
+| claude | `name, description, model, color` | `Bash(git diff:*)` |
 | ampcode | same as claude | `Bash(git diff:*)` |
 | droid | `…model, tools: [array]` | `description`, optional `argument-hint` — no `Bash()` field |
 | opencode | `…mode, temperature, tools: {map}` | `description`, optional `argument-hint` — no `Bash()` field |
@@ -595,9 +595,9 @@ Use the smallest one that works. Every entry is coverage you give up.
 - **`mirror:literal:start` / `mirror:literal:end`** — an HTML comment fence
   around a block that must read identically in all four kits, because it names
   every tool on purpose. Used by `remember.md`'s sessions-root probe list and
-  `quality-assurance.md`'s config-file list. Prefer this: it exempts a few
+  `live-canvas`'s Live-mode block. Prefer this: it exempts a few
   lines, not a whole file.
-- **`EXEMPT` in `mirror.cjs`** — a whole file the mirror cannot handle. Five
+- **`EXEMPT` in `mirror.cjs`** — a whole file the mirror cannot handle. Four
   today, each with its reason written next to it. Adding one means that file
   is no longer checked at all, so it needs a real reason.
 

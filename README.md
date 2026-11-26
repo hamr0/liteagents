@@ -9,7 +9,7 @@
          ╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 ```
 
-**10 specialized agents · 12 commands & skills · Claude · Opencode · Ampcode · Droid**
+**9 specialized agents · 12 commands & skills · Claude · Opencode · Ampcode · Droid**
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/hamr0/liteagents?label=version&color=2a4f8c" alt="version">
@@ -48,7 +48,6 @@ liteagents                   # copy the new kit into ~/.claude (backs up the old
 | `1-create-prd` | Define scope as a PRD — a portal into the work, not a spec to obey |
 | `2-generate-tasks` | Break a PRD into granular, actionable tasks |
 | `3-process-task-list` | Execute tasks one at a time with review checkpoints |
-| `orchestrator` | Read intent, route to the right agent sequence |
 | `code-developer` | Implementation, debugging, refactoring |
 | `quality-assurance` | Test architecture, quality gates, risk assessment |
 | `feature-planner` | Epics, user stories, prioritization, backlog |

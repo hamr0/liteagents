@@ -6,7 +6,7 @@ Claude Code is a lightweight CLI tool that provides workflow automation commands
 
 These subagents are available when using Claude Code CLI. Droid can reference them but doesn't implement them directly.
 
-### Subagents (10 total)
+### Subagents (9 total)
 
 | ID | Title | When To Use |
 |---|---|---|
@@ -16,7 +16,6 @@ These subagents are available when using Claude Code CLI. Droid can reference th
 | code-developer | Full Stack Developer | Use for code implementation, debugging, refactoring, and development best practices |
 | feature-planner | Product Manager | Use for creating epics and user stories, prioritization, backlog navigation, story refinement, and retrospectives |
 | market-researcher | Business Analyst | Use for market research, brainstorming, competitive analysis, project briefs, and initial project discovery |
-| orchestrator | Master Orchestrator | Use for workflow coordination, multi-agent tasks, role switching guidance, and when unsure which specialist to consult |
 | quality-assurance | Test Architect & Quality Advisor | Use for comprehensive test architecture review, quality gate decisions, and code improvement. Provides thorough analysis including requirements traceability, risk assessment, and test strategy. Advisory only - teams choose their quality bar |
 | system-architect | Architect | Use for system design, architecture documents, technology selection, API design, and infrastructure planning |
 | ui-designer | UX Expert | Use for UI/UX design, wireframes, prototypes, front-end specifications, and user experience optimization |

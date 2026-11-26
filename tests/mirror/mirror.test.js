@@ -317,20 +317,16 @@ writeAgentPair(weakenRepo, AGENT_KEYS.slice(0, 4)); // drops when_to_use from bo
 //     checking only, per mirror.cjs's own checkOrphans comment).
 {
   const repo = buildCleanRepo('mir-exempt-');
-  // 'agent:orchestrator.md' is hardcoded EXEMPT in mirror.cjs.
-  writeFile(path.join(repo, 'packages/claude/agents/orchestrator.md'),
-    fm(['name: orchestrator', 'description: Orchestrator', 'model: sonnet', 'color: blue', 'when_to_use: Route work']) + 'claude-only body.\n');
-  writeFile(path.join(repo, 'packages/droid/droids/orchestrator.md'),
-    fm(['name: orchestrator', 'description: Orchestrator', 'model: sonnet', 'tools: Read']) + 'droid-only body, deliberately different.\n');
-  writeFile(path.join(repo, 'packages/ampcode/agents/orchestrator.md'),
-    fm(['name: orchestrator', 'description: Orchestrator', 'model: sonnet', 'color: blue', 'when_to_use: Route work']) + 'ampcode-only body, deliberately different.\n');
-  writeFile(path.join(repo, 'packages/opencode/agent/orchestrator.md'),
-    fm(['name: orchestrator', 'description: Orchestrator', 'mode: subagent', 'temperature: 0.2', 'tools: read', 'when_to_use: Route work']) + 'opencode-only body, deliberately different.\n');
+  // 'cmd:remember/version-check.cjs' is hardcoded EXEMPT in mirror.cjs.
+  writeFile(path.join(repo, 'packages/claude/skills/remember/version-check.cjs'), 'claude-only body.\n');
+  writeFile(path.join(repo, 'packages/droid/commands/remember/version-check.cjs'), 'droid-only body, deliberately different.\n');
+  writeFile(path.join(repo, 'packages/ampcode/skills/remember/version-check.cjs'), 'ampcode-only body, deliberately different.\n');
+  writeFile(path.join(repo, 'packages/opencode/command/remember/version-check.cjs'), 'opencode-only body, deliberately different.\n');
 
   const r = run(repo, 'check');
   const orphans = orphanLines(r.stderr);
   check('exempt entry: its target files across all kits are NOT reported as orphans',
-    !orphans.some((l) => l.includes('orchestrator.md')), r.stderr);
+    !orphans.some((l) => l.includes('version-check.cjs')), r.stderr);
   check('exempt entry: overall check still exits 0 (bodies differ but are excused)',
     r.status === 0, `status=${r.status} stderr=${r.stderr}`);
 }

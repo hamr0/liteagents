@@ -46,10 +46,10 @@ const COUNT_BY = { agents: 'md', commands: 'md', skills: 'dir', plugins: 'dir' }
 
 // Expected delivered counts per tool. Update deliberately when content changes.
 const EXPECTED = {
-  claude:   { agents: 10, skills: 12, plugins: 1 },
-  opencode: { agents: 10, commands: 12 },
-  ampcode:  { agents: 10, skills: 12 },
-  droid:    { agents: 10, commands: 12 }
+  claude:   { agents: 9, skills: 12, plugins: 1 },
+  opencode: { agents: 9, commands: 12 },
+  ampcode:  { agents: 9, skills: 12 },
+  droid:    { agents: 9, commands: 12 }
 };
 
 // Test results tracker

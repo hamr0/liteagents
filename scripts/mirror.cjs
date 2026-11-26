@@ -68,12 +68,9 @@ const KITS = {
 };
 
 // Files whose body genuinely differs per kit, beyond path substitution.
-// orchestrator.md: droid has no skills folder, so it drops a whole table row.
 // Keep this list as short as it can possibly be — every entry is a file no
 // longer covered by the drift check.
 const EXEMPT = new Set([
-  // droid has no skills folder, so it drops a whole table row.
-  'agent:orchestrator.md',
   // Kit-agnostic by design: it reads its config filename from an env var and
   // carries a protected-names list that must contain CLAUDE.md, AGENTS.md and
   // AGENT.md all three. Substituting would collapse that list. Byte-identical
