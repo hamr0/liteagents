@@ -26,8 +26,7 @@
         "color",
         "description",
         "model",
-        "name",
-        "when_to_use"
+        "name"
       ],
       "optional": [],
       "bashStyle": null
@@ -38,8 +37,7 @@
         "mode",
         "name",
         "temperature",
-        "tools",
-        "when_to_use"
+        "tools"
       ],
       "optional": [],
       "bashStyle": null

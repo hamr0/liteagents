@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Subagents rewritten lean: dev rules built in, must-fill reports, digraphs and menus removed.
+- `when_to_use` merged into `description` in all kits (Claude delegates on description only);
+  opencode drops the field, which is not an opencode agent field.
+
+### Removed
+- `orchestrator` subagent (10 -> 9 subagents).
+
+---
+
 ## [4.7.0] - 2026-11-24
 
 ### Added
