@@ -44,7 +44,7 @@ Invoke with `@name` (Claude Code / OpenCode / Amp) or `invoke droid name`.
 | `2-generate-tasks` | Break a PRD into granular, actionable tasks |
 | `3-process-task-list` | Execute tasks one at a time with review checkpoints |
 
-**Specialist agents (7)**
+**Specialist agents (6)**
 
 | Agent | What it's for |
 |---|---|
