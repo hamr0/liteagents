@@ -8,15 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [4.8.0] - 2026-11-26
 
 ### Changed
-- Subagents rewritten lean: dev rules built in, must-fill reports, digraphs and menus removed.
+- Subagents rewritten lean in all 4 kits (1,621 -> 667 lines in the Claude kit): one shape
+  per agent (who I am, rules borrowed from `AGENT_RULES`, steps, a must-fill report,
+  hand-offs); dev rules built in, digraphs, `*command` menus and persona scaffolding removed.
+- Coding agents report Reused/New/Copies checked/Proof; `quality-assurance` tries to break
+  the code, reports and never fixes.
 - `when_to_use` merged into `description` in all kits (Claude delegates on description only);
   opencode drops the field, which is not an opencode agent field.
+- Package description, installer banner fallback and `subagentic-manual.md` now say 9
+  subagents; the manual's "Specialist agents" heading reads 6 and its workflow patterns no
+  longer reference the orchestrator or the Sprint row.
 
 ### Removed
-- `orchestrator` subagent (10 -> 9 subagents).
+- `orchestrator` subagent from all 4 kits (10 -> 9 subagents).
 
 ---
 
