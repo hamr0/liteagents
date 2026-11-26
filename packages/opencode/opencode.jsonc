@@ -71,16 +71,6 @@
       },
       "description": "Implementation, debugging, refactoring, code best practices"
     },
-    "orchestrator": {
-      "prompt": "{file:./agent/orchestrator.md}",
-      "mode": "primary",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
-      },
-      "description": "Analyze intent, coordinate workflows, route to optimal agent sequences"
-    },
     "system-architect": {
       "prompt": "{file:./agent/system-architect.md}",
       "mode": "subagent",
