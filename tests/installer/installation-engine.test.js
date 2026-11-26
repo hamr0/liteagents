@@ -80,7 +80,7 @@ async function createMockPackage(packageDir, toolId) {
   await fs.promises.mkdir(path.join(packageDir, toolId, 'hooks'), { recursive: true });
 
   // Create mock agents (3 for Lite, 13 total)
-  const agents = ['master', 'orchestrator', 'scrum-master', 'developer', 'tester',
+  const agents = ['master', 'code-developer', 'scrum-master', 'developer', 'tester',
                   'designer', 'analyst', 'reviewer', 'documenter', 'planner',
                   'executor', 'monitor', 'reporter'];
 
@@ -120,7 +120,7 @@ async function createMockPackage(packageDir, toolId) {
       description: 'Minimal installation',
       useCase: 'Testing lite variant',
       targetUsers: 'Test users',
-      agents: ['master', 'orchestrator', 'scrum-master'],
+      agents: ['master', 'code-developer', 'scrum-master'],
       skills: [],
       resources: ['workflows.yaml'],
       hooks: ['session-start.js']
@@ -240,7 +240,7 @@ async function runTests() {
       const agents = fs.existsSync(agentsDir) ? await fs.promises.readdir(agentsDir) : [];
       assert.strictEqual(agents.length, 3, 'Should have exactly 3 agents');
       assert.ok(agents.includes('master.md'), 'Should include master agent');
-      assert.ok(agents.includes('orchestrator.md'), 'Should include orchestrator agent');
+      assert.ok(agents.includes('code-developer.md'), 'Should include code-developer agent');
       assert.ok(agents.includes('scrum-master.md'), 'Should include scrum-master agent');
 
       // Skills should be empty (lite has no skills)
@@ -568,7 +568,7 @@ async function runTests() {
       // Verify agent names match the lite variant selection
       const agentNames = manifest.installedFiles.agents;
       assert.ok(agentNames.includes('master'), 'Should include master agent');
-      assert.ok(agentNames.includes('orchestrator'), 'Should include orchestrator agent');
+      assert.ok(agentNames.includes('code-developer'), 'Should include code-developer agent');
       assert.ok(agentNames.includes('scrum-master'), 'Should include scrum-master agent');
     });
 

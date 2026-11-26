@@ -383,6 +383,7 @@ function testInterruptedInstallation() {
 
   const testDir = createTempDir('error-test-interrupted-');
 
+  const expectedAgents = 9; // full install size the partial one is judged against
   try {
     // Create installation in progress
     const installDir = path.join(testDir, 'installation');
@@ -412,21 +413,21 @@ function testInterruptedInstallation() {
       path.join(installDir, 'manifest.json'),
       JSON.stringify(manifest, null, 2)
     );
-    logTest('Interrupted: Create partial installation', true, '2/9 agents installed');
+    logTest('Interrupted: Create partial installation', true, `2/${expectedAgents} agents installed`);
 
     // Detect interrupted installation
     const manifestPath = path.join(installDir, 'manifest.json');
     const manifestData = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const isIncomplete = manifestData.status === 'in_progress' ||
-                         manifestData.components.agents < 9; // Standard should have 9
+                         manifestData.components.agents < expectedAgents;
 
     logTest('Interrupted: Detect incomplete installation', isIncomplete,
-      `${manifestData.components.agents}/9 agents installed`);
+      `${manifestData.components.agents}/${expectedAgents} agents installed`);
 
     // Simulate resume by completing installation
     fs.writeFileSync(path.join(agentsDir, 'agent3.md'), 'agent 3');
     manifestData.components.agents = 3;
-    logTest('Interrupted: Resume installation', true, '3/9 agents now installed');
+    logTest('Interrupted: Resume installation', true, `3/${expectedAgents} agents now installed`);
 
     // Clean up
     removeDirRecursive(testDir);

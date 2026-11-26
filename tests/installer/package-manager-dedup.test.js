@@ -108,11 +108,11 @@ async function main() {
   // 4. Agents are read with the same helper and the same `.md` stripping.
   await withFixture(async (dir) => {
     const agents = path.join(dir, 'agents');
-    await writePairedCapability(agents, 'orchestrator');
+    await writePairedCapability(agents, 'code-developer');
     const content = await pm.getAvailableContent(dir);
     check('paired agent is listed once, not twice',
-      content.agents.length === 1 && content.agents[0] === 'orchestrator',
-      `expected ['orchestrator'], got ${JSON.stringify(content.agents)}`);
+      content.agents.length === 1 && content.agents[0] === 'code-developer',
+      `expected ['code-developer'], got ${JSON.stringify(content.agents)}`);
   });
 
   // 5. The dedup must not collapse genuinely distinct capabilities.
